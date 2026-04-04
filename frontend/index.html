@@ -1231,19 +1231,22 @@ video.addEventListener('touchmove', e => {
 }, {passive: true});
 
 // Single-tap / double-tap (behaviour differs in fullscreen)
-let lastTap = 0;
+let lastTap = 0, singleTapTimer = null;
 video.addEventListener('touchend', e => {
   clearTimeout(longPressTimer);
   longPressTimer = null;
   if (isLongPress) return;
   const now = Date.now();
-  const moved = Math.abs(e.changedTouches[0].clientX - touchStartX) > 10
+  const tapX = e.changedTouches[0].clientX;
+  const moved = Math.abs(tapX - touchStartX) > 10
              || Math.abs(e.changedTouches[0].clientY - touchStartY) > 10;
-  if (moved) { lastTap = 0; return; }
+  if (moved) { lastTap = 0; clearTimeout(singleTapTimer); return; }
   if (now - lastTap < 300) {
-    // Double tap — 3 zones (left / middle / right)
+    // Double tap — cancel pending single-tap first
+    clearTimeout(singleTapTimer);
+    singleTapTimer = null;
     const rect = video.getBoundingClientRect();
-    const zone = (e.changedTouches[0].clientX - rect.left) / rect.width;
+    const zone = (tapX - rect.left) / rect.width;
     if (zone < 0.33) {
       skip(-30); showToast('◀◀ −30s');
     } else if (zone > 0.67) {
@@ -1253,18 +1256,22 @@ video.addEventListener('touchend', e => {
     }
     lastTap = 0;
   } else {
-    // Single tap
-    if (isInFullscreen()) {
-      const controls = document.getElementById('controls');
-      if (controls.classList.contains('ctrl-hidden')) {
-        showControlsFS();
+    // Defer single-tap to see if a second tap follows
+    clearTimeout(singleTapTimer);
+    singleTapTimer = setTimeout(() => {
+      singleTapTimer = null;
+      if (isInFullscreen()) {
+        const controls = document.getElementById('controls');
+        if (controls.classList.contains('ctrl-hidden')) {
+          showControlsFS();
+        } else {
+          controls.classList.add('ctrl-hidden');
+          clearTimeout(hideControlsTimer);
+        }
       } else {
-        controls.classList.add('ctrl-hidden');
-        clearTimeout(hideControlsTimer);
+        togglePlay();
       }
-    } else {
-      togglePlay();
-    }
+    }, 300);
     lastTap = now;
   }
 });
