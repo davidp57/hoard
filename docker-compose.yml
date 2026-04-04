@@ -1,7 +1,7 @@
 services:
-  mediabrowser:
+  hoard:
     image: ghcr.io/davidp57/nas-vid-bro:main
-    container_name: mediabrowser
+    container_name: hoard
     user: root
     ports:
       - "8000:8000"
@@ -9,11 +9,11 @@ services:
       # Ton dossier downloads sur le NAS → monté en /media dans le container
       - /volume1/downloads:/media:rw
       # Persistence de la base SQLite (progression)
-      - mediabrowser_data:/data
+      - hoard_data:/data
     environment:
       - MEDIA_ROOT=/media
       - DB_PATH=/data/progress.db
     restart: unless-stopped
 
 volumes:
-  mediabrowser_data:
+  hoard_data:
