@@ -323,6 +323,31 @@
   }
   #seekbar-wrap:active #seekbar-thumb { transform: translate(-50%, -50%) scale(1.4); }
 
+  /* ── Faux fullscreen (iOS / PWA) ── */
+  #video-container.faux-fullscreen {
+    position: fixed !important;
+    inset: 0;
+    z-index: 200;
+  }
+  #video-container.faux-fullscreen video {
+    flex: 1;
+    height: 0;
+  }
+  #video-container.faux-fullscreen #controls {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(0, 0, 0, 0.85);
+    border-top: none;
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+    transition: opacity 0.3s;
+  }
+  #video-container.faux-fullscreen #controls.ctrl-hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+
   #ctrl-row {
     display: flex;
     align-items: center;
@@ -1177,16 +1202,28 @@ video.addEventListener('touchmove', e => {
   }
 }, {passive: true});
 
-// Double-tap to seek ±10s
+// Double-tap / single-tap (behaviour differs in fullscreen)
 let lastTap = 0;
 video.addEventListener('touchend', e => {
   const now = Date.now();
-  const vw = video.getBoundingClientRect().width;
-  const tapX = e.changedTouches[0].clientX - video.getBoundingClientRect().left;
+  const moved = Math.abs(e.changedTouches[0].clientX - touchStartX) > 10
+             || Math.abs(e.changedTouches[0].clientY - touchStartY) > 10;
   if (now - lastTap < 300) {
-    skip(tapX > vw / 2 ? 10 : -10);
-  } else if (now - lastTap > 300 && Math.abs(e.changedTouches[0].clientX - touchStartX) < 10) {
-    togglePlay();
+    // Double tap
+    if (isInFullscreen()) {
+      togglePlay();
+    } else {
+      const vw = video.getBoundingClientRect().width;
+      const tapX = e.changedTouches[0].clientX - video.getBoundingClientRect().left;
+      skip(tapX > vw / 2 ? 10 : -10);
+    }
+  } else if (!moved) {
+    // Single tap
+    if (isInFullscreen()) {
+      showControlsFS();
+    } else {
+      togglePlay();
+    }
   }
   lastTap = now;
 });
@@ -1516,17 +1553,54 @@ function showToast(msg) {
   toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
 }
 
-// Fullscreen
-function toggleFullscreen() {
-  if (!document.fullscreenElement) {
-    document.getElementById('video-container').requestFullscreen();
-  } else {
-    document.exitFullscreen();
-  }
+// Fullscreen (faux-fullscreen on touch devices / iOS / PWA)
+let hideControlsTimer = null;
+
+function isInFullscreen() {
+  return document.getElementById('video-container').classList.contains('faux-fullscreen')
+      || !!document.fullscreenElement;
 }
-document.addEventListener('fullscreenchange', () => {
+
+function showControlsFS() {
+  const controls = document.getElementById('controls');
+  controls.classList.remove('ctrl-hidden');
+  clearTimeout(hideControlsTimer);
+  hideControlsTimer = setTimeout(() => {
+    if (isInFullscreen()) controls.classList.add('ctrl-hidden');
+  }, 3000);
+}
+
+function updateFullscreenBtn() {
   const btn = document.getElementById('fullscreen-btn');
-  if (btn) btn.textContent = document.fullscreenElement ? '\u29c4' : '\u26f6';
+  if (btn) btn.textContent = isInFullscreen() ? '\u29c4' : '\u26f6';
+}
+
+function toggleFullscreen() {
+  const vc = document.getElementById('video-container');
+  const useFaux = !document.fullscreenEnabled || navigator.maxTouchPoints > 0;
+  if (vc.classList.contains('faux-fullscreen')) {
+    vc.classList.remove('faux-fullscreen');
+    document.getElementById('controls').classList.remove('ctrl-hidden');
+    clearTimeout(hideControlsTimer);
+  } else if (document.fullscreenElement) {
+    document.exitFullscreen();
+  } else if (useFaux) {
+    vc.classList.add('faux-fullscreen');
+    showControlsFS();
+  } else {
+    vc.requestFullscreen();
+  }
+  updateFullscreenBtn();
+}
+
+document.addEventListener('fullscreenchange', () => {
+  updateFullscreenBtn();
+  if (document.fullscreenElement) {
+    showControlsFS();
+  } else {
+    document.getElementById('controls').classList.remove('ctrl-hidden');
+    clearTimeout(hideControlsTimer);
+  }
 });
 
 // Keyboard shortcuts
