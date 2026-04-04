@@ -1,0 +1,1546 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>MediaBrowser</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700&display=swap');
+
+  :root {
+    --bg: #0e0e0f;
+    --surface: #161618;
+    --surface2: #1e1e21;
+    --border: #2a2a2e;
+    --accent: #e8ff47;
+    --accent-dim: rgba(232,255,71,0.12);
+    --text: #f0f0f0;
+    --text-dim: #666;
+    --text-mid: #999;
+    --seen: #3a5a3a;
+    --inprogress: #5a4a1a;
+    --danger: #ff4f4f;
+    --radius: 8px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── Header ── */
+  #header {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+    background: var(--surface);
+  }
+
+  #logo {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 0.05em;
+    flex-shrink: 0;
+  }
+  #home-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 5px 9px;
+    border-radius: 6px;
+    flex-shrink: 0;
+    line-height: 1;
+  }
+  #home-btn:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-dim); }
+  #home-btn.is-home { color: var(--accent); border-color: rgba(232,255,71,0.4); }
+
+  #breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex: 1;
+    overflow: hidden;
+    min-width: 0;
+  }
+  #breadcrumb span {
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--text-dim);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 10px;
+    min-height: 32px;
+    display: flex;
+    align-items: center;
+  }
+  #breadcrumb span:hover { color: var(--accent); border-color: var(--accent); background: var(--surface3); }
+  #breadcrumb .sep { flex-shrink: 0; color: var(--text-dim); font-size: 11px; padding: 0 1px; background: none; border: none; cursor: default; }
+  #breadcrumb .sep:hover { color: var(--text-dim); border-color: transparent; background: none; }
+
+  /* ── Layout ── */
+  #main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ── File list ── */
+  #filelist-panel {
+    width: 380px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  #sort-bar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .sort-btn {
+    background: none;
+    border: 1px solid transparent;
+    color: var(--text-dim);
+    font-size: 11px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 5px;
+    font-family: 'DM Mono', monospace;
+    white-space: nowrap;
+  }
+  .sort-btn:hover { border-color: var(--border); color: var(--text); }
+  .sort-btn.active { border-color: rgba(232,255,71,0.4); color: var(--accent); background: var(--accent-dim); }
+  #sort-dir-btn { margin-left: auto; font-size: 14px; padding: 4px 6px; }
+  #refresh-indicator {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    opacity: 0;
+    transition: opacity 0.2s;
+    flex-shrink: 0;
+  }
+  #refresh-indicator.active { opacity: 1; animation: pulse 1s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:0.3} 50%{opacity:1} }
+
+  #filelist {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+  }
+
+  .entry {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    border: 1px solid transparent;
+    margin-bottom: 3px;
+    transition: background 0.15s, border-color 0.15s;
+    position: relative;
+  }
+  .entry:hover { background: var(--surface2); border-color: var(--border); }
+  .entry.active { background: var(--accent-dim); border-color: var(--accent); }
+  .entry.seen { background: rgba(58,90,58,0.25); }
+  .entry.inprogress { background: rgba(90,74,26,0.3); }
+
+  .entry-icon {
+    font-size: 18px;
+    flex-shrink: 0;
+    width: 24px;
+    text-align: center;
+  }
+
+  .entry-info { flex: 1; min-width: 0; }
+  .entry-name {
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .entry-meta {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-top: 2px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .progress-bar-wrap {
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    margin-top: 5px;
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width 0.3s;
+  }
+
+  .entry-actions {
+    display: flex;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity 0.15s;
+    flex-shrink: 0;
+  }
+  .entry:hover .entry-actions { opacity: 1; }
+  /* Always show actions on directory entries (pin button must be accessible) */
+  .entry.is-dir .entry-actions { opacity: 1; }
+
+  .action-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text-mid);
+    border-radius: 5px;
+    padding: 4px 8px;
+    font-size: 11px;
+    cursor: pointer;
+    white-space: nowrap;
+    font-family: 'DM Mono', monospace;
+    transition: all 0.15s;
+  }
+  .action-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .action-btn.danger:hover { border-color: var(--danger); color: var(--danger); }
+
+  /* ── Player panel ── */
+  #player-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: #000;
+    position: relative;
+    min-width: 0;
+  }
+
+  #player-empty {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-dim);
+    gap: 12px;
+  }
+  #player-empty .big { font-size: 48px; }
+  #player-empty p { font-size: 13px; }
+
+  #video-container {
+    flex: 1;
+    position: relative;
+    display: none;
+    background: #000;
+    overflow: hidden;
+  }
+  #video-container.active { display: flex; flex-direction: column; }
+
+  video {
+    width: 100%;
+    flex: 1;
+    object-fit: contain;
+    display: block;
+    min-height: 0;
+  }
+
+  /* ── Player controls ── */
+  #controls {
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding: 12px 16px;
+    flex-shrink: 0;
+  }
+
+  #now-playing {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-mid);
+    margin-bottom: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-family: 'DM Mono', monospace;
+  }
+  #now-playing span { color: var(--accent); }
+
+  #seekbar-wrap {
+    position: relative;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    cursor: pointer;
+    margin-bottom: 22px;
+    touch-action: none;
+    overflow: visible;
+  }
+  #seekbar-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 3px;
+    pointer-events: none;
+    width: 0%;
+  }
+  #seekbar-thumb {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 14px;
+    height: 14px;
+    background: var(--accent);
+    border-radius: 50%;
+    pointer-events: none;
+    left: 0%;
+    transition: transform 0.1s;
+  }
+  #seekbar-wrap:active #seekbar-thumb { transform: translate(-50%, -50%) scale(1.4); }
+
+  #ctrl-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .ctrl-btn {
+    background: none;
+    border: none;
+    color: var(--text);
+    font-size: 20px;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 6px;
+    transition: color 0.15s, background 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+  .ctrl-btn:hover { color: var(--accent); background: var(--accent-dim); }
+
+  #time-display {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--text-dim);
+    flex: 1;
+  }
+
+  #volume-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  #volume-slider {
+    width: 70px;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+
+  /* ── Move modal ── */
+  #modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+  #modal-overlay.open { display: flex; }
+  #modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    width: 340px;
+    max-width: 90vw;
+  }
+  #modal h3 { font-size: 15px; margin-bottom: 16px; color: var(--accent); }
+  #modal-filename { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text-dim); margin-bottom: 16px; word-break: break-all; }
+
+  .modal-folder-btn {
+    display: block;
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    text-align: left;
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.15s;
+  }
+  .modal-folder-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  #modal-cancel {
+    margin-top: 8px;
+    width: 100%;
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    padding: 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    transition: all 0.15s;
+  }
+  #modal-cancel:hover { border-color: var(--text-dim); color: var(--text); }
+
+  /* ── Cut markers on seekbar ── */
+  #cut-seekbar-fill {
+    position: absolute;
+    top: 0; height: 100%;
+    background: #4a9ee8;
+    opacity: 0.45;
+    pointer-events: none;
+    border-radius: 2px;
+    display: none;
+  }
+  /* Downward triangle ▼ below the bar */
+  .cut-seekbar-marker {
+    position: absolute;
+    top: 8px;        /* 6px bar + 2px gap */
+    width: 0; height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 7px solid var(--accent);
+    transform: translateX(-50%);
+    display: none;
+    pointer-events: none;
+  }
+  /* IN/OUT mark buttons */
+  .cut-mark-btn {
+    font-size: 11px !important;
+    font-weight: 700;
+    font-family: 'DM Mono', monospace;
+    padding: 4px 7px !important;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    opacity: 0.5;
+  }
+  .cut-mark-btn.active {
+    opacity: 1;
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  #cut-btn.ready { color: var(--accent); }
+
+  /* ── Jobs panel ── */
+  #jobs-panel {
+    position: fixed;
+    bottom: 70px;
+    right: 20px;
+    width: 300px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    z-index: 150;
+    pointer-events: none;
+  }
+  .job-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    pointer-events: auto;
+    animation: slideIn 0.2s ease;
+  }
+  @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  .job-name { font-size: 11px; font-family: 'DM Mono', monospace; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 6px; }
+  .job-bar-track { height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .job-bar-fill { height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.4s; }
+  .job-status { font-size: 10px; font-family: 'DM Mono', monospace; margin-top: 4px; }
+  .job-status.done { color: #6fcf6f; }
+  .job-status.error { color: #cf6f6f; }
+  .job-status.running { color: var(--text-dim); }
+
+  /* ── Toast ── */
+  #toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 20px;
+    border-radius: 100px;
+    font-size: 13px;
+    font-family: 'DM Mono', monospace;
+    transition: transform 0.3s;
+    z-index: 200;
+    white-space: nowrap;
+  }
+  #toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* ── Mobile ── */
+  @media (max-width: 700px) {
+    #filelist-panel { width: 100%; border-right: none; }
+    #player-panel { display: none; }
+    #player-panel.mobile-active {
+      display: flex;
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+    }
+    #mobile-back {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 16px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      font-size: 13px;
+      color: var(--accent);
+    }
+  }
+  @media (min-width: 701px) {
+    #mobile-back { display: none; }
+  }
+
+  /* ── Quick folders ── */
+  .qf-section { padding: 6px 8px 0; }
+  .qf-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+    padding: 2px 4px 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  .entry.qf {
+    background: rgba(232,255,71,0.07);
+    border-color: rgba(232,255,71,0.18);
+  }
+  .entry.qf:hover { border-color: var(--accent); }
+  .qf-divider { height: 1px; background: var(--border); margin: 8px 8px; }
+  .action-btn.pinned { color: var(--accent); border-color: rgba(232,255,71,0.4); }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div id="logo">▶ MEDIA</div>
+  <button id="home-btn" onclick="navigateHome()" title="Aller au dossier de départ">⌂</button>
+  <button onclick="openBrowseModal()" title="Choisir le dossier de départ" style="background:none;border:1px solid var(--border);color:var(--text-dim);font-size:11px;cursor:pointer;padding:5px 8px;border-radius:6px;flex-shrink:0;font-family:inherit">📂 Browse…</button>
+  <div id="breadcrumb"></div>
+</div>
+
+<div id="main">
+  <!-- File list -->
+  <div id="filelist-panel">
+    <div id="sort-bar">
+      <button class="sort-btn" id="sort-date-btn" onclick="setSortBy('date')">Date</button>
+      <button class="sort-btn" id="sort-name-btn" onclick="setSortBy('name')">Nom</button>
+      <button class="sort-btn" id="sort-dir-btn" onclick="toggleSortDir()" title="Inverser l'ordre">&#x2193;</button>
+      <div id="refresh-indicator" title="Mise à jour en cours…"></div>
+      <button class="sort-btn" onclick="openMkdirModal()" title="Nouveau dossier" style="margin-left:4px">&#x2795;</button>
+    </div>
+    <div id="filelist">
+      <div style="color:var(--text-dim);font-size:13px;padding:20px;text-align:center">Chargement…</div>
+    </div>
+  </div>
+
+  <!-- Player -->
+  <div id="player-panel">
+    <div id="mobile-back" onclick="closeMobilePlayer()">← Retour</div>
+
+    <div id="player-empty">
+      <div class="big">🎬</div>
+      <p>Sélectionne une vidéo</p>
+    </div>
+
+    <div id="video-container">
+      <video id="video" preload="metadata"></video>
+      <div id="controls">
+        <div id="now-playing">— <span id="now-playing-name"></span></div>
+        <div id="seekbar-wrap" id="seekbar">
+          <div id="seekbar-fill"></div>
+          <div id="cut-seekbar-fill"></div>
+          <div id="cut-seekbar-in" class="cut-seekbar-marker"></div>
+          <div id="cut-seekbar-out" class="cut-seekbar-marker"></div>
+          <div id="seekbar-thumb"></div>
+        </div>
+        <div id="ctrl-row">
+          <button class="ctrl-btn" onclick="skip(-30)" title="-30s">⏪</button>
+          <button class="ctrl-btn" onclick="skip(-10)" title="-10s">◀◀</button>
+          <button class="ctrl-btn" id="playpause-btn" onclick="togglePlay()">▶</button>
+          <button class="ctrl-btn" onclick="skip(10)" title="+10s">▶▶</button>
+          <button class="ctrl-btn" onclick="skip(30)" title="+30s">⏩</button>
+          <div id="time-display">0:00 / 0:00</div>
+          <div id="volume-wrap">
+            <span style="font-size:16px;cursor:pointer" onclick="toggleMute()">🔊</span>
+            <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="1" oninput="setVolume(this.value)">
+          </div>          <button class="ctrl-btn" id="fullscreen-btn" onclick="toggleFullscreen()" title="Plein écran (F)">&#x26F6;</button>
+          <button class="ctrl-btn cut-mark-btn" id="cut-in-btn" onclick="setCutPoint('in')" title="Marquer point IN" style="display:none">[IN</button>
+          <button class="ctrl-btn cut-mark-btn" id="cut-out-btn" onclick="setCutPoint('out')" title="Marquer point OUT" style="display:none">OUT]</button>
+          <button class="ctrl-btn cut-mark-btn" id="cut-clear-btn" onclick="clearCutPoints()" title="Annuler les points IN/OUT" style="display:none;opacity:0.7">✕</button>
+          <button class="ctrl-btn" id="cut-btn" onclick="openCutModal()" title="✂ Découper" style="display:none">&#x2702;</button>        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Move modal -->
+<div id="modal-overlay" onclick="closeModal(event)">
+  <div id="modal">
+    <h3>Déplacer vers…</h3>
+    <div id="modal-filename"></div>
+    <div id="modal-folders"></div>
+    <button id="modal-cancel" onclick="closeModal()">Annuler</button>
+  </div>
+</div>
+
+<!-- Browse modal -->
+<div id="browse-overlay" onclick="closeBrowseModal(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center">
+  <div id="browse-modal" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:480px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;gap:10px">
+    <div style="font-size:15px;font-weight:700;color:var(--accent)">Choisir le dossier de départ</div>
+    <div style="display:flex;gap:6px">
+      <input id="browse-path-input" type="text" placeholder="Ex: C:\\Users ou //serveur/partage" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:7px 10px;outline:none" onkeydown="if(event.key==='Enter')browseGoToInput()">
+      <button onclick="browseGoToInput()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:7px 12px;border-radius:6px;cursor:pointer;font-family:inherit;white-space:nowrap">&#x2192; Aller</button>
+      <button onclick="loadBrowseDir('')" title="Lecteurs / Racine" style="background:var(--surface2);border:1px solid var(--border);color:var(--text-dim);padding:7px 10px;border-radius:6px;cursor:pointer;font-size:14px">&#x1f4bb;</button>
+    </div>
+    <div id="browse-crumb" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim);word-break:break-all;min-height:16px"></div>
+    <div id="browse-list" style="overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:4px;min-height:120px;max-height:50vh"></div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button onclick="confirmBrowseSelect()" style="flex:1;background:var(--accent);color:#000;border:none;padding:10px;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">⌂ Définir comme départ</button>
+      <button onclick="closeBrowseModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:10px 16px;border-radius:8px;cursor:pointer;font-family:inherit">Annuler</button>
+    </div>
+  </div>
+</div>
+
+<!-- Cut modal -->
+<div id="cut-overlay" onclick="closeCutModal(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center">
+  <div id="cut-modal" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:400px;max-width:95vw;display:flex;flex-direction:column;gap:14px">
+    <div style="font-size:15px;font-weight:700;color:var(--accent)">&#x2702; Couper</div>
+    <div id="cut-filename" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim);word-break:break-all"></div>
+    <div id="cut-duration" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--accent);opacity:0.8"></div>
+
+    <!-- Destination -->
+    <div style="font-size:12px;color:var(--text-dim)">Dossier destination</div>
+    <div id="cut-folders" style="display:flex;flex-direction:column;gap:6px;max-height:180px;overflow-y:auto"></div>
+    <div style="display:flex;gap:6px">
+      <input id="cut-dest-input" type="text" placeholder="ou saisir un chemin relatif…"
+        style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:7px 10px;outline:none">
+    </div>
+
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button onclick="confirmCut()" style="flex:1;background:var(--accent);color:#000;border:none;padding:10px;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">&#x2702; Couper</button>
+      <button onclick="closeCutModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:10px 16px;border-radius:8px;cursor:pointer;font-family:inherit">Annuler</button>
+    </div>
+  </div>
+</div>
+
+<!-- Jobs panel -->
+<div id="jobs-panel"></div>
+
+<!-- Mkdir modal -->
+<div id="mkdir-overlay" onclick="closeMkdirModal(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:360px;max-width:95vw;display:flex;flex-direction:column;gap:14px">
+    <div style="font-size:15px;font-weight:700;color:var(--accent)">Nouveau dossier</div>
+    <input id="mkdir-input" type="text" placeholder="Nom du dossier" autocomplete="off"
+      style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Mono',monospace;font-size:13px;padding:9px 12px;outline:none;width:100%;box-sizing:border-box"
+      onkeydown="if(event.key==='Enter')confirmMkdir();else if(event.key==='Escape')closeMkdirModal()">
+    <div style="display:flex;gap:8px">
+      <button onclick="confirmMkdir()" style="flex:1;background:var(--accent);color:#000;border:none;padding:10px;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">Créer</button>
+      <button onclick="closeMkdirModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:10px 16px;border-radius:8px;cursor:pointer;font-family:inherit">Annuler</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+const API = '';  // same origin
+let currentPath = '';
+let homeFolder = localStorage.getItem('homeFolder') || '';
+let sortBy = localStorage.getItem('sortBy') || 'date';   // 'date' | 'name'
+let sortDir = localStorage.getItem('sortDir') || 'desc'; // 'asc' | 'desc'
+let currentFile = null;
+let quickFolders = [];
+let saveInterval = null;
+let isSeeking = false;
+let pendingMovePath = null;
+let entries = [];
+const dirCache = new Map(); // path -> {entries, breadcrumb, ts}
+const DIR_CACHE_TTL = 30_000; // ms — no background refresh if data is this fresh
+
+function navigateHome() {
+  navigate(homeFolder);
+}
+
+function setSortBy(by) {
+  sortBy = by;
+  localStorage.setItem('sortBy', sortBy);
+  updateSortUI();
+  renderFiles(entries);
+}
+
+function toggleSortDir() {
+  sortDir = sortDir === 'desc' ? 'asc' : 'desc';
+  localStorage.setItem('sortDir', sortDir);
+  updateSortUI();
+  renderFiles(entries);
+}
+
+function updateSortUI() {
+  document.getElementById('sort-date-btn').classList.toggle('active', sortBy === 'date');
+  document.getElementById('sort-name-btn').classList.toggle('active', sortBy === 'name');
+  const dirBtn = document.getElementById('sort-dir-btn');
+  dirBtn.textContent = sortDir === 'desc' ? '\u2193' : '\u2191';
+  dirBtn.title = sortDir === 'desc' ? 'Plus récent / A→Z : cliquer pour inverser' : 'Plus ancien / Z→A : cliquer pour inverser';
+}
+
+function sortedList(list) {
+  const pinned = list.filter(e => e.is_quick_folder);
+  const rest = [...list.filter(e => !e.is_quick_folder)];
+  rest.sort((a, b) => {
+    let cmp = 0;
+    if (sortBy === 'name') {
+      cmp = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+    } else {
+      cmp = (a.mtime || 0) - (b.mtime || 0);
+    }
+    return sortDir === 'desc' ? -cmp : cmp;
+  });
+  return { pinned, rest };
+}
+
+function updateHomeBtnState() {
+  const btn = document.getElementById('home-btn');
+  if (btn) btn.classList.toggle('is-home', currentPath === homeFolder);
+}
+
+// ── Browse modal (choose home folder) ──────────────────────────────────────
+let browsePath = '';
+
+async function openBrowseModal() {
+  // Start from current server MEDIA_ROOT
+  const settings = await fetch(`${API}/api/settings`).then(r => r.json());
+  browsePath = settings.media_root || '';
+  const overlay = document.getElementById('browse-overlay');
+  overlay.style.display = 'flex';
+  await loadBrowseDir(browsePath);
+}
+
+function closeBrowseModal(e) {
+  if (e && e.target !== document.getElementById('browse-overlay')) return;
+  document.getElementById('browse-overlay').style.display = 'none';
+}
+
+async function loadBrowseDir(path) {
+  browsePath = path;
+  const data = await fetch(`${API}/api/browse?path=${encodeURIComponent(path)}`).then(r => r.json()).catch(err => null);
+  if (!data) { showToast('Chemin inaccessible'); return; }
+  // Sync the text input
+  const inp = document.getElementById('browse-path-input');
+  if (inp) inp.value = data.path || '';
+  // Crumb / up button
+  const crumbEl = document.getElementById('browse-crumb');
+  let crumbHtml = '';
+  if (data.parent !== null && data.parent !== undefined) {
+    const upLabel = data.parent === '' ? '&#x1f4bb; Lecteurs' : '&#8593; ' + esc(data.parent.split('/').filter(Boolean).pop() || '/');
+    crumbHtml += `<span onclick="loadBrowseDir('${esc(data.parent || '')}')" style="cursor:pointer;color:var(--accent)">${upLabel}</span>  `;
+  }
+  crumbHtml += `<span style="color:var(--text)">${esc(data.path || 'Lecteurs')}</span>`;
+  crumbEl.innerHTML = crumbHtml;
+  // Dir listing
+  const listEl = document.getElementById('browse-list');
+  if (!data.dirs.length) {
+    listEl.innerHTML = `<div style="color:var(--text-dim);font-size:12px;padding:8px">Aucun sous-dossier</div>`;
+    return;
+  }
+  listEl.innerHTML = data.dirs.map(d => `
+    <div onclick="loadBrowseDir('${esc(d.path)}')" style="display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:13px" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+      \ud83d\udcc1 ${esc(d.name)}
+    </div>
+  `).join('');
+}
+
+function browseGoToInput() {
+  const val = (document.getElementById('browse-path-input').value || '').trim();
+  if (val) loadBrowseDir(val);
+}
+
+async function confirmBrowseSelect() {
+  const resp = await fetch(`${API}/api/settings`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ media_root: browsePath }),
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    showToast('Erreur : ' + (err.detail || resp.status));
+    return;
+  }
+  const result = await resp.json();
+  document.getElementById('browse-overlay').style.display = 'none';
+  // Reset home to root of new MEDIA_ROOT
+  homeFolder = '';
+  localStorage.setItem('homeFolder', '');
+  const label = result.media_root.split('/').filter(Boolean).pop() || '/';
+  showToast(`\u2302 Racine : ${label}`);
+  await loadQuickFolders();
+  navigate('');
+  updateHomeBtnState();
+}
+
+// ── Init ────────────────────────────────────────────────────────────────────
+async function loadQuickFolders() {
+  quickFolders = await fetch(`${API}/api/quick-folders`).then(r => r.json());
+}
+
+async function init() {
+  const savedVolume = localStorage.getItem('volume');
+  if (savedVolume !== null) {
+    const v = parseFloat(savedVolume);
+    video.volume = v;
+    document.getElementById('volume-slider').value = v;
+  }
+  await loadQuickFolders();
+  updateSortUI();
+  navigate(homeFolder);
+}
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+async function navigate(path) {
+  // Stop any playing video when changing folder
+  if (currentFile) {
+    video.pause();
+    video.src = '';
+    document.getElementById('video-container').classList.remove('active');
+    document.getElementById('player-empty').style.display = '';
+    if (saveInterval) { clearInterval(saveInterval); saveInterval = null; }
+    currentFile = null;
+    document.getElementById('cut-in-btn').style.display = 'none';
+    document.getElementById('cut-out-btn').style.display = 'none';
+    document.getElementById('cut-btn').style.display = 'none';
+    document.getElementById('cut-clear-btn').style.display = 'none';
+    cutIn = null; cutOut = null;
+  }
+  currentPath = path;
+
+  // ─ Stale-while-revalidate ──────────────────────────────────────────────
+  const cached = dirCache.get(path);
+  if (cached) {
+    // Show stale data immediately
+    entries = cached.entries;
+    renderBreadcrumb(cached.breadcrumb);
+    renderFiles(cached.entries);
+    // If data is fresh enough, skip background refresh entirely
+    if (Date.now() - cached.ts < DIR_CACHE_TTL) return;
+  }
+
+  // Fetch fresh data in background (or foreground if no cache)
+  const indicator = document.getElementById('refresh-indicator');
+  if (indicator) indicator.classList.add('active');
+
+  let data;
+  try {
+    const resp = await fetch(`${API}/api/files?path=${encodeURIComponent(path)}`);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    data = await resp.json();
+  } catch (err) {
+    if (indicator) indicator.classList.remove('active');
+    if (!cached) {
+      if (path !== '') {
+        homeFolder = '';
+        localStorage.setItem('homeFolder', '');
+        return navigate('');
+      }
+      showToast('Impossible de charger le dossier : ' + err.message);
+    }
+    return;
+  }
+
+  if (indicator) indicator.classList.remove('active');
+
+  // Only re-render if we're still on the same path
+  if (currentPath !== path) return;
+
+  dirCache.set(path, { entries: data.entries, breadcrumb: data.breadcrumb, ts: Date.now() });
+  entries = data.entries;
+  renderBreadcrumb(data.breadcrumb);
+  renderFiles(data.entries);
+}
+
+function renderBreadcrumb(crumbs) {
+  const bc = document.getElementById('breadcrumb');
+  const homeLabel = homeFolder ? homeFolder.split('/').pop() + ' \u2302' : '~';
+  let html = `<span onclick="navigateHome()">${homeLabel}</span>`;
+  for (const c of crumbs) {
+    html += `<span class="sep">/</span><span onclick="navigate('${esc(c.path)}')">${esc(c.name)}</span>`;
+  }
+  bc.innerHTML = html;
+  updateHomeBtnState();
+}
+
+function renderEntry(e, i) {
+  const dirIcon = e.folder_state === 'seen' ? '✅' : (e.folder_state === 'inprogress' ? '📂' : '📁');
+  const icon = e.is_dir ? dirIcon : (e.is_video ? getVideoIcon(e.progress) : '📄');
+  const meta = e.is_dir ? '' : formatSize(e.size);
+  const progressHtml = e.is_video && e.progress && e.progress.duration > 0 ? `
+    <div class="progress-bar-wrap">
+      <div class="progress-bar-fill" style="width:${e.progress.percent}%"></div>
+    </div>
+    <div style="margin-top:2px">${e.progress.percent > 0 ? e.progress.percent + '% · ' + formatTime(e.progress.position) + ' / ' + formatTime(e.progress.duration) : ''}</div>
+  ` : '';
+
+  const stateClass = e.is_video ? getStateClass(e.progress) : (e.folder_state === 'seen' ? 'seen' : (e.folder_state === 'inprogress' ? 'inprogress' : ''));
+  const pinBtn = e.is_dir ? `<button class="action-btn ${e.is_quick_folder ? 'pinned' : ''}" onclick="togglePin('${esc(e.path)}', ${e.is_quick_folder})" title="${e.is_quick_folder ? 'Retirer' : 'Accès rapide'}">📌</button>` : '';
+  const actionsHtml = e.is_video || e.is_dir ? `
+    <div class="entry-actions" onclick="event.stopPropagation()">
+      ${pinBtn}
+      <button class="action-btn" onclick="openMoveModal('${esc(e.path)}', '${esc(e.name)}')">↗</button>
+      <button class="action-btn danger" onclick="confirmDelete('${esc(e.path)}', '${esc(e.name)}')">🗑</button>
+    </div>
+  ` : '';
+
+  const activeClass = currentFile && currentFile.path === e.path ? 'active' : '';
+  const clickHandler = e.is_dir ? "navigate('" + esc(e.path) + "')" : (e.is_video ? 'playVideo(' + i + ')' : '');
+  const qfClass = e.is_quick_folder ? 'qf' : '';
+
+  return `
+    <div class="entry ${stateClass} ${activeClass} ${e.is_dir ? 'is-dir' : ''} ${qfClass}" onclick="${clickHandler}">
+      <div class="entry-icon">${icon}</div>
+      <div class="entry-info">
+        <div class="entry-name">${esc(e.name)}</div>
+        <div class="entry-meta">
+          <span>${meta}</span>
+          ${progressHtml}
+        </div>
+      </div>
+      ${actionsHtml}
+    </div>
+  `;
+}
+
+function renderFiles(list) {
+  const el = document.getElementById('filelist');
+  if (!list.length) {
+    el.innerHTML = `<div style="color:var(--text-dim);font-size:13px;padding:20px;text-align:center">Dossier vide</div>`;
+    return;
+  }
+
+  const { pinned, rest } = sortedList(list);
+
+  let html = '';
+  if (pinned.length) {
+    html += `<div class="qf-section"><div class="qf-label">📌 Accès rapide</div>`;
+    html += pinned.map((e) => renderEntry(e, list.indexOf(e))).join('');
+    html += `</div><div class="qf-divider"></div>`;
+  }
+  html += rest.map((e) => renderEntry(e, list.indexOf(e))).join('');
+  el.innerHTML = html;
+}
+
+function getVideoIcon(p) {
+  if (!p || p.percent === 0) return '🎬';
+  if (p.percent >= 90) return '✅';
+  return '▶️';
+}
+
+function getStateClass(p) {
+  if (!p || p.percent === 0) return '';
+  if (p.percent >= 90) return 'seen';
+  return 'inprogress';
+}
+
+// ── Player ────────────────────────────────────────────────────────────────────
+const video = document.getElementById('video');
+
+async function playVideo(idx) {
+  const entry = entries[idx];
+  if (!entry || !entry.is_video) return;
+
+  currentFile = entry;
+
+  // Show cut controls, reset any previous cut points
+  document.getElementById('cut-in-btn').style.display = '';
+  document.getElementById('cut-out-btn').style.display = '';
+  document.getElementById('cut-btn').style.display = '';
+  document.getElementById('cut-clear-btn').style.display = 'none';
+  document.getElementById('cut-in-btn').classList.remove('active');
+  document.getElementById('cut-out-btn').classList.remove('active');
+  cutIn = null; cutOut = null;
+  updateCutUI();
+
+  // Mobile: show player panel
+  if (window.innerWidth <= 700) {
+    document.getElementById('player-panel').classList.add('mobile-active');
+  }
+
+  document.getElementById('player-empty').style.display = 'none';
+  const vc = document.getElementById('video-container');
+  vc.classList.add('active');
+  document.getElementById('now-playing-name').textContent = entry.name;
+
+  video.src = `${API}/api/stream?path=${encodeURIComponent(entry.path)}`;
+
+  // Restore position + cut points
+  const prog = await fetch(`${API}/api/progress?path=${encodeURIComponent(entry.path)}`).then(r => r.json());
+  if (prog.cut_in != null) {
+    cutIn = prog.cut_in;
+    document.getElementById('cut-in-btn').classList.add('active');
+  }
+  if (prog.cut_out != null) {
+    cutOut = prog.cut_out;
+    document.getElementById('cut-out-btn').classList.add('active');
+  }
+  video.onloadedmetadata = () => {
+    updateCutUI();
+    if (prog.position > 5 && prog.position < video.duration - 10) {
+      video.currentTime = Math.max(cutIn ?? 0, prog.position);
+    } else if (cutIn !== null) {
+      video.currentTime = cutIn;
+    }
+    video.play();
+  };
+
+  // Auto-save every 5s
+  if (saveInterval) clearInterval(saveInterval);
+  saveInterval = setInterval(saveProgress, 5000);
+
+  // Re-render list to show active
+  renderFiles(entries);
+}
+
+function closeMobilePlayer() {
+  document.getElementById('player-panel').classList.remove('mobile-active');
+  video.pause();
+}
+
+function togglePlay() {
+  if (video.paused) video.play(); else video.pause();
+}
+
+function skip(seconds) {
+  const lo = cutIn ?? 0;
+  const hi = cutOut ?? (video.duration || 0);
+  video.currentTime = Math.max(lo, Math.min(hi, video.currentTime + seconds));
+}
+
+function setVolume(v) {
+  video.volume = v;
+  video.muted = false;
+  localStorage.setItem('volume', v);
+}
+
+function toggleMute() {
+  video.muted = !video.muted;
+}
+
+async function saveProgress() {
+  if (!currentFile || !video.duration) return;
+  // Snapshot locals before any await — currentFile may be nulled by navigate() while we await
+  const file = currentFile;
+  const pos = video.currentTime;
+  const dur = video.duration;
+  const cin = cutIn;
+  const cout = cutOut;
+  await fetch(`${API}/api/progress?path=${encodeURIComponent(file.path)}`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ position: pos, duration: dur, cut_in: cin, cut_out: cout })
+  });
+  // Refresh entry progress in list
+  const idx = entries.findIndex(e => e.path === file.path);
+  if (idx >= 0) {
+    entries[idx].progress = {
+      position: pos,
+      duration: dur,
+      percent: Math.round(pos / dur * 100 * 10) / 10
+    };
+    renderFiles(entries);
+  }
+}
+
+// Seekbar
+const seekbarWrap = document.getElementById('seekbar-wrap');
+const seekbarFill = document.getElementById('seekbar-fill');
+const seekbarThumb = document.getElementById('seekbar-thumb');
+
+function getSeekPercent(e) {
+  const rect = seekbarWrap.getBoundingClientRect();
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+}
+
+function clampSeekPct(rawPct) {
+  const dur = video.duration || 1;
+  const lo = cutIn  != null ? cutIn  / dur : 0;
+  const hi = cutOut != null ? cutOut / dur : 1;
+  return Math.max(lo, Math.min(hi, rawPct));
+}
+
+seekbarWrap.addEventListener('pointerdown', e => {
+  isSeeking = true;
+  seekbarWrap.setPointerCapture(e.pointerId);
+  const pct = clampSeekPct(getSeekPercent(e));
+  video.currentTime = pct * (video.duration || 0);
+});
+seekbarWrap.addEventListener('pointermove', e => {
+  if (!isSeeking) return;
+  const pct = clampSeekPct(getSeekPercent(e));
+  seekbarFill.style.width = (pct * 100) + '%';
+  seekbarThumb.style.left = (pct * 100) + '%';
+});
+seekbarWrap.addEventListener('pointerup', e => {
+  if (!isSeeking) return;
+  isSeeking = false;
+  const pct = clampSeekPct(getSeekPercent(e));
+  video.currentTime = pct * (video.duration || 0);
+});
+
+video.addEventListener('timeupdate', () => {
+  if (isSeeking || !video.duration) return;
+  // Enforce IN/OUT playback bounds
+  if (cutIn !== null && video.currentTime < cutIn) {
+    video.currentTime = cutIn;
+    return;
+  }
+  if (cutOut !== null && video.currentTime >= cutOut) {
+    video.pause();
+    video.currentTime = cutOut;
+    saveProgress();
+    return;
+  }
+  const pct = video.currentTime / video.duration * 100;
+  seekbarFill.style.width = pct + '%';
+  seekbarThumb.style.left = pct + '%';
+  document.getElementById('time-display').textContent =
+    `${formatTime(video.currentTime)} / ${formatTime(video.duration)}`;
+});
+
+video.addEventListener('play', () => { document.getElementById('playpause-btn').textContent = '⏸'; });
+video.addEventListener('pause', () => { document.getElementById('playpause-btn').textContent = '▶'; });
+video.addEventListener('ended', saveProgress);
+
+// Touch gestures on video
+let touchStartX = 0, touchStartY = 0, touchStartTime = 0, touchStartVol = 0;
+video.addEventListener('touchstart', e => {
+  touchStartX = e.touches[0].clientX;
+  touchStartY = e.touches[0].clientY;
+  touchStartTime = video.currentTime;
+  touchStartVol = video.volume;
+}, {passive: true});
+
+video.addEventListener('touchmove', e => {
+  const dx = e.touches[0].clientX - touchStartX;
+  const dy = e.touches[0].clientY - touchStartY;
+  if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 15) {
+    // Horizontal: seek (60s per 100px)
+    video.currentTime = Math.max(0, Math.min(video.duration, touchStartTime + dx * 0.6));
+  } else if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 15) {
+    // Vertical: volume
+    video.volume = Math.max(0, Math.min(1, touchStartVol - dy / 200));
+    document.getElementById('volume-slider').value = video.volume;
+  }
+}, {passive: true});
+
+// Double-tap to seek ±10s
+let lastTap = 0;
+video.addEventListener('touchend', e => {
+  const now = Date.now();
+  const vw = video.getBoundingClientRect().width;
+  const tapX = e.changedTouches[0].clientX - video.getBoundingClientRect().left;
+  if (now - lastTap < 300) {
+    skip(tapX > vw / 2 ? 10 : -10);
+  } else if (now - lastTap > 300 && Math.abs(e.changedTouches[0].clientX - touchStartX) < 10) {
+    togglePlay();
+  }
+  lastTap = now;
+});
+
+// ── File actions ──────────────────────────────────────────────────────────────
+async function togglePin(path, isPinned) {
+  if (isPinned) {
+    await fetch(`${API}/api/quick-folders?path=${encodeURIComponent(path)}`, { method: 'DELETE' });
+  } else {
+    await fetch(`${API}/api/quick-folders`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ path })
+    });
+  }
+  await loadQuickFolders();
+  dirCache.delete(currentPath);
+  await navigate(currentPath);
+}
+
+function openMoveModal(path, name) {
+  pendingMovePath = path;
+  document.getElementById('modal-filename').textContent = name;
+  const container = document.getElementById('modal-folders');
+  if (quickFolders.length) {
+    container.innerHTML = quickFolders.map(qf => `
+      <button class="modal-folder-btn" onclick="moveToFolder('${esc(qf.path)}', '${esc(qf.name)}')">&#128193; ${esc(qf.name)}</button>
+    `).join('');
+  } else {
+    container.innerHTML = `<div style="color:var(--text-dim);font-size:12px;padding:8px 0;line-height:1.5">Aucun dossier rapide.<br>Clique sur 📌 dans la liste pour en épingler un.</div>`;
+  }
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function closeModal(e) {
+  if (e && e.target !== document.getElementById('modal-overlay')) return;
+  document.getElementById('modal-overlay').classList.remove('open');
+  pendingMovePath = null;
+}
+
+function releaseVideoIfCurrent(path) {
+  if (currentFile && currentFile.path === path) {
+    video.pause();
+    video.src = '';  // releases the file lock on Windows
+    document.getElementById('video-container').classList.remove('active');
+    document.getElementById('player-empty').style.display = '';
+    currentFile = null;
+    document.getElementById('cut-in-btn').style.display = 'none';
+    document.getElementById('cut-out-btn').style.display = 'none';
+    document.getElementById('cut-btn').style.display = 'none';
+    document.getElementById('cut-clear-btn').style.display = 'none';
+    cutIn = null; cutOut = null;
+    updateCutUI();
+    if (saveInterval) { clearInterval(saveInterval); saveInterval = null; }
+  }
+}
+
+// ── Cut ───────────────────────────────────────────────────────────────────────
+let cutIn = null;
+let cutOut = null;
+
+function openCutModal() {
+  if (!currentFile) return;
+  if (cutIn === null || cutOut === null) {
+    showToast('Marquez d\'abord les points IN et OUT');
+    return;
+  }
+  if (cutOut <= cutIn) {
+    showToast('Le point OUT doit être après IN');
+    return;
+  }
+  const overlay = document.getElementById('cut-overlay');
+  overlay.style.display = 'flex';
+  document.getElementById('cut-filename').textContent = currentFile.name;
+  document.getElementById('cut-dest-input').value = currentPath;
+  const cutDur = cutOut - cutIn;
+  document.getElementById('cut-duration').textContent =
+    `IN : ${formatTime(cutIn)} → OUT : ${formatTime(cutOut)} — Durée : ${formatTime(cutDur)}`;
+  const container = document.getElementById('cut-folders');
+  if (quickFolders.length) {
+    container.innerHTML = quickFolders.map(qf => `
+      <button class="modal-folder-btn" onclick="selectCutDest('${esc(qf.path)}')">📁 ${esc(qf.name)}</button>
+    `).join('');
+  } else {
+    container.innerHTML = `<div style="color:var(--text-dim);font-size:12px">Aucun dossier rapide — saisissez un chemin ci-dessous.</div>`;
+  }
+}
+
+function selectCutDest(path) {
+  document.getElementById('cut-dest-input').value = path;
+}
+
+function setCutPoint(which) {
+  if (!video.duration) return;
+  const t = video.currentTime;
+  if (which === 'in') {
+    cutIn = t;
+    document.getElementById('cut-in-btn').classList.add('active');
+  } else {
+    cutOut = t;
+    document.getElementById('cut-out-btn').classList.add('active');
+  }
+  updateCutUI();
+  saveProgress();
+}
+
+function updateCutUI() {
+  const dur = video.duration || 1;
+  const inEl = document.getElementById('cut-seekbar-in');
+  const outEl = document.getElementById('cut-seekbar-out');
+  const fillEl = document.getElementById('cut-seekbar-fill');
+  const cutBtn = document.getElementById('cut-btn');
+  const clearBtn = document.getElementById('cut-clear-btn');
+
+  if (cutIn !== null) {
+    inEl.style.left = (cutIn / dur * 100) + '%';
+    inEl.style.display = 'block';
+  } else {
+    inEl.style.display = 'none';
+  }
+  if (cutOut !== null) {
+    outEl.style.left = (cutOut / dur * 100) + '%';
+    outEl.style.display = 'block';
+  } else {
+    outEl.style.display = 'none';
+  }
+  const bothValid = cutIn !== null && cutOut !== null && cutOut > cutIn;
+  if (bothValid) {
+    fillEl.style.left = (cutIn / dur * 100) + '%';
+    fillEl.style.width = ((cutOut - cutIn) / dur * 100) + '%';
+    fillEl.style.display = 'block';
+  } else {
+    fillEl.style.display = 'none';
+  }
+  if (cutBtn) cutBtn.classList.toggle('ready', bothValid);
+  if (clearBtn) clearBtn.style.display = (cutIn !== null || cutOut !== null) ? 'inline-flex' : 'none';
+}
+
+function clearCutPoints() {
+  cutIn = null; cutOut = null;
+  document.getElementById('cut-in-btn').classList.remove('active');
+  document.getElementById('cut-out-btn').classList.remove('active');
+  updateCutUI();
+  saveProgress();
+}
+
+function closeCutModal(e) {
+  if (e && e.target !== document.getElementById('cut-overlay')) return;
+  document.getElementById('cut-overlay').style.display = 'none';
+}
+
+async function confirmCut() {
+  const dest = document.getElementById('cut-dest-input').value.trim();
+  if (!dest) { showToast('Choisissez un dossier destination'); return; }
+  if (cutIn === null || cutOut === null || cutOut <= cutIn) { showToast('OUT doit être après IN'); return; }
+  if (!currentFile) return;
+  document.getElementById('cut-overlay').style.display = 'none';
+  const resp = await fetch(`${API}/api/files/cut?path=${encodeURIComponent(currentFile.path)}`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ start: cutIn, end: cutOut, destination: dest })
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    showToast(`Erreur : ${err.detail || resp.status}`);
+    return;
+  }
+  const { job_id } = await resp.json();
+  showToast('✂ Découpage en cours…');
+  trackJob(job_id, currentPath);
+}
+
+// ── Jobs ──────────────────────────────────────────────────────────────────────
+const _trackedJobs = new Map(); // job_id -> {cardEl, intervalId}
+
+function trackJob(jobId, refreshPath = null) {
+  const panel = document.getElementById('jobs-panel');
+  const card = document.createElement('div');
+  card.className = 'job-card';
+  card.innerHTML = `
+    <div class="job-name" id="jname-${jobId}">Chargement…</div>
+    <div class="job-bar-track"><div class="job-bar-fill" id="jbar-${jobId}" style="width:0%"></div></div>
+    <div class="job-status running" id="jstatus-${jobId}">En attente…</div>
+  `;
+  panel.appendChild(card);
+  const intervalId = setInterval(() => pollJob(jobId, refreshPath), 1200);
+  _trackedJobs.set(jobId, { card, intervalId });
+  pollJob(jobId, refreshPath);
+}
+
+async function pollJob(jobId, refreshPath) {
+  const data = await fetch(`${API}/api/jobs`).then(r => r.json()).catch(() => []);
+  const job = data.find(j => j.id === jobId);
+  if (!job) return;
+  const tracked = _trackedJobs.get(jobId);
+  if (!tracked) return;
+  document.getElementById(`jname-${jobId}`).textContent = job.source_name;
+  document.getElementById(`jbar-${jobId}`).style.width = job.progress + '%';
+  const statusEl = document.getElementById(`jstatus-${jobId}`);
+  if (job.status === 'running' || job.status === 'pending') {
+    statusEl.textContent = job.progress > 0 ? `${job.progress}%` : 'En cours…';
+    statusEl.className = 'job-status running';
+  } else if (job.status === 'done') {
+    statusEl.textContent = '✓ Terminé — ' + job.output_name;
+    statusEl.className = 'job-status done';
+    clearInterval(tracked.intervalId);
+    if (refreshPath !== null) {
+      dirCache.delete(refreshPath);
+      if (currentPath === refreshPath) navigate(refreshPath);
+    }
+    setTimeout(() => tracked.card.remove(), 8000);
+  } else if (job.status === 'error') {
+    statusEl.textContent = '✗ ' + (job.error || 'Erreur inconnue');
+    statusEl.className = 'job-status error';
+    clearInterval(tracked.intervalId);
+    setTimeout(() => tracked.card.remove(), 12000);
+  }
+}
+
+async function moveToFolder(destPath, destName) {
+  if (!pendingMovePath) return;
+  const sourcePath = pendingMovePath;
+  const fromPath = currentPath;
+  releaseVideoIfCurrent(sourcePath);
+  document.getElementById('modal-overlay').classList.remove('open');
+  pendingMovePath = null;
+  const resp = await fetch(`${API}/api/files/move?path=${encodeURIComponent(sourcePath)}`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ destination: destPath })
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    showToast(`Erreur\u00a0: impossible de déplacer (${err.detail || resp.status})`);
+    return;
+  }
+  const { job_id } = await resp.json();
+  showToast(`Déplacement vers \u00ab\u00a0${destName}\u00a0\u00bb en cours…`);
+  trackJob(job_id, fromPath);
+}
+
+async function confirmDelete(path, name) {
+  if (!confirm(`Supprimer "${name}" ?`)) return;
+  releaseVideoIfCurrent(path);
+  const doDelete = () => fetch(`${API}/api/files?path=${encodeURIComponent(path)}`, { method: 'DELETE' });
+  const resp = await retryOn423(doDelete);
+  if (!resp.ok) {
+    const msg = resp.status === 423 ? 'Le fichier est encore verrouillé, réessayez dans un instant' : `Erreur : impossible de supprimer (${resp.status})`;
+    showToast(msg);
+  } else {
+    showToast('Supprimé');
+  }
+  dirCache.delete(currentPath);
+  await navigate(currentPath);
+}
+
+// Retry a fetch fn up to maxAttempts times when the server returns 423
+async function retryOn423(fn, maxAttempts = 5, delayMs = 600) {
+  let resp = await fn();
+  for (let i = 1; i < maxAttempts && resp.status === 423; i++) {
+    await new Promise(r => setTimeout(r, delayMs));
+    resp = await fn();
+  }
+  return resp;
+}
+
+// ── Mkdir ─────────────────────────────────────────────────────────────────────
+function openMkdirModal() {
+  const overlay = document.getElementById('mkdir-overlay');
+  overlay.style.display = 'flex';
+  const input = document.getElementById('mkdir-input');
+  input.value = '';
+  setTimeout(() => input.focus(), 50);
+}
+
+function closeMkdirModal(e) {
+  if (e && e.target !== document.getElementById('mkdir-overlay')) return;
+  document.getElementById('mkdir-overlay').style.display = 'none';
+}
+
+async function confirmMkdir() {
+  const name = document.getElementById('mkdir-input').value.trim();
+  if (!name) return;
+  document.getElementById('mkdir-overlay').style.display = 'none';
+  const resp = await fetch(`${API}/api/files/mkdir?path=${encodeURIComponent(currentPath)}`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ name })
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    showToast(`Erreur : ${err.detail || resp.status}`);
+  } else {
+    showToast(`Dossier "${name}" créé`);
+    dirCache.delete(currentPath);
+    await navigate(currentPath);
+  }
+}
+
+// ── Utils ─────────────────────────────────────────────────────────────────────
+function formatTime(s) {
+  if (!s || isNaN(s)) return '0:00';
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = Math.floor(s % 60);
+  if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+  return `${m}:${String(sec).padStart(2,'0')}`;
+}
+
+function formatSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes/1024).toFixed(1) + ' KB';
+  if (bytes < 1073741824) return (bytes/1048576).toFixed(1) + ' MB';
+  return (bytes/1073741824).toFixed(2) + ' GB';
+}
+
+function esc(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// Fullscreen
+function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    document.getElementById('video-container').requestFullscreen();
+  } else {
+    document.exitFullscreen();
+  }
+}
+document.addEventListener('fullscreenchange', () => {
+  const btn = document.getElementById('fullscreen-btn');
+  if (btn) btn.textContent = document.fullscreenElement ? '\u29c4' : '\u26f6';
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+  if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
+  if (e.code === 'ArrowLeft') skip(-10);
+  if (e.code === 'ArrowRight') skip(10);
+  if (e.code === 'ArrowUp') { video.volume = Math.min(1, video.volume + 0.1); document.getElementById('volume-slider').value = video.volume; }
+  if (e.code === 'ArrowDown') { video.volume = Math.max(0, video.volume - 0.1); document.getElementById('volume-slider').value = video.volume; }
+  if (e.code === 'KeyF') toggleFullscreen();
+});
+
+init();
+</script>
+</body>
+</html>

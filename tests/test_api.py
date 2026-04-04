@@ -1,0 +1,421 @@
+"""Unit tests for MediaBrowser API endpoints."""
+import pytest
+from starlette.testclient import TestClient  # bundled with fastapi
+
+# Env vars are already set by conftest.py before this import
+from backend.main import MEDIA_ROOT, app
+
+client = TestClient(app)
+
+
+# ── /api/quick-folders ──────────────────────────────────────────────────────────────────
+
+class TestQuickFolders:
+    def test_empty_initially(self):
+        resp = client.get("/api/quick-folders")
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+    def test_add_and_list(self, subdir_with_video):
+        client.post("/api/quick-folders", json={"path": subdir_with_video})
+        resp = client.get("/api/quick-folders")
+        data = resp.json()
+        assert len(data) == 1
+        assert data[0]["path"] == subdir_with_video
+        assert data[0]["name"] == "series"
+
+    def test_add_idempotent(self, subdir_with_video):
+        client.post("/api/quick-folders", json={"path": subdir_with_video})
+        client.post("/api/quick-folders", json={"path": subdir_with_video})
+        assert len(client.get("/api/quick-folders").json()) == 1
+
+    def test_remove(self, subdir_with_video):
+        client.post("/api/quick-folders", json={"path": subdir_with_video})
+        resp = client.delete(f"/api/quick-folders?path={subdir_with_video}")
+        assert resp.status_code == 200
+        assert client.get("/api/quick-folders").json() == []
+
+    def test_add_file_rejected(self, video_file):
+        resp = client.post("/api/quick-folders", json={"path": video_file})
+        assert resp.status_code == 404
+
+    def test_add_nonexistent_rejected(self):
+        resp = client.post("/api/quick-folders", json={"path": "ghost_dir"})
+        assert resp.status_code == 404
+
+    def test_path_traversal_blocked(self):
+        resp = client.post("/api/quick-folders", json={"path": "../../etc"})
+        assert resp.status_code == 403
+
+    def test_is_quick_folder_marked_in_file_list(self, subdir_with_video):
+        client.post("/api/quick-folders", json={"path": subdir_with_video})
+        entries = client.get("/api/files").json()["entries"]
+        entry = next(e for e in entries if e["name"] == "series")
+        assert entry["is_quick_folder"] is True
+
+    def test_is_quick_folder_false_by_default(self, subdir_with_video):
+        entries = client.get("/api/files").json()["entries"]
+        entry = next(e for e in entries if e["name"] == "series")
+        assert entry["is_quick_folder"] is False
+
+# ── /api/files ────────────────────────────────────────────────────────────────
+
+class TestListFiles:
+    def test_root_empty(self):
+        resp = client.get("/api/files")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["path"] == ""
+        assert data["entries"] == []
+        assert data["breadcrumb"] == []
+
+    def test_root_lists_video(self, video_file):
+        resp = client.get("/api/files")
+        assert resp.status_code == 200
+        names = [e["name"] for e in resp.json()["entries"]]
+        assert "sample.mp4" in names
+
+    def test_video_entry_has_progress(self, video_file):
+        resp = client.get("/api/files")
+        entry = next(e for e in resp.json()["entries"] if e["name"] == "sample.mp4")
+        assert entry["is_video"] is True
+        assert "progress" in entry
+        assert entry["progress"]["percent"] == 0
+
+    def test_directory_entry_has_no_progress(self, subdir_with_video):
+        resp = client.get("/api/files")
+        entry = next(e for e in resp.json()["entries"] if e["name"] == "series")
+        assert entry["is_dir"] is True
+        assert "progress" not in entry
+
+    def test_subdir_listing(self, subdir_with_video):
+        resp = client.get("/api/files?path=series")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data["breadcrumb"]) == 1
+        assert data["breadcrumb"][0]["name"] == "series"
+        names = [e["name"] for e in data["entries"]]
+        assert "episode01.mp4" in names
+
+    def test_not_found(self):
+        resp = client.get("/api/files?path=does_not_exist")
+        assert resp.status_code == 404
+
+    def test_path_traversal_blocked(self):
+        resp = client.get("/api/files?path=../../etc/passwd")
+        assert resp.status_code == 403
+
+    def test_hidden_files_excluded(self):
+        hidden = MEDIA_ROOT / ".hidden.mp4"
+        hidden.write_bytes(b"\x00" * 64)
+        resp = client.get("/api/files")
+        names = [e["name"] for e in resp.json()["entries"]]
+        assert ".hidden.mp4" not in names
+
+    def test_entries_sorted_by_mtime_desc(self, subdir_with_video, video_file):
+        """Entries should be sorted newest-first regardless of type."""
+        resp = client.get("/api/files")
+        entries = resp.json()["entries"]
+        mtimes = [e["mtime"] for e in entries]
+        assert mtimes == sorted(mtimes, reverse=True)
+
+    def test_has_progress_false_on_new_dir(self, subdir_with_video):
+        resp = client.get("/api/files")
+        entry = next(e for e in resp.json()["entries"] if e["name"] == "series")
+        assert entry["folder_state"] == "new"
+
+    def test_has_progress_true_when_child_watched(self, subdir_with_video):
+        # Save progress for the episode inside the subdir
+        client.post(
+            "/api/progress?path=series/episode01.mp4",
+            json={"position": 300.0, "duration": 600.0},
+        )
+        resp = client.get("/api/files")
+        entry = next(e for e in resp.json()["entries"] if e["name"] == "series")
+        assert entry["folder_state"] == "inprogress"
+
+    def test_folder_state_seen_when_all_watched(self, subdir_with_video):
+        client.post(
+            "/api/progress?path=series/episode01.mp4",
+            json={"position": 580.0, "duration": 600.0},
+        )
+        resp = client.get("/api/files")
+        entry = next(e for e in resp.json()["entries"] if e["name"] == "series")
+        assert entry["folder_state"] == "seen"
+
+
+# ── /api/progress ─────────────────────────────────────────────────────────────
+
+class TestProgress:
+    def test_no_record_returns_zero(self, video_file):
+        resp = client.get(f"/api/progress?path={video_file}")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["position"] == 0
+        assert data["duration"] == 0
+        assert data["percent"] == 0
+
+    def test_save_and_read(self, video_file):
+        # Save
+        resp = client.post(
+            f"/api/progress?path={video_file}",
+            json={"position": 120.5, "duration": 600.0},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["ok"] is True
+
+        # Read back
+        resp = client.get(f"/api/progress?path={video_file}")
+        data = resp.json()
+        assert data["position"] == 120.5
+        assert data["duration"] == 600.0
+        assert data["percent"] == pytest.approx(20.1, abs=0.1)
+
+    def test_update_overwrites(self, video_file):
+        client.post(f"/api/progress?path={video_file}", json={"position": 10, "duration": 100})
+        client.post(f"/api/progress?path={video_file}", json={"position": 50, "duration": 100})
+        resp = client.get(f"/api/progress?path={video_file}")
+        assert resp.json()["position"] == 50
+
+    def test_progress_not_found(self):
+        resp = client.get("/api/progress?path=ghost.mp4")
+        assert resp.status_code == 404
+
+    def test_path_traversal_on_progress(self):
+        resp = client.get("/api/progress?path=../../etc/passwd")
+        assert resp.status_code == 403
+
+
+# ── /api/files DELETE ─────────────────────────────────────────────────────────
+
+class TestDeleteFile:
+    def test_delete_file(self, video_file):
+        resp = client.delete(f"/api/files?path={video_file}")
+        assert resp.status_code == 200
+        assert not (MEDIA_ROOT / video_file).exists()
+
+    def test_delete_also_clears_progress(self, video_file):
+        client.post(f"/api/progress?path={video_file}", json={"position": 10, "duration": 100})
+        client.delete(f"/api/files?path={video_file}")
+        # File gone, progress should return 404 (file does not exist)
+        resp = client.get(f"/api/progress?path={video_file}")
+        assert resp.status_code == 404
+
+    def test_delete_directory(self, subdir_with_video):
+        resp = client.delete(f"/api/files?path={subdir_with_video}")
+        assert resp.status_code == 200
+        assert not (MEDIA_ROOT / subdir_with_video).exists()
+
+    def test_delete_not_found(self):
+        resp = client.delete("/api/files?path=ghost.mp4")
+        assert resp.status_code == 404
+
+    def test_delete_path_traversal_blocked(self):
+        resp = client.delete("/api/files?path=../../important")
+        assert resp.status_code == 403
+
+
+# ── /api/files/move ───────────────────────────────────────────────────────────
+
+class TestMoveFile:
+    def _sync_thread(self, monkeypatch):
+        """Patch threading.Thread to run the target synchronously (no background thread)."""
+        import threading as _threading
+        class SyncThread:
+            def __init__(self, target, args, daemon=True):
+                self._target = target
+                self._args = args
+            def start(self):
+                self._target(*self._args)
+        monkeypatch.setattr(_threading, "Thread", SyncThread)
+
+    def test_move_to_subdir(self, video_file, subdir_with_video, monkeypatch):
+        self._sync_thread(monkeypatch)
+        resp = client.post(
+            f"/api/files/move?path={video_file}",
+            json={"destination": subdir_with_video},
+        )
+        assert resp.status_code == 200
+        assert "job_id" in resp.json()
+        assert (MEDIA_ROOT / subdir_with_video / "sample.mp4").exists()
+        assert not (MEDIA_ROOT / video_file).exists()
+
+    def test_move_not_found(self):
+        resp = client.post(
+            "/api/files/move?path=ghost.mp4",
+            json={"destination": "series"},
+        )
+        assert resp.status_code == 404
+
+    def test_move_updates_progress_key(self, video_file, subdir_with_video, monkeypatch):
+        self._sync_thread(monkeypatch)
+        client.post(f"/api/progress?path={video_file}", json={"position": 30, "duration": 200})
+        client.post(f"/api/files/move?path={video_file}", json={"destination": subdir_with_video})
+        resp = client.get("/api/progress?path=series/sample.mp4")
+        assert resp.status_code == 200
+        assert resp.json()["position"] == 30
+
+
+# ── /api/stream ───────────────────────────────────────────────────────────────
+
+class TestStream:
+    def test_stream_returns_200(self, video_file):
+        resp = client.get(f"/api/stream?path={video_file}")
+        assert resp.status_code == 200
+        assert "video" in resp.headers["content-type"]
+
+    def test_stream_range_returns_206(self, video_file):
+        resp = client.get(f"/api/stream?path={video_file}", headers={"Range": "bytes=0-99"})
+        assert resp.status_code == 206
+        assert resp.headers["content-range"].startswith("bytes 0-99/")
+        assert len(resp.content) == 100
+
+    def test_stream_not_found(self):
+        resp = client.get("/api/stream?path=ghost.mp4")
+        assert resp.status_code == 404
+
+    def test_stream_non_video_rejected(self):
+        txt = MEDIA_ROOT / "readme.txt"
+        txt.write_text("hello")
+        resp = client.get("/api/stream?path=readme.txt")
+        assert resp.status_code == 404
+
+    def test_stream_path_traversal_blocked(self):
+        resp = client.get("/api/stream?path=../../etc/passwd")
+        assert resp.status_code == 403
+
+
+# ── /api/browse ───────────────────────────────────────────────────────────────
+
+class TestBrowse:
+    def test_browse_root_returns_dirs(self):
+        resp = client.get("/api/browse?path=")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "dirs" in data
+        # Every entry must have name and path
+        for d in data["dirs"]:
+            assert "name" in d
+            assert "path" in d
+
+    def test_browse_subdir(self, subdir_with_video):
+        resp = client.get(f"/api/browse?path={MEDIA_ROOT}")
+        assert resp.status_code == 200
+        names = [d["name"] for d in resp.json()["dirs"]]
+        assert "series" in names
+
+    def test_browse_not_found(self):
+        resp = client.get("/api/browse?path=/does/not/exist/anywhere")
+        assert resp.status_code == 404
+
+    def test_browse_parent_is_none_at_root(self):
+        resp = client.get("/api/browse?path=")
+        assert resp.json()["parent"] is None
+
+
+# ── /api/settings ─────────────────────────────────────────────────────────────
+
+class TestSettings:
+    def test_get_settings_returns_media_root(self):
+        resp = client.get("/api/settings")
+        assert resp.status_code == 200
+        assert "media_root" in resp.json()
+
+    def test_update_media_root(self, tmp_path):
+        new_root = tmp_path / "new_media"
+        new_root.mkdir()
+        resp = client.post("/api/settings", json={"media_root": str(new_root)})
+        assert resp.status_code == 200
+        assert resp.json()["ok"] is True
+        # Restore original for subsequent tests
+        client.post("/api/settings", json={"media_root": str(MEDIA_ROOT)})
+
+    def test_update_media_root_not_found(self):
+        resp = client.post("/api/settings", json={"media_root": "/does/not/exist"})
+        assert resp.status_code == 404
+
+
+# ── /api/files/mkdir ──────────────────────────────────────────────────────────
+
+class TestMkdir:
+    def test_mkdir_creates_folder(self):
+        resp = client.post("/api/files/mkdir?path=", json={"name": "new_folder"})
+        assert resp.status_code == 200
+        assert (MEDIA_ROOT / "new_folder").is_dir()
+        (MEDIA_ROOT / "new_folder").rmdir()
+
+    def test_mkdir_in_subdir(self, subdir_with_video):
+        resp = client.post(f"/api/files/mkdir?path={subdir_with_video}", json={"name": "sub"})
+        assert resp.status_code == 200
+        assert (MEDIA_ROOT / subdir_with_video / "sub").is_dir()
+
+    def test_mkdir_conflict(self):
+        (MEDIA_ROOT / "existing").mkdir(exist_ok=True)
+        resp = client.post("/api/files/mkdir?path=", json={"name": "existing"})
+        assert resp.status_code == 409
+        (MEDIA_ROOT / "existing").rmdir()
+
+    def test_mkdir_invalid_name(self):
+        resp = client.post("/api/files/mkdir?path=", json={"name": "../escape"})
+        assert resp.status_code == 400
+
+    def test_mkdir_parent_not_found(self):
+        resp = client.post("/api/files/mkdir?path=ghost_dir", json={"name": "sub"})
+        assert resp.status_code == 404
+
+
+# ── /api/files/cut + /api/jobs ───────────────────────────────────────────────
+
+class TestCut:
+    def _noop_thread(self, monkeypatch):
+        import threading as _threading
+        monkeypatch.setattr(
+            _threading,
+            "Thread",
+            lambda target, args, daemon: type("T", (), {"start": lambda self: None})(),
+        )
+
+    def test_cut_returns_job_id(self, video_file, monkeypatch):
+        self._noop_thread(monkeypatch)
+        (MEDIA_ROOT / "dest").mkdir(exist_ok=True)
+        resp = client.post(
+            f"/api/files/cut?path={video_file}",
+            json={"start": 0.0, "end": 10.0, "destination": "dest"},
+        )
+        assert resp.status_code == 200
+        assert "job_id" in resp.json()
+
+    def test_cut_invalid_range(self, video_file):
+        (MEDIA_ROOT / "dest").mkdir(exist_ok=True)
+        resp = client.post(
+            f"/api/files/cut?path={video_file}",
+            json={"start": 20.0, "end": 10.0, "destination": "dest"},
+        )
+        assert resp.status_code == 400
+
+    def test_cut_dest_not_found(self, video_file):
+        resp = client.post(
+            f"/api/files/cut?path={video_file}",
+            json={"start": 0.0, "end": 10.0, "destination": "no_such_dir"},
+        )
+        assert resp.status_code == 404
+
+    def test_cut_source_not_found(self):
+        (MEDIA_ROOT / "dest").mkdir(exist_ok=True)
+        resp = client.post(
+            "/api/files/cut?path=ghost.mp4",
+            json={"start": 0.0, "end": 10.0, "destination": "dest"},
+        )
+        assert resp.status_code == 404
+
+    def test_jobs_list(self, video_file, monkeypatch):
+        self._noop_thread(monkeypatch)
+        (MEDIA_ROOT / "dest").mkdir(exist_ok=True)
+        client.post(
+            f"/api/files/cut?path={video_file}",
+            json={"start": 0.0, "end": 5.0, "destination": "dest"},
+        )
+        resp = client.get("/api/jobs")
+        assert resp.status_code == 200
+        assert isinstance(resp.json(), list)
+        assert len(resp.json()) >= 1

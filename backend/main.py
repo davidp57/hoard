@@ -1,0 +1,655 @@
+import mimetypes
+import os
+import re
+import shutil
+import sqlite3
+import string as _string
+import subprocess
+import threading
+import time
+import uuid
+from contextlib import contextmanager
+from pathlib import Path
+
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+
+# ── Config ────────────────────────────────────────────────────────────────────
+MEDIA_ROOT = Path(os.environ.get("MEDIA_ROOT", "/media"))
+DB_PATH = Path(os.environ.get("DB_PATH", "/data/progress.db"))
+
+
+def _resolve_ffmpeg() -> str:
+    explicit = os.environ.get("FFMPEG_BIN")
+    if explicit:
+        return explicit
+    if shutil.which("ffmpeg"):
+        return "ffmpeg"
+    # Search WinGet packages on Windows
+    local_app = os.environ.get("LOCALAPPDATA", "")
+    if local_app:
+        winget_base = Path(local_app) / "Microsoft" / "WinGet" / "Packages"
+        if winget_base.exists():
+            for candidate in winget_base.rglob("ffmpeg.exe"):
+                if "LosslessCut" not in str(candidate):
+                    return str(candidate)
+    return "ffmpeg"
+
+
+FFMPEG_BIN = _resolve_ffmpeg()
+
+# ── App ───────────────────────────────────────────────────────────────────────
+app = FastAPI(title="MediaBrowser")
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+
+# ── DB ────────────────────────────────────────────────────────────────────────
+@contextmanager
+def get_db():
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        yield conn
+    finally:
+        conn.close()
+
+
+def init_db():
+    with get_db() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS progress (
+                path TEXT PRIMARY KEY,
+                position REAL DEFAULT 0,
+                duration REAL DEFAULT 0,
+                cut_in REAL DEFAULT NULL,
+                cut_out REAL DEFAULT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        # Migration: add cut_in/cut_out if upgrading from older schema
+        for col in ("cut_in", "cut_out"):
+            try:
+                conn.execute(f"ALTER TABLE progress ADD COLUMN {col} REAL DEFAULT NULL")
+            except Exception:
+                pass
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS quick_folders (
+                path TEXT PRIMARY KEY,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            )
+        """)
+        conn.commit()
+
+
+def reload_media_root():
+    """Override MEDIA_ROOT from DB settings if set."""
+    global MEDIA_ROOT
+    with get_db() as conn:
+        row = conn.execute("SELECT value FROM settings WHERE key='media_root'").fetchone()
+    if row:
+        candidate = Path(row["value"])
+        if candidate.exists() and candidate.is_dir():
+            MEDIA_ROOT = candidate
+
+
+init_db()
+reload_media_root()
+
+
+# ── Models ────────────────────────────────────────────────────────────────────
+class ProgressUpdate(BaseModel):
+    position: float
+    duration: float
+    cut_in: float | None = None
+    cut_out: float | None = None
+
+
+class MoveRequest(BaseModel):
+    destination: str  # relative path from MEDIA_ROOT
+
+
+class QuickFolderRequest(BaseModel):
+    path: str  # relative path from MEDIA_ROOT
+
+
+class MkdirRequest(BaseModel):
+    name: str  # folder name only (no slashes)
+
+
+class CutRequest(BaseModel):
+    start: float  # seconds
+    end: float  # seconds
+    destination: str  # relative path from MEDIA_ROOT
+
+
+# ── Job store (in-memory) ─────────────────────────────────────────────────────
+_jobs: dict[str, dict] = {}
+
+
+def _fmt_hms(s: float) -> str:
+    s = int(s)
+    h, m, sec = s // 3600, (s % 3600) // 60, s % 60
+    return f"{h:02d}h{m:02d}m{sec:02d}s"
+
+
+def _run_cut(
+    job_id: str, source: Path, output: Path, start: float, end: float, dest_dir: Path
+) -> None:
+    job = _jobs[job_id]
+    job["status"] = "running"
+    duration = end - start
+    cmd = [
+        FFMPEG_BIN,
+        "-y",
+        "-ss",
+        str(start),
+        "-i",
+        str(source),
+        "-t",
+        str(duration),
+        "-c",
+        "copy",
+        "-avoid_negative_ts",
+        "make_zero",
+        str(output),
+    ]
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            stderr=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
+            universal_newlines=True,
+            errors="replace",
+        )
+        for line in proc.stderr:  # type: ignore[union-attr]
+            m = re.search(r"time=(\d+):(\d+):(\d+\.?\d*)", line)
+            if m:
+                elapsed = int(m.group(1)) * 3600 + int(m.group(2)) * 60 + float(m.group(3))
+                job["progress"] = min(99, int(elapsed / duration * 100)) if duration > 0 else 99
+        proc.wait()
+        if proc.returncode != 0:
+            job["status"] = "error"
+            job["error"] = f"FFmpeg exited with code {proc.returncode}"
+            return
+        # Move source to destination
+        dest_source = dest_dir / source.name
+        if dest_source.resolve() != source.resolve():
+            try:
+                shutil.move(str(source), str(dest_source))
+                old_rel = str(source.relative_to(MEDIA_ROOT))
+                new_rel = str(dest_source.relative_to(MEDIA_ROOT))
+                with get_db() as conn:
+                    conn.execute("UPDATE progress SET path = ? WHERE path = ?", (new_rel, old_rel))
+                    conn.commit()
+            except Exception as e:
+                job["move_error"] = str(e)
+        job["status"] = "done"
+        job["progress"] = 100
+    except FileNotFoundError:
+        job["status"] = "error"
+        job["error"] = "FFmpeg introuvable — installez-le (winget install ffmpeg)"
+    except Exception as e:
+        job["status"] = "error"
+        job["error"] = str(e)
+
+
+def _run_move(job_id: str, source: Path, destination: Path) -> None:
+    job = _jobs[job_id]
+    job["status"] = "running"
+    final_dest = (destination / source.name) if destination.is_dir() else destination
+    final_dest.parent.mkdir(parents=True, exist_ok=True)
+    for attempt in range(5):
+        try:
+            shutil.move(str(source), str(final_dest))
+            break
+        except PermissionError:
+            if attempt < 4:
+                time.sleep(0.6)
+            else:
+                job["status"] = "error"
+                job["error"] = "File is locked by another process"
+                return
+        except Exception as e:
+            job["status"] = "error"
+            job["error"] = str(e)
+            return
+    old_rel = to_rel(source)
+    new_rel = to_rel(final_dest)
+    with get_db() as conn:
+        conn.execute("UPDATE progress SET path = ? WHERE path = ?", (new_rel, old_rel))
+        conn.commit()
+    job["status"] = "done"
+    job["progress"] = 100
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+VIDEO_EXTENSIONS = {
+    ".mp4",
+    ".mkv",
+    ".avi",
+    ".mov",
+    ".wmv",
+    ".flv",
+    ".m4v",
+    ".ts",
+    ".webm",
+    ".mpg",
+    ".mpeg",
+}
+
+
+def is_video(path: Path) -> bool:
+    return path.suffix.lower() in VIDEO_EXTENSIONS
+
+
+def safe_path(rel: str) -> Path:
+    """Resolve and ensure path stays within MEDIA_ROOT."""
+    resolved = (MEDIA_ROOT / rel).resolve()
+    if not str(resolved).startswith(str(MEDIA_ROOT.resolve())):
+        raise HTTPException(status_code=403, detail="Access denied")
+    return resolved
+
+
+def to_rel(path: Path) -> str:
+    """Relative path from MEDIA_ROOT, always using forward slashes."""
+    return str(path.relative_to(MEDIA_ROOT)).replace("\\", "/")
+
+
+def get_progress(path: Path) -> dict:
+    rel = to_rel(path)
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT position, duration, cut_in, cut_out FROM progress WHERE path = ?", (rel,)
+        ).fetchone()
+    if row:
+        pos, dur = row["position"], row["duration"]
+        pct = (pos / dur * 100) if dur > 0 else 0
+        return {
+            "position": pos,
+            "duration": dur,
+            "percent": round(pct, 1),
+            "cut_in": row["cut_in"],
+            "cut_out": row["cut_out"],
+        }
+    return {"position": 0, "duration": 0, "percent": 0, "cut_in": None, "cut_out": None}
+
+
+def get_folder_state(folder: Path, progress_map: dict) -> str:
+    """Return 'new', 'inprogress', or 'seen' based on recursive video file progress."""
+    video_files = [f for f in folder.rglob("*") if f.is_file() and is_video(f)]
+    if not video_files:
+        return "new"
+    total = len(video_files)
+    seen_count = sum(1 for vf in video_files if progress_map.get(to_rel(vf), 0) >= 90)
+    inprogress_count = sum(1 for vf in video_files if 0 < progress_map.get(to_rel(vf), 0) < 90)
+    if seen_count == total:
+        return "seen"
+    if seen_count > 0 or inprogress_count > 0:
+        return "inprogress"
+    return "new"
+
+
+# ── Routes ────────────────────────────────────────────────────────────────────
+
+
+@app.get("/api/files")
+def list_files(path: str = ""):
+    folder = safe_path(path)
+    if not folder.exists() or not folder.is_dir():
+        raise HTTPException(status_code=404, detail="Folder not found")
+
+    with get_db() as conn:
+        qf_paths = {
+            row["path"] for row in conn.execute("SELECT path FROM quick_folders").fetchall()
+        }
+        rows = conn.execute(
+            "SELECT path, position, duration FROM progress WHERE duration > 0"
+        ).fetchall()
+        progress_map = {row["path"]: row["position"] / row["duration"] * 100 for row in rows}
+
+    # Gather items with stat cached
+    items_with_stat = []
+    for item in folder.iterdir():
+        if item.name.startswith("."):
+            continue
+        try:
+            st = item.stat()
+        except PermissionError:
+            continue
+        items_with_stat.append((item, st))
+
+    # Sort by modification time descending (atime excluded — changes on every rglob scan)
+    items_with_stat.sort(key=lambda x: x[1].st_mtime, reverse=True)
+
+    entries = []
+    for item, st in items_with_stat:
+        rel = to_rel(item)
+        entry = {
+            "name": item.name,
+            "path": rel,
+            "is_dir": item.is_dir(),
+            "is_video": is_video(item) if item.is_file() else False,
+            "size": st.st_size if item.is_file() else 0,
+            "mtime": st.st_mtime,
+            "is_quick_folder": rel in qf_paths if item.is_dir() else False,
+            "folder_state": get_folder_state(item, progress_map) if item.is_dir() else None,
+        }
+        if entry["is_video"]:
+            entry["progress"] = get_progress(item)
+        entries.append(entry)
+
+    # Breadcrumb
+    parts = []
+    current = Path(path)
+    accumulated = Path("")
+    for part in current.parts:
+        accumulated = accumulated / part
+        parts.append({"name": part, "path": str(accumulated).replace("\\", "/")})
+
+    return {"path": path, "breadcrumb": parts, "entries": entries}
+
+
+@app.get("/api/progress")
+def read_progress(path: str):
+    file = safe_path(path)
+    if not file.exists():
+        raise HTTPException(status_code=404)
+    return get_progress(file)
+
+
+@app.post("/api/progress")
+def save_progress(path: str, body: ProgressUpdate):
+    file = safe_path(path)
+    rel = to_rel(file)
+    with get_db() as conn:
+        conn.execute(
+            """
+            INSERT INTO progress (path, position, duration, cut_in, cut_out, updated_at)
+            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(path) DO UPDATE SET
+                position=excluded.position,
+                duration=excluded.duration,
+                cut_in=excluded.cut_in,
+                cut_out=excluded.cut_out,
+                updated_at=CURRENT_TIMESTAMP
+        """,
+            (rel, body.position, body.duration, body.cut_in, body.cut_out),
+        )
+        conn.commit()
+    return {"ok": True}
+
+
+@app.delete("/api/files")
+def delete_file(path: str):
+    target = safe_path(path)
+    if not target.exists():
+        raise HTTPException(status_code=404)
+    try:
+        if target.is_dir():
+            shutil.rmtree(target)
+        else:
+            target.unlink()
+    except PermissionError:
+        raise HTTPException(status_code=423, detail="File is locked by another process") from None
+    # Clean progress entry
+    rel = to_rel(target)
+    with get_db() as conn:
+        conn.execute("DELETE FROM progress WHERE path = ?", (rel,))
+        conn.commit()
+    return {"ok": True}
+
+
+@app.post("/api/files/move")
+def move_file(path: str, body: MoveRequest):
+    source = safe_path(path)
+    destination = safe_path(body.destination)
+    if not source.exists():
+        raise HTTPException(status_code=404)
+    job_id = str(uuid.uuid4())
+    _jobs[job_id] = {
+        "id": job_id,
+        "source_name": source.name,
+        "output_name": destination.name,
+        "status": "pending",
+        "progress": 0,
+        "error": None,
+    }
+    threading.Thread(
+        target=_run_move,
+        args=(job_id, source, destination),
+        daemon=True,
+    ).start()
+    return {"job_id": job_id}
+
+
+@app.post("/api/files/mkdir")
+def make_directory(path: str, body: MkdirRequest):
+    parent = safe_path(path)
+    if not parent.is_dir():
+        raise HTTPException(status_code=404, detail="Parent folder not found")
+    name = body.name.strip()
+    if not name or any(c in name for c in ("/", "\\", "\0")) or name in (".", ".."):
+        raise HTTPException(status_code=400, detail="Invalid folder name")
+    new_dir = parent / name
+    if new_dir.exists():
+        raise HTTPException(status_code=409, detail="Already exists")
+    new_dir.mkdir()
+    return {"ok": True}
+
+
+# ── Cut / Jobs ────────────────────────────────────────────────────────────────
+
+
+@app.post("/api/files/cut")
+def cut_video(path: str, body: CutRequest):
+    source = safe_path(path)
+    if not source.exists() or not is_video(source):
+        raise HTTPException(status_code=404, detail="Video not found")
+    if body.end <= body.start:
+        raise HTTPException(status_code=400, detail="end must be after start")
+    dest_dir = safe_path(body.destination)
+    if not dest_dir.is_dir():
+        raise HTTPException(status_code=404, detail="Destination folder not found")
+    out_name = f"{source.stem} [cut {_fmt_hms(body.start)}-{_fmt_hms(body.end)}]{source.suffix}"
+    output = dest_dir / out_name
+    job_id = str(uuid.uuid4())
+    _jobs[job_id] = {
+        "id": job_id,
+        "source_name": source.name,
+        "output_name": out_name,
+        "status": "pending",
+        "progress": 0,
+        "error": None,
+    }
+    threading.Thread(
+        target=_run_cut,
+        args=(job_id, source, output, body.start, body.end, dest_dir),
+        daemon=True,
+    ).start()
+    return {"job_id": job_id}
+
+
+@app.get("/api/jobs")
+def list_jobs():
+    return list(_jobs.values())
+
+
+# ── Quick folders ─────────────────────────────────────────────────────────────
+
+
+@app.get("/api/quick-folders")
+def list_quick_folders():
+    with get_db() as conn:
+        rows = conn.execute("SELECT path FROM quick_folders ORDER BY created_at").fetchall()
+    result = []
+    for row in rows:
+        p = MEDIA_ROOT / row["path"]
+        if p.exists() and p.is_dir():
+            result.append({"path": row["path"], "name": p.name})
+    return result
+
+
+@app.post("/api/quick-folders")
+def add_quick_folder(body: QuickFolderRequest):
+    target = safe_path(body.path)
+    if not target.exists() or not target.is_dir():
+        raise HTTPException(status_code=404, detail="Folder not found")
+    rel = to_rel(target)
+    with get_db() as conn:
+        conn.execute("INSERT OR IGNORE INTO quick_folders (path) VALUES (?)", (rel,))
+        conn.commit()
+    return {"ok": True}
+
+
+@app.delete("/api/quick-folders")
+def remove_quick_folder(path: str):
+    safe_path(path)  # validate path stays within MEDIA_ROOT
+    rel = path.replace("\\", "/")
+    with get_db() as conn:
+        conn.execute("DELETE FROM quick_folders WHERE path = ?", (rel,))
+        conn.commit()
+    return {"ok": True}
+
+
+# ── Filesystem browser (unrestricted, dirs only) ──────────────────────────────
+
+
+@app.get("/api/browse")
+def browse_filesystem(path: str = ""):
+    """List subdirectories at any server path. Used by the home-folder picker."""
+    if path == "":
+        # Return filesystem roots
+        if os.name == "nt":
+            drives = [
+                {"name": f"{d}:\\", "path": f"{d}:\\"}
+                for d in _string.ascii_uppercase
+                if Path(f"{d}:\\").exists()
+            ]
+            return {"path": "", "parent": None, "dirs": drives}
+        else:
+            current = Path("/")
+    else:
+        current = Path(path)
+
+    if not current.exists() or not current.is_dir():
+        raise HTTPException(status_code=404, detail="Path not found")
+
+    dirs = []
+    try:
+        for d in sorted(current.iterdir()):
+            if not d.is_dir() or d.name.startswith("."):
+                continue
+            try:
+                d.stat()
+                dirs.append({"name": d.name, "path": str(d).replace("\\", "/")})
+            except (PermissionError, OSError):
+                continue
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Access denied") from None
+
+    # Compute parent
+    # On Windows: drive root (e.g. C:\) -> "" (back to drive list)
+    # On Linux: "/" -> None (no parent)
+    if current.parent == current:
+        parent = "" if os.name == "nt" else None
+    else:
+        parent = str(current.parent).replace("\\", "/")
+
+    return {
+        "path": str(current).replace("\\", "/"),
+        "parent": parent,
+        "dirs": dirs,
+    }
+
+
+# ── Settings ──────────────────────────────────────────────────────────────────
+
+
+class SettingsUpdate(BaseModel):
+    media_root: str
+
+
+@app.get("/api/settings")
+def get_settings():
+    return {"media_root": str(MEDIA_ROOT).replace("\\", "/")}
+
+
+@app.post("/api/settings")
+def update_settings(body: SettingsUpdate):
+    global MEDIA_ROOT
+    new_root = Path(body.media_root)
+    if not new_root.exists() or not new_root.is_dir():
+        raise HTTPException(status_code=404, detail="Path does not exist or is not a directory")
+    MEDIA_ROOT = new_root
+    with get_db() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES ('media_root', ?)",
+            (str(new_root),),
+        )
+        conn.commit()
+    return {"ok": True, "media_root": str(MEDIA_ROOT).replace("\\", "/")}
+
+
+@app.get("/api/stream")
+def stream_video(path: str, request: Request):
+    file = safe_path(path)
+    if not file.exists() or not is_video(file):
+        raise HTTPException(status_code=404)
+
+    file_size = file.stat().st_size
+    mime_type = mimetypes.guess_type(str(file))[0] or "video/mp4"
+
+    range_header = request.headers.get("range")
+    if range_header:
+        start, end = 0, file_size - 1
+        range_str = range_header.replace("bytes=", "")
+        parts = range_str.split("-")
+        start = int(parts[0]) if parts[0] else 0
+        end = int(parts[1]) if parts[1] else file_size - 1
+        chunk_size = end - start + 1
+
+        def iter_file():
+            with open(file, "rb") as f:
+                f.seek(start)
+                remaining = chunk_size
+                while remaining > 0:
+                    chunk = f.read(min(65536, remaining))
+                    if not chunk:
+                        break
+                    yield chunk
+                    remaining -= len(chunk)
+
+        headers = {
+            "Content-Range": f"bytes {start}-{end}/{file_size}",
+            "Accept-Ranges": "bytes",
+            "Content-Length": str(chunk_size),
+            "Content-Type": mime_type,
+        }
+        return StreamingResponse(iter_file(), status_code=206, headers=headers)
+
+    def iter_full():
+        with open(file, "rb") as f:
+            while chunk := f.read(65536):
+                yield chunk
+
+    return StreamingResponse(
+        iter_full(),
+        media_type=mime_type,
+        headers={"Accept-Ranges": "bytes", "Content-Length": str(file_size)},
+    )
+
+
+# Serve frontend
+frontend_path = Path(__file__).parent.parent / "frontend"
+if frontend_path.exists():
+    app.mount("/", StaticFiles(directory=str(frontend_path), html=True), name="frontend")

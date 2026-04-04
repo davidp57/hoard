@@ -1,0 +1,23 @@
+# Local development override — hot-reload + local media folder
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+
+services:
+  mediabrowser:
+    volumes:
+      # Mount backend source for live reload
+      - ./backend:/app/backend
+      # Local media folder (set MEDIA_ROOT env var or use ./dev-media)
+      - ${LOCAL_MEDIA_PATH:-./dev-media}:/media:rw
+    environment:
+      - MEDIA_ROOT=/media
+      - DB_PATH=/data/progress.db
+    command:
+      [
+        "uvicorn",
+        "backend.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+        "--reload",
+      ]
