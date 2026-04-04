@@ -2,6 +2,7 @@ services:
   mediabrowser:
     image: ghcr.io/davidp57/nas-vid-bro:main
     container_name: mediabrowser
+    user: root
     ports:
       - "8000:8000"
     volumes:
