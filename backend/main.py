@@ -649,6 +649,51 @@ def stream_video(path: str, request: Request):
     )
 
 
+@app.get("/api/transcode")
+def transcode_video(path: str):
+    """Transcode to H.264/AAC on-the-fly for unsupported codecs (e.g. H.265)."""
+    file = safe_path(path)
+    if not file.exists() or not is_video(file):
+        raise HTTPException(status_code=404)
+    if not FFMPEG_BIN:
+        raise HTTPException(status_code=503, detail="FFmpeg not available")
+
+    cmd = [
+        FFMPEG_BIN,
+        "-i", str(file),
+        "-c:v", "libx264",
+        "-preset", "ultrafast",
+        "-crf", "23",
+        "-c:a", "aac",
+        "-b:a", "128k",
+        "-movflags", "frag_keyframe+empty_moov+faststart",
+        "-f", "mp4",
+        "pipe:1",
+    ]
+
+    def iter_transcode():
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+        try:
+            while True:
+                chunk = proc.stdout.read(65536)
+                if not chunk:
+                    break
+                yield chunk
+        finally:
+            proc.stdout.close()
+            proc.wait()
+
+    return StreamingResponse(
+        iter_transcode(),
+        media_type="video/mp4",
+        headers={"Cache-Control": "no-cache"},
+    )
+
+
 # Serve frontend
 frontend_path = Path(__file__).parent.parent / "frontend"
 if frontend_path.exists():

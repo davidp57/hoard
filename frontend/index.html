@@ -1041,6 +1041,17 @@ async function playVideo(idx) {
 
   video.src = `${API}/api/stream?path=${encodeURIComponent(entry.path)}`;
 
+  // Fallback: if codec unsupported, retry via server-side transcode (H.265 → H.264)
+  video.onerror = () => {
+    if (video.error && video.error.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED
+        && !video.src.includes('/api/transcode')) {
+      showToast('Transcodage H.265 → H.264…');
+      video.src = `${API}/api/transcode?path=${encodeURIComponent(entry.path)}`;
+      video.load();
+      video.onerror = null;
+    }
+  };
+
   // Restore position + cut points
   const prog = await fetch(`${API}/api/progress?path=${encodeURIComponent(entry.path)}`).then(r => r.json());
   if (prog.cut_in != null) {
