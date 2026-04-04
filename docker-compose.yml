@@ -1,8 +1,6 @@
-version: "3.8"
-
 services:
   mediabrowser:
-    build: .
+    image: ghcr.io/davidp57/nas-vid-bro:main
     container_name: mediabrowser
     ports:
       - "8000:8000"
