@@ -697,4 +697,14 @@ def transcode_video(path: str):
 # Serve frontend
 frontend_path = Path(__file__).parent.parent / "frontend"
 if frontend_path.exists():
+
+    @app.get("/")
+    def serve_index():
+        from fastapi.responses import FileResponse
+
+        return FileResponse(
+            frontend_path / "index.html",
+            headers={"Cache-Control": "no-store"},
+        )
+
     app.mount("/", StaticFiles(directory=str(frontend_path), html=True), name="frontend")
