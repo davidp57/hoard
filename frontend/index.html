@@ -1263,8 +1263,13 @@ video.addEventListener('touchmove', e => {
       setBrightness(touchStartBrightness - dy / 200);
     }
     // Centre vertical swipe does nothing (reserved for tap gestures)
+  } else if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 15) {
+    // Horizontal seek — speed proportional to vertical position (top=fast, bottom=slow)
+    const rect2 = video.getBoundingClientRect();
+    const yPctMove = (touchStartY - rect2.top) / rect2.height;
+    const speedFactor = 0.05 + (1 - yPctMove) * 0.55; // 0.05s/px bottom → 0.6s/px top
+    video.currentTime = Math.max(0, Math.min(video.duration, touchStartTime + dx * speedFactor));
   }
-  // No horizontal seek anymore (removed per new spec)
 }, {passive: true});
 
 // Single / double / triple tap
@@ -1287,7 +1292,7 @@ video.addEventListener('touchend', e => {
     const xPct = (tapX - rect.left) / rect.width;
     const yPct = (tapY - rect.top) / rect.height;
     const isMid = xPct >= 0.2 && xPct <= 0.8;
-    const isBottom = yPct > 0.8;
+    const isBottom = yPct > 0.7;
 
     if (tapCount === 1) {
       if (isMid && isBottom) {
@@ -1303,7 +1308,15 @@ video.addEventListener('touchend', e => {
         togglePlay();
       }
     } else if (tapCount === 2) {
-      toggleFullscreen();
+      if (xPct < 0.2) {
+        video.currentTime = Math.max(0, video.currentTime - 30);
+        showToast('◀◀ −30s');
+      } else if (xPct > 0.8) {
+        video.currentTime = Math.min(video.duration, video.currentTime + 30);
+        showToast('+30s ▶▶');
+      } else {
+        toggleFullscreen();
+      }
     } else if (tapCount >= 3) {
       toggleVideoFit();
     }
