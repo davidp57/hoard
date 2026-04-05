@@ -561,6 +561,66 @@ class TestDownload:
         )
         assert "cookiefile" in captured_opts
 
+    def test_download_cookies_persistent_file_takes_precedence(self, monkeypatch, tmp_path):
+        """When the configured cookies file exists it takes precedence over the inline string."""
+        cookies_file = tmp_path / "cookies.txt"
+        cookies_file.write_text("persisted=1", encoding="utf-8")
+
+        client.post(
+            "/api/settings",
+            json={"download_cookies_path": str(cookies_file)},
+        )
+
+        captured_opts = {}
+
+        def mock_ytdl_init(opts):
+            captured_opts.update(opts)
+            return _make_yt_dlp_mock().YoutubeDL.return_value
+
+        mock_module = MagicMock()
+        mock_module.YoutubeDL = MagicMock(side_effect=mock_ytdl_init)
+        monkeypatch.setitem(sys.modules, "yt_dlp", mock_module)
+        _sync_thread_patch(monkeypatch)
+        client.post(
+            "/api/download",
+            json={"url": "https://example.com/video", "cookies": "session=abc"},
+        )
+        assert captured_opts.get("cookiefile") == str(cookies_file)
+
+        # Reset setting so other tests are unaffected
+        client.post("/api/settings", json={"download_cookies_path": ""})
+
+    def test_download_cookies_fallback_when_persistent_file_missing(self, monkeypatch, tmp_path):
+        """When the configured cookies file does not exist, fall back to the inline cookies."""
+        missing = tmp_path / "missing_cookies.txt"
+        assert not missing.exists()
+
+        client.post(
+            "/api/settings",
+            json={"download_cookies_path": str(missing)},
+        )
+
+        captured_opts = {}
+
+        def mock_ytdl_init(opts):
+            captured_opts.update(opts)
+            return _make_yt_dlp_mock().YoutubeDL.return_value
+
+        mock_module = MagicMock()
+        mock_module.YoutubeDL = MagicMock(side_effect=mock_ytdl_init)
+        monkeypatch.setitem(sys.modules, "yt_dlp", mock_module)
+        _sync_thread_patch(monkeypatch)
+        client.post(
+            "/api/download",
+            json={"url": "https://example.com/video", "cookies": "session=abc"},
+        )
+        # A temp file should be used — not the missing configured path
+        assert "cookiefile" in captured_opts
+        assert captured_opts["cookiefile"] != str(missing)
+
+        # Reset setting so other tests are unaffected
+        client.post("/api/settings", json={"download_cookies_path": ""})
+
     def test_download_settings_persisted(self):
         resp = client.post(
             "/api/settings",

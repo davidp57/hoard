@@ -1,4 +1,5 @@
 import hashlib
+import ipaddress
 import mimetypes
 import os
 import re
@@ -602,6 +603,19 @@ def list_jobs():
 
 # ── Download ──────────────────────────────────────────────────────────────────
 
+# Private / reserved IP ranges used for SSRF protection (RFC1918, loopback, link-local, CGN)
+_PRIVATE_NETWORKS = (
+    ipaddress.ip_network("127.0.0.0/8"),  # loopback
+    ipaddress.ip_network("10.0.0.0/8"),  # RFC 1918
+    ipaddress.ip_network("172.16.0.0/12"),  # RFC 1918 (not the full 172.x block)
+    ipaddress.ip_network("192.168.0.0/16"),  # RFC 1918
+    ipaddress.ip_network("169.254.0.0/16"),  # link-local
+    ipaddress.ip_network("100.64.0.0/10"),  # carrier-grade NAT
+    ipaddress.ip_network("::1/128"),  # IPv6 loopback
+    ipaddress.ip_network("fc00::/7"),  # IPv6 unique local
+    ipaddress.ip_network("fe80::/10"),  # IPv6 link-local
+)
+
 
 def _validate_download_url(url: str) -> None:
     """Raise HTTPException 400 for clearly invalid or dangerous URLs."""
@@ -613,11 +627,19 @@ def _validate_download_url(url: str) -> None:
         raise HTTPException(status_code=400, detail="Invalid URL") from None
     if parsed.scheme not in ("http", "https"):
         raise HTTPException(status_code=400, detail="Only http/https URLs are allowed")
-    # Reject local/private network URLs to prevent SSRF in server-side download
     host = (parsed.hostname or "").lower()
-    local_prefixes = ("192.168.", "10.", "172.")
-    if host in ("localhost", "127.0.0.1", "::1") or any(host.startswith(p) for p in local_prefixes):
+    if not host:
+        raise HTTPException(status_code=400, detail="URL has no host")
+    # Reject localhost by name
+    if host == "localhost":
         raise HTTPException(status_code=400, detail="Local network URLs are not allowed")
+    # If the host is a literal IP address, reject private/reserved ranges using CIDR checks
+    try:
+        ip = ipaddress.ip_address(host)
+        if any(ip in net for net in _PRIVATE_NETWORKS):
+            raise HTTPException(status_code=400, detail="Local network URLs are not allowed")
+    except ValueError:
+        pass  # hostname (not a literal IP) — allow
 
 
 @app.post("/api/download")

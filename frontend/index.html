@@ -1558,9 +1558,10 @@ async function saveSettings() {
 let pendingDownloadCookies = null;
 
 function _buildBookmarkletCode() {
-  const hoardUrl = window.location.origin;
+  // Use full current URL (without query/hash) so bookmarklet works under subpaths
+  const hoardUrl = window.location.href.replace(/[#?].*$/, '');
   // Bookmarklet: capture current page URL + document.cookie, redirect to Hoard
-  return `javascript:(function(){var u=encodeURIComponent(location.href);var c=encodeURIComponent(document.cookie);location.href='${hoardUrl}/#download?url='+u+'&cookies='+c;})();`;
+  return `javascript:(function(){var u=encodeURIComponent(location.href);var c=encodeURIComponent(document.cookie);location.href='${hoardUrl}#download?url='+u+'&cookies='+c;})();`;
 }
 
 function _updateBookmarkletLink() {

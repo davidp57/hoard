@@ -114,7 +114,7 @@ CREATE TABLE settings (
 
 ### Jobs ffmpeg
 
-Les découpes vidéo (`/api/files/cut`) et les téléchargements web (`/api/download`) sont exécutés dans des threads daemon background. L'état de chaque job est stocké en mémoire dans un dict `jobs: dict[str, JobStatus]`. L'endpoint `/api/jobs` permet de poller leur état depuis le frontend.
+Les découpes vidéo (`/api/files/cut`) et les téléchargements web (`/api/download`) sont exécutés dans des threads daemon en arrière-plan. L'état de chaque job est stocké en mémoire dans un dict `jobs: dict[str, JobStatus]`. L'endpoint `/api/jobs` permet de poller leur état depuis le frontend.
 
 ### Endpoint de téléchargement (`POST /api/download`)
 
