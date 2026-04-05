@@ -1898,24 +1898,25 @@ video.addEventListener('touchend', e => {
         // Centre (not bottom): play/pause
         togglePlay();
       }
-    } else if (tapCount === 2 && cfg.gesture_doubletap) {
+    } else if (tapCount >= 2 && cfg.gesture_doubletap) {
       const edgePct = cfg.gesture_edge_pct / 100;
+      const mult = tapCount - 1; // 2 taps=×1, 3 taps=×2, 4 taps=×3 …
       if (xPct < edgePct) {
-        const s = cfg.doubletap_left;
+        const s = cfg.doubletap_left * mult;
         video.currentTime = Math.max(0, video.currentTime - s);
         showToast(`◀◀ −${s}s`);
       } else if (xPct > (1 - edgePct)) {
-        // Right zone — 3 vertical thirds
+        // Right zone — 3 vertical thirds, each with its own base × mult
         if (yPct < 1 / 3) {
-          const s = cfg.doubletap_right_top;
+          const s = cfg.doubletap_right_top * mult;
           video.currentTime = Math.min(video.duration, video.currentTime + s);
           showToast(`+${s}s ▶▶▶`);
         } else if (yPct < 2 / 3) {
-          const s = cfg.doubletap_right_mid;
+          const s = cfg.doubletap_right_mid * mult;
           video.currentTime = Math.min(video.duration, video.currentTime + s);
           showToast(`+${s}s ▶▶`);
         } else {
-          const s = cfg.doubletap_right_bottom;
+          const s = cfg.doubletap_right_bottom * mult;
           video.currentTime = Math.min(video.duration, video.currentTime + s);
           showToast(`+${s}s ▶`);
         }
