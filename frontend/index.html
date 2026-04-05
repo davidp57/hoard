@@ -973,6 +973,7 @@
             <span style="font-size:16px;cursor:pointer" onclick="toggleMute()">🔊</span>
             <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="1" oninput="setVolume(this.value)">
           </div>          <button class="ctrl-btn" id="fullscreen-btn" onclick="toggleFullscreen()" title="Plein écran (F)">&#x26F6;</button>
+          <button class="ctrl-btn" id="fit-btn" onclick="toggleVideoFit()" title="Fit / Fill">&#x26F6;&#xFE0E;</button>
           <button class="ctrl-btn cut-mark-btn" id="cut-in-btn" onclick="setCutPoint('in')" title="Marquer point IN" style="display:none">[IN</button>
           <button class="ctrl-btn cut-mark-btn" id="cut-out-btn" onclick="setCutPoint('out')" title="Marquer point OUT" style="display:none">OUT]</button>
           <button class="ctrl-btn cut-mark-btn" id="cut-clear-btn" onclick="clearCutPoints()" title="Annuler les points IN/OUT" style="display:none;opacity:0.7">✕</button>
@@ -1803,7 +1804,10 @@ let tapCount = 0, tapTimer = null;
 
 function toggleVideoFit() {
   video.style.objectFit = video.style.objectFit === 'cover' ? '' : 'cover';
-  showToast(video.style.objectFit === 'cover' ? '⛶ Fill' : '⛶ Fit');
+  const isFill = video.style.objectFit === 'cover';
+  showToast(isFill ? '\u26f6\ufe0e Fill' : '\u26f6\ufe0e Fit');
+  const btn = document.getElementById('fit-btn');
+  if (btn) btn.style.color = isFill ? 'var(--accent)' : '';
 }
 
 function getBrightness() {
@@ -1918,8 +1922,6 @@ video.addEventListener('touchend', e => {
       } else {
         toggleFullscreen();
       }
-    } else if (tapCount >= 3) {
-      toggleVideoFit();
     }
     tapCount = 0;
   }, 320);
