@@ -4,9 +4,11 @@
 
 | Méthode | Prérequis |
 |---------|-----------|
-| Local (Python) | Python 3.12+, pip |
+| Local (Python) | Python 3.12+, pip, ffmpeg (pour la découpe vidéo et les téléchargements) |
 | Docker | Docker Engine 24+, Docker Compose v2 |
 | Synology NAS | DSM 7+, paquet Docker ou Container Manager |
+
+> **Note :** `yt-dlp` est installé automatiquement comme dépendance Python (`requirements.txt`). `ffmpeg` doit être disponible dans le PATH système pour la découpe vidéo et la fusion audio/vidéo lors des téléchargements. L'image Docker inclut les deux.
 
 ---
 

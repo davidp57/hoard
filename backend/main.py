@@ -1,4 +1,5 @@
 import hashlib
+import ipaddress
 import mimetypes
 import os
 import re
@@ -6,11 +7,13 @@ import shutil
 import sqlite3
 import string as _string
 import subprocess
+import tempfile
 import threading
 import time
 import uuid
 from contextlib import contextmanager
 from pathlib import Path
+from urllib.parse import urlparse
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -136,6 +139,11 @@ class CutRequest(BaseModel):
     destination: str  # relative path from MEDIA_ROOT
 
 
+class DownloadRequest(BaseModel):
+    url: str  # URL to download
+    cookies: str | None = None  # document.cookie string from the bookmarklet
+
+
 # ── Job store (in-memory) ─────────────────────────────────────────────────────
 _jobs: dict[str, dict] = {}
 
@@ -234,6 +242,111 @@ def _run_move(job_id: str, source: Path, destination: Path) -> None:
         conn.commit()
     job["status"] = "done"
     job["progress"] = 100
+
+
+# ── Download helpers ──────────────────────────────────────────────────────────
+
+
+def _cookies_to_netscape(cookie_str: str, domain: str) -> str:
+    """Convert a document.cookie string into Netscape cookies.txt format.
+
+    The resulting text can be passed directly to yt-dlp as a cookies file.
+    HttpOnly and Secure attributes are unknown client-side, so we use safe
+    defaults (non-secure, session-only).
+    """
+    lines = ["# Netscape HTTP Cookie File"]
+    for pair in cookie_str.split(";"):
+        pair = pair.strip()
+        if "=" not in pair:
+            continue
+        name, _, value = pair.partition("=")
+        name = name.strip()
+        value = value.strip()
+        if not name:
+            continue
+        # domain  include_subdomain  path  secure  expiry  name  value
+        lines.append(f"{domain}\tTRUE\t/\tFALSE\t0\t{name}\t{value}")
+    return "\n".join(lines)
+
+
+def _run_download(
+    job_id: str,
+    url: str,
+    output_dir: Path,
+    cookies_str: str | None,
+    cookies_file_path: str,
+) -> None:
+    """Background worker: download a URL via yt-dlp and update the job dict."""
+    import yt_dlp  # imported here to keep startup fast when yt-dlp isn't needed
+
+    job = _jobs[job_id]
+    job["status"] = "running"
+
+    tmp_cookies_file: str | None = None
+
+    try:
+        # Build yt-dlp options
+        ydl_opts: dict = {
+            "outtmpl": str(output_dir / "%(title)s.%(ext)s"),
+            "format": "bestvideo+bestaudio/best",
+            "merge_output_format": "mp4",
+            "quiet": True,
+            "no_warnings": True,
+            "noprogress": False,
+        }
+
+        # Cookies: prefer persistent file, fall back to bookmarklet cookies
+        if cookies_file_path and Path(cookies_file_path).is_file():
+            ydl_opts["cookiefile"] = cookies_file_path
+        elif cookies_str:
+            domain = urlparse(url).hostname or ""
+            netscape_content = _cookies_to_netscape(cookies_str, domain)
+            tmp_fd, tmp_cookies_file = tempfile.mkstemp(suffix=".txt", prefix="hoard_cookies_")
+            try:
+                with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
+                    f.write(netscape_content)
+            except Exception:
+                os.close(tmp_fd)
+                raise
+            ydl_opts["cookiefile"] = tmp_cookies_file
+
+        def _progress_hook(d: dict) -> None:
+            if d.get("status") == "downloading":
+                total = d.get("total_bytes") or d.get("total_bytes_estimate") or 0
+                downloaded = d.get("downloaded_bytes") or 0
+                if total > 0:
+                    job["progress"] = min(99, int(downloaded / total * 100))
+                # Update output filename as soon as we know it
+                filename = d.get("filename") or d.get("tmpfilename", "")
+                if filename:
+                    job["output_name"] = Path(filename).name
+            elif d.get("status") == "finished":
+                job["progress"] = 99  # will be set to 100 when all hooks complete
+
+        ydl_opts["progress_hooks"] = [_progress_hook]
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            if info:
+                # Use the final merged filename if available
+                final = ydl.prepare_filename(info)
+                # When merging formats, the extension is updated to merge_output_format
+                if ydl_opts.get("merge_output_format"):
+                    final = str(Path(final).with_suffix(f".{ydl_opts['merge_output_format']}"))
+                job["output_name"] = Path(final).name
+
+        job["status"] = "done"
+        job["progress"] = 100
+
+    except Exception as e:
+        job["status"] = "error"
+        job["error"] = str(e)
+    finally:
+        if tmp_cookies_file:
+            try:
+                os.unlink(tmp_cookies_file)
+            except OSError:
+                pass
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -488,6 +601,81 @@ def list_jobs():
     return list(_jobs.values())
 
 
+# ── Download ──────────────────────────────────────────────────────────────────
+
+# Private / reserved IP ranges used for SSRF protection (RFC1918, loopback, link-local, CGN)
+_PRIVATE_NETWORKS = (
+    ipaddress.ip_network("127.0.0.0/8"),  # loopback
+    ipaddress.ip_network("10.0.0.0/8"),  # RFC 1918
+    ipaddress.ip_network("172.16.0.0/12"),  # RFC 1918 (not the full 172.x block)
+    ipaddress.ip_network("192.168.0.0/16"),  # RFC 1918
+    ipaddress.ip_network("169.254.0.0/16"),  # link-local
+    ipaddress.ip_network("100.64.0.0/10"),  # carrier-grade NAT
+    ipaddress.ip_network("::1/128"),  # IPv6 loopback
+    ipaddress.ip_network("fc00::/7"),  # IPv6 unique local
+    ipaddress.ip_network("fe80::/10"),  # IPv6 link-local
+)
+
+
+def _validate_download_url(url: str) -> None:
+    """Raise HTTPException 400 for clearly invalid or dangerous URLs."""
+    if not url or not url.strip():
+        raise HTTPException(status_code=400, detail="URL is required")
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid URL") from None
+    if parsed.scheme not in ("http", "https"):
+        raise HTTPException(status_code=400, detail="Only http/https URLs are allowed")
+    host = (parsed.hostname or "").lower()
+    if not host:
+        raise HTTPException(status_code=400, detail="URL has no host")
+    # Reject localhost by name
+    if host == "localhost":
+        raise HTTPException(status_code=400, detail="Local network URLs are not allowed")
+    # If the host is a literal IP address, reject private/reserved ranges using CIDR checks
+    try:
+        ip = ipaddress.ip_address(host)
+        if any(ip in net for net in _PRIVATE_NETWORKS):
+            raise HTTPException(status_code=400, detail="Local network URLs are not allowed")
+    except ValueError:
+        pass  # hostname (not a literal IP) — allow
+
+
+@app.post("/api/download")
+def start_download(body: DownloadRequest):
+    """Start a yt-dlp download in the background and return a job_id."""
+    _validate_download_url(body.url)
+
+    with get_db() as conn:
+        s = _read_all_settings(conn)
+
+    download_folder_rel = s.get("download_folder", "Downloads")
+    cookies_file_path = s.get("download_cookies_path", "")
+
+    # Resolve (and create if needed) the download destination
+    output_dir = safe_path(download_folder_rel)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    job_id = str(uuid.uuid4())
+    _jobs[job_id] = {
+        "id": job_id,
+        "type": "download",
+        "url": body.url,
+        "source_name": body.url,
+        "output_name": "",
+        "status": "pending",
+        "progress": 0,
+        "error": None,
+    }
+    threading.Thread(
+        target=_run_download,
+        args=(job_id, body.url, output_dir, body.cookies, cookies_file_path),
+        daemon=True,
+    ).start()
+    return {"job_id": job_id}
+
+
 # ── Quick folders ─────────────────────────────────────────────────────────────
 
 
@@ -598,6 +786,8 @@ _SETTINGS_KEYS = {
     "doubletap_right_bottom",  # seconds int
     "doubletap_right_mid",  # seconds int
     "doubletap_right_top",  # seconds int
+    "download_folder",  # relative path from MEDIA_ROOT, default 'Downloads'
+    "download_cookies_path",  # absolute path to a Netscape cookies.txt file, optional
 }
 
 _SETTINGS_DEFAULTS: dict[str, str] = {
@@ -619,6 +809,8 @@ _SETTINGS_DEFAULTS: dict[str, str] = {
     "doubletap_right_bottom": "30",
     "doubletap_right_mid": "60",
     "doubletap_right_top": "90",
+    "download_folder": "Downloads",
+    "download_cookies_path": "",
 }
 
 
@@ -659,6 +851,8 @@ class SettingsPayload(BaseModel):
     doubletap_right_bottom: int | None = None
     doubletap_right_mid: int | None = None
     doubletap_right_top: int | None = None
+    download_folder: str | None = None
+    download_cookies_path: str | None = None
 
 
 @app.get("/api/settings")
@@ -706,6 +900,8 @@ def update_settings(body: SettingsPayload):
             ("doubletap_right_bottom", body.doubletap_right_bottom),
             ("doubletap_right_mid", body.doubletap_right_mid),
             ("doubletap_right_top", body.doubletap_right_top),
+            ("download_folder", body.download_folder),
+            ("download_cookies_path", body.download_cookies_path),
         ]
         for key, val in _simple:
             if val is not None:

@@ -1,5 +1,9 @@
 """Unit tests for MediaBrowser API endpoints."""
 
+import sys
+import threading
+from unittest.mock import MagicMock
+
 import pytest
 from starlette.testclient import TestClient  # bundled with fastapi
 
@@ -435,3 +439,226 @@ class TestCut:
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
         assert len(resp.json()) >= 1
+
+
+# ── /api/download ─────────────────────────────────────────────────────────────
+
+
+def _make_yt_dlp_mock(output_name: str = "video.mp4") -> MagicMock:
+    """Return a sys.modules-compatible yt_dlp mock."""
+    ydl_instance = MagicMock()
+    ydl_instance.__enter__ = MagicMock(return_value=ydl_instance)
+    ydl_instance.__exit__ = MagicMock(return_value=False)
+    ydl_instance.extract_info = MagicMock(return_value={"title": "test", "ext": "mp4"})
+    ydl_instance.prepare_filename = MagicMock(return_value=f"/tmp/{output_name}")
+    mock_module = MagicMock()
+    mock_module.YoutubeDL = MagicMock(return_value=ydl_instance)
+    return mock_module
+
+
+def _sync_thread_patch(monkeypatch):
+    """Run threading.Thread targets synchronously."""
+
+    class SyncThread:
+        def __init__(self, target, args, daemon=True):
+            self._target = target
+            self._args = args
+
+        def start(self):
+            self._target(*self._args)
+
+    monkeypatch.setattr(threading, "Thread", SyncThread)
+
+
+class TestDownload:
+    def test_valid_url_returns_job_id(self, monkeypatch):
+        monkeypatch.setitem(sys.modules, "yt_dlp", _make_yt_dlp_mock())
+        # No background thread needed — just check the response
+        resp = client.post("/api/download", json={"url": "https://example.com/video"})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "job_id" in data
+
+    def test_empty_url_rejected(self):
+        resp = client.post("/api/download", json={"url": ""})
+        assert resp.status_code == 400
+
+    def test_file_scheme_rejected(self):
+        resp = client.post("/api/download", json={"url": "file:///etc/passwd"})
+        assert resp.status_code == 400
+
+    def test_localhost_url_rejected(self):
+        resp = client.post("/api/download", json={"url": "http://localhost/video"})
+        assert resp.status_code == 400
+
+    def test_private_ip_rejected(self):
+        resp = client.post("/api/download", json={"url": "http://192.168.1.1/video"})
+        assert resp.status_code == 400
+
+    def test_download_creates_output_dir(self, monkeypatch):
+        monkeypatch.setitem(sys.modules, "yt_dlp", _make_yt_dlp_mock())
+        _sync_thread_patch(monkeypatch)
+        # Set a custom download folder that does not exist yet
+        client.post("/api/settings", json={"download_folder": "MyDownloads"})
+        resp = client.post("/api/download", json={"url": "https://example.com/video"})
+        assert resp.status_code == 200
+        from backend.main import MEDIA_ROOT
+
+        assert (MEDIA_ROOT / "MyDownloads").is_dir()
+
+    def test_download_job_appears_in_jobs_list(self, monkeypatch):
+        monkeypatch.setitem(sys.modules, "yt_dlp", _make_yt_dlp_mock())
+
+        class NoopThread:
+            def __init__(self, target, args, daemon=True):
+                pass
+
+            def start(self):
+                pass
+
+        monkeypatch.setattr(threading, "Thread", NoopThread)
+        client.post("/api/download", json={"url": "https://example.com/video"})
+        jobs = client.get("/api/jobs").json()
+        download_jobs = [j for j in jobs if j.get("type") == "download"]
+        assert len(download_jobs) >= 1
+        assert download_jobs[-1]["url"] == "https://example.com/video"
+
+    def test_download_done_after_sync_thread(self, monkeypatch):
+        monkeypatch.setitem(sys.modules, "yt_dlp", _make_yt_dlp_mock())
+        _sync_thread_patch(monkeypatch)
+        resp = client.post("/api/download", json={"url": "https://example.com/video"})
+        job_id = resp.json()["job_id"]
+        jobs = {j["id"]: j for j in client.get("/api/jobs").json()}
+        assert jobs[job_id]["status"] == "done"
+        assert jobs[job_id]["progress"] == 100
+
+    def test_download_error_on_yt_dlp_failure(self, monkeypatch):
+        mock_yt_dlp = _make_yt_dlp_mock()
+        mock_yt_dlp.YoutubeDL.return_value.extract_info.side_effect = Exception("network error")
+        monkeypatch.setitem(sys.modules, "yt_dlp", mock_yt_dlp)
+        _sync_thread_patch(monkeypatch)
+        resp = client.post("/api/download", json={"url": "https://example.com/video"})
+        job_id = resp.json()["job_id"]
+        jobs = {j["id"]: j for j in client.get("/api/jobs").json()}
+        assert jobs[job_id]["status"] == "error"
+        assert "network error" in jobs[job_id]["error"]
+
+    def test_download_with_cookies_str(self, monkeypatch):
+        """Cookies string should be passed to yt-dlp via a temp file."""
+        captured_opts = {}
+
+        def mock_ytdl_init(opts):
+            captured_opts.update(opts)
+            return _make_yt_dlp_mock().YoutubeDL.return_value
+
+        mock_module = MagicMock()
+        mock_module.YoutubeDL = MagicMock(side_effect=mock_ytdl_init)
+        monkeypatch.setitem(sys.modules, "yt_dlp", mock_module)
+        _sync_thread_patch(monkeypatch)
+        client.post(
+            "/api/download",
+            json={"url": "https://example.com/video", "cookies": "session=abc; token=xyz"},
+        )
+        assert "cookiefile" in captured_opts
+
+    def test_download_cookies_persistent_file_takes_precedence(self, monkeypatch, tmp_path):
+        """When the configured cookies file exists it takes precedence over the inline string."""
+        cookies_file = tmp_path / "cookies.txt"
+        cookies_file.write_text("persisted=1", encoding="utf-8")
+
+        client.post(
+            "/api/settings",
+            json={"download_cookies_path": str(cookies_file)},
+        )
+
+        captured_opts = {}
+
+        def mock_ytdl_init(opts):
+            captured_opts.update(opts)
+            return _make_yt_dlp_mock().YoutubeDL.return_value
+
+        mock_module = MagicMock()
+        mock_module.YoutubeDL = MagicMock(side_effect=mock_ytdl_init)
+        monkeypatch.setitem(sys.modules, "yt_dlp", mock_module)
+        _sync_thread_patch(monkeypatch)
+        client.post(
+            "/api/download",
+            json={"url": "https://example.com/video", "cookies": "session=abc"},
+        )
+        assert captured_opts.get("cookiefile") == str(cookies_file)
+
+        # Reset setting so other tests are unaffected
+        client.post("/api/settings", json={"download_cookies_path": ""})
+
+    def test_download_cookies_fallback_when_persistent_file_missing(self, monkeypatch, tmp_path):
+        """When the configured cookies file does not exist, fall back to the inline cookies."""
+        missing = tmp_path / "missing_cookies.txt"
+        assert not missing.exists()
+
+        client.post(
+            "/api/settings",
+            json={"download_cookies_path": str(missing)},
+        )
+
+        captured_opts = {}
+
+        def mock_ytdl_init(opts):
+            captured_opts.update(opts)
+            return _make_yt_dlp_mock().YoutubeDL.return_value
+
+        mock_module = MagicMock()
+        mock_module.YoutubeDL = MagicMock(side_effect=mock_ytdl_init)
+        monkeypatch.setitem(sys.modules, "yt_dlp", mock_module)
+        _sync_thread_patch(monkeypatch)
+        client.post(
+            "/api/download",
+            json={"url": "https://example.com/video", "cookies": "session=abc"},
+        )
+        # A temp file should be used — not the missing configured path
+        assert "cookiefile" in captured_opts
+        assert captured_opts["cookiefile"] != str(missing)
+
+        # Reset setting so other tests are unaffected
+        client.post("/api/settings", json={"download_cookies_path": ""})
+
+    def test_download_settings_persisted(self):
+        resp = client.post(
+            "/api/settings",
+            json={"download_folder": "WebVideos", "download_cookies_path": "/data/cookies.txt"},
+        )
+        assert resp.status_code == 200
+        settings = client.get("/api/settings").json()
+        assert settings["download_folder"] == "WebVideos"
+        assert settings["download_cookies_path"] == "/data/cookies.txt"
+
+
+class TestCookiesToNetscape:
+    def test_basic_conversion(self):
+        from backend.main import _cookies_to_netscape
+
+        result = _cookies_to_netscape("foo=bar; baz=qux", "example.com")
+        assert "# Netscape HTTP Cookie File" in result
+        assert "example.com" in result
+        assert "foo\tbar" in result
+        assert "baz\tqux" in result
+
+    def test_empty_string(self):
+        from backend.main import _cookies_to_netscape
+
+        result = _cookies_to_netscape("", "example.com")
+        assert result == "# Netscape HTTP Cookie File"
+
+    def test_pair_without_value(self):
+        from backend.main import _cookies_to_netscape
+
+        result = _cookies_to_netscape("key=; other=val", "example.com")
+        lines = result.strip().splitlines()
+        # key= should produce an entry with empty value
+        assert any("key" in line for line in lines[1:])
+
+    def test_value_with_equals(self):
+        from backend.main import _cookies_to_netscape
+
+        # Values containing '=' should be preserved (partition only splits on first =)
+        result = _cookies_to_netscape("token=abc=def", "example.com")
+        assert "token\tabc=def" in result

@@ -824,6 +824,27 @@
       </div>
     </div>
 
+    <!-- Downloads -->
+    <div>
+      <div class="s-section-title">📥 Téléchargements</div>
+      <div class="s-row">
+        <div><div class="s-label">Dossier de téléchargement</div><div class="s-desc">Chemin relatif depuis la racine média</div></div>
+        <div class="s-right"><input type="text" class="s-num" id="s-download-folder" style="width:140px" placeholder="Downloads"></div>
+      </div>
+      <div class="s-row">
+        <div><div class="s-label">Fichier cookies.txt</div><div class="s-desc">Chemin absolu vers un fichier cookies Netscape (optionnel, pour sites authentifiés)</div></div>
+        <div class="s-right"><input type="text" class="s-num" id="s-cookies-path" style="width:200px" placeholder="/data/cookies.txt"></div>
+      </div>
+      <div style="padding:12px 0 4px">
+        <div class="s-label" style="margin-bottom:8px">Bookmarklet</div>
+        <div class="s-desc" style="margin-bottom:10px">Glissez ce lien vers votre barre de favoris. Cliquez dessus sur n'importe quelle page vidéo pour lancer le téléchargement dans Hoard.</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <a id="bookmarklet-link" href="#" style="display:inline-block;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--accent);font-size:12px;padding:6px 12px;text-decoration:none;cursor:grab;white-space:nowrap" ondragstart="event.stopPropagation()">📥 Hoard Download</a>
+          <button class="s-btn" onclick="copyBookmarklet()">Copier le code</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Player -->
     <div>
       <div class="s-section-title">🎬 Player</div>
@@ -933,6 +954,7 @@
   <button id="home-btn" onclick="navigateHome()" title="Aller au dossier de départ">⌂</button>
   <button onclick="openBrowseModal()" title="Choisir le dossier de départ" style="background:none;border:1px solid var(--border);color:var(--text-dim);font-size:11px;cursor:pointer;padding:5px 8px;border-radius:6px;flex-shrink:0;font-family:inherit">📂 Browse…</button>
   <div id="breadcrumb"></div>
+  <button onclick="openDownloadModal('')" title="Télécharger une vidéo" style="background:none;border:1px solid var(--border);color:var(--text-dim);font-size:15px;cursor:pointer;padding:5px 9px;border-radius:6px;flex-shrink:0;line-height:1">📥</button>
   <button onclick="openSettings()" title="Paramètres" style="background:none;border:1px solid var(--border);color:var(--text-dim);font-size:15px;cursor:pointer;padding:5px 9px;border-radius:6px;flex-shrink:0;line-height:1">⚙️</button>
 </div>
 
@@ -989,6 +1011,22 @@
           <button class="ctrl-btn cut-mark-btn" id="cut-clear-btn" onclick="clearCutPoints()" title="Annuler les points IN/OUT" style="display:none;opacity:0.7">✕</button>
           <button class="ctrl-btn" id="cut-btn" onclick="openCutModal()" title="✂ Découper" style="display:none">&#x2702;</button>        </div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Download modal -->
+<div id="download-overlay" onclick="closeDownloadModal(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center">
+  <div id="download-modal" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:440px;max-width:95vw;display:flex;flex-direction:column;gap:14px">
+    <div style="font-size:15px;font-weight:700;color:var(--accent)">📥 Télécharger une vidéo</div>
+    <div>
+      <div class="s-label" style="margin-bottom:6px">URL de la vidéo</div>
+      <input id="download-url-input" type="url" placeholder="https://…" style="width:100%;box-sizing:border-box;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:8px 10px;outline:none">
+    </div>
+    <div style="font-size:12px;color:var(--text-dim)">Destination : <span id="download-dest-label" style="color:var(--text-mid)"></span></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="s-btn" onclick="closeDownloadModal()">Annuler</button>
+      <button class="s-btn" id="download-start-btn" onclick="startDownload()" style="background:var(--accent);color:#000;font-weight:700">Télécharger</button>
     </div>
   </div>
 </div>
@@ -1098,6 +1136,8 @@ let cfg = {
   doubletap_right_bottom: 30,
   doubletap_right_mid: 60,
   doubletap_right_top: 90,
+  download_folder: 'Downloads',
+  download_cookies_path: '',
 };
 
 function applyCfg(s) {
@@ -1119,6 +1159,8 @@ function applyCfg(s) {
   cfg.doubletap_right_bottom    = parseInt(s.doubletap_right_bottom   ?? 30, 10);
   cfg.doubletap_right_mid       = parseInt(s.doubletap_right_mid      ?? 60, 10);
   cfg.doubletap_right_top       = parseInt(s.doubletap_right_top      ?? 90, 10);
+  cfg.download_folder            = s.download_folder        || 'Downloads';
+  cfg.download_cookies_path      = s.download_cookies_path  || '';
   // propagate navigation prefs
   homeFolder = cfg.home_folder;
   sortBy     = cfg.sort_by;
@@ -1295,6 +1337,24 @@ async function init() {
   await loadQuickFolders();
   updateSortUI();
 
+  // 2. Handle bookmarklet redirect: #download?url=...&cookies=...
+  if (location.hash.startsWith('#download?')) {
+    const params = new URLSearchParams(location.hash.slice('#download?'.length));
+    const dlUrl = params.get('url') || '';
+    const dlCookies = params.get('cookies') || null;
+    history.replaceState(null, '', location.pathname);
+    if (cfg.pin_set) {
+      showPinScreen();
+      // open download modal after PIN is validated (handled in hidePinScreen flow)
+      pendingDownloadCookies = dlCookies;
+      window._pendingDownloadUrl = dlUrl;
+    } else {
+      navigate(homeFolder);
+      openDownloadModal(dlUrl, dlCookies);
+    }
+    return;
+  }
+
   if (cfg.pin_set) {
     showPinScreen();
   } else {
@@ -1346,6 +1406,12 @@ async function submitPin() {
   if (resp.ok) {
     hidePinScreen();
     navigate(homeFolder);
+    // If bookmarklet set a pending download URL, open the modal now
+    if (window._pendingDownloadUrl) {
+      const url = window._pendingDownloadUrl;
+      window._pendingDownloadUrl = null;
+      openDownloadModal(url, pendingDownloadCookies);
+    }
   } else {
     for (let i = 0; i < 4; i++) document.getElementById('pd' + i).classList.add('error');
     document.getElementById('pin-error').textContent = 'Code incorrect';
@@ -1431,6 +1497,9 @@ function openSettings() {
   document.getElementById('s-dt-right-mid').value      = cfg.doubletap_right_mid;
   document.getElementById('s-dt-right-top').value      = cfg.doubletap_right_top;
   document.getElementById('s-home-desc').textContent   = cfg.home_folder || '(racine)';
+  document.getElementById('s-download-folder').value   = cfg.download_folder;
+  document.getElementById('s-cookies-path').value      = cfg.download_cookies_path;
+  _updateBookmarkletLink();
   _refreshPinStatusUI();
   document.getElementById('settings-page').classList.add('open');
 }
@@ -1469,6 +1538,8 @@ async function saveSettings() {
     doubletap_right_bottom:    parseInt(document.getElementById('s-dt-right-bottom').value, 10),
     doubletap_right_mid:       parseInt(document.getElementById('s-dt-right-mid').value, 10),
     doubletap_right_top:       parseInt(document.getElementById('s-dt-right-top').value, 10),
+    download_folder:           (document.getElementById('s-download-folder').value || 'Downloads').trim(),
+    download_cookies_path:     document.getElementById('s-cookies-path').value.trim(),
   };
   const resp = await fetch(`${API}/api/settings`, {
     method: 'POST',
@@ -1480,6 +1551,73 @@ async function saveSettings() {
   updateSortUI();
   closeSettings();
   showToast('\u2713 Param\u00e8tres enregistr\u00e9s');
+}
+
+// ── Download modal ────────────────────────────────────────────────────────────
+// pendingDownloadCookies: cookies captured by the bookmarklet (document.cookie)
+let pendingDownloadCookies = null;
+
+function _buildBookmarkletCode() {
+  // Use full current URL (without query/hash) so bookmarklet works under subpaths
+  const hoardUrl = window.location.href.replace(/[#?].*$/, '');
+  // Bookmarklet: capture current page URL + document.cookie, redirect to Hoard
+  return `javascript:(function(){var u=encodeURIComponent(location.href);var c=encodeURIComponent(document.cookie);location.href='${hoardUrl}#download?url='+u+'&cookies='+c;})();`;
+}
+
+function _updateBookmarkletLink() {
+  const link = document.getElementById('bookmarklet-link');
+  if (link) link.href = _buildBookmarkletCode();
+}
+
+function copyBookmarklet() {
+  const code = _buildBookmarkletCode();
+  navigator.clipboard.writeText(code).then(
+    () => showToast('✓ Code bookmarklet copié'),
+    () => showToast('Impossible de copier — utilisez le glisser-déposer'),
+  );
+}
+
+function openDownloadModal(url, cookies) {
+  pendingDownloadCookies = cookies || null;
+  const urlInput = document.getElementById('download-url-input');
+  if (urlInput) urlInput.value = url || '';
+  const destLabel = document.getElementById('download-dest-label');
+  if (destLabel) destLabel.textContent = cfg.download_folder || 'Downloads';
+  const overlay = document.getElementById('download-overlay');
+  overlay.style.display = 'flex';
+  setTimeout(() => { if (urlInput) urlInput.focus(); }, 50);
+}
+
+function closeDownloadModal(e) {
+  if (e && e.target !== document.getElementById('download-overlay')) return;
+  document.getElementById('download-overlay').style.display = 'none';
+  pendingDownloadCookies = null;
+}
+
+async function startDownload() {
+  const url = (document.getElementById('download-url-input').value || '').trim();
+  if (!url) { showToast('Entrez une URL'); return; }
+  const btn = document.getElementById('download-start-btn');
+  btn.disabled = true;
+  try {
+    const resp = await fetch(`${API}/api/download`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ url, cookies: pendingDownloadCookies || undefined }),
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      showToast('Erreur : ' + (err.detail || resp.status));
+      return;
+    }
+    const { job_id } = await resp.json();
+    document.getElementById('download-overlay').style.display = 'none';
+    pendingDownloadCookies = null;
+    trackJob(job_id);
+    showToast('📥 Téléchargement lancé…');
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 // ── Navigation ────────────────────────────────────────────────────────────────
