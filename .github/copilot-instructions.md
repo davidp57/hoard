@@ -87,6 +87,13 @@ hoard/
 └── README.md
 ```
 
+### Git safety rules
+
+- **Never switch branches** (`git checkout`, `git switch`) without asking the user first.
+- **Never push** to any remote without explicit user confirmation.
+- **Never force-push**, reset hard, or delete branches without explicit user confirmation.
+- Always confirm the current branch with `git branch` before committing if there is any doubt.
+
 ### Commit workflow
 
 When the user asks to commit, follow these steps **in order** before creating the commit:
