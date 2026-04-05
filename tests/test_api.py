@@ -1,4 +1,5 @@
 """Unit tests for MediaBrowser API endpoints."""
+
 import pytest
 from starlette.testclient import TestClient  # bundled with fastapi
 
@@ -9,6 +10,7 @@ client = TestClient(app)
 
 
 # ── /api/quick-folders ──────────────────────────────────────────────────────────────────
+
 
 class TestQuickFolders:
     def test_empty_initially(self):
@@ -58,7 +60,9 @@ class TestQuickFolders:
         entry = next(e for e in entries if e["name"] == "series")
         assert entry["is_quick_folder"] is False
 
+
 # ── /api/files ────────────────────────────────────────────────────────────────
+
 
 class TestListFiles:
     def test_root_empty(self):
@@ -146,6 +150,7 @@ class TestListFiles:
 
 # ── /api/progress ─────────────────────────────────────────────────────────────
 
+
 class TestProgress:
     def test_no_record_returns_zero(self, video_file):
         resp = client.get(f"/api/progress?path={video_file}")
@@ -188,6 +193,7 @@ class TestProgress:
 
 # ── /api/files DELETE ─────────────────────────────────────────────────────────
 
+
 class TestDeleteFile:
     def test_delete_file(self, video_file):
         resp = client.delete(f"/api/files?path={video_file}")
@@ -217,16 +223,20 @@ class TestDeleteFile:
 
 # ── /api/files/move ───────────────────────────────────────────────────────────
 
+
 class TestMoveFile:
     def _sync_thread(self, monkeypatch):
         """Patch threading.Thread to run the target synchronously (no background thread)."""
         import threading as _threading
+
         class SyncThread:
             def __init__(self, target, args, daemon=True):
                 self._target = target
                 self._args = args
+
             def start(self):
                 self._target(*self._args)
+
         monkeypatch.setattr(_threading, "Thread", SyncThread)
 
     def test_move_to_subdir(self, video_file, subdir_with_video, monkeypatch):
@@ -258,6 +268,7 @@ class TestMoveFile:
 
 # ── /api/stream ───────────────────────────────────────────────────────────────
 
+
 class TestStream:
     def test_stream_returns_200(self, video_file):
         resp = client.get(f"/api/stream?path={video_file}")
@@ -287,6 +298,7 @@ class TestStream:
 
 # ── /api/browse ───────────────────────────────────────────────────────────────
 
+
 class TestBrowse:
     def test_browse_root_returns_dirs(self):
         resp = client.get("/api/browse?path=")
@@ -315,6 +327,7 @@ class TestBrowse:
 
 # ── /api/settings ─────────────────────────────────────────────────────────────
 
+
 class TestSettings:
     def test_get_settings_returns_media_root(self):
         resp = client.get("/api/settings")
@@ -336,6 +349,7 @@ class TestSettings:
 
 
 # ── /api/files/mkdir ──────────────────────────────────────────────────────────
+
 
 class TestMkdir:
     def test_mkdir_creates_folder(self):
@@ -366,9 +380,11 @@ class TestMkdir:
 
 # ── /api/files/cut + /api/jobs ───────────────────────────────────────────────
 
+
 class TestCut:
     def _noop_thread(self, monkeypatch):
         import threading as _threading
+
         monkeypatch.setattr(
             _threading,
             "Thread",

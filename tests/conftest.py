@@ -2,6 +2,7 @@
 Pytest configuration — sets env vars BEFORE backend.main is imported,
 so module-level constants (MEDIA_ROOT, DB_PATH) point to temp dirs.
 """
+
 import os
 import tempfile
 from pathlib import Path
@@ -21,6 +22,7 @@ os.environ["DB_PATH"] = str(DATA_DIR / "test.db")
 
 # ── Shared fixtures ───────────────────────────────────────────────────────────
 
+
 @pytest.fixture(autouse=True)
 def clean_media():
     """Remove all files/dirs created in MEDIA_DIR and reset DB after each test."""
@@ -28,10 +30,12 @@ def clean_media():
     for item in MEDIA_DIR.iterdir():
         if item.is_dir():
             import shutil
+
             shutil.rmtree(item)
         else:
             item.unlink()
     import sqlite3 as _sq
+
     _conn = _sq.connect(str(DATA_DIR / "test.db"))
     try:
         _conn.execute("DELETE FROM progress")

@@ -1,4 +1,4 @@
-# Roadmap — MediaBrowser
+# Roadmap — Hoard
 
 ## v1.0 — MVP (done)
 

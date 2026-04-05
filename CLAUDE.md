@@ -1,4 +1,4 @@
-# MediaBrowser — Contexte projet
+# Hoard — Contexte projet
 
 ## Origine du projet
 
@@ -22,7 +22,7 @@ Le besoin non couvert par les outils existants (PotPlayer, Jellyfin, Plex, Kodi)
 ## Structure du projet
 
 ```
-nas-vid-bro/
+hoard/
 ├── .github/
 │   └── workflows/
 │       ├── ci.yml               # Lint + tests sur chaque push/PR
@@ -35,6 +35,7 @@ nas-vid-bro/
 ├── tests/
 │   ├── conftest.py          # Fixtures pytest + isolation env (temp dirs)
 │   └── test_api.py          # 31 tests, 99% coverage
+├── docs/                    # Documentation (FR + EN)
 ├── docker-compose.yml       # Production (Synology)
 ├── docker-compose.dev.yml   # Dev override (hot-reload + volume local)
 ├── Dockerfile               # Image non-root + HEALTHCHECK
@@ -176,7 +177,7 @@ python -m pytest tests/ -v
 
 ```bash
 # Sur le NAS (SSH ou via Portainer)
-cd /volume1/docker/mediabrowser
+cd /volume1/docker/hoard
 
 # Adapter le volume dans docker-compose.yml :
 # - /volume1/downloads:/media:rw

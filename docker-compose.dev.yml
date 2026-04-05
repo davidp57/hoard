@@ -2,7 +2,7 @@
 # Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 
 services:
-  mediabrowser:
+  hoard:
     volumes:
       # Mount backend source for live reload
       - ./backend:/app/backend

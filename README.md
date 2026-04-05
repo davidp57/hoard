@@ -1,119 +1,105 @@
-# MediaBrowser
+# Hoard
 
-Web video browser with watch-progress tracking, designed for a Synology NAS.
+**Navigateur de fichiers vidéo avec suivi de progression, conçu pour un NAS Synology.**  
+**Web video file browser with watch-progress tracking, designed for a Synology NAS.**
 
-[![CI](https://github.com/YOUR_USER/nas-vid-bro/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_USER/nas-vid-bro/actions/workflows/ci.yml)
+[![CI](https://github.com/davidp57/hoard/actions/workflows/ci.yml/badge.svg)](https://github.com/davidp57/hoard/actions/workflows/ci.yml)
+[![Docker](https://github.com/davidp57/hoard/actions/workflows/docker-build.yml/badge.svg)](https://github.com/davidp57/hoard/actions/workflows/docker-build.yml)
 
-## Features
+---
 
-- 📁 Raw filesystem browser (no library, no metadata)
-- ▶️ Integrated HTML5 player — seek, volume, touch gestures
-- 💾 Auto-save position every 5 s, resume on re-open
-- 🟡 Visual status in file list: unseen / in-progress (% + bar) / watched (≥ 90 %)
-- ↗️ Move to predefined folders (quick modal)
-- 🗑️ Delete files/folders with confirmation
-- 👆 Touch: swipe-seek, swipe-volume, double-tap ±10 s
-- ⌨️ Keyboard: Space, ←→ seek ±10 s, ↑↓ volume
+## 🇫🇷 Français
 
-## Project structure
+Hoard remplace un lecteur vidéo mobile sur **laptop Windows 11 tactile** connecté à un NAS. Il comble un besoin que Jellyfin, Plex ou Kodi ne couvrent pas : parcourir un **filesystem brut**, voir l'état de lecture de chaque fichier, et gérer les fichiers (déplacer, supprimer) — le tout dans une interface web accessible depuis n'importe quel appareil.
 
-```
-.
-├── backend/
-│   ├── main.py              # FastAPI app (all backend logic)
-│   └── requirements.txt
-├── frontend/
-│   └── index.html           # Single-file UI (vanilla HTML/CSS/JS)
-├── tests/
-│   ├── conftest.py          # Pytest fixtures + temp env setup
-│   └── test_api.py          # API endpoint tests (31 cases, 99 % coverage)
-├── .github/workflows/
-│   ├── ci.yml               # Lint + test on every push/PR
-│   └── docker-build.yml     # Docker image build on main / tags
-├── docker-compose.yml       # Production (Synology)
-├── docker-compose.dev.yml   # Development override (hot-reload)
-├── Dockerfile
-├── pyproject.toml           # Pytest + ruff config
-├── requirements-dev.txt
-└── ROADMAP.md
-```
+### Fonctionnalités
 
-## Quick start (local)
+- 📁 Browser de filesystem brut (pas de bibliothèque, pas de métadonnées)
+- 🎬 Player HTML5 intégré avec seekbar et contrôles
+- 💾 Sauvegarde de position automatique toutes les 5 s, reprise à l'ouverture
+- 🟡 État de lecture visible dans la liste : **non vu** / **en cours** (% + barre) / **vu** (≥ 90 %)
+- 📌 Dossiers rapides épinglables pour déplacement en 2 taps
+- ✂ Découpe vidéo intégrée (via ffmpeg)
+- 👆 Gestes tactiles : seek, volume, luminosité, double-tap zones
+- ⌨ Raccourcis clavier
+- 📱 Responsive : vue divisée desktop, overlay plein écran mobile
+
+### Documentation
+
+| | Français | English |
+|---|---|---|
+| **Prise en main** | [docs/getting-started.fr.md](docs/getting-started.fr.md) | [docs/getting-started.en.md](docs/getting-started.en.md) |
+| **Guide utilisateur** | [docs/user-guide.fr.md](docs/user-guide.fr.md) | [docs/user-guide.en.md](docs/user-guide.en.md) |
+| **Installation** | [docs/installation.fr.md](docs/installation.fr.md) | [docs/installation.en.md](docs/installation.en.md) |
+| **Développeur** | [docs/developer.fr.md](docs/developer.fr.md) | [docs/developer.en.md](docs/developer.en.md) |
+
+### Démarrage rapide
 
 ```bash
-# Create and activate virtual environment
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-
-# Install dev dependencies
+git clone https://github.com/davidp57/hoard.git && cd hoard
+python -m venv .venv && .venv\Scripts\activate
 pip install -r requirements-dev.txt
-
-# Run with a local media folder
-export MEDIA_ROOT=/path/to/videos
-export PREDEFINED_FOLDERS="Vu,A revoir"
-export DB_PATH=/tmp/progress.db
-
-uvicorn backend.main:app --reload --port 8000
+$env:MEDIA_ROOT = "C:\Videos" ; uvicorn backend.main:app --port 8000
 # → http://localhost:8000
 ```
 
-## Development with Docker (hot-reload)
+Ou avec Docker :
 
 ```bash
-# Create a local media folder first
-mkdir dev-media
-
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
-# → http://localhost:8000
-# Backend reloads automatically on save.
-# Override media path: LOCAL_MEDIA_PATH=/your/path docker compose ...
-```
-
-## Tests
-
-```bash
-python -m pytest tests/ -v
-```
-
-Coverage report is written to `coverage.xml`.
-
-## Deployment on Synology
-
-1. Copy the project folder to `/volume1/docker/mediabrowser/`
-2. Edit `docker-compose.yml` — set the correct media volume path
-3. Run:
-
-```bash
-docker compose up -d --build
+docker compose up -d
 # → http://NAS_IP:8000
 ```
 
-See [ROADMAP.md](ROADMAP.md) for planned features.
-- Adapte le chemin du volume
-- Deploy
+---
 
-## Configuration
+## 🇬🇧 English
 
-Toute la config passe par les variables d'environnement dans `docker-compose.yml` :
+Hoard is a replacement for a mobile video player on a **Windows 11 touchscreen laptop** connected to a NAS. It fills a gap that Jellyfin, Plex, and Kodi do not cover: browsing a **raw filesystem**, seeing the watch status of each file, and managing files (move, delete) — all in a web interface accessible from any device.
 
-| Variable | Défaut | Description |
+### Features
+
+- 📁 Raw filesystem browser (no library, no metadata indexing)
+- 🎬 Integrated HTML5 player with seekbar and controls
+- 💾 Auto-save position every 5 s, auto-resume on re-open
+- 🟡 Watch status visible in the list: **unseen** / **in progress** (% + bar) / **watched** (≥ 90 %)
+- 📌 Pinnable quick folders for two-tap moves
+- ✂ Built-in video trim (via ffmpeg)
+- 👆 Touch gestures: seek, volume, brightness, double-tap zones
+- ⌨ Keyboard shortcuts
+- 📱 Responsive: split-view on desktop, full-screen overlay on mobile
+
+### Documentation
+
+| | Français | English |
 |---|---|---|
-| `MEDIA_ROOT` | `/media` | Chemin racine des médias dans le container |
-| `PREDEFINED_FOLDERS` | `Vu,A revoir,A supprimer` | Dossiers cibles pour le déplacement rapide (séparés par des virgules) |
-| `DB_PATH` | `/data/progress.db` | Chemin de la base SQLite |
+| **Getting started** | [docs/getting-started.fr.md](docs/getting-started.fr.md) | [docs/getting-started.en.md](docs/getting-started.en.md) |
+| **User guide** | [docs/user-guide.fr.md](docs/user-guide.fr.md) | [docs/user-guide.en.md](docs/user-guide.en.md) |
+| **Installation** | [docs/installation.fr.md](docs/installation.fr.md) | [docs/installation.en.md](docs/installation.en.md) |
+| **Developer** | [docs/developer.fr.md](docs/developer.fr.md) | [docs/developer.en.md](docs/developer.en.md) |
 
-## Développement local
+### Quick start
 
 ```bash
-cd mediabrowser
-pip install -r backend/requirements.txt
-
-# Pointe sur un vrai dossier vidéo
-export MEDIA_ROOT=/chemin/vers/tes/videos
-export PREDEFINED_FOLDERS="Vu,A revoir"
-export DB_PATH=/tmp/progress.db
-
-uvicorn backend.main:app --reload --port 8000
+git clone https://github.com/davidp57/hoard.git && cd hoard
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements-dev.txt
+MEDIA_ROOT=/path/to/videos uvicorn backend.main:app --port 8000
+# → http://localhost:8000
 ```
 
-Puis ouvre `http://localhost:8000`
+Or with Docker:
+
+```bash
+docker compose up -d
+# → http://NAS_IP:8000
+```
+
+---
+
+## Stack
+
+`Python 3.12` · `FastAPI` · `SQLite` · `ffmpeg` · `Vanilla JS` · `Docker`
+
+## License
+
+MIT

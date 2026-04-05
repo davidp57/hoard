@@ -324,6 +324,13 @@
     transition: transform 0.1s;
   }
   #seekbar-wrap:active #seekbar-thumb { transform: translate(-50%, -50%) scale(1.4); }
+  /* Expand touch target above and below the 6px track */
+  #seekbar-wrap::before {
+    content: '';
+    position: absolute;
+    inset: -20px 0;
+    cursor: pointer;
+  }
 
   /* ── Faux fullscreen (iOS / PWA) ── */
   #video-container.faux-fullscreen {
@@ -340,6 +347,7 @@
     bottom: 0;
     left: 0;
     right: 0;
+    z-index: 1; /* ensure controls (and seekbar hit area) are above video */
     background: rgba(0, 0, 0, 0.85);
     border-top: none;
     padding-bottom: max(12px, env(safe-area-inset-bottom));
@@ -597,15 +605,325 @@
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* ── PIN screen ── */
+  #pin-screen {
+    position: fixed; inset: 0; z-index: 1000;
+    background: var(--bg);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 24px;
+  }
+  #pin-screen h2 { font-size: 18px; font-weight: 700; color: var(--text); letter-spacing: 0.05em; }
+  #pin-dots {
+    display: flex; gap: 12px;
+  }
+  .pin-dot {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    border: 2px solid var(--text-dim);
+    background: transparent;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .pin-dot.filled { background: var(--accent); border-color: var(--accent); }
+  .pin-dot.error  { background: var(--danger);  border-color: var(--danger); }
+  #pin-keypad {
+    display: grid; grid-template-columns: repeat(3, 72px); gap: 10px;
+  }
+  .pin-key {
+    height: 72px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; color: var(--text);
+    font-size: 22px; font-family: 'DM Mono', monospace;
+    cursor: pointer; transition: background 0.1s, border-color 0.1s;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .pin-key:active, .pin-key:hover { background: var(--surface2); border-color: var(--accent); }
+  .pin-key.pin-del { font-size: 18px; color: var(--text-dim); }
+  #pin-error { color: var(--danger); font-size: 13px; min-height: 18px; font-family: 'DM Mono', monospace; }
+
+  /* ── Settings page ── */
+  #settings-page {
+    display: none;
+    position: fixed; inset: 0; z-index: 500;
+    background: var(--bg);
+    flex-direction: column;
+    overflow: hidden;
+  }
+  #settings-page.open { display: flex; }
+  #settings-header {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 12px;
+    flex-shrink: 0; background: var(--surface);
+  }
+  #settings-header h1 { font-size: 15px; font-weight: 700; color: var(--accent); flex: 1; }
+  #settings-back {
+    background: none; border: 1px solid var(--border); color: var(--text-dim);
+    font-size: 16px; cursor: pointer; padding: 5px 9px; border-radius: 6px;
+  }
+  #settings-back:hover { color: var(--accent); border-color: var(--accent); }
+  #settings-body {
+    flex: 1; overflow-y: auto; padding: 20px;
+    display: flex; flex-direction: column; gap: 28px; max-width: 600px; width: 100%;
+    margin: 0 auto;
+  }
+  .s-section-title {
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    text-transform: uppercase; letter-spacing: 0.12em;
+    color: var(--text-dim); margin-bottom: 10px;
+  }
+  .s-row {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .s-row:last-child { border-bottom: none; }
+  .s-label { font-size: 13px; font-weight: 600; }
+  .s-desc  { font-size: 11px; color: var(--text-dim); margin-top: 2px; font-family: 'DM Mono', monospace; }
+  .s-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  /* toggle */
+  .toggle {
+    position: relative; width: 42px; height: 24px; flex-shrink: 0;
+  }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .toggle-track {
+    position: absolute; inset: 0;
+    background: var(--border); border-radius: 12px;
+    cursor: pointer; transition: background 0.2s;
+  }
+  .toggle input:checked + .toggle-track { background: var(--accent); }
+  .toggle-track::after {
+    content: ''; position: absolute;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: var(--bg); top: 3px; left: 3px;
+    transition: left 0.2s;
+  }
+  .toggle input:checked + .toggle-track::after { left: 21px; }
+  /* number input */
+  .s-num {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); font-family: 'DM Mono', monospace; font-size: 13px;
+    border-radius: 6px; padding: 5px 8px; width: 72px; text-align: right;
+  }
+  .s-num:focus { outline: none; border-color: var(--accent); }
+  /* select */
+  .s-select {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); font-family: 'DM Mono', monospace; font-size: 13px;
+    border-radius: 6px; padding: 5px 8px;
+  }
+  .s-select:focus { outline: none; border-color: var(--accent); }
+  /* PIN sub-section */
+  #pin-change-area {
+    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  }
+  .s-btn {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text-mid); font-size: 12px; cursor: pointer;
+    padding: 6px 12px; border-radius: 6px; font-family: inherit;
+    transition: all 0.15s;
+  }
+  .s-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .s-btn.danger:hover { border-color: var(--danger); color: var(--danger); }
+  #settings-save-btn {
+    background: var(--accent); color: var(--bg);
+    border: none; font-weight: 700; font-size: 14px;
+    padding: 12px 32px; border-radius: 8px; cursor: pointer;
+    font-family: inherit; margin-top: 8px; align-self: flex-start;
+    transition: opacity 0.15s;
+  }
+  #settings-save-btn:hover { opacity: 0.85; }
 </style>
 </head>
 <body>
+
+<!-- PIN screen -->
+<div id="pin-screen" style="display:none">
+  <h2>🔒 Hoard</h2>
+  <div id="pin-dots">
+    <div class="pin-dot" id="pd0"></div>
+    <div class="pin-dot" id="pd1"></div>
+    <div class="pin-dot" id="pd2"></div>
+    <div class="pin-dot" id="pd3"></div>
+  </div>
+  <div id="pin-error"></div>
+  <div id="pin-keypad">
+    <button class="pin-key" onclick="pinPress(1)">1</button>
+    <button class="pin-key" onclick="pinPress(2)">2</button>
+    <button class="pin-key" onclick="pinPress(3)">3</button>
+    <button class="pin-key" onclick="pinPress(4)">4</button>
+    <button class="pin-key" onclick="pinPress(5)">5</button>
+    <button class="pin-key" onclick="pinPress(6)">6</button>
+    <button class="pin-key" onclick="pinPress(7)">7</button>
+    <button class="pin-key" onclick="pinPress(8)">8</button>
+    <button class="pin-key" onclick="pinPress(9)">9</button>
+    <div></div>
+    <button class="pin-key" onclick="pinPress(0)">0</button>
+    <button class="pin-key pin-del" onclick="pinDel()">&#x232B;</button>
+  </div>
+</div>
+
+<!-- Settings page -->
+<div id="settings-page">
+  <div id="settings-header">
+    <button id="settings-back" onclick="closeSettings()">&#x2190;</button>
+    <h1>Paramètres</h1>
+  </div>
+  <div id="settings-body">
+
+    <!-- Security -->
+    <div>
+      <div class="s-section-title">🔒 Sécurité &amp; confidentialité</div>
+      <div class="s-row">
+        <div><div class="s-label">Code PIN</div><div class="s-desc">Demandé à l&apos;ouverture et après inactivité</div></div>
+        <div class="s-right" id="pin-change-area">
+          <span id="pin-status" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim)"></span>
+          <button class="s-btn" id="pin-set-btn" onclick="openPinSetModal()"></button>
+          <button class="s-btn danger" id="pin-clear-btn" onclick="clearPin()" style="display:none">Supprimer</button>
+        </div>
+      </div>
+      <div class="s-row">
+        <div><div class="s-label">Timeout confidentialité</div><div class="s-desc">Ferme le player après N min d&apos;inactivité. 0&#xA0;=&#xA0;désactivé</div></div>
+        <div class="s-right"><input type="number" class="s-num" id="s-privacy-timeout" min="0" max="120" step="1"> <span style="font-size:12px;color:var(--text-dim)">min</span></div>
+      </div>
+    </div>
+
+    <!-- Navigation -->
+    <div>
+      <div class="s-section-title">📁 Navigation</div>
+      <div class="s-row">
+        <div><div class="s-label">Dossier d&apos;accueil</div><div class="s-desc" id="s-home-desc">Chemin relatif</div></div>
+        <div class="s-right">
+          <button class="s-btn" onclick="openHomePicker()">Choisir…</button>
+          <button class="s-btn danger" id="s-home-clear" onclick="clearHomeFolder()">Racine</button>
+        </div>
+      </div>
+      <div class="s-row">
+        <div><div class="s-label">Tri par défaut</div></div>
+        <div class="s-right">
+          <select class="s-select" id="s-sort-by">
+            <option value="date">Date</option>
+            <option value="name">Nom</option>
+          </select>
+          <select class="s-select" id="s-sort-dir">
+            <option value="desc">Décroissant</option>
+            <option value="asc">Croissant</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Player -->
+    <div>
+      <div class="s-section-title">🎬 Player</div>
+      <div class="s-row">
+        <div><div class="s-label">Seuil « vu »</div><div class="s-desc">Pourcentage minimum pour marquer une vidéo comme vue</div></div>
+        <div class="s-right"><input type="number" class="s-num" id="s-watched-threshold" min="75" max="99" step="1"> <span style="font-size:12px;color:var(--text-dim)">%</span></div>
+      </div>
+    </div>
+
+    <!-- Touch gestures -->
+    <div>
+      <div class="s-section-title">👆 Gestes tactiles</div>
+      <div class="s-row">
+        <div><div class="s-label">Gestes activés</div></div>
+        <div class="s-right"><label class="toggle"><input type="checkbox" id="s-gesture-enabled"><div class="toggle-track"></div></label></div>
+      </div>
+      <div class="s-row">
+        <div><div class="s-label">Swipe horizontal (seek)</div></div>
+        <div class="s-right"><label class="toggle"><input type="checkbox" id="s-gesture-seek"><div class="toggle-track"></div></label></div>
+      </div>
+      <div class="s-row">
+        <div><div class="s-label">Swipe vertical droit (volume)</div></div>
+        <div class="s-right"><label class="toggle"><input type="checkbox" id="s-gesture-volume"><div class="toggle-track"></div></label></div>
+      </div>
+      <div class="s-row">
+        <div><div class="s-label">Swipe vertical gauche (luminosité)</div></div>
+        <div class="s-right"><label class="toggle"><input type="checkbox" id="s-gesture-brightness"><div class="toggle-track"></div></label></div>
+      </div>
+      <div class="s-row">
+        <div><div class="s-label">Double-tap seek</div></div>
+        <div class="s-right"><label class="toggle"><input type="checkbox" id="s-gesture-doubletap"><div class="toggle-track"></div></label></div>
+      </div>
+      <div class="s-row">
+        <div><div class="s-label">Largeur des zones bord</div><div class="s-desc">Pourcentage de largeur déclenchant swipe/doubletap</div></div>
+        <div class="s-right"><input type="number" class="s-num" id="s-gesture-edge-pct" min="10" max="35" step="1"> <span style="font-size:12px;color:var(--text-dim)">%</span></div>
+      </div>
+      <div class="s-row">
+        <div><div class="s-label">Seuil de détection swipe</div><div class="s-desc">Mouvement minimum (px) avant déclenchement</div></div>
+        <div class="s-right"><input type="number" class="s-num" id="s-gesture-swipe-threshold" min="5" max="40" step="1"> <span style="font-size:12px;color:var(--text-dim)">px</span></div>
+      </div>
+      <div class="s-row">
+        <div><div class="s-label">Sensibilité seek horizontal</div></div>
+        <div class="s-right">
+          <select class="s-select" id="s-gesture-swipe-sensitivity">
+            <option value="slow">Lente</option>
+            <option value="medium">Moyenne</option>
+            <option value="fast">Rapide</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Double-tap values -->
+    <div>
+      <div class="s-section-title">Double-tap — valeurs seek (s)</div>
+      <div class="s-row">
+        <div><div class="s-label">Bord gauche</div></div>
+        <div class="s-right"><input type="number" class="s-num" id="s-dt-left" min="5" max="300" step="5"> <span style="font-size:12px;color:var(--text-dim)">s</span></div>
+      </div>
+      <div class="s-row">
+        <div><div class="s-label">Bord droit — tiers bas</div></div>
+        <div class="s-right"><input type="number" class="s-num" id="s-dt-right-bottom" min="5" max="300" step="5"> <span style="font-size:12px;color:var(--text-dim)">s</span></div>
+      </div>
+      <div class="s-row">
+        <div><div class="s-label">Bord droit — tiers médian</div></div>
+        <div class="s-right"><input type="number" class="s-num" id="s-dt-right-mid" min="5" max="300" step="5"> <span style="font-size:12px;color:var(--text-dim)">s</span></div>
+      </div>
+      <div class="s-row">
+        <div><div class="s-label">Bord droit — tiers haut</div></div>
+        <div class="s-right"><input type="number" class="s-num" id="s-dt-right-top" min="5" max="300" step="5"> <span style="font-size:12px;color:var(--text-dim)">s</span></div>
+      </div>
+    </div>
+
+    <button id="settings-save-btn" onclick="saveSettings()">Enregistrer</button>
+  </div>
+</div>
+
+<!-- PIN-change mini modal (used from settings page) -->
+<div id="pin-set-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:600;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:28px 24px;width:320px;display:flex;flex-direction:column;gap:16px">
+    <div style="font-size:15px;font-weight:700;color:var(--accent)">Définir le PIN</div>
+    <div id="pin-set-dots" style="display:flex;gap:10px;justify-content:center">
+      <div class="pin-dot" id="psd0"></div><div class="pin-dot" id="psd1"></div>
+      <div class="pin-dot" id="psd2"></div><div class="pin-dot" id="psd3"></div>
+    </div>
+    <div id="pin-set-keypad" style="display:grid;grid-template-columns:repeat(3,64px);gap:8px;margin:0 auto">
+      <button class="pin-key" onclick="pinSetPress(1)">1</button>
+      <button class="pin-key" onclick="pinSetPress(2)">2</button>
+      <button class="pin-key" onclick="pinSetPress(3)">3</button>
+      <button class="pin-key" onclick="pinSetPress(4)">4</button>
+      <button class="pin-key" onclick="pinSetPress(5)">5</button>
+      <button class="pin-key" onclick="pinSetPress(6)">6</button>
+      <button class="pin-key" onclick="pinSetPress(7)">7</button>
+      <button class="pin-key" onclick="pinSetPress(8)">8</button>
+      <button class="pin-key" onclick="pinSetPress(9)">9</button>
+      <div></div>
+      <button class="pin-key" onclick="pinSetPress(0)">0</button>
+      <button class="pin-key pin-del" onclick="pinSetDel()">&#x232B;</button>
+    </div>
+    <div style="font-size:12px;color:var(--text-dim);text-align:center">Entrez 4 chiffres</div>
+    <button class="s-btn" onclick="closePinSetModal()">Annuler</button>
+  </div>
+</div>
 
 <div id="header">
   <div id="logo">Hoard</div>
   <button id="home-btn" onclick="navigateHome()" title="Aller au dossier de départ">⌂</button>
   <button onclick="openBrowseModal()" title="Choisir le dossier de départ" style="background:none;border:1px solid var(--border);color:var(--text-dim);font-size:11px;cursor:pointer;padding:5px 8px;border-radius:6px;flex-shrink:0;font-family:inherit">📂 Browse…</button>
   <div id="breadcrumb"></div>
+  <button onclick="openSettings()" title="Paramètres" style="background:none;border:1px solid var(--border);color:var(--text-dim);font-size:15px;cursor:pointer;padding:5px 9px;border-radius:6px;flex-shrink:0;line-height:1">⚙️</button>
 </div>
 
 <div id="main">
@@ -737,9 +1055,9 @@
 <script>
 const API = '';  // same origin
 let currentPath = '';
-let homeFolder = localStorage.getItem('homeFolder') || '';
-let sortBy = localStorage.getItem('sortBy') || 'date';   // 'date' | 'name'
-let sortDir = localStorage.getItem('sortDir') || 'desc'; // 'asc' | 'desc'
+let homeFolder = '';
+let sortBy = 'date';
+let sortDir = 'desc';
 let currentFile = null;
 let quickFolders = [];
 let saveInterval = null;
@@ -749,20 +1067,91 @@ let entries = [];
 const dirCache = new Map(); // path -> {entries, breadcrumb, ts}
 const DIR_CACHE_TTL = 30_000; // ms — no background refresh if data is this fresh
 
+// ── Settings cache (loaded from backend on init) ─────────────────────────────
+let cfg = {
+  pin_set: false,
+  privacy_timeout: 10,
+  watched_threshold: 90,
+  home_folder: '',
+  sort_by: 'date',
+  sort_dir: 'desc',
+  gesture_enabled: true,
+  gesture_seek: true,
+  gesture_volume: true,
+  gesture_brightness: true,
+  gesture_doubletap: true,
+  gesture_edge_pct: 20,
+  gesture_swipe_threshold: 15,
+  gesture_swipe_sensitivity: 'medium',
+  doubletap_left: 30,
+  doubletap_right_bottom: 30,
+  doubletap_right_mid: 60,
+  doubletap_right_top: 90,
+};
+
+function applyCfg(s) {
+  cfg.pin_set                  = !!s.pin_set;
+  cfg.privacy_timeout          = parseInt(s.privacy_timeout   ?? 10, 10);
+  cfg.watched_threshold        = parseInt(s.watched_threshold ?? 90, 10);
+  cfg.home_folder              = s.home_folder  || '';
+  cfg.sort_by                  = s.sort_by      || 'date';
+  cfg.sort_dir                 = s.sort_dir     || 'desc';
+  cfg.gesture_enabled          = s.gesture_enabled          !== '0' && s.gesture_enabled          !== false;
+  cfg.gesture_seek             = s.gesture_seek             !== '0' && s.gesture_seek             !== false;
+  cfg.gesture_volume           = s.gesture_volume           !== '0' && s.gesture_volume           !== false;
+  cfg.gesture_brightness       = s.gesture_brightness       !== '0' && s.gesture_brightness       !== false;
+  cfg.gesture_doubletap        = s.gesture_doubletap        !== '0' && s.gesture_doubletap        !== false;
+  cfg.gesture_edge_pct         = parseInt(s.gesture_edge_pct          ?? 20, 10);
+  cfg.gesture_swipe_threshold  = parseInt(s.gesture_swipe_threshold   ?? 15, 10);
+  cfg.gesture_swipe_sensitivity = s.gesture_swipe_sensitivity || 'medium';
+  cfg.doubletap_left            = parseInt(s.doubletap_left           ?? 30, 10);
+  cfg.doubletap_right_bottom    = parseInt(s.doubletap_right_bottom   ?? 30, 10);
+  cfg.doubletap_right_mid       = parseInt(s.doubletap_right_mid      ?? 60, 10);
+  cfg.doubletap_right_top       = parseInt(s.doubletap_right_top      ?? 90, 10);
+  // propagate navigation prefs
+  homeFolder = cfg.home_folder;
+  sortBy     = cfg.sort_by;
+  sortDir    = cfg.sort_dir;
+}
+
+// ── Privacy: auto-close player after being hidden for a while ─────────────────
+let hiddenAt = null;
+
+function privacyClose() {
+  video.pause();
+  video.src = '';
+  if (saveInterval) { clearInterval(saveInterval); saveInterval = null; }
+  currentFile = null;
+  document.getElementById('video-container').classList.remove('active');
+  document.getElementById('player-empty').style.display = '';
+  closeMobilePlayer();
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    hiddenAt = Date.now();
+  } else {
+    const timeoutMs = cfg.privacy_timeout * 60 * 1000;
+    if (hiddenAt !== null && timeoutMs > 0 && (Date.now() - hiddenAt) >= timeoutMs && currentFile) {
+      privacyClose();
+      if (cfg.pin_set) showPinScreen();
+    }
+    hiddenAt = null;
+  }
+});
+
 function navigateHome() {
   navigate(homeFolder);
 }
 
 function setSortBy(by) {
   sortBy = by;
-  localStorage.setItem('sortBy', sortBy);
   updateSortUI();
   renderFiles(entries);
 }
 
 function toggleSortDir() {
   sortDir = sortDir === 'desc' ? 'asc' : 'desc';
-  localStorage.setItem('sortDir', sortDir);
   updateSortUI();
   renderFiles(entries);
 }
@@ -861,9 +1250,14 @@ async function confirmBrowseSelect() {
   document.getElementById('browse-overlay').style.display = 'none';
   // Reset home to root of new MEDIA_ROOT
   homeFolder = '';
-  localStorage.setItem('homeFolder', '');
+  cfg.home_folder = '';
+  // Persist new home folder to backend settings
+  await fetch(`${API}/api/settings`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ home_folder: '' }),
+  });
   const label = result.media_root.split('/').filter(Boolean).pop() || '/';
-  showToast(`\u2302 Racine : ${label}`);
+  showToast(`\u2302 Racine\u00a0: ${label}`);
   await loadQuickFolders();
   navigate('');
   updateHomeBtnState();
@@ -875,6 +1269,10 @@ async function loadQuickFolders() {
 }
 
 async function init() {
+  // 1. Load settings from backend
+  const s = await fetch(`${API}/api/settings`).then(r => r.json()).catch(() => ({}));
+  applyCfg(s);
+
   const savedVolume = localStorage.getItem('volume');
   if (savedVolume !== null) {
     const v = parseFloat(savedVolume);
@@ -883,7 +1281,192 @@ async function init() {
   }
   await loadQuickFolders();
   updateSortUI();
-  navigate(homeFolder);
+
+  if (cfg.pin_set) {
+    showPinScreen();
+  } else {
+    navigate(homeFolder);
+  }
+}
+
+// ── PIN screen ───────────────────────────────────────────────────────────────
+let pinBuffer = '';
+
+function showPinScreen() {
+  pinBuffer = '';
+  _updatePinDots('pd', pinBuffer);
+  document.getElementById('pin-error').textContent = '';
+  document.getElementById('pin-screen').style.display = 'flex';
+}
+
+function hidePinScreen() {
+  document.getElementById('pin-screen').style.display = 'none';
+}
+
+function _updatePinDots(prefix, buf) {
+  for (let i = 0; i < 4; i++) {
+    const dot = document.getElementById(prefix + i);
+    if (!dot) continue;
+    dot.classList.toggle('filled', i < buf.length);
+    dot.classList.remove('error');
+  }
+}
+
+function pinPress(d) {
+  if (pinBuffer.length >= 4) return;
+  pinBuffer += d;
+  _updatePinDots('pd', pinBuffer);
+  if (pinBuffer.length === 4) submitPin();
+}
+
+function pinDel() {
+  pinBuffer = pinBuffer.slice(0, -1);
+  _updatePinDots('pd', pinBuffer);
+}
+
+async function submitPin() {
+  const resp = await fetch(`${API}/api/settings/check-pin`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ pin: pinBuffer }),
+  });
+  if (resp.ok) {
+    hidePinScreen();
+    navigate(homeFolder);
+  } else {
+    for (let i = 0; i < 4; i++) document.getElementById('pd' + i).classList.add('error');
+    document.getElementById('pin-error').textContent = 'Code incorrect';
+    setTimeout(() => { pinBuffer = ''; _updatePinDots('pd', pinBuffer); }, 800);
+  }
+}
+
+// PIN set modal (inside settings)
+let pinSetBuffer = '';
+
+function openPinSetModal() {
+  pinSetBuffer = '';
+  _updatePinDots('psd', pinSetBuffer);
+  document.getElementById('pin-set-overlay').style.display = 'flex';
+}
+
+function closePinSetModal() {
+  document.getElementById('pin-set-overlay').style.display = 'none';
+}
+
+function pinSetPress(d) {
+  if (pinSetBuffer.length >= 4) return;
+  pinSetBuffer += d;
+  _updatePinDots('psd', pinSetBuffer);
+  if (pinSetBuffer.length === 4) finalizePinSet();
+}
+
+function pinSetDel() {
+  pinSetBuffer = pinSetBuffer.slice(0, -1);
+  _updatePinDots('psd', pinSetBuffer);
+}
+
+async function finalizePinSet() {
+  await fetch(`${API}/api/settings`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ pin: pinSetBuffer }),
+  });
+  cfg.pin_set = true;
+  closePinSetModal();
+  _refreshPinStatusUI();
+  showToast('\ud83d\udd12 PIN d\u00e9fini');
+}
+
+async function clearPin() {
+  if (!confirm('Supprimer le PIN ?')) return;
+  await fetch(`${API}/api/settings`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ pin: '' }),
+  });
+  cfg.pin_set = false;
+  _refreshPinStatusUI();
+  showToast('PIN supprim\u00e9');
+}
+
+function _refreshPinStatusUI() {
+  const statusEl = document.getElementById('pin-status');
+  const setBtn   = document.getElementById('pin-set-btn');
+  const clrBtn   = document.getElementById('pin-clear-btn');
+  if (!statusEl) return;
+  statusEl.textContent  = cfg.pin_set ? 'D\u00e9fini \u2713' : 'D\u00e9sactiv\u00e9';
+  setBtn.textContent    = cfg.pin_set ? 'Modifier' : 'D\u00e9finir\u2026';
+  clrBtn.style.display  = cfg.pin_set ? '' : 'none';
+}
+
+// ── Settings page ────────────────────────────────────────────────────────────
+function openSettings() {
+  document.getElementById('s-privacy-timeout').value    = cfg.privacy_timeout;
+  document.getElementById('s-watched-threshold').value  = cfg.watched_threshold;
+  document.getElementById('s-sort-by').value            = cfg.sort_by;
+  document.getElementById('s-sort-dir').value           = cfg.sort_dir;
+  document.getElementById('s-gesture-enabled').checked     = cfg.gesture_enabled;
+  document.getElementById('s-gesture-seek').checked        = cfg.gesture_seek;
+  document.getElementById('s-gesture-volume').checked      = cfg.gesture_volume;
+  document.getElementById('s-gesture-brightness').checked  = cfg.gesture_brightness;
+  document.getElementById('s-gesture-doubletap').checked   = cfg.gesture_doubletap;
+  document.getElementById('s-gesture-edge-pct').value           = cfg.gesture_edge_pct;
+  document.getElementById('s-gesture-swipe-threshold').value    = cfg.gesture_swipe_threshold;
+  document.getElementById('s-gesture-swipe-sensitivity').value  = cfg.gesture_swipe_sensitivity;
+  document.getElementById('s-dt-left').value           = cfg.doubletap_left;
+  document.getElementById('s-dt-right-bottom').value   = cfg.doubletap_right_bottom;
+  document.getElementById('s-dt-right-mid').value      = cfg.doubletap_right_mid;
+  document.getElementById('s-dt-right-top').value      = cfg.doubletap_right_top;
+  document.getElementById('s-home-desc').textContent   = cfg.home_folder || '(racine)';
+  _refreshPinStatusUI();
+  document.getElementById('settings-page').classList.add('open');
+}
+
+function closeSettings() {
+  document.getElementById('settings-page').classList.remove('open');
+}
+
+function openHomePicker() {
+  closeSettings();
+  openBrowseModal();
+}
+
+function clearHomeFolder() {
+  cfg.home_folder = '';
+  homeFolder = '';
+  document.getElementById('s-home-desc').textContent = '(racine)';
+}
+
+async function saveSettings() {
+  const payload = {
+    privacy_timeout:           parseInt(document.getElementById('s-privacy-timeout').value, 10),
+    watched_threshold:         parseInt(document.getElementById('s-watched-threshold').value, 10),
+    home_folder:               cfg.home_folder,
+    sort_by:                   document.getElementById('s-sort-by').value,
+    sort_dir:                  document.getElementById('s-sort-dir').value,
+    gesture_enabled:           document.getElementById('s-gesture-enabled').checked,
+    gesture_seek:              document.getElementById('s-gesture-seek').checked,
+    gesture_volume:            document.getElementById('s-gesture-volume').checked,
+    gesture_brightness:        document.getElementById('s-gesture-brightness').checked,
+    gesture_doubletap:         document.getElementById('s-gesture-doubletap').checked,
+    gesture_edge_pct:          parseInt(document.getElementById('s-gesture-edge-pct').value, 10),
+    gesture_swipe_threshold:   parseInt(document.getElementById('s-gesture-swipe-threshold').value, 10),
+    gesture_swipe_sensitivity: document.getElementById('s-gesture-swipe-sensitivity').value,
+    doubletap_left:            parseInt(document.getElementById('s-dt-left').value, 10),
+    doubletap_right_bottom:    parseInt(document.getElementById('s-dt-right-bottom').value, 10),
+    doubletap_right_mid:       parseInt(document.getElementById('s-dt-right-mid').value, 10),
+    doubletap_right_top:       parseInt(document.getElementById('s-dt-right-top').value, 10),
+  };
+  const resp = await fetch(`${API}/api/settings`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload),
+  });
+  if (!resp.ok) { showToast('Erreur lors de la sauvegarde'); return; }
+  applyCfg({ ...cfg, ...payload });
+  updateSortUI();
+  closeSettings();
+  showToast('\u2713 Param\u00e8tres enregistr\u00e9s');
 }
 
 // ── Navigation ────────────────────────────────────────────────────────────────
@@ -929,7 +1512,7 @@ async function navigate(path) {
     if (!cached) {
       if (path !== '') {
         homeFolder = '';
-        localStorage.setItem('homeFolder', '');
+        cfg.home_folder = '';
         return navigate('');
       }
       showToast('Impossible de charger le dossier : ' + err.message);
@@ -1020,13 +1603,13 @@ function renderFiles(list) {
 
 function getVideoIcon(p) {
   if (!p || p.percent === 0) return '🎬';
-  if (p.percent >= 90) return '✅';
+  if (p.percent >= cfg.watched_threshold) return '✅';
   return '▶️';
 }
 
 function getStateClass(p) {
   if (!p || p.percent === 0) return '';
-  if (p.percent >= 90) return 'seen';
+  if (p.percent >= cfg.watched_threshold) return 'seen';
   return 'inprogress';
 }
 
@@ -1245,29 +1828,33 @@ video.addEventListener('touchstart', e => {
 }, {passive: true});
 
 video.addEventListener('touchmove', e => {
+  if (!cfg.gesture_enabled) return;
   const dx = e.touches[0].clientX - touchStartX;
   const dy = e.touches[0].clientY - touchStartY;
   if (Math.abs(dx) < 5 && Math.abs(dy) < 5) return;
 
   const rect = video.getBoundingClientRect();
   const xPct = (touchStartX - rect.left) / rect.width;
+  const edgePct = cfg.gesture_edge_pct / 100;
+  const swipeThreshold = cfg.gesture_swipe_threshold;
 
-  if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 15) {
-    if (xPct > 0.8) {
+  if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > swipeThreshold) {
+    if (xPct > (1 - edgePct) && cfg.gesture_volume) {
       // Right edge: volume
       video.volume = Math.max(0, Math.min(1, touchStartVol - dy / 200));
       document.getElementById('volume-slider').value = video.volume;
       showToast(`🔊 ${Math.round(video.volume * 100)}%`);
-    } else if (xPct < 0.2) {
+    } else if (xPct < edgePct && cfg.gesture_brightness) {
       // Left edge: brightness
       setBrightness(touchStartBrightness - dy / 200);
     }
-    // Centre vertical swipe does nothing (reserved for tap gestures)
-  } else if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 15) {
-    // Horizontal seek — speed proportional to vertical position (top=fast, bottom=slow)
+  } else if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > swipeThreshold && cfg.gesture_seek) {
+    // Horizontal seek — speed depends on sensitivity setting
+    const sensitivityBase = cfg.gesture_swipe_sensitivity === 'slow' ? 0.2
+                          : cfg.gesture_swipe_sensitivity === 'fast' ? 1.2 : 0.6;
     const rect2 = video.getBoundingClientRect();
     const yPctMove = (touchStartY - rect2.top) / rect2.height;
-    const speedFactor = 0.05 + (1 - yPctMove) * 0.55; // 0.05s/px bottom → 0.6s/px top
+    const speedFactor = (sensitivityBase * 0.1) + (1 - yPctMove) * (sensitivityBase * 0.9);
     video.currentTime = Math.max(0, Math.min(video.duration, touchStartTime + dx * speedFactor));
   }
 }, {passive: true});
@@ -1307,13 +1894,27 @@ video.addEventListener('touchend', e => {
         // Centre (not bottom): play/pause
         togglePlay();
       }
-    } else if (tapCount === 2) {
-      if (xPct < 0.2) {
-        video.currentTime = Math.max(0, video.currentTime - 30);
-        showToast('◀◀ −30s');
-      } else if (xPct > 0.8) {
-        video.currentTime = Math.min(video.duration, video.currentTime + 30);
-        showToast('+30s ▶▶');
+    } else if (tapCount === 2 && cfg.gesture_doubletap) {
+      const edgePct = cfg.gesture_edge_pct / 100;
+      if (xPct < edgePct) {
+        const s = cfg.doubletap_left;
+        video.currentTime = Math.max(0, video.currentTime - s);
+        showToast(`◀◀ −${s}s`);
+      } else if (xPct > (1 - edgePct)) {
+        // Right zone — 3 vertical thirds
+        if (yPct < 1 / 3) {
+          const s = cfg.doubletap_right_top;
+          video.currentTime = Math.min(video.duration, video.currentTime + s);
+          showToast(`+${s}s ▶▶▶`);
+        } else if (yPct < 2 / 3) {
+          const s = cfg.doubletap_right_mid;
+          video.currentTime = Math.min(video.duration, video.currentTime + s);
+          showToast(`+${s}s ▶▶`);
+        } else {
+          const s = cfg.doubletap_right_bottom;
+          video.currentTime = Math.min(video.duration, video.currentTime + s);
+          showToast(`+${s}s ▶`);
+        }
       } else {
         toggleFullscreen();
       }

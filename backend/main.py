@@ -1,3 +1,4 @@
+import hashlib
 import mimetypes
 import os
 import re
@@ -574,30 +575,167 @@ def browse_filesystem(path: str = ""):
 
 # ── Settings ──────────────────────────────────────────────────────────────────
 
+# Keys stored in the settings table (besides media_root which is handled separately)
+_SETTINGS_KEYS = {
+    "pin_hash",  # SHA-256 hex of PIN, empty string = disabled
+    "privacy_timeout",  # minutes (int), 0 = disabled
+    "watched_threshold",  # percent (int), default 90
+    "home_folder",  # relative path from MEDIA_ROOT
+    "sort_by",  # 'date' | 'name'
+    "sort_dir",  # 'asc' | 'desc'
+    "gesture_enabled",  # '1' | '0'
+    "gesture_seek",  # '1' | '0'
+    "gesture_volume",  # '1' | '0'
+    "gesture_brightness",  # '1' | '0'
+    "gesture_doubletap",  # '1' | '0'
+    "gesture_edge_pct",  # int 10-35
+    "gesture_swipe_threshold",  # px int, default 15
+    "gesture_swipe_sensitivity",  # 'slow'|'medium'|'fast'
+    "doubletap_left",  # seconds int
+    "doubletap_right_bottom",  # seconds int
+    "doubletap_right_mid",  # seconds int
+    "doubletap_right_top",  # seconds int
+}
 
-class SettingsUpdate(BaseModel):
-    media_root: str
+_SETTINGS_DEFAULTS: dict[str, str] = {
+    "pin_hash": "",
+    "privacy_timeout": "10",
+    "watched_threshold": "90",
+    "home_folder": "",
+    "sort_by": "date",
+    "sort_dir": "desc",
+    "gesture_enabled": "1",
+    "gesture_seek": "1",
+    "gesture_volume": "1",
+    "gesture_brightness": "1",
+    "gesture_doubletap": "1",
+    "gesture_edge_pct": "20",
+    "gesture_swipe_threshold": "15",
+    "gesture_swipe_sensitivity": "medium",
+    "doubletap_left": "30",
+    "doubletap_right_bottom": "30",
+    "doubletap_right_mid": "60",
+    "doubletap_right_top": "90",
+}
+
+
+def _read_all_settings(conn: sqlite3.Connection) -> dict[str, str]:
+    rows = conn.execute("SELECT key, value FROM settings").fetchall()
+    result = dict(_SETTINGS_DEFAULTS)
+    for row in rows:
+        result[row["key"]] = row["value"]
+    return result
+
+
+def _write_setting(conn: sqlite3.Connection, key: str, value: str) -> None:
+    conn.execute(
+        "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+        (key, value),
+    )
+
+
+class SettingsPayload(BaseModel):
+    """All writeable settings in one payload. Fields absent from the request are left unchanged."""
+
+    media_root: str | None = None
+    pin: str | None = None  # raw PIN to hash; empty string = disable
+    privacy_timeout: int | None = None
+    watched_threshold: int | None = None
+    home_folder: str | None = None
+    sort_by: str | None = None
+    sort_dir: str | None = None
+    gesture_enabled: bool | None = None
+    gesture_seek: bool | None = None
+    gesture_volume: bool | None = None
+    gesture_brightness: bool | None = None
+    gesture_doubletap: bool | None = None
+    gesture_edge_pct: int | None = None
+    gesture_swipe_threshold: int | None = None
+    gesture_swipe_sensitivity: str | None = None
+    doubletap_left: int | None = None
+    doubletap_right_bottom: int | None = None
+    doubletap_right_mid: int | None = None
+    doubletap_right_top: int | None = None
 
 
 @app.get("/api/settings")
 def get_settings():
-    return {"media_root": str(MEDIA_ROOT).replace("\\", "/")}
+    with get_db() as conn:
+        s = _read_all_settings(conn)
+    # Never expose the raw hash; just tell the frontend whether a PIN is set
+    result = {k: v for k, v in s.items() if k != "pin_hash"}
+    result["pin_set"] = bool(s.get("pin_hash"))
+    result["media_root"] = str(MEDIA_ROOT).replace("\\", "/")
+    return result
 
 
 @app.post("/api/settings")
-def update_settings(body: SettingsUpdate):
+def update_settings(body: SettingsPayload):
     global MEDIA_ROOT
-    new_root = Path(body.media_root)
-    if not new_root.exists() or not new_root.is_dir():
-        raise HTTPException(status_code=404, detail="Path does not exist or is not a directory")
-    MEDIA_ROOT = new_root
     with get_db() as conn:
-        conn.execute(
-            "INSERT OR REPLACE INTO settings (key, value) VALUES ('media_root', ?)",
-            (str(new_root),),
-        )
+        if body.media_root is not None:
+            new_root = Path(body.media_root)
+            if not new_root.is_dir():
+                raise HTTPException(
+                    status_code=404, detail="Path does not exist or is not a directory"
+                )
+            MEDIA_ROOT = new_root
+            _write_setting(conn, "media_root", str(new_root))
+
+        if body.pin is not None:
+            if body.pin == "":
+                _write_setting(conn, "pin_hash", "")
+            else:
+                h = hashlib.sha256(body.pin.encode()).hexdigest()
+                _write_setting(conn, "pin_hash", h)
+
+        _simple: list[tuple[str, object]] = [
+            ("privacy_timeout", body.privacy_timeout),
+            ("watched_threshold", body.watched_threshold),
+            ("home_folder", body.home_folder),
+            ("sort_by", body.sort_by),
+            ("sort_dir", body.sort_dir),
+            ("gesture_swipe_threshold", body.gesture_swipe_threshold),
+            ("gesture_edge_pct", body.gesture_edge_pct),
+            ("gesture_swipe_sensitivity", body.gesture_swipe_sensitivity),
+            ("doubletap_left", body.doubletap_left),
+            ("doubletap_right_bottom", body.doubletap_right_bottom),
+            ("doubletap_right_mid", body.doubletap_right_mid),
+            ("doubletap_right_top", body.doubletap_right_top),
+        ]
+        for key, val in _simple:
+            if val is not None:
+                _write_setting(conn, key, str(val))
+
+        _bools: list[tuple[str, bool | None]] = [
+            ("gesture_enabled", body.gesture_enabled),
+            ("gesture_seek", body.gesture_seek),
+            ("gesture_volume", body.gesture_volume),
+            ("gesture_brightness", body.gesture_brightness),
+            ("gesture_doubletap", body.gesture_doubletap),
+        ]
+        for key, val in _bools:
+            if val is not None:
+                _write_setting(conn, key, "1" if val else "0")
+
         conn.commit()
-    return {"ok": True, "media_root": str(MEDIA_ROOT).replace("\\", "/")}
+
+    return {"ok": True}
+
+
+@app.post("/api/settings/check-pin")
+def check_pin(body: dict):
+    """Returns {ok: true} if the supplied PIN matches, 401 otherwise."""
+    pin = str(body.get("pin", ""))
+    with get_db() as conn:
+        s = _read_all_settings(conn)
+    stored_hash = s.get("pin_hash", "")
+    if not stored_hash:
+        # No PIN set — always OK
+        return {"ok": True}
+    if hashlib.sha256(pin.encode()).hexdigest() == stored_hash:
+        return {"ok": True}
+    raise HTTPException(status_code=401, detail="Wrong PIN")
 
 
 @app.get("/api/stream")
@@ -660,14 +798,22 @@ def transcode_video(path: str):
 
     cmd = [
         FFMPEG_BIN,
-        "-i", str(file),
-        "-c:v", "libx264",
-        "-preset", "ultrafast",
-        "-crf", "23",
-        "-c:a", "aac",
-        "-b:a", "128k",
-        "-movflags", "frag_keyframe+empty_moov+faststart",
-        "-f", "mp4",
+        "-i",
+        str(file),
+        "-c:v",
+        "libx264",
+        "-preset",
+        "ultrafast",
+        "-crf",
+        "23",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "128k",
+        "-movflags",
+        "frag_keyframe+empty_moov+faststart",
+        "-f",
+        "mp4",
         "pipe:1",
     ]
 
