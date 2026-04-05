@@ -1902,7 +1902,16 @@ video.addEventListener('touchend', e => {
       const edgePct = cfg.gesture_edge_pct / 100;
       const mult = tapCount - 1; // 2 taps=×1, 3 taps=×2, 4 taps=×3 …
       if (xPct < edgePct) {
-        const s = cfg.doubletap_left * mult;
+        // Left zone — 3 vertical thirds: top=fastest rewind, bottom=shortest
+        let zoneFactor;
+        if (yPct < 1 / 3) {
+          zoneFactor = 3;
+        } else if (yPct < 2 / 3) {
+          zoneFactor = 2;
+        } else {
+          zoneFactor = 1;
+        }
+        const s = cfg.doubletap_left * mult * zoneFactor;
         video.currentTime = Math.max(0, video.currentTime - s);
         showToast(`◀◀ −${s}s`);
       } else if (xPct > (1 - edgePct)) {
