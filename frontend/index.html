@@ -54,6 +54,16 @@
     color: var(--accent);
     letter-spacing: 0.05em;
     flex-shrink: 0;
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+  }
+  #app-version {
+    font-size: 10px;
+    font-weight: 400;
+    color: var(--text-dim);
+    opacity: 0.7;
+    letter-spacing: 0;
   }
   #home-btn {
     background: none;
@@ -919,7 +929,7 @@
 </div>
 
 <div id="header">
-  <div id="logo">Hoard</div>
+  <div id="logo">Hoard<span id="app-version"></span></div>
   <button id="home-btn" onclick="navigateHome()" title="Aller au dossier de départ">⌂</button>
   <button onclick="openBrowseModal()" title="Choisir le dossier de départ" style="background:none;border:1px solid var(--border);color:var(--text-dim);font-size:11px;cursor:pointer;padding:5px 8px;border-radius:6px;flex-shrink:0;font-family:inherit">📂 Browse…</button>
   <div id="breadcrumb"></div>
@@ -1113,6 +1123,8 @@ function applyCfg(s) {
   homeFolder = cfg.home_folder;
   sortBy     = cfg.sort_by;
   sortDir    = cfg.sort_dir;
+  const vEl = document.getElementById('app-version');
+  if (vEl && s.app_version) vEl.textContent = '\u00a0v' + s.app_version;
 }
 
 // ── Privacy: auto-close player after being hidden for a while ─────────────────
