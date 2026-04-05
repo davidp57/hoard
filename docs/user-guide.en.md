@@ -122,6 +122,39 @@ Progressive seek through the video. **Speed depends on the vertical position of 
 
 ---
 
+## Video Download
+
+Hoard can download videos from the web using **yt-dlp** and save them directly to your NAS.
+
+### Installing the Bookmarklet
+
+1. Open **Settings** (⚙️ button in the header).
+2. Scroll to the **Downloads** section.
+3. **Drag** the "📥 Télécharger avec Hoard" link to your bookmarks bar.
+
+### Downloading a Video
+
+**From any web page** — click the bookmarklet. Hoard opens in a new tab with the URL and your browser cookies pre-filled in the download modal. Click **📥 Télécharger** to start.
+
+**From inside Hoard** — click the **📥** button in the header, paste a URL, and confirm.
+
+### Download Progress
+
+Downloads appear as job cards in the bottom-right corner. Each card shows the filename and a progress bar. When the download is complete the card turns green.
+
+### Settings
+
+| Setting | Description |
+|---------|-------------|
+| **Download folder** | Target folder, relative to `MEDIA_ROOT` (default: `Downloads`). Created automatically if it does not exist. |
+| **Cookies file path** | Absolute path to a Netscape `cookies.txt` file. Useful for sites that require authentication. |
+
+### About Cookies
+
+The bookmarklet forwards `document.cookie` from the source page. Note that **HttpOnly cookies are not accessible to JavaScript** — for sites where those are required (e.g. streaming platforms), export a `cookies.txt` file with a browser extension and specify its path in Settings.
+
+---
+
 ## Responsive Layout
 
 | Screen width | Mode |

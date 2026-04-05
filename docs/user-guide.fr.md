@@ -122,6 +122,39 @@ Les **dossiers rapides** permettent de déplacer un fichier vers un dossier fré
 
 ---
 
+## Téléchargement de vidéos
+
+Hoard peut télécharger des vidéos depuis le web via **yt-dlp** et les sauvegarder directement sur le NAS.
+
+### Installer la bookmarklet
+
+1. Ouvre les **Paramètres** (bouton ⚙️ dans l'en-tête).
+2. Descends jusqu'à la section **Téléchargements**.
+3. **Glisse** le lien « 📥 Télécharger avec Hoard » vers ta barre de favoris.
+
+### Télécharger une vidéo
+
+**Depuis n'importe quelle page web** — clique sur la bookmarklet. Hoard s'ouvre dans un nouvel onglet avec l'URL et tes cookies pré-remplis dans le modal de téléchargement. Clique sur **📥 Télécharger** pour lancer.
+
+**Depuis Hoard directement** — clique sur le bouton **📥** dans l'en-tête, colle l'URL et confirme.
+
+### Suivi de la progression
+
+Les téléchargements apparaissent sous forme de cartes de job en bas à droite de l'écran. Chaque carte affiche le nom du fichier et une barre de progression. Quand le téléchargement est terminé, la carte passe au vert.
+
+### Paramètres
+
+| Paramètre | Description |
+|-----------|-------------|
+| **Dossier de téléchargement** | Dossier cible, relatif à `MEDIA_ROOT` (défaut : `Downloads`). Créé automatiquement s'il n'existe pas. |
+| **Chemin du fichier cookies** | Chemin absolu vers un fichier `cookies.txt` au format Netscape. Utile pour les sites qui nécessitent une authentification. |
+
+### À propos des cookies
+
+La bookmarklet transmet le `document.cookie` de la page source. Attention : les **cookies HttpOnly ne sont pas accessibles en JavaScript** — pour les sites qui en ont besoin (ex : plateformes de streaming), exporte un fichier `cookies.txt` avec une extension navigateur et renseigne son chemin dans les paramètres.
+
+---
+
 ## Disposition responsive
 
 | Écran | Mode |

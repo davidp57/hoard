@@ -14,6 +14,7 @@ Hoard is a minimal web application with no frontend framework, backed by Python/
 | Database | SQLite (native `sqlite3` module, no ORM) |
 | Frontend | Vanilla HTML/CSS/JS (single file) |
 | Video processing | ffmpeg (via subprocess) |
+| Video download | yt-dlp (Python library, lazy import) |
 | Tests | pytest + httpx |
 | Lint / format | ruff |
 | CI/CD | GitHub Actions |
@@ -78,7 +79,7 @@ def safe_path(rel: str) -> Path:
 | POST | `/api/files/move?path=` | Move to `{destination}` (relative path) |
 | POST | `/api/files/mkdir` | Create a folder `{path}` |
 | POST | `/api/files/cut` | Cut video via ffmpeg `{path, start, end, output}` |
-| GET | `/api/jobs` | Status of ongoing ffmpeg jobs |
+| GET | `/api/jobs` | Status of ongoing background jobs (ffmpeg cuts, downloads) |
 | GET | `/api/quick-folders` | List pinned folders |
 | POST | `/api/quick-folders` | Pin a folder `{path}` |
 | DELETE | `/api/quick-folders?path=` | Unpin a folder |
@@ -87,6 +88,7 @@ def safe_path(rel: str) -> Path:
 | POST | `/api/settings` | Save user settings |
 | GET | `/api/stream?path=` | HTTP video stream with `Range` support (native seeking) |
 | GET | `/api/transcode?path=` | Transcoded stream via ffmpeg |
+| POST | `/api/download` | Download a web video via yt-dlp `{url, cookies?}` |
 
 ### SQLite Schema
 
@@ -112,7 +114,32 @@ CREATE TABLE settings (
 
 ### ffmpeg Jobs
 
-Video cuts (`/api/files/cut`) run in background threads. Each job's status is held in memory in a `jobs: dict[str, JobStatus]` dict. The `/api/jobs` endpoint lets the frontend poll for progress.
+Video cuts (`/api/files/cut`) and web downloads (`/api/download`) run in background daemon threads. Each job's status is held in memory in a `jobs: dict[str, JobStatus]` dict. The `/api/jobs` endpoint lets the frontend poll for progress.
+
+### Download Endpoint (`POST /api/download`)
+
+**Request body** (`DownloadRequest`):
+
+```json
+{ "url": "https://example.com/video", "cookies": "name=value; other=foo" }
+```
+
+- `url` — required. The web page or direct video URL.
+- `cookies` — optional. Raw `document.cookie` string captured by the bookmarklet. Converted to Netscape format and passed to yt-dlp.
+
+**Response:**
+
+```json
+{ "job_id": "abc123" }
+```
+
+**Security (SSRF protection):** The endpoint rejects `file://` URLs and any host that resolves to localhost or RFC-1918 private addresses (`127.*`, `::1`, `192.168.*`, `10.*`, `172.*`).
+
+**Cookie resolution order:**
+1. Persistent `cookies.txt` file (path from `download_cookies_path` setting), if it exists.
+2. Inline cookies from the request body, written to a temporary file.
+
+**yt-dlp options used:** `bestvideo+bestaudio/best`, `merge_output_format: mp4`. Output is saved to the `download_folder` setting (relative to `MEDIA_ROOT`, created if needed).
 
 ---
 

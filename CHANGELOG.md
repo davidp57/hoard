@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Video download via yt-dlp: bookmarklet + 📥 button in the header let you send any web video to Hoard for download on the NAS
+- `POST /api/download` endpoint: accepts a URL and an optional `cookies` string, creates a background job, returns a `job_id`
+- Download progress tracked in the existing job cards (bottom-right of the screen)
+- New settings: `download_folder` (target folder relative to `MEDIA_ROOT`, default `Downloads`) and `download_cookies_path` (path to a persistent Netscape cookies.txt file)
+- Cookie passthrough: bookmarklet captures `document.cookie` and sends it with the request; a persistent cookies.txt file is also supported for authenticated sites
+- Bookmarklet auto-generated in Settings → Downloads; drag-to-bookmark instructions provided
+- SSRF protection on `/api/download`: `file://`, localhost, and RFC-1918 private network addresses are rejected
+
 ## [1.0.0] - 2026-04-05
 
 ### Added

@@ -14,6 +14,7 @@ Hoard est une application web minimaliste sans framework côté frontend, avec u
 | Base de données | SQLite (module `sqlite3` natif, sans ORM) |
 | Frontend | HTML/CSS/JS vanilla (un seul fichier) |
 | Traitement vidéo | ffmpeg (via subprocess) |
+| Téléchargement vidéo | yt-dlp (librairie Python, import différé) |
 | Tests | pytest + httpx |
 | Lint / format | ruff |
 | CI/CD | GitHub Actions |
@@ -78,7 +79,7 @@ def safe_path(rel: str) -> Path:
 | POST | `/api/files/move?path=` | Déplace vers `{destination}` (chemin relatif) |
 | POST | `/api/files/mkdir` | Crée un dossier `{path}` |
 | POST | `/api/files/cut` | Découpe vidéo via ffmpeg `{path, start, end, output}` |
-| GET | `/api/jobs` | État des jobs ffmpeg en cours |
+| GET | `/api/jobs` | État des jobs background en cours (découpes ffmpeg, téléchargements) |
 | GET | `/api/quick-folders` | Liste les dossiers épinglés |
 | POST | `/api/quick-folders` | Épingle un dossier `{path}` |
 | DELETE | `/api/quick-folders?path=` | Désépingle un dossier |
@@ -87,6 +88,7 @@ def safe_path(rel: str) -> Path:
 | POST | `/api/settings` | Sauvegarde les paramètres |
 | GET | `/api/stream?path=` | Stream HTTP avec support `Range` (seeking natif) |
 | GET | `/api/transcode?path=` | Stream transcodé via ffmpeg |
+| POST | `/api/download` | Télécharge une vidéo web via yt-dlp `{url, cookies?}` |
 
 ### Schéma SQLite
 
@@ -112,7 +114,32 @@ CREATE TABLE settings (
 
 ### Jobs ffmpeg
 
-Les découpes vidéo (`/api/files/cut`) sont exécutées dans des threads background. L'état de chaque job est stocké en mémoire dans un dict `jobs: dict[str, JobStatus]`. L'endpoint `/api/jobs` permet de poller leur état depuis le frontend.
+Les découpes vidéo (`/api/files/cut`) et les téléchargements web (`/api/download`) sont exécutés dans des threads daemon background. L'état de chaque job est stocké en mémoire dans un dict `jobs: dict[str, JobStatus]`. L'endpoint `/api/jobs` permet de poller leur état depuis le frontend.
+
+### Endpoint de téléchargement (`POST /api/download`)
+
+**Corps de la requête** (`DownloadRequest`) :
+
+```json
+{ "url": "https://example.com/video", "cookies": "name=value; other=foo" }
+```
+
+- `url` — requis. URL de la page web ou de la vidéo directe.
+- `cookies` — optionnel. Chaîne `document.cookie` brute capturée par la bookmarklet. Convertie au format Netscape et transmise à yt-dlp.
+
+**Réponse :**
+
+```json
+{ "job_id": "abc123" }
+```
+
+**Sécurité (protection SSRF) :** L'endpoint rejette les URL `file://` et tout hôte résolvant vers localhost ou les plages RFC-1918 (`127.*`, `::1`, `192.168.*`, `10.*`, `172.*`).
+
+**Ordre de résolution des cookies :**
+1. Fichier `cookies.txt` persistant (chemin depuis le paramètre `download_cookies_path`), s'il existe.
+2. Cookies inline du corps de requête, écrits dans un fichier temporaire.
+
+**Options yt-dlp utilisées :** `bestvideo+bestaudio/best`, `merge_output_format: mp4`. La sortie est sauvegardée dans le paramètre `download_folder` (relatif à `MEDIA_ROOT`, créé si nécessaire).
 
 ---
 
