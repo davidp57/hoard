@@ -43,7 +43,9 @@ def _resolve_ffmpeg() -> str:
 FFMPEG_BIN = _resolve_ffmpeg()
 
 # ── App ───────────────────────────────────────────────────────────────────────
-app = FastAPI(title="MediaBrowser")
+VERSION = "1.0.0"
+
+app = FastAPI(title="Hoard", version=VERSION)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 
@@ -105,6 +107,7 @@ def reload_media_root():
 
 init_db()
 reload_media_root()
+print(f"Hoard v{VERSION} — media: {MEDIA_ROOT}")
 
 
 # ── Models ────────────────────────────────────────────────────────────────────
@@ -666,6 +669,7 @@ def get_settings():
     result = {k: v for k, v in s.items() if k != "pin_hash"}
     result["pin_set"] = bool(s.get("pin_hash"))
     result["media_root"] = str(MEDIA_ROOT).replace("\\", "/")
+    result["app_version"] = VERSION
     return result
 
 

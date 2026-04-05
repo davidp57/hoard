@@ -1,18 +1,23 @@
 # Roadmap — Hoard
 
-## v1.0 — MVP (done)
+## v1.0 — Initial release *(done)*
 
 - [x] Filesystem browser with breadcrumb navigation
 - [x] Integrated HTML5 video player with seek bar and controls
-- [x] Auto-save playback position every 5 s
-- [x] Resume at last position on re-open
+- [x] Auto-save playback position every 5 s; resume at last position on re-open
 - [x] Visual status in file list: unseen / in-progress (% + bar) / watched (≥ 90 %)
-- [x] Move file to predefined folder (quick modal)
-- [x] Delete file/folder with confirmation
-- [x] Touch gestures: swipe-seek, swipe-volume, double-tap ±10 s, tap = play/pause
+- [x] Move file to predefined folder (quick modal) + delete with confirmation
+- [x] Touch gestures: swipe-seek (3 vertical speed zones), swipe-volume, multi-tap seek, tap = play/pause
 - [x] Keyboard shortcuts: Space, ←→ seek, ↑↓ volume
-- [x] Responsive: split-view on desktop, full-screen overlay on mobile
-- [x] Docker + docker-compose for Synology deployment
+- [x] Responsive: split-view on desktop, faux-fullscreen overlay on mobile/iOS
+- [x] On-the-fly H.265 → H.264 transcoding with auto-fallback
+- [x] Settings page: home folder, sort order, watched threshold, privacy timeout
+- [x] PIN lock (numeric, SHA-256 hashed) with configurable timeout
+- [x] Fully configurable touch gestures (enable/disable per category, sensitivity, zones)
+- [x] Fit/Fill toggle button in player toolbar
+- [x] Page Visibility API privacy: auto-close player after configurable inactivity timeout
+- [x] Full bilingual documentation (EN + FR): user guide, installation, developer and getting-started guides
+- [x] Docker + docker-compose for Synology deployment (ghcr.io image)
 
 ## v1.1 — Quality & Sort *(next)*
 

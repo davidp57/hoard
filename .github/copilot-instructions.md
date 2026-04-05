@@ -87,6 +87,13 @@ hoard/
 └── README.md
 ```
 
+### Git safety rules
+
+- **Never switch branches** (`git checkout`, `git switch`) without asking the user first.
+- **Never push** to any remote without explicit user confirmation.
+- **Never force-push**, reset hard, or delete branches without explicit user confirmation.
+- Always confirm the current branch with `git branch` before committing if there is any doubt.
+
 ### Commit workflow
 
 When the user asks to commit, follow these steps **in order** before creating the commit:
@@ -97,7 +104,8 @@ When the user asks to commit, follow these steps **in order** before creating th
    - `ruff format --check .`
    - `python -m pytest tests/`
 3. **Documentation** — update relevant `docs/*.en.md` and `docs/*.fr.md` files if the change affects user-facing behavior or architecture.
-4. **Commit** — stage all modified files (code + tests + docs) and commit in one clean commit with a descriptive Conventional Commits message.
+4. **CHANGELOG** — add an entry under `## [Unreleased]` in `CHANGELOG.md` describing the change.
+5. **Commit** — stage all modified files (code + tests + docs + CHANGELOG) and commit in one clean commit with a descriptive Conventional Commits message.
 
 ### PR preparation workflow
 
@@ -120,10 +128,11 @@ When the user asks to do a release, follow these steps in order:
    - Structure: short intro sentence + bullet list of notable changes. No technical jargon.
    - Present them to the user for confirmation before continuing.
 3. **Bump version** — update `version` in `pyproject.toml`.
-4. **Quality checks** — run ruff + pytest; fix all issues before proceeding.
-5. **Commit** — one clean commit: `release: vX.Y.Z`.
-6. **Tag** — create an annotated git tag `vX.Y.Z`.
-7. **Push** — ask the user before pushing the commit and tag to GitHub.
+4. **CHANGELOG** — move all entries from `## [Unreleased]` to a new `## [vX.Y.Z] - YYYY-MM-DD` section.
+5. **Quality checks** — run ruff + pytest; fix all issues before proceeding.
+6. **Commit** — one clean commit: `release: vX.Y.Z`.
+7. **Tag** — create an annotated git tag `vX.Y.Z`.
+8. **Push** — ask the user before pushing the commit and tag to GitHub.
 
 ### Commands
 
