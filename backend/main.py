@@ -298,6 +298,10 @@ def _run_download(
             "format": "bestvideo+bestaudio/best",
             "merge_output_format": "mp4",
             "quiet": True,
+            # Impersonate a real browser to bypass Cloudflare anti-bot challenges
+            "extractor_args": {
+                "generic": {"impersonate": [""]},
+            },
             "no_warnings": True,
             "noprogress": False,
         }
