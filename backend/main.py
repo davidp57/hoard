@@ -253,20 +253,27 @@ def _cookies_to_netscape(cookie_str: str, domain: str) -> str:
     The resulting text can be passed directly to yt-dlp as a cookies file.
     HttpOnly and Secure attributes are unknown client-side, so we use safe
     defaults (non-secure, session-only).
+
+    The Netscape format requires the include_subdomains field to be TRUE only
+    when the domain starts with a dot.  We always add the leading dot so that
+    cookies are sent to all sub-domains of the host (better download success).
     """
     lines = ["# Netscape HTTP Cookie File"]
+    # Domain must start with '.' for include_subdomains=TRUE to be valid
+    cookie_domain = domain if domain.startswith(".") else f".{domain}"
     for pair in cookie_str.split(";"):
         pair = pair.strip()
         if "=" not in pair:
             continue
         name, _, value = pair.partition("=")
         name = name.strip()
-        value = value.strip()
+        # Remove characters that would break the tab-delimited format
+        value = value.strip().replace("\t", "").replace("\n", "").replace("\r", "")
         if not name:
             continue
         # domain  include_subdomain  path  secure  expiry  name  value
-        lines.append(f"{domain}\tTRUE\t/\tFALSE\t0\t{name}\t{value}")
-    return "\n".join(lines)
+        lines.append(f"{cookie_domain}\tTRUE\t/\tFALSE\t0\t{name}\t{value}")
+    return "\n".join(lines) + "\n"
 
 
 def _run_download(

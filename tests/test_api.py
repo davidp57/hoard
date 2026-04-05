@@ -646,7 +646,7 @@ class TestCookiesToNetscape:
         from backend.main import _cookies_to_netscape
 
         result = _cookies_to_netscape("", "example.com")
-        assert result == "# Netscape HTTP Cookie File"
+        assert result.strip() == "# Netscape HTTP Cookie File"
 
     def test_pair_without_value(self):
         from backend.main import _cookies_to_netscape
