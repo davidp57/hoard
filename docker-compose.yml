@@ -1,6 +1,6 @@
 services:
   hoard:
-    image: ghcr.io/davidp57/nas-vid-bro:main
+    image: ghcr.io/davidp57/hoard:main
     container_name: hoard
     user: root
     ports:
