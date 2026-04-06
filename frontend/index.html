@@ -1570,7 +1570,10 @@ function _buildBookmarkletCode() {
   // Bookmarklet: multi-strategy video source detection
   // 1. <video>.currentSrc (if not a blob: URL)
   // 2. <video source[src]> elements (if not blob:)
-  // 3. Performance API — scan network requests for video file URLs
+  // 3. <iframe> with src pointing to known video hosting domains
+  // 4. Performance API — initiatorType 'video'
+  // 5. Performance API — match video file extensions in network requests
+  // 6. Performance API — largest resource (>500 KB, skip known non-video types)
   // Falls back to the page URL if nothing is found.
   return [
     'javascript:(function(){',
@@ -1584,10 +1587,24 @@ function _buildBookmarkletCode() {
     'if(!v){var ss=document.querySelectorAll("video source[src]");',
     'for(var i=0;i<ss.length;i++){var s=ss[i].src;',
     'if(s&&s.indexOf("blob:")!==0){v=s;break;}}}',
-    // Strategy 3: Performance API — find video URLs in network requests
+    // Strategy 3: <iframe> from known video hosting domains
+    // yt-dlp has extractors for these — the embed URL is enough to download
+    'if(!v){var iframes=document.querySelectorAll("iframe[src]");',
+    'var vidHosts=/mediadelivery\\.net|bunnycdn\\.com|youtube\\.com\\/embed|player\\.vimeo\\.com|dailymotion\\.com\\/embed/i;',
+    'for(var i=0;i<iframes.length;i++){',
+    'if(vidHosts.test(iframes[i].src)){v=iframes[i].src;break;}}}',
+    // Strategy 4-6: Performance API
     'if(!v&&window.performance){var ee=performance.getEntriesByType("resource");',
-    'var re=/\\.(mp4|m3u8|webm|ts|mov)(\\?|$)/i;',
+    // 4. initiatorType === 'video' — browser tells us it was loaded by a <video>
+    'for(var i=ee.length-1;i>=0;i--){if(ee[i].initiatorType==="video"){v=ee[i].name;break;}}',
+    // 5. Match common video file extensions
+    'if(!v){var re=/\\.(mp4|m3u8|webm|ts|mov|mkv|avi|flv|m4v|mpd)(\\?|$)/i;',
     'for(var i=ee.length-1;i>=0;i--){if(re.test(ee[i].name)){v=ee[i].name;break;}}}',
+    // 6. Largest resource that isn't obviously non-video (>500KB)
+    'if(!v){var skip=/\\.(js|css|woff2?|png|jpe?g|gif|svg|ico|webp)(\\?|$)/i;',
+    'var best=0;for(var i=0;i<ee.length;i++){var sz=ee[i].transferSize||0;',
+    'if(sz>500000&&sz>best&&!skip.test(ee[i].name)){best=sz;v=ee[i].name;}}}',
+    '}',
     // Redirect to Hoard
     'v=v?encodeURIComponent(v):"";',
     `location.href='${hoardUrl}#download?url='+u+'&cookies='+c+(v?'&videoSrc='+v:'');`,
