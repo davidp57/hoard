@@ -285,6 +285,71 @@ def _sanitize_filename(name: str) -> str:
     return name[:180] or "video"
 
 
+# Known video-hosting domains whose embed URLs yt-dlp can extract directly.
+# Mirrors the bookmarklet's iframe-detection strategy.
+_VIDEO_HOSTS_RE = re.compile(
+    r"mediadelivery\.net|bunnycdn\.com|youtube\.com/embed"
+    r"|player\.vimeo\.com|dailymotion\.com/embed",
+    re.IGNORECASE,
+)
+
+
+def _sniff_video_source(page_url: str, cookies_str: str | None) -> str | None:
+    """Fetch *page_url* as a browser would and look for an embedded video source.
+
+    Mirrors the bookmarklet's server-side equivalent:
+    1. ``<video src>`` / ``<source src>``  (skip blob: URLs)
+    2. ``<iframe src>`` pointing to a known video-hosting domain
+
+    Returns the best candidate URL or ``None`` if nothing is found.
+    """
+    from html.parser import HTMLParser
+    from urllib.request import Request as _UrlRequest
+    from urllib.request import urlopen
+
+    class _Parser(HTMLParser):
+        def __init__(self) -> None:
+            super().__init__()
+            self.video_srcs: list[str] = []
+            self.iframe_srcs: list[str] = []
+
+        def handle_starttag(self, tag: str, attrs: list) -> None:
+            attrs_dict = dict(attrs)
+            src = attrs_dict.get("src") or ""
+            if tag in {"video", "source"}:
+                if src and not src.startswith("blob:"):
+                    self.video_srcs.append(src)
+            elif tag == "iframe":
+                if src and _VIDEO_HOSTS_RE.search(src):
+                    self.iframe_srcs.append(src)
+
+    try:
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/124.0.0.0 Safari/537.36"
+            ),
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+        }
+        if cookies_str:
+            headers["Cookie"] = cookies_str
+        req = _UrlRequest(page_url, headers=headers)
+        with urlopen(req, timeout=10) as resp:  # noqa: S310
+            html_content = resp.read().decode("utf-8", errors="ignore")
+        parser = _Parser()
+        parser.feed(html_content)
+        # Prefer iframe from known hosts (most reliable with yt-dlp extractors)
+        if parser.iframe_srcs:
+            return parser.iframe_srcs[0]
+        if parser.video_srcs:
+            return parser.video_srcs[0]
+    except Exception:
+        pass
+    return None
+
+
 def _run_download(
     job_id: str,
     url: str,
@@ -358,15 +423,32 @@ def _run_download(
 
         ydl_opts["progress_hooks"] = [_progress_hook]
 
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            if info:
-                # Use the final merged filename if available
-                final = ydl.prepare_filename(info)
-                # When merging formats, the extension is updated to merge_output_format
-                if ydl_opts.get("merge_output_format"):
-                    final = str(Path(final).with_suffix(f".{ydl_opts['merge_output_format']}"))
-                job["output_name"] = Path(final).name
+        def _extract(target_url: str, opts: dict) -> None:
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                info = ydl.extract_info(target_url, download=True)
+                if info:
+                    final = ydl.prepare_filename(info)
+                    if opts.get("merge_output_format"):
+                        final = str(Path(final).with_suffix(f".{opts['merge_output_format']}"))
+                    job["output_name"] = Path(final).name
+
+        try:
+            _extract(url, ydl_opts)
+        except yt_dlp.utils.DownloadError as first_err:
+            # If yt-dlp can't handle the page URL (no extractor), try fetching
+            # the HTML to detect an embedded video/iframe source — same strategy
+            # as the bookmarklet but running server-side.  Only attempt this when
+            # no referer is set (meaning the URL is a plain page, not an already-
+            # resolved direct video source sent by the bookmarklet).
+            if "Unsupported URL" not in str(first_err) or referer:
+                raise
+            sniffed = _sniff_video_source(url, cookies_str)
+            if not sniffed:
+                raise
+            # Use the original page URL as Referer for the CDN request
+            ydl_opts["http_headers"] = {"Referer": url}
+            job["source_name"] = sniffed
+            _extract(sniffed, ydl_opts)
 
         job["status"] = "done"
         job["progress"] = 100

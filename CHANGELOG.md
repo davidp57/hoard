@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `DELETE /api/jobs/{job_id}` endpoint to remove a job from the in-memory store
 - **Filename hint**: bookmarklet now captures `document.title` and pre-fills a "Nom du fichier" field in the modal; the value overrides yt-dlp's automatic title, giving clean filenames for embed pages
 - `_sanitize_filename()` helper: strips characters invalid in filenames on Windows/Linux, caps at 180 chars
+- **Server-side HTML video sniffing**: when yt-dlp reports "Unsupported URL", the backend fetches the page HTML and scans for `<video>`, `<source>`, and `<iframe>` tags pointing to known video-hosting domains (BunnyCDN, YouTube embed, Vimeo, etc.) — mirrors the bookmarklet strategies so pasting a plain page URL in the UI also works
 - New settings: `download_folder` (target folder relative to `MEDIA_ROOT`, default `Downloads`) and `download_cookies_path` (path to a persistent Netscape cookies.txt file)
 - Cookie passthrough: bookmarklet captures `document.cookie` and sends it with the request; a persistent cookies.txt file is also supported for authenticated sites
 - Bookmarklet auto-generated in Settings → Downloads; drag-to-bookmark instructions provided
@@ -26,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Cloudflare anti-bot 403 errors: yt-dlp now impersonates Chrome via `curl-cffi` (`impersonate` option at top-level, `curl-cffi>=0.10.0,<0.15.0`)
 - Invalid Netscape cookie file format: domain is now prefixed with `.` as required when `include_subdomains=TRUE`
+- Bookmarklet/PIN flow: after entering the PIN the download queue modal no longer opened — two call sites of `openDownloadModal` had not been renamed to `openDlQueueModal`
 
 ## [1.0.0] - 2026-04-05
 

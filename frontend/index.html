@@ -1401,7 +1401,7 @@ async function init() {
       window._pendingDownloadTitle = dlTitle;
     } else {
       navigate(homeFolder);
-      openDownloadModal(dlUrl, dlCookies, dlVideoSrc, dlTitle);
+      openDlQueueModal(dlUrl, dlCookies, dlVideoSrc, dlTitle);
     }
     return;
   }
@@ -1465,7 +1465,7 @@ async function submitPin() {
       window._pendingDownloadUrl = null;
       window._pendingDownloadVideoSrc = null;
       window._pendingDownloadTitle = null;
-      openDownloadModal(url, pendingDownloadCookies, videoSrc, dlTitle);
+      openDlQueueModal(url, pendingDownloadCookies, videoSrc, dlTitle);
     }
   } else {
     for (let i = 0; i < 4; i++) document.getElementById('pd' + i).classList.add('error');

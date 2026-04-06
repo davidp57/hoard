@@ -451,8 +451,14 @@ def _make_yt_dlp_mock(output_name: str = "video.mp4") -> MagicMock:
     ydl_instance.__exit__ = MagicMock(return_value=False)
     ydl_instance.extract_info = MagicMock(return_value={"title": "test", "ext": "mp4"})
     ydl_instance.prepare_filename = MagicMock(return_value=f"/tmp/{output_name}")
+
+    class _FakeDownloadError(Exception):
+        pass
+
     mock_module = MagicMock()
     mock_module.YoutubeDL = MagicMock(return_value=ydl_instance)
+    mock_module.utils = MagicMock()
+    mock_module.utils.DownloadError = _FakeDownloadError
     return mock_module
 
 
@@ -710,6 +716,52 @@ class TestDownload:
         )
         outtmpl = captured_opts.get("outtmpl", "")
         assert "%(title)s" in outtmpl
+
+    def test_download_sniffs_html_on_unsupported_url(self, monkeypatch):
+        """When yt-dlp returns 'Unsupported URL', backend sniffs HTML and retries."""
+        mock_yt_dlp = _make_yt_dlp_mock()
+        call_count = [0]
+        original_extract = mock_yt_dlp.YoutubeDL.return_value.extract_info
+
+        def _extract_with_fallback(url, download):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                raise mock_yt_dlp.utils.DownloadError(
+                    "ERROR: Unsupported URL: https://example.com/page"
+                )
+            return original_extract(url, download)
+
+        mock_yt_dlp.YoutubeDL.return_value.extract_info = MagicMock(
+            side_effect=_extract_with_fallback
+        )
+        monkeypatch.setitem(sys.modules, "yt_dlp", mock_yt_dlp)
+        monkeypatch.setattr(
+            "backend.main._sniff_video_source",
+            lambda url, cookies: "https://iframe.mediadelivery.net/embed/123/abc",
+        )
+        _sync_thread_patch(monkeypatch)
+        resp = client.post("/api/download", json={"url": "https://example.com/page"})
+        job_id = resp.json()["job_id"]
+        jobs = {j["id"]: j for j in client.get("/api/jobs").json()}
+        assert jobs[job_id]["status"] == "done"
+        assert call_count[0] == 2  # first attempt + retry with sniffed URL
+
+    def test_download_sniff_fails_reports_error(self, monkeypatch):
+        """When yt-dlp fails + sniffing finds nothing, the job status is 'error'."""
+        mock_yt_dlp = _make_yt_dlp_mock()
+        mock_yt_dlp.YoutubeDL.return_value.extract_info = MagicMock(
+            side_effect=mock_yt_dlp.utils.DownloadError(
+                "ERROR: Unsupported URL: https://example.com/page"
+            )
+        )
+        monkeypatch.setitem(sys.modules, "yt_dlp", mock_yt_dlp)
+        monkeypatch.setattr("backend.main._sniff_video_source", lambda url, cookies: None)
+        _sync_thread_patch(monkeypatch)
+        resp = client.post("/api/download", json={"url": "https://example.com/page"})
+        job_id = resp.json()["job_id"]
+        jobs = {j["id"]: j for j in client.get("/api/jobs").json()}
+        assert jobs[job_id]["status"] == "error"
+        assert "Unsupported URL" in jobs[job_id]["error"]
 
 
 class TestSanitizeFilename:
