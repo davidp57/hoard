@@ -864,7 +864,7 @@
       </div>
       <div style="padding:12px 0 4px">
         <div class="s-label" style="margin-bottom:8px">Bookmarklet</div>
-        <div class="s-desc" style="margin-bottom:10px">Glissez ce lien vers votre barre de favoris. Cliquez dessus sur n'importe quelle page vidéo pour lancer le téléchargement dans Hoard.</div>
+        <div class="s-desc" style="margin-bottom:10px">Glissez ce lien vers votre barre de favoris. Cliquez dessus sur n'importe quelle page vidéo pour envoyer le téléchargement à Hoard <strong>sans quitter la page</strong> — un toast confirme le succès ou l'erreur.</div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <a id="bookmarklet-link" href="#" style="display:inline-block;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--accent);font-size:12px;padding:6px 12px;text-decoration:none;cursor:grab;white-space:nowrap" ondragstart="event.stopPropagation()">📥 Hoard Download</a>
           <button class="s-btn" onclick="copyBookmarklet()">Copier le code</button>
@@ -1618,20 +1618,28 @@ let _dlQueueJobs = [];
 let _dlQueueInterval = null;
 
 function _buildBookmarkletCode() {
-  // Use full current URL (without query/hash) so bookmarklet works under subpaths
-  const hoardUrl = window.location.href.replace(/[#?].*$/, '');
-  // Bookmarklet: multi-strategy video source detection
+  // Strip query/hash and trailing slash so H+'/api/download' is always correct.
+  const hoardBase = window.location.href.replace(/[#?].*$/, '').replace(/\/+$/, '');
+  // Bookmarklet: submit the download to Hoard in the background via fetch().
+  // A toast is shown on the current page — no navigation, no modal.
+  //
+  // Video source detection strategies (in priority order):
   // 1. <video>.currentSrc (if not a blob: URL)
   // 2. <video source[src]> elements (if not blob:)
   // 3. <iframe> with src pointing to known video hosting domains
   // 4. Performance API — initiatorType 'video'
   // 5. Performance API — match video file extensions in network requests
   // 6. Performance API — largest resource (>500 KB, skip known non-video types)
-  // Falls back to the page URL if nothing is found.
+  // Falls back to the page URL if nothing is found (backend sniffing handles it).
   return [
     'javascript:(function(){',
-    'var u=encodeURIComponent(location.href);',
-    'var c=encodeURIComponent(document.cookie);',
+    `var H="${hoardBase}";`,
+    // Toast helper: inject a temporary notification into the current page's DOM
+    'function T(m,ok){var d=document.createElement("div");',
+    'd.style.cssText="position:fixed;top:20px;right:20px;z-index:2147483647;padding:12px 20px;border-radius:8px;font:bold 13px/1.5 system-ui,sans-serif;color:#fff;background:"+(ok?"#1e6b1e":"#8b1a1a")+";box-shadow:0 4px 14px rgba(0,0,0,.5);max-width:360px";',
+    'd.textContent=m;document.body.appendChild(d);',
+    'setTimeout(function(){if(d.parentNode)d.parentNode.removeChild(d);},5000);}',
+    // Video source detection
     'var v="";',
     // Strategy 1: <video>.currentSrc
     'var el=document.querySelector("video");',
@@ -1642,10 +1650,9 @@ function _buildBookmarkletCode() {
     'if(s&&s.indexOf("blob:")!==0){v=s;break;}}}',
     // Strategy 3: <iframe> from known video hosting domains
     // yt-dlp has extractors for these — the embed URL is enough to download
-    'if(!v){var iframes=document.querySelectorAll("iframe[src]");',
-    'var vidHosts=/mediadelivery\\.net|bunnycdn\\.com|youtube\\.com\\/embed|player\\.vimeo\\.com|dailymotion\\.com\\/embed/i;',
-    'for(var i=0;i<iframes.length;i++){',
-    'if(vidHosts.test(iframes[i].src)){v=iframes[i].src;break;}}}',
+    'if(!v){var fr=document.querySelectorAll("iframe[src]");',
+    'var vh=/mediadelivery\\.net|bunnycdn\\.com|youtube\\.com\\/embed|player\\.vimeo\\.com|dailymotion\\.com\\/embed/i;',
+    'for(var i=0;i<fr.length;i++){if(vh.test(fr[i].src)){v=fr[i].src;break;}}}',
     // Strategy 4-6: Performance API
     'if(!v&&window.performance){var ee=performance.getEntriesByType("resource");',
     // 4. initiatorType === 'video' — browser tells us it was loaded by a <video>
@@ -1658,11 +1665,15 @@ function _buildBookmarkletCode() {
     'var best=0;for(var i=0;i<ee.length;i++){var sz=ee[i].transferSize||0;',
     'if(sz>500000&&sz>best&&!skip.test(ee[i].name)){best=sz;v=ee[i].name;}}}',
     '}',
-    // Redirect to Hoard
-    'v=v?encodeURIComponent(v):"";',
-    'var t=encodeURIComponent(document.title||"");',
-    `location.href='${hoardUrl}#download?url='+u+'&cookies='+c+(v?'&videoSrc='+v:'')+(t?'&title='+t:'');`,
-
+    // POST to Hoard API in background — toast shows result, no page navigation
+    'var pu=location.href;',
+    'fetch(H+"/api/download",{method:"POST",headers:{"Content-Type":"application/json"},',
+    'body:JSON.stringify({url:v||pu,cookies:document.cookie||null,referer:v?pu:null,title:document.title||null})})',
+    '.then(function(r){',
+    'if(r.ok){T("\uD83D\uDCE5 Hoard\u00a0: t\u00e9l\u00e9chargement lanc\u00e9"+(v?" \uD83C\uDFAC":""),true);}',
+    'else{r.json().then(function(e){T("\u274C Hoard\u00a0: "+(e.detail||"erreur "+r.status),false);',
+    '}).catch(function(){T("\u274C Hoard\u00a0: erreur "+r.status,false);});}})',
+    '.catch(function(){T("\u274C Hoard non joignable",false);});',
     '})();',
   ].join('');
 }
