@@ -489,6 +489,10 @@ def _run_download(
                 filename = d.get("filename") or d.get("tmpfilename", "")
                 if filename:
                     job["output_name"] = Path(filename).name
+                # Track the .part path so it can be removed on cancel
+                tmpfilename = d.get("tmpfilename", "")
+                if tmpfilename:
+                    job["_tmp_filename"] = tmpfilename
             elif d.get("status") == "finished":
                 job["progress"] = 99  # will be set to 100 when all hooks complete
 
@@ -530,6 +534,14 @@ def _run_download(
     except Exception as e:
         if cancel_event.is_set():
             job["status"] = "cancelled"
+            # Remove partial download files left by yt-dlp (.part, .ytdl lock)
+            tmp = job.get("_tmp_filename", "")
+            if tmp:
+                for fpath in (tmp, tmp + ".ytdl"):
+                    try:
+                        Path(fpath).unlink(missing_ok=True)
+                    except OSError:
+                        pass
         else:
             job["status"] = "error"
             job["error"] = str(e)

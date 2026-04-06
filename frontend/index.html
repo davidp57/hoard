@@ -1705,10 +1705,11 @@ function _buildBookmarkletCode() {
     'fetch(H+"/api/jobs").then(function(r2){return r2.json();}).then(function(jobs){',
     'var j=null;for(var i=0;i<jobs.length;i++){if(jobs[i].id===jid){j=jobs[i];break;}}',
     'if(!j){upd("\u274C","T\u00e2che introuvable",null,0);clearInterval(TM);return;}',
-    'if(j.status==="pending"||(j.status==="running"&&j.progress===0)){',
-    'upd("\u231B","Analyse de l\u2019URL\u2026",null,0);}',
+    'if(j.status==="pending"){upd("\u23F3","En attente dans la file\u2026",null,0);}',
+    'else if(j.status==="running"&&j.progress===0){upd("\u231B","Analyse de l\u2019URL\u2026",null,0);}',
     'else if(j.status==="running"){upd("\uD83D\uDCE5","T\u00e9l\u00e9chargement\u2026 "+j.progress+"%",j.progress,0);}',
     'else if(j.status==="done"){upd("\u2705","Termin\u00e9\u00a0!",100,4000);clearInterval(TM);}',
+    'else if(j.status==="cancelled"){upd("\u23F9","Annul\u00e9",null,0);clearInterval(TM);}',
     'else if(j.status==="error"){upd("\u274C",(j.error||"Erreur").slice(0,120),null,0);clearInterval(TM);}',
     '}).catch(function(){});},2000);',
     '});',
@@ -1861,12 +1862,26 @@ function _renderDlQueueList() {
 async function _pollDlQueue() {
   const jobs = await fetch(`${API}/api/jobs`).then(r => r.json()).catch(() => null);
   if (!jobs) return;
+  const prevJobs = _dlQueueJobs;
   _dlQueueJobs = jobs.filter(j => j.type === 'download');
+  // Refresh folder view when any download just completed
+  const justDone = _dlQueueJobs.filter(
+    j => j.status === 'done' && prevJobs.some(p => p.id === j.id && p.status !== 'done'),
+  );
+  if (justDone.length > 0) _refreshAfterDownload();
   _updateDlQueueWidget();
   _renderDlQueueList();
   const hasActive = _dlQueueJobs.some(j => j.status === 'pending' || j.status === 'running');
   if (hasActive) { _startDlQueuePoller(); }          // auto-start fast poller when new jobs appear
   else if (_dlQueueInterval) { clearInterval(_dlQueueInterval); _dlQueueInterval = null; }
+}
+
+function _refreshAfterDownload() {
+  const dlFolder = (cfg && cfg.download_folder) || 'Downloads';
+  if (currentPath === dlFolder) {
+    dirCache.delete(dlFolder);
+    navigate(dlFolder);
+  }
 }
 
 function _startDlQueuePoller() {
