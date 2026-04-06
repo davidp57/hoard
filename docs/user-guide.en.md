@@ -134,15 +134,24 @@ Hoard can download videos from the web using **yt-dlp** and save them directly t
 
 ### Downloading a Video
 
-**From any web page** — click the bookmarklet. Hoard opens in a new tab with the URL and your browser cookies pre-filled in the download modal. Click **📥 Télécharger** to start.
+**From any web page** — click the bookmarklet. Hoard opens in a new tab with the URL, your browser cookies, and the page title pre-filled in the download queue modal. Click **📥 Télécharger** to start.
 
-> **Smart video source detection**: if a `<video>` element is playing on the page, the bookmarklet captures its direct source URL instead of the page URL. This enables downloading from sites where yt-dlp has no dedicated extractor (Patreon, custom video players, etc.). The modal shows a 🎬 hint when a direct source was detected. The original page URL is automatically sent as the `Referer` header so CDNs that verify the origin accept the request.
+> **Smart video source detection**: if a `<video>` element is playing on the page, the bookmarklet captures its direct source URL instead of the page URL. This enables downloading from sites where yt-dlp has no dedicated extractor (Patreon, custom video players, BunnyCDN embeds, etc.). The modal shows a 🎬 hint when a direct source was detected. The original page URL is automatically sent as the `Referer` header so CDNs that verify the origin accept the request.
 
 **From inside Hoard** — click the **📥** button in the header, paste a URL, and confirm.
 
-### Download Progress
+**Filename hint**: the "Nom du fichier" field is pre-filled with the page title when using the bookmarklet. You can edit it freely before starting the download. If left empty, yt-dlp extracts the title automatically.
 
-Downloads appear as job cards in the bottom-right corner. Each card shows the filename and a progress bar. When the download is complete the card turns green.
+### Download Queue
+
+All downloads are tracked in a central queue accessible from the **📥** button in the header:
+
+- A **badge** on the button shows the number of active downloads.
+  - Yellow badge = downloads in progress.
+  - Green badge = all done (queue has items to dismiss).
+- Click the button to open the **download queue modal**, which shows each download with its filename, progress bar, and status.
+- Click **✕** next to a completed or failed download to dismiss it from the queue.
+- **Downloads continue even if you close the tab**: they run as backend threads on the NAS. When you return to Hoard, the queue widget automatically reconnects to in-progress jobs.
 
 ### Settings
 

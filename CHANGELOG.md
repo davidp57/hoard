@@ -9,14 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Video download via yt-dlp: bookmarklet + 📥 button in the header let you send any web video to Hoard for download on the NAS
-- `POST /api/download` endpoint: accepts a URL and an optional `cookies` string, creates a background job, returns a `job_id`
-- Download progress tracked in the existing job cards (bottom-right of the screen)
+- `POST /api/download` endpoint: accepts a URL and optional `cookies`, `referer`, and `title` fields; creates a background job, returns a `job_id`
+- **Download queue widget**: 📥 header button now shows a badge with the count of active downloads and opens a unified modal combining the add-form and a live queue list
+- **Download queue modal**: lists all running/completed/failed downloads with individual progress bars; completed or failed entries can be dismissed with ✕
+- **Download persistence across page reloads**: on page init the frontend reconnects to any jobs still running in the backend (downloads never stop when you close the tab)
+- `DELETE /api/jobs/{job_id}` endpoint to remove a job from the in-memory store
+- **Filename hint**: bookmarklet now captures `document.title` and pre-fills a "Nom du fichier" field in the modal; the value overrides yt-dlp's automatic title, giving clean filenames for embed pages
+- `_sanitize_filename()` helper: strips characters invalid in filenames on Windows/Linux, caps at 180 chars
 - New settings: `download_folder` (target folder relative to `MEDIA_ROOT`, default `Downloads`) and `download_cookies_path` (path to a persistent Netscape cookies.txt file)
 - Cookie passthrough: bookmarklet captures `document.cookie` and sends it with the request; a persistent cookies.txt file is also supported for authenticated sites
 - Bookmarklet auto-generated in Settings → Downloads; drag-to-bookmark instructions provided
 - SSRF protection on `/api/download`: `file://`, localhost, and RFC-1918 private network addresses are rejected
-- **Smart video source detection**: bookmarklet now captures `<video>.currentSrc` from the page DOM — enables downloading from sites without a dedicated yt-dlp extractor (Patreon, etc.)
-- Referer header passthrough: when downloading a direct video URL, the original page URL is sent as `Referer` so CDNs that check the origin accept the request
+- **Smart video source detection**: bookmarklet captures `<video>.currentSrc` from the page DOM — 6 strategies including iframe detection for BunnyCDN / YouTube / Vimeo embeds
+- Referer header passthrough: when downloading a direct video URL, the original page URL is sent as `Referer`
 
 ### Fixed
 - Cloudflare anti-bot 403 errors: yt-dlp now impersonates Chrome via `curl-cffi` (`impersonate` option at top-level, `curl-cffi>=0.10.0,<0.15.0`)

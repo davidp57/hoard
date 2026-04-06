@@ -672,6 +672,110 @@ class TestDownload:
         )
         assert "http_headers" not in captured_opts
 
+    def test_download_title_overrides_outtmpl(self, monkeypatch):
+        """When title is provided, outtmpl should use the sanitized title instead of %(title)s."""
+        captured_opts = {}
+
+        def mock_ytdl_init(opts):
+            captured_opts.update(opts)
+            return _make_yt_dlp_mock().YoutubeDL.return_value
+
+        mock_module = MagicMock()
+        mock_module.YoutubeDL = MagicMock(side_effect=mock_ytdl_init)
+        monkeypatch.setitem(sys.modules, "yt_dlp", mock_module)
+        _sync_thread_patch(monkeypatch)
+        client.post(
+            "/api/download",
+            json={"url": "https://example.com/video", "title": "My Great Video"},
+        )
+        outtmpl = captured_opts.get("outtmpl", "")
+        assert "My Great Video" in outtmpl
+        assert "%(title)s" not in outtmpl
+
+    def test_download_no_title_uses_yt_dlp_title(self, monkeypatch):
+        """When title is not provided, outtmpl should use %(title)s (yt-dlp default)."""
+        captured_opts = {}
+
+        def mock_ytdl_init(opts):
+            captured_opts.update(opts)
+            return _make_yt_dlp_mock().YoutubeDL.return_value
+
+        mock_module = MagicMock()
+        mock_module.YoutubeDL = MagicMock(side_effect=mock_ytdl_init)
+        monkeypatch.setitem(sys.modules, "yt_dlp", mock_module)
+        _sync_thread_patch(monkeypatch)
+        client.post(
+            "/api/download",
+            json={"url": "https://example.com/video"},
+        )
+        outtmpl = captured_opts.get("outtmpl", "")
+        assert "%(title)s" in outtmpl
+
+
+class TestSanitizeFilename:
+    def test_removes_invalid_chars(self):
+        from backend.main import _sanitize_filename
+
+        assert _sanitize_filename('My Video: "Best" <2024>') == "My Video Best 2024"
+
+    def test_limits_length(self):
+        from backend.main import _sanitize_filename
+
+        long_name = "a" * 300
+        assert len(_sanitize_filename(long_name)) == 180
+
+    def test_strips_leading_trailing_dots_and_spaces(self):
+        from backend.main import _sanitize_filename
+
+        assert _sanitize_filename("  .hidden.  ") == "hidden"
+
+    def test_empty_string_returns_video(self):
+        from backend.main import _sanitize_filename
+
+        assert _sanitize_filename("") == "video"
+
+    def test_only_invalid_chars_returns_video(self):
+        from backend.main import _sanitize_filename
+
+        assert _sanitize_filename('<>:"/\\|?*') == "video"
+
+
+class TestDeleteJob:
+    def test_delete_existing_done_job(self, monkeypatch):
+        """DELETE /api/jobs/{id} removes a done job from the store."""
+        from backend.main import _jobs
+
+        job_id = "test-del-job-1"
+        _jobs[job_id] = {"id": job_id, "status": "done", "type": "download"}
+        resp = client.delete(f"/api/jobs/{job_id}")
+        assert resp.status_code == 200
+        assert job_id not in _jobs
+
+    def test_delete_nonexistent_job_returns_404(self):
+        """DELETE /api/jobs/{id} returns 404 for unknown job."""
+        resp = client.delete("/api/jobs/does-not-exist")
+        assert resp.status_code == 404
+
+    def test_delete_running_job_allowed(self, monkeypatch):
+        """DELETE /api/jobs/{id} is allowed even for active jobs (download continues)."""
+        from backend.main import _jobs
+
+        job_id = "test-del-job-2"
+        _jobs[job_id] = {"id": job_id, "status": "running", "type": "download"}
+        resp = client.delete(f"/api/jobs/{job_id}")
+        assert resp.status_code == 200
+        assert job_id not in _jobs
+
+    def test_delete_job_removed_from_list(self, monkeypatch):
+        """After deletion, job no longer appears in GET /api/jobs."""
+        from backend.main import _jobs
+
+        job_id = "test-del-job-3"
+        _jobs[job_id] = {"id": job_id, "status": "done", "type": "download"}
+        client.delete(f"/api/jobs/{job_id}")
+        jobs = client.get("/api/jobs").json()
+        assert all(j["id"] != job_id for j in jobs)
+
 
 class TestCookiesToNetscape:
     def test_basic_conversion(self):

@@ -134,15 +134,24 @@ Hoard peut télécharger des vidéos depuis le web via **yt-dlp** et les sauvega
 
 ### Télécharger une vidéo
 
-**Depuis n'importe quelle page web** — clique sur la bookmarklet. Hoard s'ouvre dans un nouvel onglet avec l'URL et tes cookies pré-remplis dans le modal de téléchargement. Clique sur **📥 Télécharger** pour lancer.
+**Depuis n'importe quelle page web** — clique sur la bookmarklet. Hoard s'ouvre dans un nouvel onglet avec l'URL, tes cookies et le titre de la page pré-remplis dans le modal de file de téléchargement. Clique sur **📥 Télécharger** pour lancer.
 
-> **Détection intelligente de la source vidéo** : si un élément `<video>` est en lecture sur la page, la bookmarklet capture son URL source directe au lieu de l'URL de la page. Cela permet de télécharger depuis des sites où yt-dlp n'a pas d'extracteur dédié (Patreon, lecteurs vidéo custom, etc.). Le modal affiche un indicateur 🎬 quand une source directe a été détectée. L'URL de la page d'origine est automatiquement envoyée comme en-tête `Referer` pour que les CDN qui vérifient l'origine acceptent la requête.
+> **Détection intelligente de la source vidéo** : si un élément `<video>` est en lecture sur la page, la bookmarklet capture son URL source directe au lieu de l'URL de la page. Cela permet de télécharger depuis des sites où yt-dlp n'a pas d'extracteur dédié (Patreon, lecteurs vidéo custom, embeds BunnyCDN, etc.). Le modal affiche un indicateur 🎬 quand une source directe a été détectée. L'URL de la page d'origine est automatiquement envoyée comme en-tête `Referer` pour que les CDN qui vérifient l'origine acceptent la requête.
 
 **Depuis Hoard directement** — clique sur le bouton **📥** dans l'en-tête, colle l'URL et confirme.
 
-### Suivi de la progression
+**Indication de nom de fichier** : le champ « Nom du fichier » est pré-rempli avec le titre de la page lors de l'utilisation de la bookmarklet. Tu peux le modifier librement avant de lancer le téléchargement. S'il est laissé vide, yt-dlp extrait le titre automatiquement.
 
-Les téléchargements apparaissent sous forme de cartes de job en bas à droite de l'écran. Chaque carte affiche le nom du fichier et une barre de progression. Quand le téléchargement est terminé, la carte passe au vert.
+### File de téléchargement
+
+Tous les téléchargements sont regroupés dans une file centrale accessible depuis le bouton **📥** dans l'en-tête :
+
+- Un **badge** sur le bouton indique le nombre de téléchargements actifs.
+  - Badge jaune = téléchargements en cours.
+  - Badge vert = tous terminés (la file contient des éléments à supprimer).
+- Clique sur le bouton pour ouvrir le **modal de file de téléchargement**, qui affiche chaque téléchargement avec son nom, sa barre de progression et son statut.
+- Clique sur **✕** à côté d'un téléchargement terminé ou en erreur pour le retirer de la file.
+- **Les téléchargements continuent même si tu fermes l'onglet** : ils s'exécutent comme des threads en arrière-plan sur le NAS. Quand tu reviens sur Hoard, le widget de file se reconnecte automatiquement aux jobs en cours.
 
 ### Paramètres
 

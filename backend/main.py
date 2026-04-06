@@ -143,6 +143,7 @@ class DownloadRequest(BaseModel):
     url: str  # URL to download
     cookies: str | None = None  # document.cookie string from the bookmarklet
     referer: str | None = None  # page URL (when url is a direct video source)
+    title: str | None = None  # user-supplied filename hint (from bookmarklet page title)
 
 
 # ── Job store (in-memory) ─────────────────────────────────────────────────────
@@ -277,6 +278,13 @@ def _cookies_to_netscape(cookie_str: str, domain: str) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _sanitize_filename(name: str) -> str:
+    """Strip characters that are invalid in filenames on Windows and Linux."""
+    name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "", name)
+    name = name.strip(". ")
+    return name[:180] or "video"
+
+
 def _run_download(
     job_id: str,
     url: str,
@@ -284,6 +292,7 @@ def _run_download(
     cookies_str: str | None,
     cookies_file_path: str,
     referer: str | None = None,
+    title: str | None = None,
 ) -> None:
     """Background worker: download a URL via yt-dlp and update the job dict."""
     import yt_dlp  # imported here to keep startup fast when yt-dlp isn't needed
@@ -295,8 +304,15 @@ def _run_download(
 
     try:
         # Build yt-dlp options
+        # If a title hint was supplied (from bookmarklet page title), use it
+        # directly as the output filename so we don't get the embed page title.
+        if title:
+            outtmpl = str(output_dir / f"{_sanitize_filename(title)}.%(ext)s")
+        else:
+            outtmpl = str(output_dir / "%(title)s.%(ext)s")
+
         ydl_opts: dict = {
-            "outtmpl": str(output_dir / "%(title)s.%(ext)s"),
+            "outtmpl": outtmpl,
             "format": "bestvideo+bestaudio/best",
             "merge_output_format": "mp4",
             "quiet": True,
@@ -618,6 +634,15 @@ def list_jobs():
     return list(_jobs.values())
 
 
+@app.delete("/api/jobs/{job_id}")
+def delete_job(job_id: str):
+    """Remove a job from the in-memory store (e.g. to dismiss a completed download)."""
+    if job_id not in _jobs:
+        raise HTTPException(status_code=404, detail="Job not found")
+    del _jobs[job_id]
+    return {"ok": True}
+
+
 # ── Download ──────────────────────────────────────────────────────────────────
 
 # Private / reserved IP ranges used for SSRF protection (RFC1918, loopback, link-local, CGN)
@@ -687,7 +712,15 @@ def start_download(body: DownloadRequest):
     }
     threading.Thread(
         target=_run_download,
-        args=(job_id, body.url, output_dir, body.cookies, cookies_file_path, body.referer),
+        args=(
+            job_id,
+            body.url,
+            output_dir,
+            body.cookies,
+            cookies_file_path,
+            body.referer,
+            body.title,
+        ),
         daemon=True,
     ).start()
     return {"job_id": job_id}
