@@ -14,6 +14,7 @@ Hoard is a minimal web application with no frontend framework, backed by Python/
 | Database | SQLite (native `sqlite3` module, no ORM) |
 | Frontend | Vanilla HTML/CSS/JS (single file) |
 | Video processing | ffmpeg (via subprocess) |
+| Video download | yt-dlp (Python library, lazy import) |
 | Tests | pytest + httpx |
 | Lint / format | ruff |
 | CI/CD | GitHub Actions |
@@ -54,6 +55,8 @@ hoard/
 |----------|---------|-------------|
 | `MEDIA_ROOT` | `/media` | Media root path inside the container |
 | `DB_PATH` | `/data/progress.db` | SQLite database path |
+| `SSL_CERTFILE` | *(unset)* | Path to a PEM certificate file. When set (together with `SSL_KEYFILE`), uvicorn serves HTTPS natively. |
+| `SSL_KEYFILE` | *(unset)* | Path to the matching PEM private key file. |
 
 ### Path Safety
 
@@ -78,7 +81,7 @@ def safe_path(rel: str) -> Path:
 | POST | `/api/files/move?path=` | Move to `{destination}` (relative path) |
 | POST | `/api/files/mkdir` | Create a folder `{path}` |
 | POST | `/api/files/cut` | Cut video via ffmpeg `{path, start, end, output}` |
-| GET | `/api/jobs` | Status of ongoing ffmpeg jobs |
+| GET | `/api/jobs` | Status of ongoing background jobs (ffmpeg cuts, downloads) |
 | GET | `/api/quick-folders` | List pinned folders |
 | POST | `/api/quick-folders` | Pin a folder `{path}` |
 | DELETE | `/api/quick-folders?path=` | Unpin a folder |
@@ -87,6 +90,9 @@ def safe_path(rel: str) -> Path:
 | POST | `/api/settings` | Save user settings |
 | GET | `/api/stream?path=` | HTTP video stream with `Range` support (native seeking) |
 | GET | `/api/transcode?path=` | Transcoded stream via ffmpeg |
+| POST | `/api/download` | Download a web video via yt-dlp `{url, cookies?, referer?, title?}` |
+| POST | `/api/jobs/{job_id}/cancel` | Cancel a pending or running download job |
+| DELETE | `/api/jobs/{job_id}` | Remove a completed/failed/cancelled job from the in-memory store |
 
 ### SQLite Schema
 
@@ -110,9 +116,42 @@ CREATE TABLE settings (
 );
 ```
 
-### ffmpeg Jobs
+### Background Jobs
 
-Video cuts (`/api/files/cut`) run in background threads. Each job's status is held in memory in a `jobs: dict[str, JobStatus]` dict. The `/api/jobs` endpoint lets the frontend poll for progress.
+Video cuts (`/api/files/cut`) run in individual daemon threads. Web downloads use a sequential queue:
+
+- **Phase 1 (immediate thread)**: when `POST /api/download` is called, a dedicated thread starts immediately, sets the job to `resolving`, fills in a filename preview from the `title` hint, then transitions to `pending` and adds the job to `queue.Queue`.
+- **Phase 2 (queue worker)**: a single daemon thread (`dl-worker`) dequeues jobs one at a time and runs the yt-dlp download, preventing bandwidth overload.
+
+**Job status lifecycle:** `pending` → `resolving` → `pending` (with filename) → `running` → `done` / `error` / `cancelled`
+
+All job state is held in memory in `_jobs: dict[str, dict]`. Fields prefixed with `_` are private and stripped before JSON serialization by `_job_for_api()`. The `/api/jobs` endpoint lets the frontend poll for progress.
+
+### Download Endpoint (`POST /api/download`)
+
+**Request body** (`DownloadRequest`):
+
+```json
+{ "url": "https://cdn.example.com/video.mp4", "cookies": "name=value; other=foo", "referer": "https://example.com/posts/123" }
+```
+
+- `url` — required. The web page or direct video URL.
+- `cookies` — optional. Raw `document.cookie` string captured by the bookmarklet. Converted to Netscape format and passed to yt-dlp.
+- `referer` — optional. The original page URL. When provided, it is sent as the `Referer` HTTP header so CDNs that check the origin accept the request. The bookmarklet sets this automatically when a direct `<video>` source is detected.
+
+**Response:**
+
+```json
+{ "job_id": "abc123" }
+```
+
+**Security (SSRF protection):** The endpoint rejects `file://` URLs and any host that resolves to localhost or RFC-1918 private addresses (`127.*`, `::1`, `192.168.*`, `10.*`, `172.*`).
+
+**Cookie resolution order:**
+1. Persistent `cookies.txt` file (path from `download_cookies_path` setting), if it exists.
+2. Inline cookies from the request body, written to a temporary file.
+
+**yt-dlp options used:** `bestvideo+bestaudio/best`, `merge_output_format: mp4`. Output is saved to the `download_folder` setting (relative to `MEDIA_ROOT`, created if needed).
 
 ---
 

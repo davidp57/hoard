@@ -19,21 +19,34 @@
 - [x] Full bilingual documentation (EN + FR): user guide, installation, developer and getting-started guides
 - [x] Docker + docker-compose for Synology deployment (ghcr.io image)
 
-## v1.1 — Quality & Sort *(next)*
+## v2.0 — Web Download *(done)*
+
+- [x] Video download via yt-dlp: bookmarklet + 📥 button in the header
+- [x] Background bookmarklet: submits download via `fetch()`, shows live status dialog on the current page (no navigation)
+- [x] Smart video source detection: captures `<video>.currentSrc`, iframe detection (BunnyCDN / YouTube / Vimeo), 6 capture strategies
+- [x] Server-side HTML sniffing fallback: scans `<video>`, `<source>`, `<iframe>`, `<meta og:video>`, inline `<script>`, `data-*` — retries yt-dlp automatically if a source is found
+- [x] Download queue widget: 📥 badge, live modal with progress bars, dismiss completed jobs
+- [x] Sequential queue: one download at a time via `queue.Queue`, stop/cancel button, automatic `.part` file cleanup on cancel
+- [x] Auto-refresh file browser when a download completes
+- [x] Cookie passthrough (bookmarklet + persistent `cookies.txt`), Referer passthrough
+- [x] HTTPS support: native via `SSL_CERTFILE` / `SSL_KEYFILE` env vars (no reverse proxy needed)
+- [x] SSRF protection on `/api/download` (rejects `file://`, localhost, RFC-1918)
+
+## v1.2 — Quality & Sort *(next)*
 
 - [ ] **Sort controls** in file list: by name (asc/desc), date modified, size, watch status
 - [ ] **Fullscreen button** on player + `F` shortcut
 - [ ] **Playback speed** selector (0.5×, 1×, 1.5×, 2×)
 - [ ] Mark file as watched / unwatched manually (right-click / long-press)
 
-## v1.2 — Navigation & Tags
+## v1.3 — Navigation & Tags
 
 - [ ] **Free-move**: destination picker that browses the filesystem (folder tree)
 - [ ] **Rename** file/folder inline
 - [ ] **Arbitrary tags** on files (e.g. "excellent", "à finir") — stored in SQLite, shown as badges in the list
 - [ ] Filter list by tag
 
-## v1.3 — Media & Subtitles
+## v1.4 — Media & Subtitles
 
 - [ ] **Subtitle support**: auto-detect `.srt` / `.ass` files in the same folder and offer them as text tracks
 - [ ] **Auto-refresh** file list (poll or SSE) to detect new downloads without reloading

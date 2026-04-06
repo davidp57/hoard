@@ -1,16 +1,20 @@
 import hashlib
+import ipaddress
 import mimetypes
 import os
+import queue as _queue_module
 import re
 import shutil
 import sqlite3
 import string as _string
 import subprocess
+import tempfile
 import threading
 import time
 import uuid
 from contextlib import contextmanager
 from pathlib import Path
+from urllib.parse import urlparse
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -136,8 +140,23 @@ class CutRequest(BaseModel):
     destination: str  # relative path from MEDIA_ROOT
 
 
+class DownloadRequest(BaseModel):
+    url: str  # URL to download
+    cookies: str | None = None  # document.cookie string from the bookmarklet
+    referer: str | None = None  # page URL (when url is a direct video source)
+    title: str | None = None  # user-supplied filename hint (from bookmarklet page title)
+
+
 # ── Job store (in-memory) ─────────────────────────────────────────────────────
 _jobs: dict[str, dict] = {}
+
+# Sequential download queue: one download runs at a time
+_download_task_queue: _queue_module.Queue = _queue_module.Queue()
+
+
+def _job_for_api(job: dict) -> dict:
+    """Return a JSON-serialisable view of a job (strips private _ keys)."""
+    return {k: v for k, v in job.items() if not k.startswith("_")}
 
 
 def _fmt_hms(s: float) -> str:
@@ -234,6 +253,371 @@ def _run_move(job_id: str, source: Path, destination: Path) -> None:
         conn.commit()
     job["status"] = "done"
     job["progress"] = 100
+
+
+# ── Download helpers ──────────────────────────────────────────────────────────
+
+
+def _cookies_to_netscape(cookie_str: str, domain: str) -> str:
+    """Convert a document.cookie string into Netscape cookies.txt format.
+
+    The resulting text can be passed directly to yt-dlp as a cookies file.
+    HttpOnly and Secure attributes are unknown client-side, so we use safe
+    defaults (non-secure, session-only).
+
+    The Netscape format requires the include_subdomains field to be TRUE only
+    when the domain starts with a dot.  We always add the leading dot so that
+    cookies are sent to all sub-domains of the host (better download success).
+    """
+    lines = ["# Netscape HTTP Cookie File"]
+    # Domain must start with '.' for include_subdomains=TRUE to be valid
+    cookie_domain = domain if domain.startswith(".") else f".{domain}"
+    for pair in cookie_str.split(";"):
+        pair = pair.strip()
+        if "=" not in pair:
+            continue
+        name, _, value = pair.partition("=")
+        name = name.strip()
+        # Remove characters that would break the tab-delimited format
+        value = value.strip().replace("\t", "").replace("\n", "").replace("\r", "")
+        if not name:
+            continue
+        # domain  include_subdomain  path  secure  expiry  name  value
+        lines.append(f"{cookie_domain}\tTRUE\t/\tFALSE\t0\t{name}\t{value}")
+    return "\n".join(lines) + "\n"
+
+
+def _sanitize_filename(name: str) -> str:
+    """Strip characters that are invalid in filenames on Windows and Linux."""
+    name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "", name)
+    name = name.strip(". ")
+    return name[:180] or "video"
+
+
+# Known video-hosting domains whose embed URLs yt-dlp can extract directly.
+# Mirrors the bookmarklet's iframe-detection strategy.
+_VIDEO_HOSTS_RE = re.compile(
+    r"mediadelivery\.net|bunnycdn\.com|youtube\.com/embed"
+    r"|player\.vimeo\.com|dailymotion\.com/embed"
+    r"|jwplatform\.com|brightcove\.net|kaltura\.com",
+    re.IGNORECASE,
+)
+
+# Matches direct video file URLs found in attributes and inline JavaScript.
+_DIRECT_VIDEO_RE = re.compile(
+    r"https?://[^\s\"'\\<>{}()\[\]]+\.(?:mp4|m3u8|webm|mkv)(?:[?#][^\s\"'\\<>{}()\[\]]*)?",
+    re.IGNORECASE,
+)
+
+
+def _sniff_video_source(page_url: str, cookies_str: str | None) -> str | None:
+    """Fetch *page_url* as a browser would and look for an embedded video source.
+
+    Detection strategies applied in priority order:
+    1. ``<iframe src>`` pointing to a known video-hosting domain
+    2. ``<video src>`` / ``<source src>`` (skip blob: URLs)
+    3. ``<meta property="og:video*" content="...">`` (OpenGraph)
+    4. URLs matching ``_VIDEO_HOSTS_RE`` or ``_DIRECT_VIDEO_RE`` in inline
+       ``<script>`` blocks (covers JS-injected players, JSON-LD, etc.)
+    5. ``data-*`` attributes containing known-host or direct video URLs
+
+    Returns the best candidate URL or ``None`` if nothing is found.
+    """
+    from html.parser import HTMLParser
+    from urllib.request import Request as _UrlRequest
+    from urllib.request import urlopen
+
+    class _Parser(HTMLParser):
+        def __init__(self) -> None:
+            super().__init__()
+            self.video_srcs: list[str] = []
+            self.iframe_srcs: list[str] = []
+            self.meta_video_srcs: list[str] = []
+            self.script_video_srcs: list[str] = []
+            self.data_srcs: list[str] = []
+            self._in_script: bool = False
+
+        def handle_starttag(self, tag: str, attrs: list) -> None:
+            attrs_dict = dict(attrs)
+            src = attrs_dict.get("src") or ""
+            if tag in {"video", "source"}:
+                if src and not src.startswith("blob:"):
+                    self.video_srcs.append(src)
+            elif tag == "iframe":
+                if src and _VIDEO_HOSTS_RE.search(src):
+                    self.iframe_srcs.append(src)
+            elif tag == "meta":
+                prop = (attrs_dict.get("property") or attrs_dict.get("name") or "").lower()
+                if prop in {"og:video", "og:video:url", "og:video:secure_url"}:
+                    content = attrs_dict.get("content") or ""
+                    if content:
+                        self.meta_video_srcs.append(content)
+            elif tag == "script":
+                self._in_script = True
+            # Scan data-* attributes for known-host or direct video URLs
+            for attr_name, attr_val in attrs:
+                if attr_name.startswith("data-") and attr_val:
+                    if _VIDEO_HOSTS_RE.search(attr_val):
+                        self.data_srcs.append(attr_val)
+                    else:
+                        m = _DIRECT_VIDEO_RE.search(attr_val)
+                        if m:
+                            self.data_srcs.append(m.group())
+
+        def handle_endtag(self, tag: str) -> None:
+            if tag == "script":
+                self._in_script = False
+
+        def handle_data(self, data: str) -> None:
+            if not self._in_script:
+                return
+            # Scan inline JS / JSON-LD for video URLs from known hosts or
+            # direct media file extensions (.mp4, .m3u8, etc.)
+            for m in re.finditer(r"https?://[^\s\"'\\<>{}()\[\]]+", data):
+                url_str = m.group().rstrip(".,;)")
+                if _VIDEO_HOSTS_RE.search(url_str) or _DIRECT_VIDEO_RE.search(url_str):
+                    self.script_video_srcs.append(url_str)
+
+    try:
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/124.0.0.0 Safari/537.36"
+            ),
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+        }
+        if cookies_str:
+            headers["Cookie"] = cookies_str
+        req = _UrlRequest(page_url, headers=headers)
+        with urlopen(req, timeout=10) as resp:  # noqa: S310
+            html_content = resp.read().decode("utf-8", errors="ignore")
+        parser = _Parser()
+        parser.feed(html_content)
+        # Return the highest-priority source found
+        if parser.iframe_srcs:
+            return parser.iframe_srcs[0]
+        if parser.video_srcs:
+            return parser.video_srcs[0]
+        if parser.meta_video_srcs:
+            return parser.meta_video_srcs[0]
+        if parser.script_video_srcs:
+            return parser.script_video_srcs[0]
+        if parser.data_srcs:
+            return parser.data_srcs[0]
+    except Exception:
+        pass
+    return None
+
+
+def _run_download(
+    job_id: str,
+    url: str,
+    output_dir: Path,
+    cookies_str: str | None,
+    cookies_file_path: str,
+    referer: str | None = None,
+    title: str | None = None,
+) -> None:
+    """Background worker: download a URL via yt-dlp and update the job dict."""
+    import yt_dlp  # imported here to keep startup fast when yt-dlp isn't needed
+
+    job = _jobs[job_id]
+    cancel_event: threading.Event = job["_cancel_event"]
+
+    # Bail out early if already cancelled while waiting in the queue
+    if cancel_event.is_set():
+        job["status"] = "cancelled"
+        return
+
+    job["status"] = "running"
+
+    tmp_cookies_file: str | None = None
+
+    try:
+        # Build yt-dlp options
+        # If a title hint was supplied (from bookmarklet page title), use it
+        # directly as the output filename so we don't get the embed page title.
+        if title:
+            outtmpl = str(output_dir / f"{_sanitize_filename(title)}.%(ext)s")
+        else:
+            outtmpl = str(output_dir / "%(title)s.%(ext)s")
+
+        ydl_opts: dict = {
+            "outtmpl": outtmpl,
+            "format": "bestvideo+bestaudio/best",
+            "merge_output_format": "mp4",
+            "quiet": True,
+            # Impersonate a real browser to bypass Cloudflare anti-bot challenges
+            # (requires curl-cffi, see backend/requirements.txt)
+            "impersonate": yt_dlp.networking.impersonate.ImpersonateTarget.from_str("chrome"),
+            "no_warnings": True,
+            "noprogress": False,
+        }
+
+        # When downloading a direct video URL extracted from a page, send the
+        # page URL as Referer so CDNs that check the origin don't reject us.
+        if referer:
+            ydl_opts["http_headers"] = {"Referer": referer}
+
+        # Cookies: prefer persistent file, fall back to bookmarklet cookies
+        if cookies_file_path and Path(cookies_file_path).is_file():
+            ydl_opts["cookiefile"] = cookies_file_path
+        elif cookies_str:
+            domain = urlparse(url).hostname or ""
+            netscape_content = _cookies_to_netscape(cookies_str, domain)
+            tmp_fd, tmp_cookies_file = tempfile.mkstemp(suffix=".txt", prefix="hoard_cookies_")
+            try:
+                with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
+                    f.write(netscape_content)
+            except Exception:
+                os.close(tmp_fd)
+                raise
+            ydl_opts["cookiefile"] = tmp_cookies_file
+
+        def _progress_hook(d: dict) -> None:
+            # Abort as soon as the user cancels — yt-dlp propagates the exception
+            if cancel_event.is_set():
+                raise Exception("Download cancelled by user")
+            if d.get("status") == "downloading":
+                total = d.get("total_bytes") or d.get("total_bytes_estimate") or 0
+                downloaded = d.get("downloaded_bytes") or 0
+                if total > 0:
+                    job["progress"] = min(99, int(downloaded / total * 100))
+                # Update output filename as soon as we know it
+                filename = d.get("filename") or d.get("tmpfilename", "")
+                if filename:
+                    job["output_name"] = Path(filename).name
+                # Track the .part path so it can be removed on cancel
+                tmpfilename = d.get("tmpfilename", "")
+                if tmpfilename:
+                    job["_tmp_filename"] = tmpfilename
+            elif d.get("status") == "finished":
+                job["progress"] = 99  # will be set to 100 when all hooks complete
+
+        ydl_opts["progress_hooks"] = [_progress_hook]
+
+        def _extract(target_url: str, opts: dict) -> None:
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                info = ydl.extract_info(target_url, download=True)
+                if info:
+                    final = ydl.prepare_filename(info)
+                    if opts.get("merge_output_format"):
+                        final = str(Path(final).with_suffix(f".{opts['merge_output_format']}"))
+                    job["output_name"] = Path(final).name
+
+        try:
+            _extract(url, ydl_opts)
+        except yt_dlp.utils.DownloadError as first_err:
+            # If yt-dlp can't handle the page URL (no extractor), try fetching
+            # the HTML to detect an embedded video/iframe source — same strategy
+            # as the bookmarklet but running server-side.  Only attempt this when
+            # no referer is set (meaning the URL is a plain page, not an already-
+            # resolved direct video source sent by the bookmarklet).
+            if "Unsupported URL" not in str(first_err) or referer:
+                raise
+            sniffed = _sniff_video_source(url, cookies_str)
+            if not sniffed:
+                raise
+            # Use the original page URL as Referer for the CDN request
+            ydl_opts["http_headers"] = {"Referer": url}
+            job["source_name"] = sniffed
+            _extract(sniffed, ydl_opts)
+
+        if cancel_event.is_set():
+            job["status"] = "cancelled"
+        else:
+            job["status"] = "done"
+            job["progress"] = 100
+
+    except Exception as e:
+        if cancel_event.is_set():
+            job["status"] = "cancelled"
+            # Remove partial download files left by yt-dlp (.part, .ytdl lock)
+            tmp = job.get("_tmp_filename", "")
+            if tmp:
+                for fpath in (tmp, tmp + ".ytdl"):
+                    try:
+                        Path(fpath).unlink(missing_ok=True)
+                    except OSError:
+                        pass
+        else:
+            job["status"] = "error"
+            job["error"] = str(e)
+    finally:
+        if tmp_cookies_file:
+            try:
+                os.unlink(tmp_cookies_file)
+            except OSError:
+                pass
+
+
+def _enqueue_download(job_id: str) -> None:
+    """Put a download job into the sequential processing queue."""
+    _download_task_queue.put(job_id)
+
+
+def _prepare_download(job_id: str) -> None:
+    """Phase 1 — runs immediately in its own thread, even when the queue is busy.
+
+    Transitions the job through 'resolving' so the bookmarklet toast has
+    something meaningful to show right away.  Sets an output_name preview from
+    the bookmarklet page title (so the 'pending' state displays a filename).
+    Then enqueues the job for the actual sequential download (phase 2).
+    """
+    job = _jobs[job_id]
+    cancel_event: threading.Event = job["_cancel_event"]
+
+    if cancel_event.is_set():
+        job["status"] = "cancelled"
+        return
+
+    job["status"] = "resolving"
+    p = job["_params"]
+    title = p.get("title")
+
+    # Set a filename preview immediately from the bookmarklet page title so
+    # the 'pending' state in the toast / queue list shows a meaningful name.
+    if title and not job.get("output_name"):
+        job["output_name"] = f"{_sanitize_filename(title)}.mp4"
+
+    if cancel_event.is_set():
+        job["status"] = "cancelled"
+        return
+
+    job["status"] = "pending"
+    _enqueue_download(job_id)
+
+
+def _download_worker_loop() -> None:
+    """Daemon thread: run download jobs one at a time (sequential queue)."""
+    while True:
+        job_id = _download_task_queue.get()
+        try:
+            job = _jobs.get(job_id)
+            if job is None:
+                continue
+            # Job may have been cancelled while waiting in the queue
+            if job.get("_cancel_event") and job["_cancel_event"].is_set():
+                job["status"] = "cancelled"
+                continue
+            p = job["_params"]
+            _run_download(
+                job_id,
+                p["url"],
+                p["output_dir"],
+                p["cookies"],
+                p["cookies_file_path"],
+                p.get("referer"),
+                p.get("title"),
+            )
+        finally:
+            _download_task_queue.task_done()
+
+
+# Start the sequential download worker (daemon — exits with the process)
+threading.Thread(target=_download_worker_loop, daemon=True, name="dl-worker").start()
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -485,7 +869,117 @@ def cut_video(path: str, body: CutRequest):
 
 @app.get("/api/jobs")
 def list_jobs():
-    return list(_jobs.values())
+    return [_job_for_api(j) for j in _jobs.values()]
+
+
+@app.delete("/api/jobs/{job_id}")
+def delete_job(job_id: str):
+    """Remove a job from the in-memory store (e.g. to dismiss a completed download)."""
+    if job_id not in _jobs:
+        raise HTTPException(status_code=404, detail="Job not found")
+    del _jobs[job_id]
+    return {"ok": True}
+
+
+@app.post("/api/jobs/{job_id}/cancel")
+def cancel_job(job_id: str):
+    """Cancel a pending or running download job."""
+    if job_id not in _jobs:
+        raise HTTPException(status_code=404, detail="Job not found")
+    job = _jobs[job_id]
+    if job.get("type") != "download":
+        raise HTTPException(status_code=400, detail="Only download jobs can be cancelled")
+    # Already finished — no-op (idempotent)
+    if job["status"] in ("done", "error", "cancelled"):
+        return {"ok": True}
+    # Signal the cancel event; the worker / progress hook will pick it up
+    job["_cancel_event"].set()
+    job["status"] = "cancelled"
+    return {"ok": True}
+
+
+# ── Download ──────────────────────────────────────────────────────────────────
+
+# Private / reserved IP ranges used for SSRF protection (RFC1918, loopback, link-local, CGN)
+_PRIVATE_NETWORKS = (
+    ipaddress.ip_network("127.0.0.0/8"),  # loopback
+    ipaddress.ip_network("10.0.0.0/8"),  # RFC 1918
+    ipaddress.ip_network("172.16.0.0/12"),  # RFC 1918 (not the full 172.x block)
+    ipaddress.ip_network("192.168.0.0/16"),  # RFC 1918
+    ipaddress.ip_network("169.254.0.0/16"),  # link-local
+    ipaddress.ip_network("100.64.0.0/10"),  # carrier-grade NAT
+    ipaddress.ip_network("::1/128"),  # IPv6 loopback
+    ipaddress.ip_network("fc00::/7"),  # IPv6 unique local
+    ipaddress.ip_network("fe80::/10"),  # IPv6 link-local
+)
+
+
+def _validate_download_url(url: str) -> None:
+    """Raise HTTPException 400 for clearly invalid or dangerous URLs."""
+    if not url or not url.strip():
+        raise HTTPException(status_code=400, detail="URL is required")
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid URL") from None
+    if parsed.scheme not in ("http", "https"):
+        raise HTTPException(status_code=400, detail="Only http/https URLs are allowed")
+    host = (parsed.hostname or "").lower()
+    if not host:
+        raise HTTPException(status_code=400, detail="URL has no host")
+    # Reject localhost by name
+    if host == "localhost":
+        raise HTTPException(status_code=400, detail="Local network URLs are not allowed")
+    # If the host is a literal IP address, reject private/reserved ranges using CIDR checks
+    try:
+        ip = ipaddress.ip_address(host)
+        if any(ip in net for net in _PRIVATE_NETWORKS):
+            raise HTTPException(status_code=400, detail="Local network URLs are not allowed")
+    except ValueError:
+        pass  # hostname (not a literal IP) — allow
+
+
+@app.post("/api/download")
+def start_download(body: DownloadRequest):
+    """Start a yt-dlp download in the background and return a job_id."""
+    _validate_download_url(body.url)
+
+    with get_db() as conn:
+        s = _read_all_settings(conn)
+
+    download_folder_rel = s.get("download_folder", "Downloads")
+    cookies_file_path = s.get("download_cookies_path", "")
+
+    # Resolve (and create if needed) the download destination
+    output_dir = safe_path(download_folder_rel)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    job_id = str(uuid.uuid4())
+    _jobs[job_id] = {
+        "id": job_id,
+        "type": "download",
+        "url": body.url,
+        "source_name": body.url,
+        "output_name": "",
+        "status": "pending",
+        "progress": 0,
+        "error": None,
+        # Private fields: not exposed via the API (stripped by _job_for_api)
+        "_cancel_event": threading.Event(),
+        "_params": {
+            "url": body.url,
+            "output_dir": output_dir,
+            "cookies": body.cookies,
+            "cookies_file_path": cookies_file_path,
+            "referer": body.referer,
+            "title": body.title,
+        },
+    }
+    # Phase 1: immediately resolve filename preview and transition to 'resolving'
+    # then 'pending', so the bookmarklet toast shows meaningful states even when
+    # another download is already running.
+    threading.Thread(target=_prepare_download, args=(job_id,), daemon=True).start()
+    return {"job_id": job_id}
 
 
 # ── Quick folders ─────────────────────────────────────────────────────────────
@@ -598,6 +1092,8 @@ _SETTINGS_KEYS = {
     "doubletap_right_bottom",  # seconds int
     "doubletap_right_mid",  # seconds int
     "doubletap_right_top",  # seconds int
+    "download_folder",  # relative path from MEDIA_ROOT, default 'Downloads'
+    "download_cookies_path",  # absolute path to a Netscape cookies.txt file, optional
 }
 
 _SETTINGS_DEFAULTS: dict[str, str] = {
@@ -619,6 +1115,8 @@ _SETTINGS_DEFAULTS: dict[str, str] = {
     "doubletap_right_bottom": "30",
     "doubletap_right_mid": "60",
     "doubletap_right_top": "90",
+    "download_folder": "Downloads",
+    "download_cookies_path": "",
 }
 
 
@@ -659,6 +1157,8 @@ class SettingsPayload(BaseModel):
     doubletap_right_bottom: int | None = None
     doubletap_right_mid: int | None = None
     doubletap_right_top: int | None = None
+    download_folder: str | None = None
+    download_cookies_path: str | None = None
 
 
 @app.get("/api/settings")
@@ -706,6 +1206,8 @@ def update_settings(body: SettingsPayload):
             ("doubletap_right_bottom", body.doubletap_right_bottom),
             ("doubletap_right_mid", body.doubletap_right_mid),
             ("doubletap_right_top", body.doubletap_right_top),
+            ("download_folder", body.download_folder),
+            ("download_cookies_path", body.download_cookies_path),
         ]
         for key, val in _simple:
             if val is not None:

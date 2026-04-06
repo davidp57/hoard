@@ -13,7 +13,14 @@ services:
     environment:
       - MEDIA_ROOT=/media
       - DB_PATH=/data/progress.db
+      # Uncomment to enable HTTPS (no reverse proxy needed).
+      # Generate a self-signed cert: openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 3650 -nodes -subj "/CN=nas.local"
+      # Mount the cert folder and set these two variables:
+      # - SSL_CERTFILE=/certs/cert.pem
+      # - SSL_KEYFILE=/certs/key.pem
     restart: unless-stopped
 
+    # volumes:
+    #   - /path/on/nas/certs:/certs:ro
 volumes:
   hoard_data:

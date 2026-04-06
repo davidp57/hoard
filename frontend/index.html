@@ -548,6 +548,33 @@
   .job-status.error { color: #cf6f6f; }
   .job-status.running { color: var(--text-dim); }
 
+  /* ── Download queue widget (header badge) ── */
+  #dl-queue-btn { position: relative; }
+  #dl-queue-badge {
+    position: absolute; top: -6px; right: -6px;
+    background: var(--accent); color: #000;
+    font-size: 9px; font-weight: 700;
+    min-width: 16px; height: 16px; border-radius: 8px;
+    display: none; align-items: center; justify-content: center;
+    font-family: 'DM Mono', monospace; box-sizing: border-box; padding: 0 3px; line-height: 1;
+  }
+
+  /* ── Download queue modal items ── */
+  .dl-job-item {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 9px 12px;
+    display: flex; flex-direction: column; gap: 5px;
+  }
+  .dl-job-name { font-size: 11px; font-family: 'DM Mono', monospace; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dl-job-bar-track { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+  .dl-job-bar-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.4s; }
+  .dl-job-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .dl-job-status { font-size: 10px; font-family: 'DM Mono', monospace; color: var(--text-dim); }
+  .dl-job-status.done { color: #6fcf6f; }
+  .dl-job-status.error { color: #cf6f6f; }
+  .dl-job-dismiss { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 13px; padding: 0; line-height: 1; flex-shrink: 0; }
+  .dl-job-dismiss:hover { color: var(--text); }
+
   /* ── Toast ── */
   #toast {
     position: fixed;
@@ -824,6 +851,27 @@
       </div>
     </div>
 
+    <!-- Downloads -->
+    <div>
+      <div class="s-section-title">📥 Téléchargements</div>
+      <div class="s-row">
+        <div><div class="s-label">Dossier de téléchargement</div><div class="s-desc">Chemin relatif depuis la racine média</div></div>
+        <div class="s-right"><input type="text" class="s-num" id="s-download-folder" style="width:140px" placeholder="Downloads"></div>
+      </div>
+      <div class="s-row">
+        <div><div class="s-label">Fichier cookies.txt</div><div class="s-desc">Chemin absolu vers un fichier cookies Netscape (optionnel, pour sites authentifiés)</div></div>
+        <div class="s-right"><input type="text" class="s-num" id="s-cookies-path" style="width:200px" placeholder="/data/cookies.txt"></div>
+      </div>
+      <div style="padding:12px 0 4px">
+        <div class="s-label" style="margin-bottom:8px">Bookmarklet</div>
+        <div class="s-desc" style="margin-bottom:10px">Glissez ce lien vers votre barre de favoris. Cliquez dessus sur n'importe quelle page vidéo pour envoyer le téléchargement à Hoard <strong>sans quitter la page</strong> — un toast confirme le succès ou l'erreur.</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <a id="bookmarklet-link" href="#" style="display:inline-block;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--accent);font-size:12px;padding:6px 12px;text-decoration:none;cursor:grab;white-space:nowrap" ondragstart="event.stopPropagation()">📥 Hoard Download</a>
+          <button class="s-btn" onclick="copyBookmarklet()">Copier le code</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Player -->
     <div>
       <div class="s-section-title">🎬 Player</div>
@@ -933,6 +981,7 @@
   <button id="home-btn" onclick="navigateHome()" title="Aller au dossier de départ">⌂</button>
   <button onclick="openBrowseModal()" title="Choisir le dossier de départ" style="background:none;border:1px solid var(--border);color:var(--text-dim);font-size:11px;cursor:pointer;padding:5px 8px;border-radius:6px;flex-shrink:0;font-family:inherit">📂 Browse…</button>
   <div id="breadcrumb"></div>
+  <button id="dl-queue-btn" onclick="openDlQueueModal()" title="File de téléchargement" style="background:none;border:1px solid var(--border);color:var(--text-dim);font-size:15px;cursor:pointer;padding:5px 9px;border-radius:6px;flex-shrink:0;line-height:1">📥<span id="dl-queue-badge"></span></button>
   <button onclick="openSettings()" title="Paramètres" style="background:none;border:1px solid var(--border);color:var(--text-dim);font-size:15px;cursor:pointer;padding:5px 9px;border-radius:6px;flex-shrink:0;line-height:1">⚙️</button>
 </div>
 
@@ -988,6 +1037,40 @@
           <button class="ctrl-btn cut-mark-btn" id="cut-out-btn" onclick="setCutPoint('out')" title="Marquer point OUT" style="display:none">OUT]</button>
           <button class="ctrl-btn cut-mark-btn" id="cut-clear-btn" onclick="clearCutPoints()" title="Annuler les points IN/OUT" style="display:none;opacity:0.7">✕</button>
           <button class="ctrl-btn" id="cut-btn" onclick="openCutModal()" title="✂ Découper" style="display:none">&#x2702;</button>        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Download queue modal -->
+<div id="dl-queue-overlay" onclick="_dlQueueOverlayClick(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center">
+  <div id="dl-queue-modal" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:480px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;gap:14px;overflow:hidden">
+    <!-- Header row -->
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+      <div style="font-size:15px;font-weight:700;color:var(--accent)">📥 Téléchargements</div>
+      <button onclick="closeDlQueueModal()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:20px;padding:0 4px;line-height:1">&times;</button>
+    </div>
+    <!-- Add form -->
+    <div style="flex-shrink:0;display:flex;flex-direction:column;gap:10px">
+      <div>
+        <div class="s-label" style="margin-bottom:6px">URL de la vidéo</div>
+        <input id="download-url-input" type="url" placeholder="https://…" style="width:100%;box-sizing:border-box;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:8px 10px;outline:none">
+        <div id="download-source-hint" style="display:none;font-size:11px;color:var(--accent);margin-top:4px">🎬 Source vidéo détectée sur la page</div>
+      </div>
+      <div>
+        <div class="s-label" style="margin-bottom:6px">Nom du fichier <span style="color:var(--text-dim);font-weight:400">(optionnel)</span></div>
+        <input id="download-title-input" type="text" placeholder="(extrait automatiquement par yt-dlp)" style="width:100%;box-sizing:border-box;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:8px 10px;outline:none">
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
+        <div style="font-size:12px;color:var(--text-dim)">Destination : <span id="download-dest-label" style="color:var(--text-mid)"></span></div>
+        <button class="s-btn" id="download-start-btn" onclick="startDownload()" style="background:var(--accent);color:#000;font-weight:700">Télécharger</button>
+      </div>
+    </div>
+    <!-- Queue list (shown when jobs exist) -->
+    <div id="dl-queue-section" style="display:none;flex-direction:column;gap:0;flex-shrink:0">
+      <div style="border-top:1px solid var(--border);padding-top:12px;display:flex;flex-direction:column;gap:8px">
+        <div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.06em">File d'attente</div>
+        <div id="dl-queue-list" style="display:flex;flex-direction:column;gap:6px;overflow-y:auto;max-height:32vh"></div>
       </div>
     </div>
   </div>
@@ -1098,6 +1181,8 @@ let cfg = {
   doubletap_right_bottom: 30,
   doubletap_right_mid: 60,
   doubletap_right_top: 90,
+  download_folder: 'Downloads',
+  download_cookies_path: '',
 };
 
 function applyCfg(s) {
@@ -1119,6 +1204,8 @@ function applyCfg(s) {
   cfg.doubletap_right_bottom    = parseInt(s.doubletap_right_bottom   ?? 30, 10);
   cfg.doubletap_right_mid       = parseInt(s.doubletap_right_mid      ?? 60, 10);
   cfg.doubletap_right_top       = parseInt(s.doubletap_right_top      ?? 90, 10);
+  cfg.download_folder            = s.download_folder        || 'Downloads';
+  cfg.download_cookies_path      = s.download_cookies_path  || '';
   // propagate navigation prefs
   homeFolder = cfg.home_folder;
   sortBy     = cfg.sort_by;
@@ -1294,6 +1381,30 @@ async function init() {
   }
   await loadQuickFolders();
   updateSortUI();
+  // Pick up any download jobs still running in the backend (survives page reload)
+  _initDlQueue();
+
+  // 2. Handle bookmarklet redirect: #download?url=...&cookies=...&videoSrc=...&title=...
+  if (location.hash.startsWith('#download?')) {
+    const params = new URLSearchParams(location.hash.slice('#download?'.length));
+    const dlUrl = params.get('url') || '';
+    const dlCookies = params.get('cookies') || null;
+    const dlVideoSrc = params.get('videoSrc') || null;
+    const dlTitle = params.get('title') || null;
+    history.replaceState(null, '', location.pathname);
+    if (cfg.pin_set) {
+      showPinScreen();
+      // open download modal after PIN is validated (handled in hidePinScreen flow)
+      pendingDownloadCookies = dlCookies;
+      window._pendingDownloadUrl = dlUrl;
+      window._pendingDownloadVideoSrc = dlVideoSrc;
+      window._pendingDownloadTitle = dlTitle;
+    } else {
+      navigate(homeFolder);
+      openDlQueueModal(dlUrl, dlCookies, dlVideoSrc, dlTitle);
+    }
+    return;
+  }
 
   if (cfg.pin_set) {
     showPinScreen();
@@ -1346,6 +1457,16 @@ async function submitPin() {
   if (resp.ok) {
     hidePinScreen();
     navigate(homeFolder);
+    // If bookmarklet set a pending download URL, open the modal now
+    if (window._pendingDownloadUrl) {
+      const url = window._pendingDownloadUrl;
+      const videoSrc = window._pendingDownloadVideoSrc || null;
+      const dlTitle = window._pendingDownloadTitle || null;
+      window._pendingDownloadUrl = null;
+      window._pendingDownloadVideoSrc = null;
+      window._pendingDownloadTitle = null;
+      openDlQueueModal(url, pendingDownloadCookies, videoSrc, dlTitle);
+    }
   } else {
     for (let i = 0; i < 4; i++) document.getElementById('pd' + i).classList.add('error');
     document.getElementById('pin-error').textContent = 'Code incorrect';
@@ -1431,6 +1552,9 @@ function openSettings() {
   document.getElementById('s-dt-right-mid').value      = cfg.doubletap_right_mid;
   document.getElementById('s-dt-right-top').value      = cfg.doubletap_right_top;
   document.getElementById('s-home-desc').textContent   = cfg.home_folder || '(racine)';
+  document.getElementById('s-download-folder').value   = cfg.download_folder;
+  document.getElementById('s-cookies-path').value      = cfg.download_cookies_path;
+  _updateBookmarkletLink();
   _refreshPinStatusUI();
   document.getElementById('settings-page').classList.add('open');
 }
@@ -1469,6 +1593,8 @@ async function saveSettings() {
     doubletap_right_bottom:    parseInt(document.getElementById('s-dt-right-bottom').value, 10),
     doubletap_right_mid:       parseInt(document.getElementById('s-dt-right-mid').value, 10),
     doubletap_right_top:       parseInt(document.getElementById('s-dt-right-top').value, 10),
+    download_folder:           (document.getElementById('s-download-folder').value || 'Downloads').trim(),
+    download_cookies_path:     document.getElementById('s-cookies-path').value.trim(),
   };
   const resp = await fetch(`${API}/api/settings`, {
     method: 'POST',
@@ -1480,6 +1606,315 @@ async function saveSettings() {
   updateSortUI();
   closeSettings();
   showToast('\u2713 Param\u00e8tres enregistr\u00e9s');
+}
+
+// ── Download queue ────────────────────────────────────────────────────────────
+// Bookmarklet-captured values pending the next startDownload() call
+let pendingDownloadCookies = null;
+let pendingDownloadReferer = null;
+let pendingDownloadTitle = null;
+// In-memory snapshot of download jobs (updated by poller)
+let _dlQueueJobs = [];
+let _dlQueueInterval = null;
+
+function _buildBookmarkletCode() {
+  // Strip query/hash and trailing slash so H+'/api/download' is always correct.
+  const hoardBase = window.location.href.replace(/[#?].*$/, '').replace(/\/+$/, '');
+  // Bookmarklet: submit the download to Hoard in the background via fetch().
+  // A status dialog is injected into the current page — no navigation, no modal.
+  // States: "Connexion à Hoard…" → "Analyse de l'URL…" → "Téléchargement… X%"
+  //       → "Terminé !" (auto-close 4s) or "❌ <error>" (manual close).
+  //
+  // Video source detection strategies (in priority order):
+  // 1. <video>.currentSrc (if not a blob: URL)
+  // 2. <video source[src]> elements (if not blob:)
+  // 3. <iframe> with src pointing to known video hosting domains
+  // 4. Performance API — initiatorType 'video'
+  // 5. Performance API — match video file extensions in network requests
+  // 6. Performance API — largest resource (>500 KB, skip known non-video types)
+  // Falls back to the page URL if nothing is found (backend sniffing handles it).
+  return [
+    'javascript:(function(){',
+    // Prevent double-invocation if user clicks the bookmarklet twice
+    'if(document.getElementById("_hd"))return;',
+    `var H="${hoardBase}";`,
+    // --- Build the status dialog ---
+    'var D=document.createElement("div");D.id="_hd";',
+    'D.style.cssText="position:fixed;top:20px;right:20px;z-index:2147483647;width:300px;padding:14px 16px;border-radius:10px;font:13px/1.5 system-ui,sans-serif;color:#ddd;background:#1c1c28;border:1px solid #444;box-shadow:0 8px 28px rgba(0,0,0,.7);box-sizing:border-box";',
+    // Title bar: "📥 HOARD" label + × close button
+    'var TR=document.createElement("div");TR.style.cssText="display:flex;align-items:center;margin-bottom:10px";',
+    'var TL=document.createElement("span");TL.style.cssText="font-size:11px;font-weight:bold;letter-spacing:.06em;text-transform:uppercase;color:#777;flex:1";TL.textContent="\uD83D\uDCE5 Hoard";',
+    'var XB=document.createElement("button");XB.style.cssText="background:none;border:none;color:#666;font-size:20px;cursor:pointer;padding:0;line-height:1";XB.textContent="\u00D7";',
+    'TR.appendChild(TL);TR.appendChild(XB);D.appendChild(TR);',
+    // Status row: icon + message text
+    'var SR=document.createElement("div");SR.style.cssText="display:flex;gap:8px;align-items:center";',
+    'var IC=document.createElement("span");IC.style.fontSize="18px";IC.textContent="\u23F3";',
+    'var TX=document.createElement("span");TX.style.cssText="flex:1;word-break:break-word";TX.textContent="Connexion \u00e0 Hoard\u2026";',
+    'SR.appendChild(IC);SR.appendChild(TX);D.appendChild(SR);',
+    // Progress bar — hidden until the download actually starts
+    'var PC=document.createElement("div");PC.style.cssText="height:4px;border-radius:2px;background:#333;margin-top:12px;overflow:hidden;display:none";',
+    'var PF=document.createElement("div");PF.style.cssText="height:100%;background:#4caf50;width:0%;transition:width .5s";',
+    'PC.appendChild(PF);D.appendChild(PC);',
+    'document.body.appendChild(D);',
+    'var TM=null;',
+    // bye() — stop polling and remove the dialog
+    'function bye(){if(TM){clearInterval(TM);TM=null;}if(D.parentNode)D.parentNode.removeChild(D);}',
+    'XB.onclick=bye;',
+    // upd(icon, text, pct, autoCloseMs)
+    //   pct=null → leave progress bar unchanged | 0-100 → show and fill
+    //   autoCloseMs=0 → no auto-close | >0 → schedule bye() after delay
+    'function upd(ic,tx,pct,ms){IC.textContent=ic;TX.textContent=tx;',
+    'if(pct!=null){PC.style.display="block";PF.style.width=pct+"%";}',
+    'if(ms>0)setTimeout(bye,ms);}',
+    // --- Video source detection (6 strategies) ---
+    'var v="";',
+    // Strategy 1: <video>.currentSrc
+    'var el=document.querySelector("video");',
+    'if(el&&el.currentSrc&&el.currentSrc.indexOf("blob:")!==0){v=el.currentSrc;}',
+    // Strategy 2: <source> inside <video>
+    'if(!v){var ss=document.querySelectorAll("video source[src]");',
+    'for(var i=0;i<ss.length;i++){var s=ss[i].src;',
+    'if(s&&s.indexOf("blob:")!==0){v=s;break;}}}',
+    // Strategy 3: <iframe> from known video hosting domains
+    'if(!v){var fr=document.querySelectorAll("iframe[src]");',
+    'var vh=/mediadelivery\\.net|bunnycdn\\.com|youtube\\.com\\/embed|player\\.vimeo\\.com|dailymotion\\.com\\/embed/i;',
+    'for(var i=0;i<fr.length;i++){if(vh.test(fr[i].src)){v=fr[i].src;break;}}}',
+    // Strategies 4-6: Performance API
+    'if(!v&&window.performance){var ee=performance.getEntriesByType("resource");',
+    // 4. initiatorType === 'video'
+    'for(var i=ee.length-1;i>=0;i--){if(ee[i].initiatorType==="video"){v=ee[i].name;break;}}',
+    // 5. Common video file extensions
+    'if(!v){var re=/\\.(mp4|m3u8|webm|ts|mov|mkv|avi|flv|m4v|mpd)(\\?|$)/i;',
+    'for(var i=ee.length-1;i>=0;i--){if(re.test(ee[i].name)){v=ee[i].name;break;}}}',
+    // 6. Largest resource > 500 KB (skip obvious non-video types)
+    'if(!v){var skip=/\\.(js|css|woff2?|png|jpe?g|gif|svg|ico|webp)(\\?|$)/i;',
+    'var best=0;for(var i=0;i<ee.length;i++){var sz=ee[i].transferSize||0;',
+    'if(sz>500000&&sz>best&&!skip.test(ee[i].name)){best=sz;v=ee[i].name;}}}}',
+    // --- POST to Hoard API, then poll the job until done ---
+    'var pu=location.href;',
+    'fetch(H+"/api/download",{method:"POST",headers:{"Content-Type":"application/json"},',
+    'body:JSON.stringify({url:v||pu,cookies:document.cookie||null,referer:v?pu:null,title:document.title||null})})',
+    '.then(function(r){',
+    // HTTP error from Hoard (SSRF block, bad request, etc.)
+    'if(!r.ok){r.json().then(function(e){upd("\u274C","Hoard\u00a0: "+(e.detail||"Erreur "+r.status),null,0);})',
+    '.catch(function(){upd("\u274C","Hoard\u00a0: erreur "+r.status,null,0);});return;}',
+    // Job created — start polling
+    'r.json().then(function(data){',
+    'var jid=data.job_id;upd("\u231B","Analyse de l\u2019URL\u2026",null,0);',
+    'TM=setInterval(function(){',
+    'fetch(H+"/api/jobs").then(function(r2){return r2.json();}).then(function(jobs){',
+    'var j=null;for(var i=0;i<jobs.length;i++){if(jobs[i].id===jid){j=jobs[i];break;}}',
+    'if(!j){upd("\u274C","T\u00e2che introuvable",null,0);clearInterval(TM);return;}',
+    'if(j.status==="resolving"){upd("\u231B","Analyse de l\u2019URL\u2026",null,0);}',
+    'else if(j.status==="pending"){upd("\u23F3","En attente dans la file\u2026",null,0);}',
+    'else if(j.status==="running"&&j.progress===0){upd("\u231B","Analyse de l\u2019URL\u2026",null,0);}',
+    'else if(j.status==="running"){upd("\uD83D\uDCE5","T\u00e9l\u00e9chargement\u2026 "+j.progress+"%",j.progress,0);}',
+    'else if(j.status==="done"){upd("\u2705","Termin\u00e9\u00a0!",100,4000);clearInterval(TM);}',
+    'else if(j.status==="cancelled"){upd("\u23F9","Annul\u00e9",null,0);clearInterval(TM);}',
+    'else if(j.status==="error"){upd("\u274C",(j.error||"Erreur").slice(0,120),null,0);clearInterval(TM);}',
+    '}).catch(function(){});},2000);',
+    '});',
+    '})',
+    '.catch(function(){upd("\u274C","Hoard non joignable",null,0);});',
+    '})();',
+  ].join('');
+}
+
+function _updateBookmarkletLink() {
+  const link = document.getElementById('bookmarklet-link');
+  if (link) link.href = _buildBookmarkletCode();
+}
+
+function copyBookmarklet() {
+  const code = _buildBookmarkletCode();
+  navigator.clipboard.writeText(code).then(
+    () => showToast('✓ Code bookmarklet copié'),
+    () => showToast('Impossible de copier — utilisez le glisser-déposer'),
+  );
+}
+
+function openDlQueueModal(url, cookies, videoSrc, title) {
+  pendingDownloadCookies = cookies || null;
+  pendingDownloadTitle = title || null;
+  // If a direct video source was detected, use it as the URL and keep the
+  // page URL as referer so CDNs that check the origin accept the request.
+  const hint = document.getElementById('download-source-hint');
+  if (videoSrc) {
+    pendingDownloadReferer = url;  // page URL becomes the referer
+    url = videoSrc;
+    if (hint) hint.style.display = '';
+  } else {
+    pendingDownloadReferer = null;
+    if (hint) hint.style.display = 'none';
+  }
+  const urlInput = document.getElementById('download-url-input');
+  if (urlInput) urlInput.value = url || '';
+  const titleInput = document.getElementById('download-title-input');
+  if (titleInput) titleInput.value = title || '';
+  const destLabel = document.getElementById('download-dest-label');
+  if (destLabel) destLabel.textContent = cfg.download_folder || 'Downloads';
+  _renderDlQueueList();
+  const overlay = document.getElementById('dl-queue-overlay');
+  overlay.style.display = 'flex';
+  setTimeout(() => { if (urlInput) urlInput.focus(); }, 50);
+}
+
+function closeDlQueueModal() {
+  document.getElementById('dl-queue-overlay').style.display = 'none';
+  pendingDownloadCookies = null;
+  pendingDownloadReferer = null;
+  pendingDownloadTitle = null;
+  const urlInput = document.getElementById('download-url-input');
+  if (urlInput) urlInput.value = '';
+  const titleInput = document.getElementById('download-title-input');
+  if (titleInput) titleInput.value = '';
+  const hint = document.getElementById('download-source-hint');
+  if (hint) hint.style.display = 'none';
+}
+
+function _dlQueueOverlayClick(e) {
+  if (e.target === document.getElementById('dl-queue-overlay')) closeDlQueueModal();
+}
+
+async function startDownload() {
+  const url = (document.getElementById('download-url-input').value || '').trim();
+  if (!url) { showToast('Entrez une URL'); return; }
+  const titleVal = (document.getElementById('download-title-input')?.value || '').trim();
+  const btn = document.getElementById('download-start-btn');
+  btn.disabled = true;
+  try {
+    const resp = await fetch(`${API}/api/download`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        url,
+        cookies: pendingDownloadCookies || undefined,
+        referer: pendingDownloadReferer || undefined,
+        title: titleVal || undefined,
+      }),
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      showToast('Erreur : ' + (err.detail || resp.status));
+      return;
+    }
+    // Clear the form but keep the modal open so the queue list is visible
+    document.getElementById('download-url-input').value = '';
+    document.getElementById('download-title-input').value = '';
+    pendingDownloadCookies = null;
+    pendingDownloadReferer = null;
+    pendingDownloadTitle = null;
+    const hint = document.getElementById('download-source-hint');
+    if (hint) hint.style.display = 'none';
+    showToast('📥 Téléchargement lancé…');
+    _startDlQueuePoller();
+    await _pollDlQueue();
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ── Download queue helpers ────────────────────────────────────────────────────
+function _esc(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function _updateDlQueueWidget() {
+  const badge = document.getElementById('dl-queue-badge');
+  if (!badge) return;
+  const active = _dlQueueJobs.filter(
+    j => j.status === 'resolving' || j.status === 'pending' || j.status === 'running',
+  );
+  if (active.length === 0) { badge.style.display = 'none'; return; }
+  badge.textContent = active.length;
+  badge.style.background = 'var(--accent)';
+  badge.style.display = 'flex';
+}
+
+function _renderDlQueueList() {
+  const list = document.getElementById('dl-queue-list');
+  const section = document.getElementById('dl-queue-section');
+  if (!list || !section) return;
+  if (_dlQueueJobs.length === 0) { section.style.display = 'none'; return; }
+  section.style.display = 'flex';
+  list.innerHTML = _dlQueueJobs.map(job => {
+    const name = job.output_name || job.source_name || '';
+    const isDone = job.status === 'done';
+    const isError = job.status === 'error';
+    const isCancelled = job.status === 'cancelled';
+    const isActive = job.status === 'resolving' || job.status === 'pending' || job.status === 'running';
+    const statusText = isDone ? '✓ ' + (job.output_name || 'Terminé')
+      : isError ? '✗ ' + (job.error || 'Erreur inconnue')
+      : isCancelled ? '⊘ Annulé'
+      : job.status === 'resolving' ? '⌛ Analyse de l\u2019URL\u2026'
+      : job.status === 'pending' ? 'En attente\u2026'
+      : job.progress > 0 ? job.progress + '%' : 'Démarrage\u2026';
+    const statusClass = isDone ? 'done' : isError ? 'error' : isCancelled ? 'error' : '';
+    const canDismiss = isDone || isError || isCancelled;
+    return `<div class="dl-job-item">
+      <div class="dl-job-name">${_esc(name)}</div>
+      <div class="dl-job-bar-track"><div class="dl-job-bar-fill" style="width:${job.progress}%"></div></div>
+      <div class="dl-job-row">
+        <div class="dl-job-status ${statusClass}">${_esc(statusText)}</div>
+        ${isActive ? `<button class="dl-job-dismiss" onclick="stopDlJob('${_esc(job.id)}')" title="Annuler">⏹</button>` : ''}
+        ${canDismiss ? `<button class="dl-job-dismiss" onclick="dismissDlJob('${_esc(job.id)}')" title="Retirer">✕</button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function _pollDlQueue() {
+  const jobs = await fetch(`${API}/api/jobs`).then(r => r.json()).catch(() => null);
+  if (!jobs) return;
+  const prevJobs = _dlQueueJobs;
+  _dlQueueJobs = jobs.filter(j => j.type === 'download');
+  // Refresh folder view when any download just completed
+  const justDone = _dlQueueJobs.filter(
+    j => j.status === 'done' && prevJobs.some(p => p.id === j.id && p.status !== 'done'),
+  );
+  if (justDone.length > 0) _refreshAfterDownload();
+  _updateDlQueueWidget();
+  _renderDlQueueList();
+  const hasActive = _dlQueueJobs.some(j => j.status === 'pending' || j.status === 'running');
+  if (hasActive) { _startDlQueuePoller(); }          // auto-start fast poller when new jobs appear
+  else if (_dlQueueInterval) { clearInterval(_dlQueueInterval); _dlQueueInterval = null; }
+}
+
+function _refreshAfterDownload() {
+  const dlFolder = (cfg && cfg.download_folder) || 'Downloads';
+  if (currentPath === dlFolder) {
+    dirCache.delete(dlFolder);
+    navigate(dlFolder);
+  }
+}
+
+function _startDlQueuePoller() {
+  if (_dlQueueInterval) return;
+  _dlQueueInterval = setInterval(_pollDlQueue, 1500);
+}
+
+async function dismissDlJob(jobId) {
+  await fetch(`${API}/api/jobs/${jobId}`, { method: 'DELETE' }).catch(() => {});
+  _dlQueueJobs = _dlQueueJobs.filter(j => j.id !== jobId);
+  _updateDlQueueWidget();
+  _renderDlQueueList();
+}
+
+async function stopDlJob(jobId) {
+  await fetch(`${API}/api/jobs/${jobId}/cancel`, { method: 'POST' }).catch(() => {});
+  await _pollDlQueue();
+}
+
+async function _initDlQueue() {
+  const jobs = await fetch(`${API}/api/jobs`).then(r => r.json()).catch(() => []);
+  _dlQueueJobs = jobs.filter(j => j.type === 'download');
+  _updateDlQueueWidget();
+  if (_dlQueueJobs.length > 0) _renderDlQueueList();
+  const hasActive = _dlQueueJobs.some(j => j.status === 'pending' || j.status === 'running');
+  if (hasActive) _startDlQueuePoller();
+  // Slow background discovery poller: detects jobs submitted via bookmarklet from
+  // other pages and auto-starts the fast poller when new active jobs are found.
+  setInterval(_pollDlQueue, 8000);
 }
 
 // ── Navigation ────────────────────────────────────────────────────────────────

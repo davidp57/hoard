@@ -122,6 +122,53 @@ Progressive seek through the video. **Speed depends on the vertical position of 
 
 ---
 
+## Video Download
+
+Hoard can download videos from the web using **yt-dlp** and save them directly to your NAS.
+
+### Installing the Bookmarklet
+
+1. Open **Settings** (⚙️ button in the header).
+2. Scroll to the **Downloads** section.
+3. **Drag** the "📥 Télécharger avec Hoard" link to your bookmarks bar.
+
+### Downloading a Video
+
+**From any web page** — click the bookmarklet. It submits the download **in the background** and injects a live status dialog directly into the current page — no navigation, no opened tab. The dialog progresses through ⌛ "Analyse de l'URL…" → 📥 "Téléchargement… X%" → ✅ "Terminé !" (auto-closes after 4 s). If the queue is busy it shows ⏳ "En attente dans la file… — titre.mp4" until the slot is free. You can cancel the job from the dialog or from the Hoard download queue modal.
+
+> **Smart video source detection**: if a `<video>` element is playing on the page, the bookmarklet captures its direct source URL instead of the page URL. This enables downloading from sites where yt-dlp has no dedicated extractor (Patreon, custom video players, BunnyCDN embeds, etc.). The modal shows a 🎬 hint when a direct source was detected. The original page URL is automatically sent as the `Referer` header so CDNs that verify the origin accept the request.
+
+**From inside Hoard** — click the **📥** button in the header, paste a URL, and confirm.
+
+**Filename hint**: the "Nom du fichier" field is pre-filled with the page title when using the bookmarklet. You can edit it freely before starting the download. If left empty, yt-dlp extracts the title automatically.
+
+### Download Queue
+
+All downloads are tracked in a central queue accessible from the **📥** button in the header:
+
+- A **badge** on the button shows the number of active downloads.
+  - Yellow badge = downloads in progress.
+  - Green badge = all done (queue has items to dismiss).
+- Click the button to open the **download queue modal**, which shows each download with its filename, progress bar, and status.
+- Click **✕** next to a completed or failed download to dismiss it from the queue.
+- Click **⏹** on a pending or running download to cancel it immediately. Any partial `.part` file left by yt-dlp is deleted automatically.
+- **Sequential queue**: downloads run one at a time. New jobs wait in a "pending" state until the current download finishes, preventing bandwidth overload.
+- **Downloads continue even if you close the tab**: they run as backend threads on the NAS. When you return to Hoard, the queue widget automatically reconnects to in-progress jobs.
+- **Auto-refresh**: when a download completes, the file browser automatically refreshes if you are currently browsing the download folder.
+
+### Settings
+
+| Setting | Description |
+|---------|-------------|
+| **Download folder** | Target folder, relative to `MEDIA_ROOT` (default: `Downloads`). Created automatically if it does not exist. |
+| **Cookies file path** | Absolute path to a Netscape `cookies.txt` file. Useful for sites that require authentication. |
+
+### About Cookies
+
+The bookmarklet forwards `document.cookie` from the source page. Note that **HttpOnly cookies are not accessible to JavaScript** — for sites where those are required (e.g. streaming platforms), export a `cookies.txt` file with a browser extension and specify its path in Settings.
+
+---
+
 ## Responsive Layout
 
 | Screen width | Mode |

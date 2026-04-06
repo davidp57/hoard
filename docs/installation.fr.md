@@ -4,9 +4,11 @@
 
 | Méthode | Prérequis |
 |---------|-----------|
-| Local (Python) | Python 3.12+, pip |
+| Local (Python) | Python 3.12+, pip, ffmpeg (pour la découpe vidéo et les téléchargements) |
 | Docker | Docker Engine 24+, Docker Compose v2 |
 | Synology NAS | DSM 7+, paquet Docker ou Container Manager |
+
+> **Note :** `yt-dlp` est installé automatiquement comme dépendance Python (`requirements.txt`). `ffmpeg` doit être disponible dans le PATH système pour la découpe vidéo et la fusion audio/vidéo lors des téléchargements. L'image Docker inclut les deux.
 
 ---
 
@@ -129,6 +131,34 @@ Toute la configuration passe par des **variables d'environnement** dans `docker-
 | `MEDIA_ROOT` | `/media` | Chemin racine des médias dans le container |
 | `DB_PATH` | `/data/progress.db` | Fichier SQLite de suivi de progression |
 | `PREDEFINED_FOLDERS` | `Vu,A revoir,A supprimer` | Dossiers rapides (séparés par des virgules) |
+| `SSL_CERTFILE` | *(non défini)* | Chemin vers un fichier de certificat PEM. Active le HTTPS natif — sans reverse proxy. |
+| `SSL_KEYFILE` | *(non défini)* | Chemin vers la clé privée PEM correspondante. |
+
+### Activer le HTTPS
+
+Pour servir Hoard en HTTPS sans reverse proxy, génère un certificat et définis les deux variables :
+
+```bash
+# Certificat auto-signé (valide 10 ans)
+openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem \
+  -days 3650 -nodes -subj "/CN=nas.local"
+```
+
+Ou utilise [mkcert](https://github.com/FiloSottile/mkcert) pour un certificat approuvé localement :
+```bash
+mkcert nas.local
+```
+
+Puis dans `docker-compose.yml` :
+```yaml
+volumes:
+  - /chemin/sur/nas/certs:/certs:ro
+environment:
+  - SSL_CERTFILE=/certs/cert.pem
+  - SSL_KEYFILE=/certs/key.pem
+```
+
+L'application sera accessible sur `https://IP_DU_NAS:8000`.
 
 ### Exemple avec Portainer
 

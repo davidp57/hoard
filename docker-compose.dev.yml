@@ -11,6 +11,8 @@ services:
     environment:
       - MEDIA_ROOT=/media
       - DB_PATH=/data/progress.db
+      # - SSL_CERTFILE=/certs/cert.pem
+      # - SSL_KEYFILE=/certs/key.pem
     command:
       [
         "uvicorn",

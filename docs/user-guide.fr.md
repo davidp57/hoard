@@ -122,6 +122,53 @@ Les **dossiers rapides** permettent de déplacer un fichier vers un dossier fré
 
 ---
 
+## Téléchargement de vidéos
+
+Hoard peut télécharger des vidéos depuis le web via **yt-dlp** et les sauvegarder directement sur le NAS.
+
+### Installer la bookmarklet
+
+1. Ouvre les **Paramètres** (bouton ⚙️ dans l'en-tête).
+2. Descends jusqu'à la section **Téléchargements**.
+3. **Glisse** le lien « 📥 Télécharger avec Hoard » vers ta barre de favoris.
+
+### Télécharger une vidéo
+
+**Depuis n'importe quelle page web** — clique sur la bookmarklet. Elle soumet le téléchargement **en arrière-plan** et injecte une fenêtre de statut en direct directement dans la page courante — aucune navigation, aucun onglet ouvert. Le dialogue progresse à travers ⌛ « Analyse de l'URL… » → 📥 « Téléchargement… X% » → ✅ « Terminé ! » (fermeture automatique après 4 s). Si la file est occupée, il affiche ⏳ « En attente dans la file… — titre.mp4 » jusqu'à ce qu'un slot se libère. Tu peux annuler le job depuis le dialogue ou depuis le modal de file de téléchargement de Hoard.
+
+> **Détection intelligente de la source vidéo** : si un élément `<video>` est en lecture sur la page, la bookmarklet capture son URL source directe au lieu de l'URL de la page. Cela permet de télécharger depuis des sites où yt-dlp n'a pas d'extracteur dédié (Patreon, lecteurs vidéo custom, embeds BunnyCDN, etc.). Le modal affiche un indicateur 🎬 quand une source directe a été détectée. L'URL de la page d'origine est automatiquement envoyée comme en-tête `Referer` pour que les CDN qui vérifient l'origine acceptent la requête.
+
+**Depuis Hoard directement** — clique sur le bouton **📥** dans l'en-tête, colle l'URL et confirme.
+
+**Indication de nom de fichier** : le champ « Nom du fichier » est pré-rempli avec le titre de la page lors de l'utilisation de la bookmarklet. Tu peux le modifier librement avant de lancer le téléchargement. S'il est laissé vide, yt-dlp extrait le titre automatiquement.
+
+### File de téléchargement
+
+Tous les téléchargements sont regroupés dans une file centrale accessible depuis le bouton **📥** dans l'en-tête :
+
+- Un **badge** sur le bouton indique le nombre de téléchargements actifs.
+  - Badge jaune = téléchargements en cours.
+  - Badge vert = tous terminés (la file contient des éléments à supprimer).
+- Clique sur le bouton pour ouvrir le **modal de file de téléchargement**, qui affiche chaque téléchargement avec son nom, sa barre de progression et son statut.
+- Clique sur **✕** à côté d'un téléchargement terminé ou en erreur pour le retirer de la file.
+- Clique sur **⏹** sur un téléchargement en attente ou en cours pour l'annuler immédiatement. Tout fichier `.part` partiel laissé par yt-dlp est effacé automatiquement.
+- **File séquentielle** : les téléchargements s'exécutent un par un. Les nouveaux jobs attendent à l'état « pending » jusqu'à ce que le téléchargement en cours se termine, évitant la surcharge.
+- **Les téléchargements continuent même si tu fermes l'onglet** : ils s'exécutent comme des threads en arrière-plan sur le NAS. Quand tu reviens sur Hoard, le widget de file se reconnecte automatiquement aux jobs en cours.
+- **Rafraîchissement automatique** : quand un téléchargement se termine, le navigateur de fichiers se rafraîchit automatiquement si tu parcours le dossier de téléchargement.
+
+### Paramètres
+
+| Paramètre | Description |
+|-----------|-------------|
+| **Dossier de téléchargement** | Dossier cible, relatif à `MEDIA_ROOT` (défaut : `Downloads`). Créé automatiquement s'il n'existe pas. |
+| **Chemin du fichier cookies** | Chemin absolu vers un fichier `cookies.txt` au format Netscape. Utile pour les sites qui nécessitent une authentification. |
+
+### À propos des cookies
+
+La bookmarklet transmet le `document.cookie` de la page source. Attention : les **cookies HttpOnly ne sont pas accessibles en JavaScript** — pour les sites qui en ont besoin (ex : plateformes de streaming), exporte un fichier `cookies.txt` avec une extension navigateur et renseigne son chemin dans les paramètres.
+
+---
+
 ## Disposition responsive
 
 | Écran | Mode |
