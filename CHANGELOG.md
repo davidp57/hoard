@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `DELETE /api/jobs/{job_id}` endpoint to remove a job from the in-memory store
 - **Filename hint**: bookmarklet now captures `document.title` and pre-fills a "Nom du fichier" field in the modal; the value overrides yt-dlp's automatic title, giving clean filenames for embed pages
 - `_sanitize_filename()` helper: strips characters invalid in filenames on Windows/Linux, caps at 180 chars
-- **Server-side HTML video sniffing**: when yt-dlp reports "Unsupported URL", the backend fetches the page HTML and scans for `<video>`, `<source>`, and `<iframe>` tags pointing to known video-hosting domains (BunnyCDN, YouTube embed, Vimeo, etc.) — mirrors the bookmarklet strategies so pasting a plain page URL in the UI also works
+- **Server-side HTML video sniffing**: when yt-dlp reports "Unsupported URL", the backend fetches the page HTML and scans for `<video>`, `<source>`, `<iframe>`, `<meta property="og:video*">`, inline `<script>` blocks, and `data-*` attributes pointing to known video-hosting domains (BunnyCDN, YouTube embed, Vimeo, JW Platform, Brightcove, Kaltura) or direct media files (`.mp4`, `.m3u8`, `.webm`, `.mkv`) — covers JS-injected players whose URL never appears in the raw HTML. If a video source is found, yt-dlp is retried automatically.
 - New settings: `download_folder` (target folder relative to `MEDIA_ROOT`, default `Downloads`) and `download_cookies_path` (path to a persistent Netscape cookies.txt file)
 - Cookie passthrough: bookmarklet captures `document.cookie` and sends it with the request; a persistent cookies.txt file is also supported for authenticated sites
 - Bookmarklet auto-generated in Settings → Downloads; drag-to-bookmark instructions provided

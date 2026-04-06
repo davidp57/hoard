@@ -289,7 +289,14 @@ def _sanitize_filename(name: str) -> str:
 # Mirrors the bookmarklet's iframe-detection strategy.
 _VIDEO_HOSTS_RE = re.compile(
     r"mediadelivery\.net|bunnycdn\.com|youtube\.com/embed"
-    r"|player\.vimeo\.com|dailymotion\.com/embed",
+    r"|player\.vimeo\.com|dailymotion\.com/embed"
+    r"|jwplatform\.com|brightcove\.net|kaltura\.com",
+    re.IGNORECASE,
+)
+
+# Matches direct video file URLs found in attributes and inline JavaScript.
+_DIRECT_VIDEO_RE = re.compile(
+    r"https?://[^\s\"'\\<>{}()\[\]]+\.(?:mp4|m3u8|webm|mkv)(?:[?#][^\s\"'\\<>{}()\[\]]*)?",
     re.IGNORECASE,
 )
 
@@ -297,9 +304,13 @@ _VIDEO_HOSTS_RE = re.compile(
 def _sniff_video_source(page_url: str, cookies_str: str | None) -> str | None:
     """Fetch *page_url* as a browser would and look for an embedded video source.
 
-    Mirrors the bookmarklet's server-side equivalent:
-    1. ``<video src>`` / ``<source src>``  (skip blob: URLs)
-    2. ``<iframe src>`` pointing to a known video-hosting domain
+    Detection strategies applied in priority order:
+    1. ``<iframe src>`` pointing to a known video-hosting domain
+    2. ``<video src>`` / ``<source src>`` (skip blob: URLs)
+    3. ``<meta property="og:video*" content="...">`` (OpenGraph)
+    4. URLs matching ``_VIDEO_HOSTS_RE`` or ``_DIRECT_VIDEO_RE`` in inline
+       ``<script>`` blocks (covers JS-injected players, JSON-LD, etc.)
+    5. ``data-*`` attributes containing known-host or direct video URLs
 
     Returns the best candidate URL or ``None`` if nothing is found.
     """
@@ -312,6 +323,10 @@ def _sniff_video_source(page_url: str, cookies_str: str | None) -> str | None:
             super().__init__()
             self.video_srcs: list[str] = []
             self.iframe_srcs: list[str] = []
+            self.meta_video_srcs: list[str] = []
+            self.script_video_srcs: list[str] = []
+            self.data_srcs: list[str] = []
+            self._in_script: bool = False
 
         def handle_starttag(self, tag: str, attrs: list) -> None:
             attrs_dict = dict(attrs)
@@ -322,6 +337,37 @@ def _sniff_video_source(page_url: str, cookies_str: str | None) -> str | None:
             elif tag == "iframe":
                 if src and _VIDEO_HOSTS_RE.search(src):
                     self.iframe_srcs.append(src)
+            elif tag == "meta":
+                prop = (attrs_dict.get("property") or attrs_dict.get("name") or "").lower()
+                if prop in {"og:video", "og:video:url", "og:video:secure_url"}:
+                    content = attrs_dict.get("content") or ""
+                    if content:
+                        self.meta_video_srcs.append(content)
+            elif tag == "script":
+                self._in_script = True
+            # Scan data-* attributes for known-host or direct video URLs
+            for attr_name, attr_val in attrs:
+                if attr_name.startswith("data-") and attr_val:
+                    if _VIDEO_HOSTS_RE.search(attr_val):
+                        self.data_srcs.append(attr_val)
+                    else:
+                        m = _DIRECT_VIDEO_RE.search(attr_val)
+                        if m:
+                            self.data_srcs.append(m.group())
+
+        def handle_endtag(self, tag: str) -> None:
+            if tag == "script":
+                self._in_script = False
+
+        def handle_data(self, data: str) -> None:
+            if not self._in_script:
+                return
+            # Scan inline JS / JSON-LD for video URLs from known hosts or
+            # direct media file extensions (.mp4, .m3u8, etc.)
+            for m in re.finditer(r"https?://[^\s\"'\\<>{}()\[\]]+", data):
+                url_str = m.group().rstrip(".,;)")
+                if _VIDEO_HOSTS_RE.search(url_str) or _DIRECT_VIDEO_RE.search(url_str):
+                    self.script_video_srcs.append(url_str)
 
     try:
         headers = {
@@ -340,11 +386,17 @@ def _sniff_video_source(page_url: str, cookies_str: str | None) -> str | None:
             html_content = resp.read().decode("utf-8", errors="ignore")
         parser = _Parser()
         parser.feed(html_content)
-        # Prefer iframe from known hosts (most reliable with yt-dlp extractors)
+        # Return the highest-priority source found
         if parser.iframe_srcs:
             return parser.iframe_srcs[0]
         if parser.video_srcs:
             return parser.video_srcs[0]
+        if parser.meta_video_srcs:
+            return parser.meta_video_srcs[0]
+        if parser.script_video_srcs:
+            return parser.script_video_srcs[0]
+        if parser.data_srcs:
+            return parser.data_srcs[0]
     except Exception:
         pass
     return None

@@ -764,6 +764,203 @@ class TestDownload:
         assert "Unsupported URL" in jobs[job_id]["error"]
 
 
+class TestSniffVideoSource:
+    """Unit tests for _sniff_video_source HTML parsing strategies."""
+
+    def _make_urlopen(self, html: str):
+        """Return a mock for urllib.request.urlopen that serves *html*."""
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = html.encode("utf-8")
+        mock_resp.__enter__ = lambda s: s
+        mock_resp.__exit__ = MagicMock(return_value=False)
+        return lambda req, timeout: mock_resp
+
+    def test_detects_iframe_from_known_host(self, monkeypatch):
+        """Detects <iframe src> pointing to a known video host in static HTML."""
+        from backend.main import _sniff_video_source
+
+        html = '<html><body><iframe src="https://iframe.mediadelivery.net/embed/99/xyz"></iframe></body></html>'
+        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        assert (
+            _sniff_video_source("https://example.com/page", None)
+            == "https://iframe.mediadelivery.net/embed/99/xyz"
+        )
+
+    def test_detects_video_src_tag(self, monkeypatch):
+        """Detects <video src> in static HTML."""
+        from backend.main import _sniff_video_source
+
+        html = '<html><body><video src="https://cdn.example.com/video.mp4"></video></body></html>'
+        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        assert (
+            _sniff_video_source("https://example.com/page", None)
+            == "https://cdn.example.com/video.mp4"
+        )
+
+    def test_skips_blob_video_src(self, monkeypatch):
+        """Ignores blob: URLs in <video src> and falls back to other strategies."""
+        from backend.main import _sniff_video_source
+
+        html = """<html><body>
+            <video src="blob:https://example.com/fake"></video>
+            <meta property="og:video" content="https://cdn.example.com/video.mp4">
+        </body></html>"""
+        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        assert (
+            _sniff_video_source("https://example.com/page", None)
+            == "https://cdn.example.com/video.mp4"
+        )
+
+    def test_detects_og_video_meta(self, monkeypatch):
+        """Detects <meta property="og:video" content="..."> (OpenGraph)."""
+        from backend.main import _sniff_video_source
+
+        html = '<html><head><meta property="og:video" content="https://iframe.mediadelivery.net/embed/1/abc"></head></html>'
+        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        assert (
+            _sniff_video_source("https://example.com/page", None)
+            == "https://iframe.mediadelivery.net/embed/1/abc"
+        )
+
+    def test_detects_og_video_url_meta(self, monkeypatch):
+        """Detects <meta property="og:video:url" content="...">."""
+        from backend.main import _sniff_video_source
+
+        html = '<html><head><meta property="og:video:url" content="https://cdn.example.com/clip.mp4"></head></html>'
+        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        assert (
+            _sniff_video_source("https://example.com/page", None)
+            == "https://cdn.example.com/clip.mp4"
+        )
+
+    def test_detects_og_video_secure_url_meta(self, monkeypatch):
+        """Detects <meta property="og:video:secure_url" content="...">."""
+        from backend.main import _sniff_video_source
+
+        html = '<html><head><meta property="og:video:secure_url" content="https://cdn.example.com/secure.mp4"></head></html>'
+        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        assert (
+            _sniff_video_source("https://example.com/page", None)
+            == "https://cdn.example.com/secure.mp4"
+        )
+
+    def test_detects_known_host_url_in_inline_script(self, monkeypatch):
+        """Detects BunnyCDN embed URL in an inline <script> block."""
+        from backend.main import _sniff_video_source
+
+        html = '<html><head><script>var p={src:"https://iframe.mediadelivery.net/embed/42/vid-id"};</script></head></html>'
+        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        assert (
+            _sniff_video_source("https://example.com/page", None)
+            == "https://iframe.mediadelivery.net/embed/42/vid-id"
+        )
+
+    def test_detects_direct_mp4_in_inline_script(self, monkeypatch):
+        """Detects a direct .mp4 URL in an inline <script> block."""
+        from backend.main import _sniff_video_source
+
+        html = '<html><head><script>var src="https://cdn.example.com/video.mp4?token=abc";</script></head></html>'
+        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        assert (
+            _sniff_video_source("https://example.com/page", None)
+            == "https://cdn.example.com/video.mp4?token=abc"
+        )
+
+    def test_detects_m3u8_in_inline_script(self, monkeypatch):
+        """Detects an HLS .m3u8 manifest URL in an inline <script> block."""
+        from backend.main import _sniff_video_source
+
+        html = '<html><head><script>var hls="https://stream.example.com/live.m3u8";</script></head></html>'
+        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        assert (
+            _sniff_video_source("https://example.com/page", None)
+            == "https://stream.example.com/live.m3u8"
+        )
+
+    def test_detects_data_attribute_known_host(self, monkeypatch):
+        """Detects a known-host URL in a data-* attribute."""
+        from backend.main import _sniff_video_source
+
+        html = '<html><body><div data-video-src="https://iframe.mediadelivery.net/embed/5/abc123"></div></body></html>'
+        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        assert (
+            _sniff_video_source("https://example.com/page", None)
+            == "https://iframe.mediadelivery.net/embed/5/abc123"
+        )
+
+    def test_detects_data_attribute_direct_mp4(self, monkeypatch):
+        """Detects a direct .mp4 URL in a data-* attribute."""
+        from backend.main import _sniff_video_source
+
+        html = '<html><body><div data-src="https://cdn.example.com/clip.mp4"></div></body></html>'
+        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        assert (
+            _sniff_video_source("https://example.com/page", None)
+            == "https://cdn.example.com/clip.mp4"
+        )
+
+    def test_priority_iframe_over_video_tag(self, monkeypatch):
+        """iframe from known host takes priority over <video src>."""
+        from backend.main import _sniff_video_source
+
+        html = """<html><body>
+            <video src="https://cdn.example.com/video.mp4"></video>
+            <iframe src="https://iframe.mediadelivery.net/embed/99/xyz"></iframe>
+        </body></html>"""
+        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        assert (
+            _sniff_video_source("https://example.com/page", None)
+            == "https://iframe.mediadelivery.net/embed/99/xyz"
+        )
+
+    def test_priority_video_tag_over_meta(self, monkeypatch):
+        """<video src> takes priority over og:video meta."""
+        from backend.main import _sniff_video_source
+
+        html = """<html><head>
+            <meta property="og:video" content="https://cdn.example.com/meta.mp4">
+        </head><body>
+            <video src="https://cdn.example.com/direct.mp4"></video>
+        </body></html>"""
+        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        assert (
+            _sniff_video_source("https://example.com/page", None)
+            == "https://cdn.example.com/direct.mp4"
+        )
+
+    def test_priority_meta_over_script(self, monkeypatch):
+        """og:video meta takes priority over URLs found in inline scripts."""
+        from backend.main import _sniff_video_source
+
+        html = """<html><head>
+            <meta property="og:video" content="https://cdn.example.com/meta.mp4">
+            <script>var src="https://cdn.example.com/script.mp4";</script>
+        </head></html>"""
+        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        assert (
+            _sniff_video_source("https://example.com/page", None)
+            == "https://cdn.example.com/meta.mp4"
+        )
+
+    def test_returns_none_on_no_video(self, monkeypatch):
+        """Returns None when no video source is found anywhere."""
+        from backend.main import _sniff_video_source
+
+        html = "<html><body><p>No video here, just text.</p></body></html>"
+        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        assert _sniff_video_source("https://example.com/page", None) is None
+
+    def test_returns_none_on_network_error(self, monkeypatch):
+        """Returns None if the HTTP request fails."""
+        from backend.main import _sniff_video_source
+
+        def _fail(req, timeout):
+            raise OSError("connection refused")
+
+        monkeypatch.setattr("urllib.request.urlopen", _fail)
+        assert _sniff_video_source("https://example.com/page", None) is None
+
+
 class TestSanitizeFilename:
     def test_removes_invalid_chars(self):
         from backend.main import _sanitize_filename
