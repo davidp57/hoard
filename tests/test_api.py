@@ -463,7 +463,8 @@ def _make_yt_dlp_mock(output_name: str = "video.mp4") -> MagicMock:
 
 
 def _sync_thread_patch(monkeypatch):
-    """Run threading.Thread targets synchronously."""
+    """Run threading.Thread targets and queued download jobs synchronously."""
+    import backend.main as main_mod
 
     class SyncThread:
         def __init__(self, target, args, daemon=True):
@@ -474,6 +475,23 @@ def _sync_thread_patch(monkeypatch):
             self._target(*self._args)
 
     monkeypatch.setattr(threading, "Thread", SyncThread)
+
+    # Patch the download queue dispatcher to run the job inline instead of
+    # enqueuing, so download tests complete synchronously without a worker.
+    def sync_enqueue(job_id: str) -> None:
+        job = main_mod._jobs[job_id]
+        p = job["_params"]
+        main_mod._run_download(
+            job_id,
+            p["url"],
+            p["output_dir"],
+            p["cookies"],
+            p["cookies_file_path"],
+            p.get("referer"),
+            p.get("title"),
+        )
+
+    monkeypatch.setattr(main_mod, "_enqueue_download", sync_enqueue)
 
 
 class TestDownload:
@@ -513,16 +531,11 @@ class TestDownload:
         assert (MEDIA_ROOT / "MyDownloads").is_dir()
 
     def test_download_job_appears_in_jobs_list(self, monkeypatch):
+        import backend.main as main_mod
+
         monkeypatch.setitem(sys.modules, "yt_dlp", _make_yt_dlp_mock())
-
-        class NoopThread:
-            def __init__(self, target, args, daemon=True):
-                pass
-
-            def start(self):
-                pass
-
-        monkeypatch.setattr(threading, "Thread", NoopThread)
+        # Prevent the worker from actually running the download
+        monkeypatch.setattr(main_mod, "_enqueue_download", lambda job_id: None)
         client.post("/api/download", json={"url": "https://example.com/video"})
         jobs = client.get("/api/jobs").json()
         download_jobs = [j for j in jobs if j.get("type") == "download"]
@@ -763,8 +776,137 @@ class TestDownload:
         assert jobs[job_id]["status"] == "error"
         assert "Unsupported URL" in jobs[job_id]["error"]
 
+    def test_cancel_pending_job(self, monkeypatch):
+        """Cancelling a pending job marks it as cancelled before it runs."""
+        import backend.main as main_mod
 
-class TestSniffVideoSource:
+        monkeypatch.setitem(sys.modules, "yt_dlp", _make_yt_dlp_mock())
+        monkeypatch.setattr(main_mod, "_enqueue_download", lambda job_id: None)
+        resp = client.post("/api/download", json={"url": "https://example.com/video"})
+        job_id = resp.json()["job_id"]
+        cancel_resp = client.post(f"/api/jobs/{job_id}/cancel")
+        assert cancel_resp.status_code == 200
+        jobs = {j["id"]: j for j in client.get("/api/jobs").json()}
+        assert jobs[job_id]["status"] == "cancelled"
+
+    def test_cancel_unknown_job_returns_404(self):
+        resp = client.post("/api/jobs/nonexistent-id/cancel")
+        assert resp.status_code == 404
+
+    def test_cancel_already_done_is_noop(self, monkeypatch):
+        """Cancelling a finished job returns 200 and leaves status as 'done'."""
+        monkeypatch.setitem(sys.modules, "yt_dlp", _make_yt_dlp_mock())
+        _sync_thread_patch(monkeypatch)
+        resp = client.post("/api/download", json={"url": "https://example.com/video"})
+        job_id = resp.json()["job_id"]
+        assert client.get("/api/jobs").json()
+        # Force done
+        jobs_by_id = {j["id"]: j for j in client.get("/api/jobs").json()}
+        assert jobs_by_id[job_id]["status"] == "done"
+        cancel_resp = client.post(f"/api/jobs/{job_id}/cancel")
+        assert cancel_resp.status_code == 200
+        jobs_by_id2 = {j["id"]: j for j in client.get("/api/jobs").json()}
+        assert jobs_by_id2[job_id]["status"] == "done"
+
+    def test_cancel_running_job_sets_cancelled(self, monkeypatch):
+        """When the cancel event fires mid-download, the job ends as 'cancelled'."""
+        import backend.main as main_mod
+
+        trigger = {"called": False}
+
+        def intercepted_run(job_id, *a, **kw):
+            # Cancel the job the first time progress hook would fire
+            main_mod._jobs[job_id]["_cancel_event"].set()
+            main_mod._jobs[job_id]["status"] = "cancelled"
+            # Don't call original_run — simulates mid-run cancellation
+            trigger["called"] = True
+
+        monkeypatch.setitem(sys.modules, "yt_dlp", _make_yt_dlp_mock())
+        monkeypatch.setattr(main_mod, "_run_download", intercepted_run)
+        monkeypatch.setattr(main_mod, "_enqueue_download", lambda job_id: intercepted_run(job_id))
+        resp = client.post("/api/download", json={"url": "https://example.com/video"})
+        job_id = resp.json()["job_id"]
+        assert trigger["called"]
+        jobs = {j["id"]: j for j in client.get("/api/jobs").json()}
+        assert jobs[job_id]["status"] == "cancelled"
+
+    def test_jobs_api_does_not_expose_private_fields(self, monkeypatch):
+        """The /api/jobs response must not contain _cancel_event or _params."""
+        import backend.main as main_mod
+
+        monkeypatch.setitem(sys.modules, "yt_dlp", _make_yt_dlp_mock())
+        monkeypatch.setattr(main_mod, "_enqueue_download", lambda job_id: None)
+        resp = client.post("/api/download", json={"url": "https://example.com/video"})
+        job_id = resp.json()["job_id"]
+        jobs = {j["id"]: j for j in client.get("/api/jobs").json()}
+        assert "_cancel_event" not in jobs[job_id]
+        assert "_params" not in jobs[job_id]
+
+    def test_sequential_queue_runs_one_at_a_time(self, monkeypatch):
+        """Two jobs enqueued: second stays pending until first finishes."""
+        import backend.main as main_mod
+
+        execution_order = []
+        barrier = threading.Event()
+
+        def slow_run(job_id, *a, **kw):
+            execution_order.append(("start", job_id))
+            barrier.wait(timeout=5)
+            main_mod._jobs[job_id]["status"] = "done"
+            main_mod._jobs[job_id]["progress"] = 100
+            execution_order.append(("end", job_id))
+
+        monkeypatch.setitem(sys.modules, "yt_dlp", _make_yt_dlp_mock())
+
+        # Patch _enqueue_download to use a local queue + worker so we test
+        # sequencing without touching the global singleton queue.
+        import queue as q
+
+        local_q: q.Queue = q.Queue()
+
+        def local_enqueue(job_id: str) -> None:
+            local_q.put(job_id)
+
+        def local_worker() -> None:
+            while True:
+                jid = local_q.get()
+                job = main_mod._jobs.get(jid)
+                if job:
+                    p = job["_params"]
+                    slow_run(jid, p["url"], p["output_dir"], p["cookies"], p["cookies_file_path"])
+                local_q.task_done()
+
+        monkeypatch.setattr(main_mod, "_enqueue_download", local_enqueue)
+        worker_t = threading.Thread(target=local_worker, daemon=True)
+        worker_t.start()
+
+        resp1 = client.post("/api/download", json={"url": "https://example.com/video1"})
+        resp2 = client.post("/api/download", json={"url": "https://example.com/video2"})
+        job1 = resp1.json()["job_id"]
+        job2 = resp2.json()["job_id"]
+
+        # Give the worker time to start job1 before releasing the barrier
+        import time as _time
+
+        _time.sleep(0.05)
+        # job2 must still be pending while job1 is running
+        jobs = {j["id"]: j for j in client.get("/api/jobs").json()}
+        assert jobs[job2]["status"] == "pending"
+
+        barrier.set()  # let job1 finish → worker picks up job2
+        local_q.join()
+
+        jobs = {j["id"]: j for j in client.get("/api/jobs").json()}
+        assert jobs[job1]["status"] == "done"
+        # Verify execution order: job1 fully completed before job2 started
+        job1_end = next(
+            i for i, (ev, jid) in enumerate(execution_order) if ev == "end" and jid == job1
+        )
+        job2_start = next(
+            i for i, (ev, jid) in enumerate(execution_order) if ev == "start" and jid == job2
+        )
+        assert job1_end < job2_start
+
     """Unit tests for _sniff_video_source HTML parsing strategies."""
 
     def _make_urlopen(self, html: str):

@@ -2,6 +2,7 @@ import hashlib
 import ipaddress
 import mimetypes
 import os
+import queue as _queue_module
 import re
 import shutil
 import sqlite3
@@ -148,6 +149,14 @@ class DownloadRequest(BaseModel):
 
 # ── Job store (in-memory) ─────────────────────────────────────────────────────
 _jobs: dict[str, dict] = {}
+
+# Sequential download queue: one download runs at a time
+_download_task_queue: _queue_module.Queue = _queue_module.Queue()
+
+
+def _job_for_api(job: dict) -> dict:
+    """Return a JSON-serialisable view of a job (strips private _ keys)."""
+    return {k: v for k, v in job.items() if not k.startswith("_")}
 
 
 def _fmt_hms(s: float) -> str:
@@ -415,6 +424,13 @@ def _run_download(
     import yt_dlp  # imported here to keep startup fast when yt-dlp isn't needed
 
     job = _jobs[job_id]
+    cancel_event: threading.Event = job["_cancel_event"]
+
+    # Bail out early if already cancelled while waiting in the queue
+    if cancel_event.is_set():
+        job["status"] = "cancelled"
+        return
+
     job["status"] = "running"
 
     tmp_cookies_file: str | None = None
@@ -461,6 +477,9 @@ def _run_download(
             ydl_opts["cookiefile"] = tmp_cookies_file
 
         def _progress_hook(d: dict) -> None:
+            # Abort as soon as the user cancels — yt-dlp propagates the exception
+            if cancel_event.is_set():
+                raise Exception("Download cancelled by user")
             if d.get("status") == "downloading":
                 total = d.get("total_bytes") or d.get("total_bytes_estimate") or 0
                 downloaded = d.get("downloaded_bytes") or 0
@@ -502,18 +521,59 @@ def _run_download(
             job["source_name"] = sniffed
             _extract(sniffed, ydl_opts)
 
-        job["status"] = "done"
-        job["progress"] = 100
+        if cancel_event.is_set():
+            job["status"] = "cancelled"
+        else:
+            job["status"] = "done"
+            job["progress"] = 100
 
     except Exception as e:
-        job["status"] = "error"
-        job["error"] = str(e)
+        if cancel_event.is_set():
+            job["status"] = "cancelled"
+        else:
+            job["status"] = "error"
+            job["error"] = str(e)
     finally:
         if tmp_cookies_file:
             try:
                 os.unlink(tmp_cookies_file)
             except OSError:
                 pass
+
+
+def _enqueue_download(job_id: str) -> None:
+    """Put a download job into the sequential processing queue."""
+    _download_task_queue.put(job_id)
+
+
+def _download_worker_loop() -> None:
+    """Daemon thread: run download jobs one at a time (sequential queue)."""
+    while True:
+        job_id = _download_task_queue.get()
+        try:
+            job = _jobs.get(job_id)
+            if job is None:
+                continue
+            # Job may have been cancelled while waiting in the queue
+            if job.get("_cancel_event") and job["_cancel_event"].is_set():
+                job["status"] = "cancelled"
+                continue
+            p = job["_params"]
+            _run_download(
+                job_id,
+                p["url"],
+                p["output_dir"],
+                p["cookies"],
+                p["cookies_file_path"],
+                p.get("referer"),
+                p.get("title"),
+            )
+        finally:
+            _download_task_queue.task_done()
+
+
+# Start the sequential download worker (daemon — exits with the process)
+threading.Thread(target=_download_worker_loop, daemon=True, name="dl-worker").start()
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -765,7 +825,7 @@ def cut_video(path: str, body: CutRequest):
 
 @app.get("/api/jobs")
 def list_jobs():
-    return list(_jobs.values())
+    return [_job_for_api(j) for j in _jobs.values()]
 
 
 @app.delete("/api/jobs/{job_id}")
@@ -774,6 +834,23 @@ def delete_job(job_id: str):
     if job_id not in _jobs:
         raise HTTPException(status_code=404, detail="Job not found")
     del _jobs[job_id]
+    return {"ok": True}
+
+
+@app.post("/api/jobs/{job_id}/cancel")
+def cancel_job(job_id: str):
+    """Cancel a pending or running download job."""
+    if job_id not in _jobs:
+        raise HTTPException(status_code=404, detail="Job not found")
+    job = _jobs[job_id]
+    if job.get("type") != "download":
+        raise HTTPException(status_code=400, detail="Only download jobs can be cancelled")
+    # Already finished — no-op (idempotent)
+    if job["status"] in ("done", "error", "cancelled"):
+        return {"ok": True}
+    # Signal the cancel event; the worker / progress hook will pick it up
+    job["_cancel_event"].set()
+    job["status"] = "cancelled"
     return {"ok": True}
 
 
@@ -843,20 +920,18 @@ def start_download(body: DownloadRequest):
         "status": "pending",
         "progress": 0,
         "error": None,
+        # Private fields: not exposed via the API (stripped by _job_for_api)
+        "_cancel_event": threading.Event(),
+        "_params": {
+            "url": body.url,
+            "output_dir": output_dir,
+            "cookies": body.cookies,
+            "cookies_file_path": cookies_file_path,
+            "referer": body.referer,
+            "title": body.title,
+        },
     }
-    threading.Thread(
-        target=_run_download,
-        args=(
-            job_id,
-            body.url,
-            output_dir,
-            body.cookies,
-            cookies_file_path,
-            body.referer,
-            body.title,
-        ),
-        daemon=True,
-    ).start()
+    _enqueue_download(job_id)
     return {"job_id": job_id}
 
 

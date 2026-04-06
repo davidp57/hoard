@@ -25,6 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Referer header passthrough: when downloading a direct video URL, the original page URL is sent as `Referer`
 
 - **Native HTTPS support**: set `SSL_CERTFILE` and `SSL_KEYFILE` environment variables to serve Hoard over HTTPS without a reverse proxy. Commented instructions in `docker-compose.yml` show how to mount a cert folder and enable it. Generate a self-signed cert with `openssl req -x509 -newkey rsa:4096 ...` or a locally-trusted cert with `mkcert`.
+- **Sequential download queue**: downloads are now processed one at a time — new jobs wait in a `pending` state until the current download finishes, preventing bandwidth overload.
+- **Stop button on downloads**: each pending or running download now shows a ⏹ stop button in the queue modal; clicking it cancels the job immediately (pending) or aborts the active yt-dlp transfer (running).
 
 ### Fixed
 - Cloudflare anti-bot 403 errors: yt-dlp now impersonates Chrome via `curl-cffi` (`impersonate` option at top-level, `curl-cffi>=0.10.0,<0.15.0`)

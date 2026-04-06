@@ -1837,16 +1837,21 @@ function _renderDlQueueList() {
     const name = job.output_name || job.source_name || '';
     const isDone = job.status === 'done';
     const isError = job.status === 'error';
+    const isCancelled = job.status === 'cancelled';
+    const isActive = job.status === 'pending' || job.status === 'running';
     const statusText = isDone ? '✓ ' + (job.output_name || 'Terminé')
       : isError ? '✗ ' + (job.error || 'Erreur inconnue')
-      : job.progress > 0 ? job.progress + '%' : 'En attente…';
-    const statusClass = isDone ? 'done' : isError ? 'error' : '';
-    const canDismiss = isDone || isError;
+      : isCancelled ? '⊘ Annulé'
+      : job.status === 'pending' ? 'En attente…'
+      : job.progress > 0 ? job.progress + '%' : 'Démarrage…';
+    const statusClass = isDone ? 'done' : isError ? 'error' : isCancelled ? 'error' : '';
+    const canDismiss = isDone || isError || isCancelled;
     return `<div class="dl-job-item">
       <div class="dl-job-name">${_esc(name)}</div>
       <div class="dl-job-bar-track"><div class="dl-job-bar-fill" style="width:${job.progress}%"></div></div>
       <div class="dl-job-row">
         <div class="dl-job-status ${statusClass}">${_esc(statusText)}</div>
+        ${isActive ? `<button class="dl-job-dismiss" onclick="stopDlJob('${_esc(job.id)}')" title="Annuler">⏹</button>` : ''}
         ${canDismiss ? `<button class="dl-job-dismiss" onclick="dismissDlJob('${_esc(job.id)}')" title="Retirer">✕</button>` : ''}
       </div>
     </div>`;
@@ -1874,6 +1879,11 @@ async function dismissDlJob(jobId) {
   _dlQueueJobs = _dlQueueJobs.filter(j => j.id !== jobId);
   _updateDlQueueWidget();
   _renderDlQueueList();
+}
+
+async function stopDlJob(jobId) {
+  await fetch(`${API}/api/jobs/${jobId}/cancel`, { method: 'POST' }).catch(() => {});
+  await _pollDlQueue();
 }
 
 async function _initDlQueue() {
