@@ -299,9 +299,8 @@ def _run_download(
             "merge_output_format": "mp4",
             "quiet": True,
             # Impersonate a real browser to bypass Cloudflare anti-bot challenges
-            "extractor_args": {
-                "generic": {"impersonate": [""]},
-            },
+            # (requires curl-cffi, see backend/requirements.txt)
+            "impersonate": yt_dlp.networking.impersonate.ImpersonateTarget.from_str("chrome"),
             "no_warnings": True,
             "noprogress": False,
         }

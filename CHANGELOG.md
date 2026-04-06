@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bookmarklet auto-generated in Settings → Downloads; drag-to-bookmark instructions provided
 - SSRF protection on `/api/download`: `file://`, localhost, and RFC-1918 private network addresses are rejected
 
+### Fixed
+- Cloudflare anti-bot 403 errors: yt-dlp now impersonates Chrome via `curl-cffi` (`impersonate` option at top-level, `curl-cffi>=0.10.0,<0.15.0`)
+- Invalid Netscape cookie file format: domain is now prefixed with `.` as required when `include_subdomains=TRUE`
+
 ## [1.0.0] - 2026-04-05
 
 ### Added
