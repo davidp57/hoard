@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-04-06
+
 ### Added
 - Video download via yt-dlp: bookmarklet + 📥 button in the header let you send any web video to Hoard for download on the NAS
 - `POST /api/download` endpoint: accepts a URL and optional `cookies`, `referer`, and `title` fields; creates a background job, returns a `job_id`
@@ -59,5 +61,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - docker-compose service name: `mediabrowser` → `hoard`
 - README rewritten as bilingual entry point
 
-[Unreleased]: https://github.com/davidp57/hoard/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/davidp57/hoard/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/davidp57/hoard/compare/v1.0.0...v2.0.0
 [1.0.0]: https://github.com/davidp57/hoard/releases/tag/v1.0.0

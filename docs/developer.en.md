@@ -55,6 +55,8 @@ hoard/
 |----------|---------|-------------|
 | `MEDIA_ROOT` | `/media` | Media root path inside the container |
 | `DB_PATH` | `/data/progress.db` | SQLite database path |
+| `SSL_CERTFILE` | *(unset)* | Path to a PEM certificate file. When set (together with `SSL_KEYFILE`), uvicorn serves HTTPS natively. |
+| `SSL_KEYFILE` | *(unset)* | Path to the matching PEM private key file. |
 
 ### Path Safety
 
@@ -88,7 +90,9 @@ def safe_path(rel: str) -> Path:
 | POST | `/api/settings` | Save user settings |
 | GET | `/api/stream?path=` | HTTP video stream with `Range` support (native seeking) |
 | GET | `/api/transcode?path=` | Transcoded stream via ffmpeg |
-| POST | `/api/download` | Download a web video via yt-dlp `{url, cookies?, referer?}` |
+| POST | `/api/download` | Download a web video via yt-dlp `{url, cookies?, referer?, title?}` |
+| POST | `/api/jobs/{job_id}/cancel` | Cancel a pending or running download job |
+| DELETE | `/api/jobs/{job_id}` | Remove a completed/failed/cancelled job from the in-memory store |
 
 ### SQLite Schema
 
@@ -112,9 +116,16 @@ CREATE TABLE settings (
 );
 ```
 
-### ffmpeg Jobs
+### Background Jobs
 
-Video cuts (`/api/files/cut`) and web downloads (`/api/download`) run in background daemon threads. Each job's status is held in memory in a `jobs: dict[str, JobStatus]` dict. The `/api/jobs` endpoint lets the frontend poll for progress.
+Video cuts (`/api/files/cut`) run in individual daemon threads. Web downloads use a sequential queue:
+
+- **Phase 1 (immediate thread)**: when `POST /api/download` is called, a dedicated thread starts immediately, sets the job to `resolving`, fills in a filename preview from the `title` hint, then transitions to `pending` and adds the job to `queue.Queue`.
+- **Phase 2 (queue worker)**: a single daemon thread (`dl-worker`) dequeues jobs one at a time and runs the yt-dlp download, preventing bandwidth overload.
+
+**Job status lifecycle:** `pending` → `resolving` → `pending` (with filename) → `running` → `done` / `error` / `cancelled`
+
+All job state is held in memory in `_jobs: dict[str, dict]`. Fields prefixed with `_` are private and stripped before JSON serialization by `_job_for_api()`. The `/api/jobs` endpoint lets the frontend poll for progress.
 
 ### Download Endpoint (`POST /api/download`)
 

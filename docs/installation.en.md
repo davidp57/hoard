@@ -131,6 +131,34 @@ All configuration is done via **environment variables** in `docker-compose.yml` 
 | `MEDIA_ROOT` | `/media` | Media root path inside the container |
 | `DB_PATH` | `/data/progress.db` | SQLite watch-progress database |
 | `PREDEFINED_FOLDERS` | `Vu,A revoir,A supprimer` | Quick folders (comma-separated) |
+| `SSL_CERTFILE` | *(unset)* | Path to a PEM certificate file. Enables native HTTPS — no reverse proxy needed. |
+| `SSL_KEYFILE` | *(unset)* | Path to the matching PEM private key file. |
+
+### Enabling HTTPS
+
+To serve Hoard over HTTPS without a reverse proxy, generate a certificate and set the two env vars:
+
+```bash
+# Self-signed cert (valid 10 years)
+openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem \
+  -days 3650 -nodes -subj "/CN=nas.local"
+```
+
+Or use [mkcert](https://github.com/FiloSottile/mkcert) for a locally-trusted cert:
+```bash
+mkcert nas.local
+```
+
+Then in `docker-compose.yml`:
+```yaml
+volumes:
+  - /path/on/nas/certs:/certs:ro
+environment:
+  - SSL_CERTFILE=/certs/cert.pem
+  - SSL_KEYFILE=/certs/key.pem
+```
+
+The application will be available at `https://NAS_IP:8000`.
 
 ### Using Portainer
 
