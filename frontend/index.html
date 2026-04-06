@@ -1821,11 +1821,9 @@ function _updateDlQueueWidget() {
   const badge = document.getElementById('dl-queue-badge');
   if (!badge) return;
   const active = _dlQueueJobs.filter(j => j.status === 'pending' || j.status === 'running');
-  const total = _dlQueueJobs.length;
-  if (total === 0) { badge.style.display = 'none'; return; }
-  const allDone = _dlQueueJobs.every(j => j.status === 'done' || j.status === 'error');
-  badge.textContent = active.length > 0 ? active.length : total;
-  badge.style.background = allDone ? '#6fcf6f' : 'var(--accent)';
+  if (active.length === 0) { badge.style.display = 'none'; return; }
+  badge.textContent = active.length;
+  badge.style.background = 'var(--accent)';
   badge.style.display = 'flex';
 }
 
@@ -1862,7 +1860,8 @@ async function _pollDlQueue() {
   _updateDlQueueWidget();
   _renderDlQueueList();
   const hasActive = _dlQueueJobs.some(j => j.status === 'pending' || j.status === 'running');
-  if (!hasActive && _dlQueueInterval) { clearInterval(_dlQueueInterval); _dlQueueInterval = null; }
+  if (hasActive) { _startDlQueuePoller(); }          // auto-start fast poller when new jobs appear
+  else if (_dlQueueInterval) { clearInterval(_dlQueueInterval); _dlQueueInterval = null; }
 }
 
 function _startDlQueuePoller() {
@@ -1884,6 +1883,9 @@ async function _initDlQueue() {
   if (_dlQueueJobs.length > 0) _renderDlQueueList();
   const hasActive = _dlQueueJobs.some(j => j.status === 'pending' || j.status === 'running');
   if (hasActive) _startDlQueuePoller();
+  // Slow background discovery poller: detects jobs submitted via bookmarklet from
+  // other pages and auto-starts the fast poller when new active jobs are found.
+  setInterval(_pollDlQueue, 8000);
 }
 
 // ── Navigation ────────────────────────────────────────────────────────────────
