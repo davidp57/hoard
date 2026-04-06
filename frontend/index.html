@@ -1621,7 +1621,9 @@ function _buildBookmarkletCode() {
   // Strip query/hash and trailing slash so H+'/api/download' is always correct.
   const hoardBase = window.location.href.replace(/[#?].*$/, '').replace(/\/+$/, '');
   // Bookmarklet: submit the download to Hoard in the background via fetch().
-  // A toast is shown on the current page — no navigation, no modal.
+  // A status dialog is injected into the current page — no navigation, no modal.
+  // States: "Connexion à Hoard…" → "Analyse de l'URL…" → "Téléchargement… X%"
+  //       → "Terminé !" (auto-close 4s) or "❌ <error>" (manual close).
   //
   // Video source detection strategies (in priority order):
   // 1. <video>.currentSrc (if not a blob: URL)
@@ -1633,13 +1635,38 @@ function _buildBookmarkletCode() {
   // Falls back to the page URL if nothing is found (backend sniffing handles it).
   return [
     'javascript:(function(){',
+    // Prevent double-invocation if user clicks the bookmarklet twice
+    'if(document.getElementById("_hd"))return;',
     `var H="${hoardBase}";`,
-    // Toast helper: inject a temporary notification into the current page's DOM
-    'function T(m,ok){var d=document.createElement("div");',
-    'd.style.cssText="position:fixed;top:20px;right:20px;z-index:2147483647;padding:12px 20px;border-radius:8px;font:bold 13px/1.5 system-ui,sans-serif;color:#fff;background:"+(ok?"#1e6b1e":"#8b1a1a")+";box-shadow:0 4px 14px rgba(0,0,0,.5);max-width:360px";',
-    'd.textContent=m;document.body.appendChild(d);',
-    'setTimeout(function(){if(d.parentNode)d.parentNode.removeChild(d);},5000);}',
-    // Video source detection
+    // --- Build the status dialog ---
+    'var D=document.createElement("div");D.id="_hd";',
+    'D.style.cssText="position:fixed;top:20px;right:20px;z-index:2147483647;width:300px;padding:14px 16px;border-radius:10px;font:13px/1.5 system-ui,sans-serif;color:#ddd;background:#1c1c28;border:1px solid #444;box-shadow:0 8px 28px rgba(0,0,0,.7);box-sizing:border-box";',
+    // Title bar: "📥 HOARD" label + × close button
+    'var TR=document.createElement("div");TR.style.cssText="display:flex;align-items:center;margin-bottom:10px";',
+    'var TL=document.createElement("span");TL.style.cssText="font-size:11px;font-weight:bold;letter-spacing:.06em;text-transform:uppercase;color:#777;flex:1";TL.textContent="\uD83D\uDCE5 Hoard";',
+    'var XB=document.createElement("button");XB.style.cssText="background:none;border:none;color:#666;font-size:20px;cursor:pointer;padding:0;line-height:1";XB.textContent="\u00D7";',
+    'TR.appendChild(TL);TR.appendChild(XB);D.appendChild(TR);',
+    // Status row: icon + message text
+    'var SR=document.createElement("div");SR.style.cssText="display:flex;gap:8px;align-items:center";',
+    'var IC=document.createElement("span");IC.style.fontSize="18px";IC.textContent="\u23F3";',
+    'var TX=document.createElement("span");TX.style.cssText="flex:1;word-break:break-word";TX.textContent="Connexion \u00e0 Hoard\u2026";',
+    'SR.appendChild(IC);SR.appendChild(TX);D.appendChild(SR);',
+    // Progress bar — hidden until the download actually starts
+    'var PC=document.createElement("div");PC.style.cssText="height:4px;border-radius:2px;background:#333;margin-top:12px;overflow:hidden;display:none";',
+    'var PF=document.createElement("div");PF.style.cssText="height:100%;background:#4caf50;width:0%;transition:width .5s";',
+    'PC.appendChild(PF);D.appendChild(PC);',
+    'document.body.appendChild(D);',
+    'var TM=null;',
+    // bye() — stop polling and remove the dialog
+    'function bye(){if(TM){clearInterval(TM);TM=null;}if(D.parentNode)D.parentNode.removeChild(D);}',
+    'XB.onclick=bye;',
+    // upd(icon, text, pct, autoCloseMs)
+    //   pct=null → leave progress bar unchanged | 0-100 → show and fill
+    //   autoCloseMs=0 → no auto-close | >0 → schedule bye() after delay
+    'function upd(ic,tx,pct,ms){IC.textContent=ic;TX.textContent=tx;',
+    'if(pct!=null){PC.style.display="block";PF.style.width=pct+"%";}',
+    'if(ms>0)setTimeout(bye,ms);}',
+    // --- Video source detection (6 strategies) ---
     'var v="";',
     // Strategy 1: <video>.currentSrc
     'var el=document.querySelector("video");',
@@ -1649,31 +1676,44 @@ function _buildBookmarkletCode() {
     'for(var i=0;i<ss.length;i++){var s=ss[i].src;',
     'if(s&&s.indexOf("blob:")!==0){v=s;break;}}}',
     // Strategy 3: <iframe> from known video hosting domains
-    // yt-dlp has extractors for these — the embed URL is enough to download
     'if(!v){var fr=document.querySelectorAll("iframe[src]");',
     'var vh=/mediadelivery\\.net|bunnycdn\\.com|youtube\\.com\\/embed|player\\.vimeo\\.com|dailymotion\\.com\\/embed/i;',
     'for(var i=0;i<fr.length;i++){if(vh.test(fr[i].src)){v=fr[i].src;break;}}}',
-    // Strategy 4-6: Performance API
+    // Strategies 4-6: Performance API
     'if(!v&&window.performance){var ee=performance.getEntriesByType("resource");',
-    // 4. initiatorType === 'video' — browser tells us it was loaded by a <video>
+    // 4. initiatorType === 'video'
     'for(var i=ee.length-1;i>=0;i--){if(ee[i].initiatorType==="video"){v=ee[i].name;break;}}',
-    // 5. Match common video file extensions
+    // 5. Common video file extensions
     'if(!v){var re=/\\.(mp4|m3u8|webm|ts|mov|mkv|avi|flv|m4v|mpd)(\\?|$)/i;',
     'for(var i=ee.length-1;i>=0;i--){if(re.test(ee[i].name)){v=ee[i].name;break;}}}',
-    // 6. Largest resource that isn't obviously non-video (>500KB)
+    // 6. Largest resource > 500 KB (skip obvious non-video types)
     'if(!v){var skip=/\\.(js|css|woff2?|png|jpe?g|gif|svg|ico|webp)(\\?|$)/i;',
     'var best=0;for(var i=0;i<ee.length;i++){var sz=ee[i].transferSize||0;',
-    'if(sz>500000&&sz>best&&!skip.test(ee[i].name)){best=sz;v=ee[i].name;}}}',
-    '}',
-    // POST to Hoard API in background — toast shows result, no page navigation
+    'if(sz>500000&&sz>best&&!skip.test(ee[i].name)){best=sz;v=ee[i].name;}}}}',
+    // --- POST to Hoard API, then poll the job until done ---
     'var pu=location.href;',
     'fetch(H+"/api/download",{method:"POST",headers:{"Content-Type":"application/json"},',
     'body:JSON.stringify({url:v||pu,cookies:document.cookie||null,referer:v?pu:null,title:document.title||null})})',
     '.then(function(r){',
-    'if(r.ok){T("\uD83D\uDCE5 Hoard\u00a0: t\u00e9l\u00e9chargement lanc\u00e9"+(v?" \uD83C\uDFAC":""),true);}',
-    'else{r.json().then(function(e){T("\u274C Hoard\u00a0: "+(e.detail||"erreur "+r.status),false);',
-    '}).catch(function(){T("\u274C Hoard\u00a0: erreur "+r.status,false);});}})',
-    '.catch(function(){T("\u274C Hoard non joignable",false);});',
+    // HTTP error from Hoard (SSRF block, bad request, etc.)
+    'if(!r.ok){r.json().then(function(e){upd("\u274C","Hoard\u00a0: "+(e.detail||"Erreur "+r.status),null,0);})',
+    '.catch(function(){upd("\u274C","Hoard\u00a0: erreur "+r.status,null,0);});return;}',
+    // Job created — start polling
+    'r.json().then(function(data){',
+    'var jid=data.job_id;upd("\u231B","Analyse de l\u2019URL\u2026",null,0);',
+    'TM=setInterval(function(){',
+    'fetch(H+"/api/jobs").then(function(r2){return r2.json();}).then(function(jobs){',
+    'var j=null;for(var i=0;i<jobs.length;i++){if(jobs[i].id===jid){j=jobs[i];break;}}',
+    'if(!j){upd("\u274C","T\u00e2che introuvable",null,0);clearInterval(TM);return;}',
+    'if(j.status==="pending"||(j.status==="running"&&j.progress===0)){',
+    'upd("\u231B","Analyse de l\u2019URL\u2026",null,0);}',
+    'else if(j.status==="running"){upd("\uD83D\uDCE5","T\u00e9l\u00e9chargement\u2026 "+j.progress+"%",j.progress,0);}',
+    'else if(j.status==="done"){upd("\u2705","Termin\u00e9\u00a0!",100,4000);clearInterval(TM);}',
+    'else if(j.status==="error"){upd("\u274C",(j.error||"Erreur").slice(0,120),null,0);clearInterval(TM);}',
+    '}).catch(function(){});},2000);',
+    '});',
+    '})',
+    '.catch(function(){upd("\u274C","Hoard non joignable",null,0);});',
     '})();',
   ].join('');
 }

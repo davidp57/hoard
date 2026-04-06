@@ -28,7 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cloudflare anti-bot 403 errors: yt-dlp now impersonates Chrome via `curl-cffi` (`impersonate` option at top-level, `curl-cffi>=0.10.0,<0.15.0`)
 - Invalid Netscape cookie file format: domain is now prefixed with `.` as required when `include_subdomains=TRUE`
 - Bookmarklet/PIN flow: after entering the PIN the download queue modal no longer opened — two call sites of `openDownloadModal` had not been renamed to `openDlQueueModal`
-- Bookmarklet: submits the download directly to Hoard in the background via `fetch()` — no page navigation, no modal — a toast notification confirms success or error. The `#download?` hash redirect is kept for backward compatibility (manual URL paste in the UI)
+- Bookmarklet: submits the download directly to Hoard in the background via `fetch()` — no page navigation, no modal — a status dialog injected into the current page shows live progress: "Connexion à Hoard…" → "Analyse de l'URL…" → "Téléchargement… X%" → "Terminé !" (auto-close) or "❌ error" (manual close). The `#download?` hash redirect is kept for backward compatibility.
 
 ## [1.0.0] - 2026-04-05
 
