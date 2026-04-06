@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Sequential download queue**: downloads are now processed one at a time — new jobs wait in a `pending` state until the current download finishes, preventing bandwidth overload.
 - **Stop button on downloads**: each pending or running download now shows a ⏹ stop button in the queue modal; clicking it cancels the job immediately (pending) or aborts the active yt-dlp transfer (running). Partial `.part` files left by yt-dlp are deleted automatically on cancellation.
 - **Auto-refresh download folder**: when a download completes, the file browser automatically refreshes if the user is currently browsing the download folder.
+- **Two-phase download preparation**: when a job is submitted (via bookmarklet or UI), a dedicated thread immediately runs phase 1 — sets a filename preview from the page title and transitions the job `pending` → `resolving` → `pending` — before placing it in the queue. The bookmarklet toast now shows ⌛ "Analyse de l'URL…" right away, then ⏳ "En attente — titre.mp4" while waiting, instead of being stuck on the initial connection state.
 - **Bookmarklet queue awareness**: the bookmarklet status dialog now correctly distinguishes ⏳ "En attente dans la file…" (queued, not yet started) from ⌛ "Analyse de l'URL…" (running), and shows ⏹ "Annulé" if the job is cancelled from the Hoard UI.
 
 ### Fixed

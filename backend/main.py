@@ -558,6 +558,38 @@ def _enqueue_download(job_id: str) -> None:
     _download_task_queue.put(job_id)
 
 
+def _prepare_download(job_id: str) -> None:
+    """Phase 1 — runs immediately in its own thread, even when the queue is busy.
+
+    Transitions the job through 'resolving' so the bookmarklet toast has
+    something meaningful to show right away.  Sets an output_name preview from
+    the bookmarklet page title (so the 'pending' state displays a filename).
+    Then enqueues the job for the actual sequential download (phase 2).
+    """
+    job = _jobs[job_id]
+    cancel_event: threading.Event = job["_cancel_event"]
+
+    if cancel_event.is_set():
+        job["status"] = "cancelled"
+        return
+
+    job["status"] = "resolving"
+    p = job["_params"]
+    title = p.get("title")
+
+    # Set a filename preview immediately from the bookmarklet page title so
+    # the 'pending' state in the toast / queue list shows a meaningful name.
+    if title and not job.get("output_name"):
+        job["output_name"] = f"{_sanitize_filename(title)}.mp4"
+
+    if cancel_event.is_set():
+        job["status"] = "cancelled"
+        return
+
+    job["status"] = "pending"
+    _enqueue_download(job_id)
+
+
 def _download_worker_loop() -> None:
     """Daemon thread: run download jobs one at a time (sequential queue)."""
     while True:
@@ -943,7 +975,10 @@ def start_download(body: DownloadRequest):
             "title": body.title,
         },
     }
-    _enqueue_download(job_id)
+    # Phase 1: immediately resolve filename preview and transition to 'resolving'
+    # then 'pending', so the bookmarklet toast shows meaningful states even when
+    # another download is already running.
+    threading.Thread(target=_prepare_download, args=(job_id,), daemon=True).start()
     return {"job_id": job_id}
 
 
