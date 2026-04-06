@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cookie passthrough: bookmarklet captures `document.cookie` and sends it with the request; a persistent cookies.txt file is also supported for authenticated sites
 - Bookmarklet auto-generated in Settings → Downloads; drag-to-bookmark instructions provided
 - SSRF protection on `/api/download`: `file://`, localhost, and RFC-1918 private network addresses are rejected
+- **Smart video source detection**: bookmarklet now captures `<video>.currentSrc` from the page DOM — enables downloading from sites without a dedicated yt-dlp extractor (Patreon, etc.)
+- Referer header passthrough: when downloading a direct video URL, the original page URL is sent as `Referer` so CDNs that check the origin accept the request
 
 ### Fixed
 - Cloudflare anti-bot 403 errors: yt-dlp now impersonates Chrome via `curl-cffi` (`impersonate` option at top-level, `curl-cffi>=0.10.0,<0.15.0`)

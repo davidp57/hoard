@@ -88,7 +88,7 @@ def safe_path(rel: str) -> Path:
 | POST | `/api/settings` | Sauvegarde les paramètres |
 | GET | `/api/stream?path=` | Stream HTTP avec support `Range` (seeking natif) |
 | GET | `/api/transcode?path=` | Stream transcodé via ffmpeg |
-| POST | `/api/download` | Télécharge une vidéo web via yt-dlp `{url, cookies?}` |
+| POST | `/api/download` | Télécharge une vidéo web via yt-dlp `{url, cookies?, referer?}` |
 
 ### Schéma SQLite
 
@@ -121,11 +121,12 @@ Les découpes vidéo (`/api/files/cut`) et les téléchargements web (`/api/down
 **Corps de la requête** (`DownloadRequest`) :
 
 ```json
-{ "url": "https://example.com/video", "cookies": "name=value; other=foo" }
+{ "url": "https://cdn.example.com/video.mp4", "cookies": "name=value; other=foo", "referer": "https://example.com/posts/123" }
 ```
 
 - `url` — requis. URL de la page web ou de la vidéo directe.
 - `cookies` — optionnel. Chaîne `document.cookie` brute capturée par la bookmarklet. Convertie au format Netscape et transmise à yt-dlp.
+- `referer` — optionnel. URL de la page d'origine. Quand fourni, envoyé comme en-tête HTTP `Referer` pour que les CDN qui vérifient l'origine acceptent la requête. La bookmarklet le renseigne automatiquement quand une source `<video>` directe est détectée.
 
 **Réponse :**
 

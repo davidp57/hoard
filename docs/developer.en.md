@@ -88,7 +88,7 @@ def safe_path(rel: str) -> Path:
 | POST | `/api/settings` | Save user settings |
 | GET | `/api/stream?path=` | HTTP video stream with `Range` support (native seeking) |
 | GET | `/api/transcode?path=` | Transcoded stream via ffmpeg |
-| POST | `/api/download` | Download a web video via yt-dlp `{url, cookies?}` |
+| POST | `/api/download` | Download a web video via yt-dlp `{url, cookies?, referer?}` |
 
 ### SQLite Schema
 
@@ -121,11 +121,12 @@ Video cuts (`/api/files/cut`) and web downloads (`/api/download`) run in backgro
 **Request body** (`DownloadRequest`):
 
 ```json
-{ "url": "https://example.com/video", "cookies": "name=value; other=foo" }
+{ "url": "https://cdn.example.com/video.mp4", "cookies": "name=value; other=foo", "referer": "https://example.com/posts/123" }
 ```
 
 - `url` — required. The web page or direct video URL.
 - `cookies` — optional. Raw `document.cookie` string captured by the bookmarklet. Converted to Netscape format and passed to yt-dlp.
+- `referer` — optional. The original page URL. When provided, it is sent as the `Referer` HTTP header so CDNs that check the origin accept the request. The bookmarklet sets this automatically when a direct `<video>` source is detected.
 
 **Response:**
 

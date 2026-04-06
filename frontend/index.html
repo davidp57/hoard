@@ -1022,6 +1022,7 @@
     <div>
       <div class="s-label" style="margin-bottom:6px">URL de la vidéo</div>
       <input id="download-url-input" type="url" placeholder="https://…" style="width:100%;box-sizing:border-box;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:8px 10px;outline:none">
+      <div id="download-source-hint" style="display:none;font-size:11px;color:var(--accent);margin-top:4px">🎬 Source vidéo détectée sur la page</div>
     </div>
     <div style="font-size:12px;color:var(--text-dim)">Destination : <span id="download-dest-label" style="color:var(--text-mid)"></span></div>
     <div style="display:flex;gap:8px;justify-content:flex-end">
@@ -1337,20 +1338,22 @@ async function init() {
   await loadQuickFolders();
   updateSortUI();
 
-  // 2. Handle bookmarklet redirect: #download?url=...&cookies=...
+  // 2. Handle bookmarklet redirect: #download?url=...&cookies=...&videoSrc=...
   if (location.hash.startsWith('#download?')) {
     const params = new URLSearchParams(location.hash.slice('#download?'.length));
     const dlUrl = params.get('url') || '';
     const dlCookies = params.get('cookies') || null;
+    const dlVideoSrc = params.get('videoSrc') || null;
     history.replaceState(null, '', location.pathname);
     if (cfg.pin_set) {
       showPinScreen();
       // open download modal after PIN is validated (handled in hidePinScreen flow)
       pendingDownloadCookies = dlCookies;
       window._pendingDownloadUrl = dlUrl;
+      window._pendingDownloadVideoSrc = dlVideoSrc;
     } else {
       navigate(homeFolder);
-      openDownloadModal(dlUrl, dlCookies);
+      openDownloadModal(dlUrl, dlCookies, dlVideoSrc);
     }
     return;
   }
@@ -1409,8 +1412,10 @@ async function submitPin() {
     // If bookmarklet set a pending download URL, open the modal now
     if (window._pendingDownloadUrl) {
       const url = window._pendingDownloadUrl;
+      const videoSrc = window._pendingDownloadVideoSrc || null;
       window._pendingDownloadUrl = null;
-      openDownloadModal(url, pendingDownloadCookies);
+      window._pendingDownloadVideoSrc = null;
+      openDownloadModal(url, pendingDownloadCookies, videoSrc);
     }
   } else {
     for (let i = 0; i < 4; i++) document.getElementById('pd' + i).classList.add('error');
@@ -1556,12 +1561,38 @@ async function saveSettings() {
 // ── Download modal ────────────────────────────────────────────────────────────
 // pendingDownloadCookies: cookies captured by the bookmarklet (document.cookie)
 let pendingDownloadCookies = null;
+// pendingDownloadReferer: the original page URL when downloading a direct video source
+let pendingDownloadReferer = null;
 
 function _buildBookmarkletCode() {
   // Use full current URL (without query/hash) so bookmarklet works under subpaths
   const hoardUrl = window.location.href.replace(/[#?].*$/, '');
-  // Bookmarklet: capture current page URL + document.cookie, redirect to Hoard
-  return `javascript:(function(){var u=encodeURIComponent(location.href);var c=encodeURIComponent(document.cookie);location.href='${hoardUrl}#download?url='+u+'&cookies='+c;})();`;
+  // Bookmarklet: multi-strategy video source detection
+  // 1. <video>.currentSrc (if not a blob: URL)
+  // 2. <video source[src]> elements (if not blob:)
+  // 3. Performance API — scan network requests for video file URLs
+  // Falls back to the page URL if nothing is found.
+  return [
+    'javascript:(function(){',
+    'var u=encodeURIComponent(location.href);',
+    'var c=encodeURIComponent(document.cookie);',
+    'var v="";',
+    // Strategy 1: <video>.currentSrc
+    'var el=document.querySelector("video");',
+    'if(el&&el.currentSrc&&el.currentSrc.indexOf("blob:")!==0){v=el.currentSrc;}',
+    // Strategy 2: <source> inside <video>
+    'if(!v){var ss=document.querySelectorAll("video source[src]");',
+    'for(var i=0;i<ss.length;i++){var s=ss[i].src;',
+    'if(s&&s.indexOf("blob:")!==0){v=s;break;}}}',
+    // Strategy 3: Performance API — find video URLs in network requests
+    'if(!v&&window.performance){var ee=performance.getEntriesByType("resource");',
+    'var re=/\\.(mp4|m3u8|webm|ts|mov)(\\?|$)/i;',
+    'for(var i=ee.length-1;i>=0;i--){if(re.test(ee[i].name)){v=ee[i].name;break;}}}',
+    // Redirect to Hoard
+    'v=v?encodeURIComponent(v):"";',
+    `location.href='${hoardUrl}#download?url='+u+'&cookies='+c+(v?'&videoSrc='+v:'');`,
+    '})();',
+  ].join('');
 }
 
 function _updateBookmarkletLink() {
@@ -1577,8 +1608,19 @@ function copyBookmarklet() {
   );
 }
 
-function openDownloadModal(url, cookies) {
+function openDownloadModal(url, cookies, videoSrc) {
   pendingDownloadCookies = cookies || null;
+  // If a direct video source was detected, use it as the URL and keep the
+  // page URL as referer so CDNs that check the origin accept the request.
+  const hint = document.getElementById('download-source-hint');
+  if (videoSrc) {
+    pendingDownloadReferer = url;  // page URL becomes the referer
+    url = videoSrc;
+    if (hint) hint.style.display = '';
+  } else {
+    pendingDownloadReferer = null;
+    if (hint) hint.style.display = 'none';
+  }
   const urlInput = document.getElementById('download-url-input');
   if (urlInput) urlInput.value = url || '';
   const destLabel = document.getElementById('download-dest-label');
@@ -1592,6 +1634,9 @@ function closeDownloadModal(e) {
   if (e && e.target !== document.getElementById('download-overlay')) return;
   document.getElementById('download-overlay').style.display = 'none';
   pendingDownloadCookies = null;
+  pendingDownloadReferer = null;
+  const hint = document.getElementById('download-source-hint');
+  if (hint) hint.style.display = 'none';
 }
 
 async function startDownload() {
@@ -1603,7 +1648,11 @@ async function startDownload() {
     const resp = await fetch(`${API}/api/download`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ url, cookies: pendingDownloadCookies || undefined }),
+      body: JSON.stringify({
+        url,
+        cookies: pendingDownloadCookies || undefined,
+        referer: pendingDownloadReferer || undefined,
+      }),
     });
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({}));

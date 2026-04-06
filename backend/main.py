@@ -142,6 +142,7 @@ class CutRequest(BaseModel):
 class DownloadRequest(BaseModel):
     url: str  # URL to download
     cookies: str | None = None  # document.cookie string from the bookmarklet
+    referer: str | None = None  # page URL (when url is a direct video source)
 
 
 # ── Job store (in-memory) ─────────────────────────────────────────────────────
@@ -282,6 +283,7 @@ def _run_download(
     output_dir: Path,
     cookies_str: str | None,
     cookies_file_path: str,
+    referer: str | None = None,
 ) -> None:
     """Background worker: download a URL via yt-dlp and update the job dict."""
     import yt_dlp  # imported here to keep startup fast when yt-dlp isn't needed
@@ -304,6 +306,11 @@ def _run_download(
             "no_warnings": True,
             "noprogress": False,
         }
+
+        # When downloading a direct video URL extracted from a page, send the
+        # page URL as Referer so CDNs that check the origin don't reject us.
+        if referer:
+            ydl_opts["http_headers"] = {"Referer": referer}
 
         # Cookies: prefer persistent file, fall back to bookmarklet cookies
         if cookies_file_path and Path(cookies_file_path).is_file():
@@ -680,7 +687,7 @@ def start_download(body: DownloadRequest):
     }
     threading.Thread(
         target=_run_download,
-        args=(job_id, body.url, output_dir, body.cookies, cookies_file_path),
+        args=(job_id, body.url, output_dir, body.cookies, cookies_file_path, body.referer),
         daemon=True,
     ).start()
     return {"job_id": job_id}

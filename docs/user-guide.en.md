@@ -136,6 +136,8 @@ Hoard can download videos from the web using **yt-dlp** and save them directly t
 
 **From any web page** — click the bookmarklet. Hoard opens in a new tab with the URL and your browser cookies pre-filled in the download modal. Click **📥 Télécharger** to start.
 
+> **Smart video source detection**: if a `<video>` element is playing on the page, the bookmarklet captures its direct source URL instead of the page URL. This enables downloading from sites where yt-dlp has no dedicated extractor (Patreon, custom video players, etc.). The modal shows a 🎬 hint when a direct source was detected. The original page URL is automatically sent as the `Referer` header so CDNs that verify the origin accept the request.
+
 **From inside Hoard** — click the **📥** button in the header, paste a URL, and confirm.
 
 ### Download Progress

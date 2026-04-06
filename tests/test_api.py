@@ -631,6 +631,47 @@ class TestDownload:
         assert settings["download_folder"] == "WebVideos"
         assert settings["download_cookies_path"] == "/data/cookies.txt"
 
+    def test_download_referer_sets_http_headers(self, monkeypatch):
+        """When referer is provided, yt-dlp should receive an http_headers dict."""
+        captured_opts = {}
+
+        def mock_ytdl_init(opts):
+            captured_opts.update(opts)
+            return _make_yt_dlp_mock().YoutubeDL.return_value
+
+        mock_module = MagicMock()
+        mock_module.YoutubeDL = MagicMock(side_effect=mock_ytdl_init)
+        monkeypatch.setitem(sys.modules, "yt_dlp", mock_module)
+        _sync_thread_patch(monkeypatch)
+        client.post(
+            "/api/download",
+            json={
+                "url": "https://cdn.example.com/video.mp4",
+                "referer": "https://example.com/posts/123",
+            },
+        )
+        assert (
+            captured_opts.get("http_headers", {}).get("Referer") == "https://example.com/posts/123"
+        )
+
+    def test_download_no_referer_no_http_headers(self, monkeypatch):
+        """When referer is not provided, http_headers should not be set."""
+        captured_opts = {}
+
+        def mock_ytdl_init(opts):
+            captured_opts.update(opts)
+            return _make_yt_dlp_mock().YoutubeDL.return_value
+
+        mock_module = MagicMock()
+        mock_module.YoutubeDL = MagicMock(side_effect=mock_ytdl_init)
+        monkeypatch.setitem(sys.modules, "yt_dlp", mock_module)
+        _sync_thread_patch(monkeypatch)
+        client.post(
+            "/api/download",
+            json={"url": "https://example.com/video"},
+        )
+        assert "http_headers" not in captured_opts
+
 
 class TestCookiesToNetscape:
     def test_basic_conversion(self):
