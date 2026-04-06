@@ -14,6 +14,7 @@ Hoard est une application web minimaliste sans framework côté frontend, avec u
 | Base de données | SQLite (module `sqlite3` natif, sans ORM) |
 | Frontend | HTML/CSS/JS vanilla (un seul fichier) |
 | Traitement vidéo | ffmpeg (via subprocess) |
+| Téléchargement vidéo | yt-dlp (librairie Python, import différé) |
 | Tests | pytest + httpx |
 | Lint / format | ruff |
 | CI/CD | GitHub Actions |
@@ -54,6 +55,8 @@ hoard/
 |----------|--------|-------------|
 | `MEDIA_ROOT` | `/media` | Racine des fichiers médias dans le container |
 | `DB_PATH` | `/data/progress.db` | Chemin SQLite |
+| `SSL_CERTFILE` | *(non défini)* | Chemin vers un fichier de certificat PEM. Quand défini (avec `SSL_KEYFILE`), uvicorn sert le HTTPS nativement. |
+| `SSL_KEYFILE` | *(non défini)* | Chemin vers la clé privée PEM correspondante. |
 
 ### Sécurité des chemins
 
@@ -78,7 +81,7 @@ def safe_path(rel: str) -> Path:
 | POST | `/api/files/move?path=` | Déplace vers `{destination}` (chemin relatif) |
 | POST | `/api/files/mkdir` | Crée un dossier `{path}` |
 | POST | `/api/files/cut` | Découpe vidéo via ffmpeg `{path, start, end, output}` |
-| GET | `/api/jobs` | État des jobs ffmpeg en cours |
+| GET | `/api/jobs` | État des jobs background en cours (découpes ffmpeg, téléchargements) |
 | GET | `/api/quick-folders` | Liste les dossiers épinglés |
 | POST | `/api/quick-folders` | Épingle un dossier `{path}` |
 | DELETE | `/api/quick-folders?path=` | Désépingle un dossier |
@@ -87,6 +90,9 @@ def safe_path(rel: str) -> Path:
 | POST | `/api/settings` | Sauvegarde les paramètres |
 | GET | `/api/stream?path=` | Stream HTTP avec support `Range` (seeking natif) |
 | GET | `/api/transcode?path=` | Stream transcodé via ffmpeg |
+| POST | `/api/download` | Télécharge une vidéo web via yt-dlp `{url, cookies?, referer?, title?}` |
+| POST | `/api/jobs/{job_id}/cancel` | Annule un job de téléchargement en attente ou en cours |
+| DELETE | `/api/jobs/{job_id}` | Retire un job terminé/échoué/annulé du store en mémoire |
 
 ### Schéma SQLite
 
@@ -110,9 +116,42 @@ CREATE TABLE settings (
 );
 ```
 
-### Jobs ffmpeg
+### Jobs en arrière-plan
 
-Les découpes vidéo (`/api/files/cut`) sont exécutées dans des threads background. L'état de chaque job est stocké en mémoire dans un dict `jobs: dict[str, JobStatus]`. L'endpoint `/api/jobs` permet de poller leur état depuis le frontend.
+Les découpes vidéo (`/api/files/cut`) s'exécutent dans des threads daemon individuels. Les téléchargements web utilisent une file séquentielle :
+
+- **Phase 1 (thread immédiat)** : à l'appel de `POST /api/download`, un thread dédié démarre immédiatement, passe le job en `resolving`, remplit un aperçu du nom de fichier depuis l'indice `title`, puis passe en `pending` et ajoute le job à la `queue.Queue`.
+- **Phase 2 (worker de file)** : un seul thread daemon (`dl-worker`) défile les jobs un par un et exécute le téléchargement yt-dlp, évitant la surcharge de bande passante.
+
+**Cycle de vie du statut d'un job :** `pending` → `resolving` → `pending` (avec nom de fichier) → `running` → `done` / `error` / `cancelled`
+
+Tout l'état des jobs est conservé en mémoire dans `_jobs : dict[str, dict]`. Les champs préfixés par `_` sont privés et retirés avant la sérialisation JSON par `_job_for_api()`. L'endpoint `/api/jobs` permet au frontend de poller l'état.
+
+### Endpoint de téléchargement (`POST /api/download`)
+
+**Corps de la requête** (`DownloadRequest`) :
+
+```json
+{ "url": "https://cdn.example.com/video.mp4", "cookies": "name=value; other=foo", "referer": "https://example.com/posts/123" }
+```
+
+- `url` — requis. URL de la page web ou de la vidéo directe.
+- `cookies` — optionnel. Chaîne `document.cookie` brute capturée par la bookmarklet. Convertie au format Netscape et transmise à yt-dlp.
+- `referer` — optionnel. URL de la page d'origine. Quand fourni, envoyé comme en-tête HTTP `Referer` pour que les CDN qui vérifient l'origine acceptent la requête. La bookmarklet le renseigne automatiquement quand une source `<video>` directe est détectée.
+
+**Réponse :**
+
+```json
+{ "job_id": "abc123" }
+```
+
+**Sécurité (protection SSRF) :** L'endpoint rejette les URL `file://` et tout hôte résolvant vers localhost ou les plages RFC-1918 (`127.*`, `::1`, `192.168.*`, `10.*`, `172.*`).
+
+**Ordre de résolution des cookies :**
+1. Fichier `cookies.txt` persistant (chemin depuis le paramètre `download_cookies_path`), s'il existe.
+2. Cookies inline du corps de requête, écrits dans un fichier temporaire.
+
+**Options yt-dlp utilisées :** `bestvideo+bestaudio/best`, `merge_output_format: mp4`. La sortie est sauvegardée dans le paramètre `download_folder` (relatif à `MEDIA_ROOT`, créé si nécessaire).
 
 ---
 

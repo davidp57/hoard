@@ -44,6 +44,11 @@ def clean_media():
     finally:
         _conn.close()
 
+    # Clear in-memory job store to prevent cross-test pollution
+    import backend.main as _main
+
+    _main._jobs.clear()
+
 
 @pytest.fixture()
 def video_file():

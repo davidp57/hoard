@@ -1,5 +1,9 @@
 """Unit tests for MediaBrowser API endpoints."""
 
+import sys
+import threading
+from unittest.mock import MagicMock
+
 import pytest
 from starlette.testclient import TestClient  # bundled with fastapi
 
@@ -435,3 +439,762 @@ class TestCut:
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
         assert len(resp.json()) >= 1
+
+
+# ── /api/download ─────────────────────────────────────────────────────────────
+
+
+def _make_yt_dlp_mock(output_name: str = "video.mp4") -> MagicMock:
+    """Return a sys.modules-compatible yt_dlp mock."""
+    ydl_instance = MagicMock()
+    ydl_instance.__enter__ = MagicMock(return_value=ydl_instance)
+    ydl_instance.__exit__ = MagicMock(return_value=False)
+    ydl_instance.extract_info = MagicMock(return_value={"title": "test", "ext": "mp4"})
+    ydl_instance.prepare_filename = MagicMock(return_value=f"/tmp/{output_name}")
+
+    class _FakeDownloadError(Exception):
+        pass
+
+    mock_module = MagicMock()
+    mock_module.YoutubeDL = MagicMock(return_value=ydl_instance)
+    mock_module.utils = MagicMock()
+    mock_module.utils.DownloadError = _FakeDownloadError
+    return mock_module
+
+
+def _sync_thread_patch(monkeypatch):
+    """Run threading.Thread targets and queued download jobs synchronously."""
+    import backend.main as main_mod
+
+    class SyncThread:
+        def __init__(self, target, args, daemon=True):
+            self._target = target
+            self._args = args
+
+        def start(self):
+            self._target(*self._args)
+
+    monkeypatch.setattr(threading, "Thread", SyncThread)
+
+    # Patch the download queue dispatcher to run the job inline instead of
+    # enqueuing, so download tests complete synchronously without a worker.
+    def sync_enqueue(job_id: str) -> None:
+        job = main_mod._jobs[job_id]
+        p = job["_params"]
+        main_mod._run_download(
+            job_id,
+            p["url"],
+            p["output_dir"],
+            p["cookies"],
+            p["cookies_file_path"],
+            p.get("referer"),
+            p.get("title"),
+        )
+
+    monkeypatch.setattr(main_mod, "_enqueue_download", sync_enqueue)
+
+
+class TestDownload:
+    def test_valid_url_returns_job_id(self, monkeypatch):
+        monkeypatch.setitem(sys.modules, "yt_dlp", _make_yt_dlp_mock())
+        # No background thread needed — just check the response
+        resp = client.post("/api/download", json={"url": "https://example.com/video"})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "job_id" in data
+
+    def test_empty_url_rejected(self):
+        resp = client.post("/api/download", json={"url": ""})
+        assert resp.status_code == 400
+
+    def test_file_scheme_rejected(self):
+        resp = client.post("/api/download", json={"url": "file:///etc/passwd"})
+        assert resp.status_code == 400
+
+    def test_localhost_url_rejected(self):
+        resp = client.post("/api/download", json={"url": "http://localhost/video"})
+        assert resp.status_code == 400
+
+    def test_private_ip_rejected(self):
+        resp = client.post("/api/download", json={"url": "http://192.168.1.1/video"})
+        assert resp.status_code == 400
+
+    def test_download_creates_output_dir(self, monkeypatch):
+        monkeypatch.setitem(sys.modules, "yt_dlp", _make_yt_dlp_mock())
+        _sync_thread_patch(monkeypatch)
+        # Set a custom download folder that does not exist yet
+        client.post("/api/settings", json={"download_folder": "MyDownloads"})
+        resp = client.post("/api/download", json={"url": "https://example.com/video"})
+        assert resp.status_code == 200
+        from backend.main import MEDIA_ROOT
+
+        assert (MEDIA_ROOT / "MyDownloads").is_dir()
+
+    def test_download_job_appears_in_jobs_list(self, monkeypatch):
+        import backend.main as main_mod
+
+        monkeypatch.setitem(sys.modules, "yt_dlp", _make_yt_dlp_mock())
+        # Prevent the worker from actually running the download
+        monkeypatch.setattr(main_mod, "_enqueue_download", lambda job_id: None)
+        client.post("/api/download", json={"url": "https://example.com/video"})
+        jobs = client.get("/api/jobs").json()
+        download_jobs = [j for j in jobs if j.get("type") == "download"]
+        assert len(download_jobs) >= 1
+        assert download_jobs[-1]["url"] == "https://example.com/video"
+
+    def test_download_done_after_sync_thread(self, monkeypatch):
+        monkeypatch.setitem(sys.modules, "yt_dlp", _make_yt_dlp_mock())
+        _sync_thread_patch(monkeypatch)
+        resp = client.post("/api/download", json={"url": "https://example.com/video"})
+        job_id = resp.json()["job_id"]
+        jobs = {j["id"]: j for j in client.get("/api/jobs").json()}
+        assert jobs[job_id]["status"] == "done"
+        assert jobs[job_id]["progress"] == 100
+
+    def test_download_error_on_yt_dlp_failure(self, monkeypatch):
+        mock_yt_dlp = _make_yt_dlp_mock()
+        mock_yt_dlp.YoutubeDL.return_value.extract_info.side_effect = Exception("network error")
+        monkeypatch.setitem(sys.modules, "yt_dlp", mock_yt_dlp)
+        _sync_thread_patch(monkeypatch)
+        resp = client.post("/api/download", json={"url": "https://example.com/video"})
+        job_id = resp.json()["job_id"]
+        jobs = {j["id"]: j for j in client.get("/api/jobs").json()}
+        assert jobs[job_id]["status"] == "error"
+        assert "network error" in jobs[job_id]["error"]
+
+    def test_download_with_cookies_str(self, monkeypatch):
+        """Cookies string should be passed to yt-dlp via a temp file."""
+        captured_opts = {}
+
+        def mock_ytdl_init(opts):
+            captured_opts.update(opts)
+            return _make_yt_dlp_mock().YoutubeDL.return_value
+
+        mock_module = MagicMock()
+        mock_module.YoutubeDL = MagicMock(side_effect=mock_ytdl_init)
+        monkeypatch.setitem(sys.modules, "yt_dlp", mock_module)
+        _sync_thread_patch(monkeypatch)
+        client.post(
+            "/api/download",
+            json={"url": "https://example.com/video", "cookies": "session=abc; token=xyz"},
+        )
+        assert "cookiefile" in captured_opts
+
+    def test_download_cookies_persistent_file_takes_precedence(self, monkeypatch, tmp_path):
+        """When the configured cookies file exists it takes precedence over the inline string."""
+        cookies_file = tmp_path / "cookies.txt"
+        cookies_file.write_text("persisted=1", encoding="utf-8")
+
+        client.post(
+            "/api/settings",
+            json={"download_cookies_path": str(cookies_file)},
+        )
+
+        captured_opts = {}
+
+        def mock_ytdl_init(opts):
+            captured_opts.update(opts)
+            return _make_yt_dlp_mock().YoutubeDL.return_value
+
+        mock_module = MagicMock()
+        mock_module.YoutubeDL = MagicMock(side_effect=mock_ytdl_init)
+        monkeypatch.setitem(sys.modules, "yt_dlp", mock_module)
+        _sync_thread_patch(monkeypatch)
+        client.post(
+            "/api/download",
+            json={"url": "https://example.com/video", "cookies": "session=abc"},
+        )
+        assert captured_opts.get("cookiefile") == str(cookies_file)
+
+        # Reset setting so other tests are unaffected
+        client.post("/api/settings", json={"download_cookies_path": ""})
+
+    def test_download_cookies_fallback_when_persistent_file_missing(self, monkeypatch, tmp_path):
+        """When the configured cookies file does not exist, fall back to the inline cookies."""
+        missing = tmp_path / "missing_cookies.txt"
+        assert not missing.exists()
+
+        client.post(
+            "/api/settings",
+            json={"download_cookies_path": str(missing)},
+        )
+
+        captured_opts = {}
+
+        def mock_ytdl_init(opts):
+            captured_opts.update(opts)
+            return _make_yt_dlp_mock().YoutubeDL.return_value
+
+        mock_module = MagicMock()
+        mock_module.YoutubeDL = MagicMock(side_effect=mock_ytdl_init)
+        monkeypatch.setitem(sys.modules, "yt_dlp", mock_module)
+        _sync_thread_patch(monkeypatch)
+        client.post(
+            "/api/download",
+            json={"url": "https://example.com/video", "cookies": "session=abc"},
+        )
+        # A temp file should be used — not the missing configured path
+        assert "cookiefile" in captured_opts
+        assert captured_opts["cookiefile"] != str(missing)
+
+        # Reset setting so other tests are unaffected
+        client.post("/api/settings", json={"download_cookies_path": ""})
+
+    def test_download_settings_persisted(self):
+        resp = client.post(
+            "/api/settings",
+            json={"download_folder": "WebVideos", "download_cookies_path": "/data/cookies.txt"},
+        )
+        assert resp.status_code == 200
+        settings = client.get("/api/settings").json()
+        assert settings["download_folder"] == "WebVideos"
+        assert settings["download_cookies_path"] == "/data/cookies.txt"
+
+    def test_download_referer_sets_http_headers(self, monkeypatch):
+        """When referer is provided, yt-dlp should receive an http_headers dict."""
+        captured_opts = {}
+
+        def mock_ytdl_init(opts):
+            captured_opts.update(opts)
+            return _make_yt_dlp_mock().YoutubeDL.return_value
+
+        mock_module = MagicMock()
+        mock_module.YoutubeDL = MagicMock(side_effect=mock_ytdl_init)
+        monkeypatch.setitem(sys.modules, "yt_dlp", mock_module)
+        _sync_thread_patch(monkeypatch)
+        client.post(
+            "/api/download",
+            json={
+                "url": "https://cdn.example.com/video.mp4",
+                "referer": "https://example.com/posts/123",
+            },
+        )
+        assert (
+            captured_opts.get("http_headers", {}).get("Referer") == "https://example.com/posts/123"
+        )
+
+    def test_download_no_referer_no_http_headers(self, monkeypatch):
+        """When referer is not provided, http_headers should not be set."""
+        captured_opts = {}
+
+        def mock_ytdl_init(opts):
+            captured_opts.update(opts)
+            return _make_yt_dlp_mock().YoutubeDL.return_value
+
+        mock_module = MagicMock()
+        mock_module.YoutubeDL = MagicMock(side_effect=mock_ytdl_init)
+        monkeypatch.setitem(sys.modules, "yt_dlp", mock_module)
+        _sync_thread_patch(monkeypatch)
+        client.post(
+            "/api/download",
+            json={"url": "https://example.com/video"},
+        )
+        assert "http_headers" not in captured_opts
+
+    def test_download_title_overrides_outtmpl(self, monkeypatch):
+        """When title is provided, outtmpl should use the sanitized title instead of %(title)s."""
+        captured_opts = {}
+
+        def mock_ytdl_init(opts):
+            captured_opts.update(opts)
+            return _make_yt_dlp_mock().YoutubeDL.return_value
+
+        mock_module = MagicMock()
+        mock_module.YoutubeDL = MagicMock(side_effect=mock_ytdl_init)
+        monkeypatch.setitem(sys.modules, "yt_dlp", mock_module)
+        _sync_thread_patch(monkeypatch)
+        client.post(
+            "/api/download",
+            json={"url": "https://example.com/video", "title": "My Great Video"},
+        )
+        outtmpl = captured_opts.get("outtmpl", "")
+        assert "My Great Video" in outtmpl
+        assert "%(title)s" not in outtmpl
+
+    def test_download_no_title_uses_yt_dlp_title(self, monkeypatch):
+        """When title is not provided, outtmpl should use %(title)s (yt-dlp default)."""
+        captured_opts = {}
+
+        def mock_ytdl_init(opts):
+            captured_opts.update(opts)
+            return _make_yt_dlp_mock().YoutubeDL.return_value
+
+        mock_module = MagicMock()
+        mock_module.YoutubeDL = MagicMock(side_effect=mock_ytdl_init)
+        monkeypatch.setitem(sys.modules, "yt_dlp", mock_module)
+        _sync_thread_patch(monkeypatch)
+        client.post(
+            "/api/download",
+            json={"url": "https://example.com/video"},
+        )
+        outtmpl = captured_opts.get("outtmpl", "")
+        assert "%(title)s" in outtmpl
+
+    def test_download_sniffs_html_on_unsupported_url(self, monkeypatch):
+        """When yt-dlp returns 'Unsupported URL', backend sniffs HTML and retries."""
+        mock_yt_dlp = _make_yt_dlp_mock()
+        call_count = [0]
+        original_extract = mock_yt_dlp.YoutubeDL.return_value.extract_info
+
+        def _extract_with_fallback(url, download):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                raise mock_yt_dlp.utils.DownloadError(
+                    "ERROR: Unsupported URL: https://example.com/page"
+                )
+            return original_extract(url, download)
+
+        mock_yt_dlp.YoutubeDL.return_value.extract_info = MagicMock(
+            side_effect=_extract_with_fallback
+        )
+        monkeypatch.setitem(sys.modules, "yt_dlp", mock_yt_dlp)
+        monkeypatch.setattr(
+            "backend.main._sniff_video_source",
+            lambda url, cookies: "https://iframe.mediadelivery.net/embed/123/abc",
+        )
+        _sync_thread_patch(monkeypatch)
+        resp = client.post("/api/download", json={"url": "https://example.com/page"})
+        job_id = resp.json()["job_id"]
+        jobs = {j["id"]: j for j in client.get("/api/jobs").json()}
+        assert jobs[job_id]["status"] == "done"
+        assert call_count[0] == 2  # first attempt + retry with sniffed URL
+
+    def test_download_sniff_fails_reports_error(self, monkeypatch):
+        """When yt-dlp fails + sniffing finds nothing, the job status is 'error'."""
+        mock_yt_dlp = _make_yt_dlp_mock()
+        mock_yt_dlp.YoutubeDL.return_value.extract_info = MagicMock(
+            side_effect=mock_yt_dlp.utils.DownloadError(
+                "ERROR: Unsupported URL: https://example.com/page"
+            )
+        )
+        monkeypatch.setitem(sys.modules, "yt_dlp", mock_yt_dlp)
+        monkeypatch.setattr("backend.main._sniff_video_source", lambda url, cookies: None)
+        _sync_thread_patch(monkeypatch)
+        resp = client.post("/api/download", json={"url": "https://example.com/page"})
+        job_id = resp.json()["job_id"]
+        jobs = {j["id"]: j for j in client.get("/api/jobs").json()}
+        assert jobs[job_id]["status"] == "error"
+        assert "Unsupported URL" in jobs[job_id]["error"]
+
+    def test_cancel_pending_job(self, monkeypatch):
+        """Cancelling a pending job marks it as cancelled before it runs."""
+        import backend.main as main_mod
+
+        monkeypatch.setitem(sys.modules, "yt_dlp", _make_yt_dlp_mock())
+        monkeypatch.setattr(main_mod, "_enqueue_download", lambda job_id: None)
+        resp = client.post("/api/download", json={"url": "https://example.com/video"})
+        job_id = resp.json()["job_id"]
+        cancel_resp = client.post(f"/api/jobs/{job_id}/cancel")
+        assert cancel_resp.status_code == 200
+        jobs = {j["id"]: j for j in client.get("/api/jobs").json()}
+        assert jobs[job_id]["status"] == "cancelled"
+
+    def test_cancel_unknown_job_returns_404(self):
+        resp = client.post("/api/jobs/nonexistent-id/cancel")
+        assert resp.status_code == 404
+
+    def test_cancel_already_done_is_noop(self, monkeypatch):
+        """Cancelling a finished job returns 200 and leaves status as 'done'."""
+        monkeypatch.setitem(sys.modules, "yt_dlp", _make_yt_dlp_mock())
+        _sync_thread_patch(monkeypatch)
+        resp = client.post("/api/download", json={"url": "https://example.com/video"})
+        job_id = resp.json()["job_id"]
+        assert client.get("/api/jobs").json()
+        # Force done
+        jobs_by_id = {j["id"]: j for j in client.get("/api/jobs").json()}
+        assert jobs_by_id[job_id]["status"] == "done"
+        cancel_resp = client.post(f"/api/jobs/{job_id}/cancel")
+        assert cancel_resp.status_code == 200
+        jobs_by_id2 = {j["id"]: j for j in client.get("/api/jobs").json()}
+        assert jobs_by_id2[job_id]["status"] == "done"
+
+    def test_cancel_running_job_sets_cancelled(self, monkeypatch):
+        """When the cancel event fires mid-download, the job ends as 'cancelled'."""
+        import backend.main as main_mod
+
+        trigger = {"called": False}
+
+        def intercepted_run(job_id, *a, **kw):
+            # Cancel the job the first time progress hook would fire
+            main_mod._jobs[job_id]["_cancel_event"].set()
+            main_mod._jobs[job_id]["status"] = "cancelled"
+            # Don't call original_run — simulates mid-run cancellation
+            trigger["called"] = True
+
+        monkeypatch.setitem(sys.modules, "yt_dlp", _make_yt_dlp_mock())
+        monkeypatch.setattr(main_mod, "_run_download", intercepted_run)
+        monkeypatch.setattr(main_mod, "_enqueue_download", lambda job_id: intercepted_run(job_id))
+        resp = client.post("/api/download", json={"url": "https://example.com/video"})
+        job_id = resp.json()["job_id"]
+        assert trigger["called"]
+        jobs = {j["id"]: j for j in client.get("/api/jobs").json()}
+        assert jobs[job_id]["status"] == "cancelled"
+
+    def test_jobs_api_does_not_expose_private_fields(self, monkeypatch):
+        """The /api/jobs response must not contain _cancel_event or _params."""
+        import backend.main as main_mod
+
+        monkeypatch.setitem(sys.modules, "yt_dlp", _make_yt_dlp_mock())
+        monkeypatch.setattr(main_mod, "_enqueue_download", lambda job_id: None)
+        resp = client.post("/api/download", json={"url": "https://example.com/video"})
+        job_id = resp.json()["job_id"]
+        jobs = {j["id"]: j for j in client.get("/api/jobs").json()}
+        assert "_cancel_event" not in jobs[job_id]
+        assert "_params" not in jobs[job_id]
+
+    def test_sequential_queue_runs_one_at_a_time(self, monkeypatch):
+        """Two jobs enqueued: second stays pending until first finishes."""
+        import backend.main as main_mod
+
+        execution_order = []
+        barrier = threading.Event()
+
+        def slow_run(job_id, *a, **kw):
+            execution_order.append(("start", job_id))
+            barrier.wait(timeout=5)
+            main_mod._jobs[job_id]["status"] = "done"
+            main_mod._jobs[job_id]["progress"] = 100
+            execution_order.append(("end", job_id))
+
+        monkeypatch.setitem(sys.modules, "yt_dlp", _make_yt_dlp_mock())
+
+        # Patch _enqueue_download to use a local queue + worker so we test
+        # sequencing without touching the global singleton queue.
+        import queue as q
+
+        local_q: q.Queue = q.Queue()
+
+        def local_enqueue(job_id: str) -> None:
+            local_q.put(job_id)
+
+        def local_worker() -> None:
+            while True:
+                jid = local_q.get()
+                job = main_mod._jobs.get(jid)
+                if job:
+                    p = job["_params"]
+                    slow_run(jid, p["url"], p["output_dir"], p["cookies"], p["cookies_file_path"])
+                local_q.task_done()
+
+        monkeypatch.setattr(main_mod, "_enqueue_download", local_enqueue)
+        worker_t = threading.Thread(target=local_worker, daemon=True)
+        worker_t.start()
+
+        resp1 = client.post("/api/download", json={"url": "https://example.com/video1"})
+        resp2 = client.post("/api/download", json={"url": "https://example.com/video2"})
+        job1 = resp1.json()["job_id"]
+        job2 = resp2.json()["job_id"]
+
+        # Give the worker time to start job1 before releasing the barrier
+        import time as _time
+
+        _time.sleep(0.05)
+        # job2 must still be pending while job1 is running
+        jobs = {j["id"]: j for j in client.get("/api/jobs").json()}
+        assert jobs[job2]["status"] == "pending"
+
+        barrier.set()  # let job1 finish → worker picks up job2
+        local_q.join()
+
+        jobs = {j["id"]: j for j in client.get("/api/jobs").json()}
+        assert jobs[job1]["status"] == "done"
+        # Verify execution order: job1 fully completed before job2 started
+        job1_end = next(
+            i for i, (ev, jid) in enumerate(execution_order) if ev == "end" and jid == job1
+        )
+        job2_start = next(
+            i for i, (ev, jid) in enumerate(execution_order) if ev == "start" and jid == job2
+        )
+        assert job1_end < job2_start
+
+    """Unit tests for _sniff_video_source HTML parsing strategies."""
+
+    def _make_urlopen(self, html: str):
+        """Return a mock for urllib.request.urlopen that serves *html*."""
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = html.encode("utf-8")
+        mock_resp.__enter__ = lambda s: s
+        mock_resp.__exit__ = MagicMock(return_value=False)
+        return lambda req, timeout: mock_resp
+
+    def test_detects_iframe_from_known_host(self, monkeypatch):
+        """Detects <iframe src> pointing to a known video host in static HTML."""
+        from backend.main import _sniff_video_source
+
+        html = '<html><body><iframe src="https://iframe.mediadelivery.net/embed/99/xyz"></iframe></body></html>'
+        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        assert (
+            _sniff_video_source("https://example.com/page", None)
+            == "https://iframe.mediadelivery.net/embed/99/xyz"
+        )
+
+    def test_detects_video_src_tag(self, monkeypatch):
+        """Detects <video src> in static HTML."""
+        from backend.main import _sniff_video_source
+
+        html = '<html><body><video src="https://cdn.example.com/video.mp4"></video></body></html>'
+        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        assert (
+            _sniff_video_source("https://example.com/page", None)
+            == "https://cdn.example.com/video.mp4"
+        )
+
+    def test_skips_blob_video_src(self, monkeypatch):
+        """Ignores blob: URLs in <video src> and falls back to other strategies."""
+        from backend.main import _sniff_video_source
+
+        html = """<html><body>
+            <video src="blob:https://example.com/fake"></video>
+            <meta property="og:video" content="https://cdn.example.com/video.mp4">
+        </body></html>"""
+        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        assert (
+            _sniff_video_source("https://example.com/page", None)
+            == "https://cdn.example.com/video.mp4"
+        )
+
+    def test_detects_og_video_meta(self, monkeypatch):
+        """Detects <meta property="og:video" content="..."> (OpenGraph)."""
+        from backend.main import _sniff_video_source
+
+        html = '<html><head><meta property="og:video" content="https://iframe.mediadelivery.net/embed/1/abc"></head></html>'
+        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        assert (
+            _sniff_video_source("https://example.com/page", None)
+            == "https://iframe.mediadelivery.net/embed/1/abc"
+        )
+
+    def test_detects_og_video_url_meta(self, monkeypatch):
+        """Detects <meta property="og:video:url" content="...">."""
+        from backend.main import _sniff_video_source
+
+        html = '<html><head><meta property="og:video:url" content="https://cdn.example.com/clip.mp4"></head></html>'
+        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        assert (
+            _sniff_video_source("https://example.com/page", None)
+            == "https://cdn.example.com/clip.mp4"
+        )
+
+    def test_detects_og_video_secure_url_meta(self, monkeypatch):
+        """Detects <meta property="og:video:secure_url" content="...">."""
+        from backend.main import _sniff_video_source
+
+        html = '<html><head><meta property="og:video:secure_url" content="https://cdn.example.com/secure.mp4"></head></html>'
+        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        assert (
+            _sniff_video_source("https://example.com/page", None)
+            == "https://cdn.example.com/secure.mp4"
+        )
+
+    def test_detects_known_host_url_in_inline_script(self, monkeypatch):
+        """Detects BunnyCDN embed URL in an inline <script> block."""
+        from backend.main import _sniff_video_source
+
+        html = '<html><head><script>var p={src:"https://iframe.mediadelivery.net/embed/42/vid-id"};</script></head></html>'
+        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        assert (
+            _sniff_video_source("https://example.com/page", None)
+            == "https://iframe.mediadelivery.net/embed/42/vid-id"
+        )
+
+    def test_detects_direct_mp4_in_inline_script(self, monkeypatch):
+        """Detects a direct .mp4 URL in an inline <script> block."""
+        from backend.main import _sniff_video_source
+
+        html = '<html><head><script>var src="https://cdn.example.com/video.mp4?token=abc";</script></head></html>'
+        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        assert (
+            _sniff_video_source("https://example.com/page", None)
+            == "https://cdn.example.com/video.mp4?token=abc"
+        )
+
+    def test_detects_m3u8_in_inline_script(self, monkeypatch):
+        """Detects an HLS .m3u8 manifest URL in an inline <script> block."""
+        from backend.main import _sniff_video_source
+
+        html = '<html><head><script>var hls="https://stream.example.com/live.m3u8";</script></head></html>'
+        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        assert (
+            _sniff_video_source("https://example.com/page", None)
+            == "https://stream.example.com/live.m3u8"
+        )
+
+    def test_detects_data_attribute_known_host(self, monkeypatch):
+        """Detects a known-host URL in a data-* attribute."""
+        from backend.main import _sniff_video_source
+
+        html = '<html><body><div data-video-src="https://iframe.mediadelivery.net/embed/5/abc123"></div></body></html>'
+        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        assert (
+            _sniff_video_source("https://example.com/page", None)
+            == "https://iframe.mediadelivery.net/embed/5/abc123"
+        )
+
+    def test_detects_data_attribute_direct_mp4(self, monkeypatch):
+        """Detects a direct .mp4 URL in a data-* attribute."""
+        from backend.main import _sniff_video_source
+
+        html = '<html><body><div data-src="https://cdn.example.com/clip.mp4"></div></body></html>'
+        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        assert (
+            _sniff_video_source("https://example.com/page", None)
+            == "https://cdn.example.com/clip.mp4"
+        )
+
+    def test_priority_iframe_over_video_tag(self, monkeypatch):
+        """iframe from known host takes priority over <video src>."""
+        from backend.main import _sniff_video_source
+
+        html = """<html><body>
+            <video src="https://cdn.example.com/video.mp4"></video>
+            <iframe src="https://iframe.mediadelivery.net/embed/99/xyz"></iframe>
+        </body></html>"""
+        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        assert (
+            _sniff_video_source("https://example.com/page", None)
+            == "https://iframe.mediadelivery.net/embed/99/xyz"
+        )
+
+    def test_priority_video_tag_over_meta(self, monkeypatch):
+        """<video src> takes priority over og:video meta."""
+        from backend.main import _sniff_video_source
+
+        html = """<html><head>
+            <meta property="og:video" content="https://cdn.example.com/meta.mp4">
+        </head><body>
+            <video src="https://cdn.example.com/direct.mp4"></video>
+        </body></html>"""
+        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        assert (
+            _sniff_video_source("https://example.com/page", None)
+            == "https://cdn.example.com/direct.mp4"
+        )
+
+    def test_priority_meta_over_script(self, monkeypatch):
+        """og:video meta takes priority over URLs found in inline scripts."""
+        from backend.main import _sniff_video_source
+
+        html = """<html><head>
+            <meta property="og:video" content="https://cdn.example.com/meta.mp4">
+            <script>var src="https://cdn.example.com/script.mp4";</script>
+        </head></html>"""
+        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        assert (
+            _sniff_video_source("https://example.com/page", None)
+            == "https://cdn.example.com/meta.mp4"
+        )
+
+    def test_returns_none_on_no_video(self, monkeypatch):
+        """Returns None when no video source is found anywhere."""
+        from backend.main import _sniff_video_source
+
+        html = "<html><body><p>No video here, just text.</p></body></html>"
+        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        assert _sniff_video_source("https://example.com/page", None) is None
+
+    def test_returns_none_on_network_error(self, monkeypatch):
+        """Returns None if the HTTP request fails."""
+        from backend.main import _sniff_video_source
+
+        def _fail(req, timeout):
+            raise OSError("connection refused")
+
+        monkeypatch.setattr("urllib.request.urlopen", _fail)
+        assert _sniff_video_source("https://example.com/page", None) is None
+
+
+class TestSanitizeFilename:
+    def test_removes_invalid_chars(self):
+        from backend.main import _sanitize_filename
+
+        assert _sanitize_filename('My Video: "Best" <2024>') == "My Video Best 2024"
+
+    def test_limits_length(self):
+        from backend.main import _sanitize_filename
+
+        long_name = "a" * 300
+        assert len(_sanitize_filename(long_name)) == 180
+
+    def test_strips_leading_trailing_dots_and_spaces(self):
+        from backend.main import _sanitize_filename
+
+        assert _sanitize_filename("  .hidden.  ") == "hidden"
+
+    def test_empty_string_returns_video(self):
+        from backend.main import _sanitize_filename
+
+        assert _sanitize_filename("") == "video"
+
+    def test_only_invalid_chars_returns_video(self):
+        from backend.main import _sanitize_filename
+
+        assert _sanitize_filename('<>:"/\\|?*') == "video"
+
+
+class TestDeleteJob:
+    def test_delete_existing_done_job(self, monkeypatch):
+        """DELETE /api/jobs/{id} removes a done job from the store."""
+        from backend.main import _jobs
+
+        job_id = "test-del-job-1"
+        _jobs[job_id] = {"id": job_id, "status": "done", "type": "download"}
+        resp = client.delete(f"/api/jobs/{job_id}")
+        assert resp.status_code == 200
+        assert job_id not in _jobs
+
+    def test_delete_nonexistent_job_returns_404(self):
+        """DELETE /api/jobs/{id} returns 404 for unknown job."""
+        resp = client.delete("/api/jobs/does-not-exist")
+        assert resp.status_code == 404
+
+    def test_delete_running_job_allowed(self, monkeypatch):
+        """DELETE /api/jobs/{id} is allowed even for active jobs (download continues)."""
+        from backend.main import _jobs
+
+        job_id = "test-del-job-2"
+        _jobs[job_id] = {"id": job_id, "status": "running", "type": "download"}
+        resp = client.delete(f"/api/jobs/{job_id}")
+        assert resp.status_code == 200
+        assert job_id not in _jobs
+
+    def test_delete_job_removed_from_list(self, monkeypatch):
+        """After deletion, job no longer appears in GET /api/jobs."""
+        from backend.main import _jobs
+
+        job_id = "test-del-job-3"
+        _jobs[job_id] = {"id": job_id, "status": "done", "type": "download"}
+        client.delete(f"/api/jobs/{job_id}")
+        jobs = client.get("/api/jobs").json()
+        assert all(j["id"] != job_id for j in jobs)
+
+
+class TestCookiesToNetscape:
+    def test_basic_conversion(self):
+        from backend.main import _cookies_to_netscape
+
+        result = _cookies_to_netscape("foo=bar; baz=qux", "example.com")
+        assert "# Netscape HTTP Cookie File" in result
+        assert "example.com" in result
+        assert "foo\tbar" in result
+        assert "baz\tqux" in result
+
+    def test_empty_string(self):
+        from backend.main import _cookies_to_netscape
+
+        result = _cookies_to_netscape("", "example.com")
+        assert result.strip() == "# Netscape HTTP Cookie File"
+
+    def test_pair_without_value(self):
+        from backend.main import _cookies_to_netscape
+
+        result = _cookies_to_netscape("key=; other=val", "example.com")
+        lines = result.strip().splitlines()
+        # key= should produce an entry with empty value
+        assert any("key" in line for line in lines[1:])
+
+    def test_value_with_equals(self):
+        from backend.main import _cookies_to_netscape
+
+        # Values containing '=' should be preserved (partition only splits on first =)
+        result = _cookies_to_netscape("token=abc=def", "example.com")
+        assert "token\tabc=def" in result

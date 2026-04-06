@@ -10,7 +10,7 @@
 
 ## 🇫🇷 Français
 
-Hoard remplace un lecteur vidéo mobile sur **laptop Windows 11 tactile** connecté à un NAS. Il comble un besoin que Jellyfin, Plex ou Kodi ne couvrent pas : parcourir un **filesystem brut**, voir l'état de lecture de chaque fichier, et gérer les fichiers (déplacer, supprimer) — le tout dans une interface web accessible depuis n'importe quel appareil.
+Hoard remplace un lecteur vidéo mobile sur NAS. Il comble un besoin que Jellyfin, Plex ou Kodi ne couvrent pas : parcourir un **filesystem brut**, voir l'état de lecture de chaque fichier, et gérer les fichiers (déplacer, supprimer) — le tout dans une interface web accessible depuis n'importe quel appareil : iPad, laptop, PC de bureau.
 
 ### Fonctionnalités
 
@@ -20,7 +20,8 @@ Hoard remplace un lecteur vidéo mobile sur **laptop Windows 11 tactile** connec
 - 🟡 État de lecture visible dans la liste : **non vu** / **en cours** (% + barre) / **vu** (≥ 90 %)
 - 📌 Dossiers rapides épinglables pour déplacement en 2 taps
 - ✂ Découpe vidéo intégrée (via ffmpeg)
-- 👆 Gestes tactiles : seek, volume, luminosité, double-tap zones
+- � **Téléchargement de vidéos web** via bookmarklet + yt-dlp : envoie n'importe quelle vidéo en ligne directement sur le NAS depuis n'importe quel onglet, sans quitter la page
+- �👆 Gestes tactiles : seek, volume, luminosité, double-tap zones
 - ⌨ Raccourcis clavier
 - 📱 Responsive : vue divisée desktop, overlay plein écran mobile
 
@@ -54,7 +55,7 @@ docker compose up -d
 
 ## 🇬🇧 English
 
-Hoard is a replacement for a mobile video player on a **Windows 11 touchscreen laptop** connected to a NAS. It fills a gap that Jellyfin, Plex, and Kodi do not cover: browsing a **raw filesystem**, seeing the watch status of each file, and managing files (move, delete) — all in a web interface accessible from any device.
+Hoard is a web video player and file manager for a NAS. It fills a gap that Jellyfin, Plex, and Kodi do not cover: browsing a **raw filesystem**, seeing the watch status of each file, and managing files (move, delete) — all in a web interface accessible from any device: iPad, laptop, or desktop browser.
 
 ### Features
 
@@ -64,7 +65,8 @@ Hoard is a replacement for a mobile video player on a **Windows 11 touchscreen l
 - 🟡 Watch status visible in the list: **unseen** / **in progress** (% + bar) / **watched** (≥ 90 %)
 - 📌 Pinnable quick folders for two-tap moves
 - ✂ Built-in video trim (via ffmpeg)
-- 👆 Touch gestures: seek, volume, brightness, double-tap zones
+- � **Web video download** via bookmarklet + yt-dlp: send any online video directly to the NAS from any browser tab, without leaving the page
+- �👆 Touch gestures: seek, volume, brightness, double-tap zones
 - ⌨ Keyboard shortcuts
 - 📱 Responsive: split-view on desktop, full-screen overlay on mobile
 
