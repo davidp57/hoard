@@ -91,11 +91,25 @@ def safe_path(rel: str) -> Path:
 | GET | `/api/browse?path=` | Browse the directory tree (used by the move modal) |
 | GET | `/api/settings` | Read user settings |
 | POST | `/api/settings` | Save user settings |
+| GET | `/api/media-info?path=` | Read on-demand playback metadata via ffprobe |
 | GET | `/api/stream?path=` | HTTP video stream with `Range` support (native seeking) |
 | GET | `/api/transcode?path=` | Transcoded stream via ffmpeg |
 | POST | `/api/download` | Download a web video via yt-dlp `{url, cookies?, referer?, title?}` |
 | POST | `/api/jobs/{job_id}/cancel` | Cancel a pending or running download job |
 | DELETE | `/api/jobs/{job_id}` | Remove a completed/failed/cancelled job from the in-memory store |
+
+### Native Playback Versus Transcode
+
+Hoard now fetches `/api/media-info` before playback when possible, then uses the returned container and codec metadata to decide whether native playback is likely safe.
+
+The frontend applies a layered decision ladder:
+
+1. `video.canPlayType()` against the combined container/codecs MIME string.
+2. `navigator.mediaCapabilities.decodingInfo()` when the browser exposes it and the metadata is complete enough.
+3. `/api/stream` when support is confirmed or still plausible.
+4. `/api/transcode` when support is rejected or later fails at load time.
+
+See `docs/native-playback.en.md` for the compatibility matrix and the implemented strategy.
 
 ### SQLite Schema
 

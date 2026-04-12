@@ -20,6 +20,7 @@ Hoard remplace un lecteur vidéo mobile sur NAS. Il comble un besoin que Jellyfi
 - 🟡 État de lecture visible dans la liste : **non vu** / **en cours** (% + barre) / **vu** (≥ 90 %)
 - 📌 Dossiers rapides épinglables pour déplacement en 2 taps
 - ✂ Découpe vidéo intégrée (via ffmpeg)
+- 🧠 Sélection de lecture plus intelligente : Hoard vérifie d'abord la lecture native possible avant de basculer vers le transcodage
 - 📥 **Téléchargement de vidéos web** via bookmarklet + yt-dlp : envoie n'importe quelle vidéo en ligne directement sur le NAS depuis n'importe quel onglet, sans quitter la page
 - 👆 Gestes tactiles : seek, volume, luminosité, double-tap zones
 - ⌨ Raccourcis clavier
@@ -33,6 +34,7 @@ Hoard remplace un lecteur vidéo mobile sur NAS. Il comble un besoin que Jellyfi
 | **Guide utilisateur** | [docs/user-guide.fr.md](docs/user-guide.fr.md) | [docs/user-guide.en.md](docs/user-guide.en.md) |
 | **Installation** | [docs/installation.fr.md](docs/installation.fr.md) | [docs/installation.en.md](docs/installation.en.md) |
 | **Développeur** | [docs/developer.fr.md](docs/developer.fr.md) | [docs/developer.en.md](docs/developer.en.md) |
+| **Investigation lecture native** | [docs/native-playback.fr.md](docs/native-playback.fr.md) | [docs/native-playback.en.md](docs/native-playback.en.md) |
 | **Backlog** | [docs/backlog.en.md](docs/backlog.en.md) | [docs/backlog.en.md](docs/backlog.en.md) |
 
 ### Démarrage rapide
@@ -66,6 +68,7 @@ Hoard is a web video player and file manager for a NAS. It fills a gap that Jell
 - 🟡 Watch status visible in the list: **unseen** / **in progress** (% + bar) / **watched** (≥ 90 %)
 - 📌 Pinnable quick folders for two-tap moves
 - ✂ Built-in video trim (via ffmpeg)
+- 🧠 Smarter playback selection: Hoard probes native browser playback before falling back to transcoding
 - 📥 **Web video download** via bookmarklet + yt-dlp: send any online video directly to the NAS from any browser tab, without leaving the page
 - 👆 Touch gestures: seek, volume, brightness, double-tap zones
 - ⌨ Keyboard shortcuts
@@ -79,6 +82,7 @@ Hoard is a web video player and file manager for a NAS. It fills a gap that Jell
 | **User guide** | [docs/user-guide.fr.md](docs/user-guide.fr.md) | [docs/user-guide.en.md](docs/user-guide.en.md) |
 | **Installation** | [docs/installation.fr.md](docs/installation.fr.md) | [docs/installation.en.md](docs/installation.en.md) |
 | **Developer** | [docs/developer.fr.md](docs/developer.fr.md) | [docs/developer.en.md](docs/developer.en.md) |
+| **Native playback investigation** | [docs/native-playback.fr.md](docs/native-playback.fr.md) | [docs/native-playback.en.md](docs/native-playback.en.md) |
 | **Backlog** | [docs/backlog.en.md](docs/backlog.en.md) | [docs/backlog.en.md](docs/backlog.en.md) |
 
 ### Quick start

@@ -60,6 +60,14 @@ Quand tu passes en plein écran, Hoard masque automatiquement les contrôles pou
 
 La position est sauvegardée automatiquement toutes les 5 secondes. Lorsque tu ouvres à nouveau un fichier, la lecture reprend là où tu t'es arrêté.
 
+### Détection plus intelligente de la lecture native
+
+Avant de basculer vers le transcodage côté serveur, Hoard vérifie maintenant si le navigateur courant a de bonnes chances de lire le fichier original nativement.
+
+- MP4/H.264/AAC reste la base la plus sûre pour la lecture native.
+- Pour les formats plus variables comme HEVC, AV1 ou WebM, Hoard sonde d'abord le support du navigateur quand les métadonnées sont disponibles.
+- Si la lecture native n'est pas confirmée, Hoard bascule automatiquement vers le flux transcodé.
+
 ### Initial Sweep Pour Les Nouvelles Vidéos
 
 Tu peux configurer un **initial sweep** pour les vidéos qui n'ont **encore aucune progression enregistrée**.

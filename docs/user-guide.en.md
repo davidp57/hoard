@@ -60,6 +60,14 @@ When you enter fullscreen, Hoard hides the controls automatically to maximize th
 
 Position is saved automatically every 5 seconds. When you re-open a file, playback resumes from where you stopped.
 
+### Smarter Native Playback Detection
+
+Before falling back to server-side transcoding, Hoard now checks whether the current browser is likely able to play the original file natively.
+
+- MP4/H.264/AAC remains the safest native baseline.
+- For more variable formats such as HEVC, AV1, or WebM, Hoard probes browser support first when metadata is available.
+- If native playback is not confirmed, Hoard switches to the transcoded stream automatically.
+
 ### Initial Sweep For New Videos
 
 You can configure an **initial sweep** offset for videos that have **no saved progress yet**.
