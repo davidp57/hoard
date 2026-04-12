@@ -1311,16 +1311,40 @@ async function choosePlaybackSource(entry, mediaInfo) {
     return { src: streamUrl, mode: 'stream', reason: 'baseline' };
   }
 
-  if (!mediaInfo.content_type) {
-    if (mediaInfo.strategy === 'fallback') {
+  if (mediaInfo.strategy === 'fallback') {
+    if (!mediaInfo.content_type) {
       return { src: transcodeUrl, mode: 'transcode', reason: 'missing-content-type-fallback' };
     }
+
+    const canPlayTypeValue = video.canPlayType(mediaInfo.content_type);
+    if (!canPlayTypeValue) {
+      return { src: transcodeUrl, mode: 'transcode', reason: 'canplaytype-rejected' };
+    }
+
+    if (typeof navigator.mediaCapabilities?.decodingInfo === 'function') {
+      const config = buildMediaCapabilitiesConfig(mediaInfo);
+      if (config) {
+        try {
+          const result = await navigator.mediaCapabilities.decodingInfo(config);
+          if (!result.supported) {
+            return { src: transcodeUrl, mode: 'transcode', reason: 'decoding-unsupported' };
+          }
+        } catch (_) {
+          // Ignore probing errors and keep the optimistic native path.
+        }
+      }
+    }
+
+    return { src: streamUrl, mode: 'stream', reason: 'fallback-probe-passed' };
+  }
+
+  if (!mediaInfo.content_type) {
     return { src: streamUrl, mode: 'stream', reason: 'partial-metadata' };
   }
 
   const canPlayTypeValue = video.canPlayType(mediaInfo.content_type);
-  if (!canPlayTypeValue) {
-    return { src: transcodeUrl, mode: 'transcode', reason: 'canplaytype-rejected' };
+  if (canPlayTypeValue) {
+    return { src: streamUrl, mode: 'stream', reason: 'canplaytype-confirmed' };
   }
 
   if (typeof navigator.mediaCapabilities?.decodingInfo === 'function') {
@@ -1328,8 +1352,8 @@ async function choosePlaybackSource(entry, mediaInfo) {
     if (config) {
       try {
         const result = await navigator.mediaCapabilities.decodingInfo(config);
-        if (!result.supported) {
-          return { src: transcodeUrl, mode: 'transcode', reason: 'decoding-unsupported' };
+        if (result.supported) {
+          return { src: streamUrl, mode: 'stream', reason: 'decoding-supported' };
         }
       } catch (_) {
         // Ignore probing errors and keep the optimistic native path.
@@ -1337,7 +1361,8 @@ async function choosePlaybackSource(entry, mediaInfo) {
     }
   }
 
-  return { src: streamUrl, mode: 'stream', reason: 'probe-passed' };
+  // Some browsers keep HEVC/AV1 support checks conservative even when native playback still works.
+  return { src: streamUrl, mode: 'stream', reason: 'probe-optimistic' };
 }
 
 function refreshInitialSweepPanel() {

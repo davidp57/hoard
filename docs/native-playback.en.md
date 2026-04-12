@@ -14,8 +14,9 @@ Today Hoard uses this flow:
 2. Build codec-aware MIME types from ffprobe metadata.
 3. Use `video.canPlayType()` as the first gate.
 4. When available, use `navigator.mediaCapabilities.decodingInfo()` with the exact file metadata.
-5. Open the file with `/api/stream` only when support is confirmed or still plausible.
-6. If probing rejects native playback, or if the browser later fails with `MEDIA_ERR_SRC_NOT_SUPPORTED`, retry with `/api/transcode`.
+5. Keep `/api/stream` as the default for the safe baseline and for `probe` formats such as HEVC-in-MP4, because some browsers stay conservative in capability APIs even when native playback works.
+6. Switch early to `/api/transcode` only for conservative `fallback` formats.
+7. If the browser later fails with `MEDIA_ERR_SRC_NOT_SUPPORTED`, retry with `/api/transcode`.
 
 This keeps `/api/transcode` as the compatibility escape hatch, but moves most decisions earlier so Hoard does not always wait for a failed native load before switching.
 
@@ -60,10 +61,10 @@ These should not be treated as browser-safe until Hoard has hard evidence otherw
 
 1. `/api/media-info` returns ffprobe-based metadata for a single selected file.
 2. The frontend builds codec-aware MIME strings from that response.
-3. `video.canPlayType(contentType)` rejects obviously unsupported combinations early.
-4. `navigator.mediaCapabilities.decodingInfo()` is used when the browser supports it and the metadata is complete enough.
-5. Native playback stays the default only for the safe baseline or for formats the browser probe does not reject.
-6. `/api/transcode` remains the fallback when probing rejects native playback or when the native load still fails at runtime.
+3. `video.canPlayType(contentType)` and `navigator.mediaCapabilities.decodingInfo()` are treated as useful positive signals, but not as authoritative rejections for every `probe` codec family.
+4. Native playback stays the default for the safe baseline and for `probe` formats unless Hoard classifies the file as conservative `fallback` territory.
+5. `/api/transcode` is selected immediately for `fallback` formats such as MKV or legacy containers.
+6. `probe` formats that still fail natively fall back at runtime through the existing player error handler.
 
 ## Remaining Gaps
 

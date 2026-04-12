@@ -14,8 +14,9 @@ Aujourd'hui, Hoard suit ce flux :
 2. Construire des chaînes MIME tenant compte des codecs à partir des métadonnées ffprobe.
 3. Utiliser `video.canPlayType()` comme premier filtre.
 4. Quand il est disponible, utiliser `navigator.mediaCapabilities.decodingInfo()` avec les métadonnées exactes du fichier.
-5. Ouvrir le fichier via `/api/stream` uniquement quand le support est confirmé ou reste plausible.
-6. Si le probing rejette la lecture native, ou si le navigateur échoue ensuite avec `MEDIA_ERR_SRC_NOT_SUPPORTED`, retenter via `/api/transcode`.
+5. Conserver `/api/stream` par défaut pour la base sûre et pour les formats `probe` comme HEVC dans MP4, car certains navigateurs restent prudents dans leurs API de capacité alors que la lecture native fonctionne bien.
+6. Basculer tôt vers `/api/transcode` seulement pour les formats `fallback` conservateurs.
+7. Si le navigateur échoue ensuite avec `MEDIA_ERR_SRC_NOT_SUPPORTED`, retenter via `/api/transcode`.
 
 Cela conserve `/api/transcode` comme échappatoire de compatibilité, tout en déplaçant la majorité des décisions plus tôt pour éviter d'attendre systématiquement un échec de chargement natif avant de basculer.
 
@@ -60,10 +61,10 @@ Ces formats ne doivent pas être traités comme sûrs côté navigateur tant que
 
 1. `/api/media-info` retourne les métadonnées d'un fichier sélectionné via ffprobe.
 2. Le frontend construit à partir de cette réponse des chaînes MIME tenant compte des codecs.
-3. `video.canPlayType(contentType)` écarte tôt les combinaisons manifestement non supportées.
-4. `navigator.mediaCapabilities.decodingInfo()` est utilisé quand le navigateur le supporte et que les métadonnées sont assez complètes.
-5. La lecture native reste le choix par défaut seulement pour la base sûre ou pour les formats que le probing navigateur ne rejette pas.
-6. `/api/transcode` reste le fallback quand le probing rejette la lecture native ou quand le chargement natif échoue malgré tout à l'exécution.
+3. `video.canPlayType(contentType)` et `navigator.mediaCapabilities.decodingInfo()` sont traités comme des signaux positifs utiles, mais pas comme des rejets autoritaires pour toutes les familles de codecs `probe`.
+4. La lecture native reste le choix par défaut pour la base sûre et pour les formats `probe`, sauf quand Hoard classe le fichier dans un territoire `fallback` conservateur.
+5. `/api/transcode` est choisi immédiatement pour les formats `fallback` comme MKV ou les conteneurs historiques.
+6. Les formats `probe` qui échouent encore en natif basculent à l'exécution via le gestionnaire d'erreur existant du player.
 
 ## Limites restantes
 

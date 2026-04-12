@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Folder-level initial sweep controls in the player**: while playing a video, Hoard now shows the current folder's effective initial-sweep source (global vs override) and lets you save a folder override or revert to the global value.
 - **Playback metadata endpoint**: add `/api/media-info` backed by `ffprobe` so Hoard can inspect container, codecs, bitrate, frame rate, and audio properties before deciding how to play a file.
 
+### Fixed
+- **Probe playback no longer transcodes too early**: formats such as HEVC-in-MP4 now keep the optimistic native `/api/stream` path even when `canPlayType()` or `MediaCapabilities` stay conservative, and only fall back to `/api/transcode` on explicit `fallback` formats or real playback failure.
+
 ### Changed
 - **Fullscreen controls now auto-hide**: entering fullscreen now hides player controls by default. On desktop they reappear on mouse movement or keyboard interaction; on touch devices they can be brought back with the existing bottom-centre controls gesture.
 - **Smarter native playback selection**: the player now probes native browser support with `canPlayType()` and `MediaCapabilities` when metadata is available, and only falls back to `/api/transcode` when support is not confirmed or playback is rejected.

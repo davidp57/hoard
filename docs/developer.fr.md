@@ -106,8 +106,8 @@ Le frontend applique une échelle de décision :
 
 1. `video.canPlayType()` sur la chaîne MIME combinant conteneur et codecs.
 2. `navigator.mediaCapabilities.decodingInfo()` quand le navigateur l'expose et que les métadonnées sont assez complètes.
-3. `/api/stream` quand le support est confirmé ou reste plausible.
-4. `/api/transcode` quand le support est rejeté ou échoue ensuite au chargement réel.
+3. `/api/stream` par défaut pour la base sûre et pour les formats `probe` comme HEVC dans MP4, même si les API de capacité du navigateur restent prudentes.
+4. `/api/transcode` immédiatement seulement pour les formats `fallback` explicites, ou ensuite quand la lecture native échoue malgré tout au chargement réel.
 
 Voir `docs/native-playback.fr.md` pour la matrice de compatibilité et la stratégie désormais implémentée.
 
