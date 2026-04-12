@@ -55,6 +55,17 @@ Hovering over a file (or long-pressing on mobile) reveals action buttons:
 
 Position is saved automatically every 5 seconds. When you re-open a file, playback resumes from where you stopped.
 
+### Initial Sweep For New Videos
+
+You can configure an **initial sweep** offset for videos that have **no saved progress yet**.
+
+- A **global default** is available in **Settings → Player**.
+- A **folder-specific override** can be set directly from the player while a video from that folder is open.
+- `0` means disabled.
+- A folder override takes precedence over the global default.
+
+This rule only applies to brand-new videos. Once a file has saved progress, Hoard always resumes from the real saved position instead.
+
 ### IN/OUT Markers (trim)
 
 The `[IN` and `OUT]` buttons define a restricted playback zone (without modifying the file). The ✂ button triggers a physical file cut via ffmpeg.
@@ -160,6 +171,7 @@ All downloads are tracked in a central queue accessible from the **📥** button
 
 | Setting | Description |
 |---------|-------------|
+| **Default initial sweep** | Start brand-new videos at N seconds instead of 0. Applies only when the file has no saved progress yet. `0` disables it globally. |
 | **Download folder** | Target folder, relative to `MEDIA_ROOT` (default: `Downloads`). Created automatically if it does not exist. |
 | **Cookies file path** | Absolute path to a Netscape `cookies.txt` file. Useful for sites that require authentication. |
 

@@ -55,6 +55,17 @@ En passant sur un fichier (ou en appuyant longuement sur mobile), des boutons d'
 
 La position est sauvegardée automatiquement toutes les 5 secondes. Lorsque tu ouvres à nouveau un fichier, la lecture reprend là où tu t'es arrêté.
 
+### Initial Sweep Pour Les Nouvelles Vidéos
+
+Tu peux configurer un **initial sweep** pour les vidéos qui n'ont **encore aucune progression enregistrée**.
+
+- Une **valeur globale par défaut** est disponible dans **Paramètres → Player**.
+- Une **surcharge par dossier** peut être définie directement depuis le player quand une vidéo de ce dossier est ouverte.
+- `0` signifie désactivé.
+- Une surcharge de dossier prend le pas sur la valeur globale.
+
+Cette règle ne s'applique qu'aux vidéos neuves. Dès qu'un fichier a une progression sauvegardée, Hoard reprend toujours à la vraie position enregistrée.
+
 ### Marqueurs IN/OUT (découpe)
 
 Des boutons `[IN` et `OUT]` permettent de définir une zone de lecture restreinte (sans modifier le fichier). Le bouton ✂ lance une découpe physique du fichier via ffmpeg.
@@ -160,6 +171,7 @@ Tous les téléchargements sont regroupés dans une file centrale accessible dep
 
 | Paramètre | Description |
 |-----------|-------------|
+| **Initial sweep par défaut** | Démarre les vidéos neuves à N secondes au lieu de 0. S'applique seulement si le fichier n'a aucune progression enregistrée. `0` le désactive globalement. |
 | **Dossier de téléchargement** | Dossier cible, relatif à `MEDIA_ROOT` (défaut : `Downloads`). Créé automatiquement s'il n'existe pas. |
 | **Chemin du fichier cookies** | Chemin absolu vers un fichier `cookies.txt` au format Netscape. Utile pour les sites qui nécessitent une authentification. |
 

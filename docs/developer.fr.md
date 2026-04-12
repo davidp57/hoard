@@ -85,6 +85,9 @@ def safe_path(rel: str) -> Path:
 | GET | `/api/quick-folders` | Liste les dossiers épinglés |
 | POST | `/api/quick-folders` | Épingle un dossier `{path}` |
 | DELETE | `/api/quick-folders?path=` | Désépingle un dossier |
+| GET | `/api/initial-sweep?path=` | Lit la config d'initial sweep effective pour un dossier |
+| POST | `/api/initial-sweep` | Définit une surcharge de dossier `{path, seconds}` |
+| DELETE | `/api/initial-sweep?path=` | Supprime une surcharge de dossier et revient à la valeur globale |
 | GET | `/api/browse?path=` | Parcourt l'arborescence (usage : modal de déplacement) |
 | GET | `/api/settings` | Lit les paramètres utilisateur |
 | POST | `/api/settings` | Sauvegarde les paramètres |
@@ -114,7 +117,23 @@ CREATE TABLE settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+
+CREATE TABLE initial_sweep_folders (
+    path TEXT PRIMARY KEY,
+    seconds INTEGER NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 ```
+
+### Initial Sweep
+
+L'initial sweep permet à Hoard de démarrer une **vidéo neuve** à un offset configuré au lieu de `0`.
+
+- Valeur globale par défaut : stockée dans la table `settings` sous la clé `initial_sweep_seconds`
+- Surcharge par dossier : stockée dans `initial_sweep_folders`, indexée par chemin relatif de dossier
+- La surcharge de dossier gagne sur la valeur globale
+- `0` signifie désactivé
+- Une progression de lecture déjà sauvegardée gagne toujours sur toute règle d'initial sweep
 
 ### Jobs en arrière-plan
 

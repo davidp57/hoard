@@ -338,6 +338,11 @@ class TestSettings:
         assert resp.status_code == 200
         assert "media_root" in resp.json()
 
+    def test_get_settings_returns_default_initial_sweep_seconds(self):
+        resp = client.get("/api/settings")
+        assert resp.status_code == 200
+        assert resp.json()["initial_sweep_seconds"] == "0"
+
     def test_update_media_root(self, tmp_path):
         new_root = tmp_path / "new_media"
         new_root.mkdir()
@@ -350,6 +355,94 @@ class TestSettings:
     def test_update_media_root_not_found(self):
         resp = client.post("/api/settings", json={"media_root": "/does/not/exist"})
         assert resp.status_code == 404
+
+    def test_update_initial_sweep_seconds(self):
+        resp = client.post("/api/settings", json={"initial_sweep_seconds": 600})
+        assert resp.status_code == 200
+        assert resp.json()["ok"] is True
+
+        resp = client.get("/api/settings")
+        assert resp.status_code == 200
+        assert resp.json()["initial_sweep_seconds"] == "600"
+
+
+# ── /api/initial-sweep ───────────────────────────────────────────────────────
+
+
+class TestInitialSweep:
+    def test_get_initial_sweep_uses_global_default(self, subdir_with_video):
+        client.post("/api/settings", json={"initial_sweep_seconds": 600})
+
+        resp = client.get("/api/initial-sweep?path=series")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data == {
+            "path": "series",
+            "default_seconds": 600,
+            "override_seconds": None,
+            "effective_seconds": 600,
+            "source": "default",
+        }
+
+    def test_post_override_and_read_back(self, subdir_with_video):
+        client.post("/api/settings", json={"initial_sweep_seconds": 600})
+
+        resp = client.post("/api/initial-sweep", json={"path": "series", "seconds": 120})
+        assert resp.status_code == 200
+        assert resp.json()["ok"] is True
+
+        resp = client.get("/api/initial-sweep?path=series")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data == {
+            "path": "series",
+            "default_seconds": 600,
+            "override_seconds": 120,
+            "effective_seconds": 120,
+            "source": "override",
+        }
+
+    def test_override_zero_disables_folder_even_with_global_default(self, subdir_with_video):
+        client.post("/api/settings", json={"initial_sweep_seconds": 600})
+        client.post("/api/initial-sweep", json={"path": "series", "seconds": 0})
+
+        resp = client.get("/api/initial-sweep?path=series")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data == {
+            "path": "series",
+            "default_seconds": 600,
+            "override_seconds": 0,
+            "effective_seconds": 0,
+            "source": "override",
+        }
+
+    def test_delete_override_reverts_to_global_default(self, subdir_with_video):
+        client.post("/api/settings", json={"initial_sweep_seconds": 600})
+        client.post("/api/initial-sweep", json={"path": "series", "seconds": 90})
+
+        resp = client.delete("/api/initial-sweep?path=series")
+        assert resp.status_code == 200
+        assert resp.json()["ok"] is True
+
+        resp = client.get("/api/initial-sweep?path=series")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data == {
+            "path": "series",
+            "default_seconds": 600,
+            "override_seconds": None,
+            "effective_seconds": 600,
+            "source": "default",
+        }
+
+    def test_override_rejects_file_path(self, video_file):
+        resp = client.post("/api/initial-sweep", json={"path": video_file, "seconds": 90})
+        assert resp.status_code == 404
+
+    def test_get_initial_sweep_rejects_path_traversal(self):
+        resp = client.get("/api/initial-sweep?path=../../etc")
+        assert resp.status_code == 403
 
 
 # ── /api/files/mkdir ──────────────────────────────────────────────────────────
