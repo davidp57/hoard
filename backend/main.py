@@ -761,6 +761,22 @@ def _combine_content_type(mime_type: str | None, codec_params: list[str]) -> str
     return f'{mime_type}; codecs="{joined}"'
 
 
+def _trusted_ffprobe_bin() -> str:
+    if not FFPROBE_BIN:
+        raise HTTPException(status_code=503, detail="FFprobe not available")
+
+    candidate = Path(FFPROBE_BIN)
+    allowed_names = {"ffprobe", "ffprobe.exe"}
+    if candidate.is_absolute():
+        if candidate.name.lower() not in allowed_names or not candidate.is_file():
+            raise HTTPException(status_code=503, detail="FFprobe not available")
+        return str(candidate)
+
+    if FFPROBE_BIN.lower() not in allowed_names:
+        raise HTTPException(status_code=503, detail="FFprobe not available")
+    return FFPROBE_BIN
+
+
 def _playback_strategy(
     mime_type: str | None, video_codec: str | None, audio_codec: str | None
 ) -> str:
@@ -781,11 +797,10 @@ def _playback_strategy(
 
 
 def _read_media_info(file: Path) -> dict:
-    if not FFPROBE_BIN:
-        raise HTTPException(status_code=503, detail="FFprobe not available")
+    ffprobe_bin = _trusted_ffprobe_bin()
 
     cmd = [
-        FFPROBE_BIN,
+        ffprobe_bin,
         "-v",
         "error",
         "-show_entries",
@@ -802,6 +817,7 @@ def _read_media_info(file: Path) -> dict:
             capture_output=True,
             text=True,
             encoding="utf-8",
+            shell=False,
         )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=503, detail="FFprobe not available") from exc
