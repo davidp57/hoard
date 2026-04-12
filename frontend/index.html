@@ -1311,7 +1311,14 @@ async function choosePlaybackSource(entry, mediaInfo) {
     return { src: streamUrl, mode: 'stream', reason: 'baseline' };
   }
 
-  const canPlayTypeValue = mediaInfo.content_type ? video.canPlayType(mediaInfo.content_type) : '';
+  if (!mediaInfo.content_type) {
+    if (mediaInfo.strategy === 'fallback') {
+      return { src: transcodeUrl, mode: 'transcode', reason: 'missing-content-type-fallback' };
+    }
+    return { src: streamUrl, mode: 'stream', reason: 'partial-metadata' };
+  }
+
+  const canPlayTypeValue = video.canPlayType(mediaInfo.content_type);
   if (!canPlayTypeValue) {
     return { src: transcodeUrl, mode: 'transcode', reason: 'canplaytype-rejected' };
   }

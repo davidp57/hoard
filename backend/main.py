@@ -881,7 +881,9 @@ def _read_media_info(file: Path) -> dict:
             ),
         }
 
-    combined_codec_params = [p for p in (video_codec_param, audio_codec_param) if p]
+    combined_codec_params = [video_codec_param] if video_codec_param else []
+    if video_codec_param and audio_codec_param:
+        combined_codec_params.append(audio_codec_param)
     return {
         "path": to_rel(file),
         "container": container,

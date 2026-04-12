@@ -19,7 +19,7 @@ Aujourd'hui, Hoard suit ce flux :
 
 Cela conserve `/api/transcode` comme échappatoire de compatibilité, tout en déplaçant la majorité des décisions plus tôt pour éviter d'attendre systématiquement un échec de chargement natif avant de basculer.
 
-## Matrice de compatibilite
+## Matrice de compatibilité
 
 Le conteneur et le codec doivent être évalués ensemble. Un codec peut être pris en charge dans un conteneur et échouer dans un autre.
 
