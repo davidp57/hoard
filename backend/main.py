@@ -805,21 +805,19 @@ def _playback_strategy(
 
 def _read_media_info(file: Path) -> dict:
     ffprobe_env = _ffprobe_env()
-
-    cmd = [
-        "ffprobe",
-        "-v",
-        "error",
-        "-show_entries",
-        "format=format_name,bit_rate,duration:stream=index,codec_type,codec_name,codec_tag_string,width,height,bit_rate,r_frame_rate,avg_frame_rate,bits_per_raw_sample,bits_per_sample,pix_fmt,channels,sample_rate",
-        "-show_streams",
-        "-of",
-        "json",
-        str(file),
-    ]
     try:
         completed = subprocess.run(
-            cmd,
+            [
+                "ffprobe",
+                "-v",
+                "error",
+                "-show_entries",
+                "format=format_name,bit_rate,duration:stream=index,codec_type,codec_name,codec_tag_string,width,height,bit_rate,r_frame_rate,avg_frame_rate,bits_per_raw_sample,bits_per_sample,pix_fmt,channels,sample_rate",
+                "-show_streams",
+                "-of",
+                "json",
+                str(file),
+            ],
             check=True,
             capture_output=True,
             text=True,
