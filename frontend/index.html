@@ -352,7 +352,8 @@
     flex: 1;
     height: 0;
   }
-  #video-container.faux-fullscreen #controls {
+  #video-container.faux-fullscreen #controls,
+  #video-container:fullscreen #controls {
     position: absolute;
     bottom: 0;
     left: 0;
@@ -363,7 +364,8 @@
     padding-bottom: max(12px, env(safe-area-inset-bottom));
     transition: opacity 0.3s;
   }
-  #video-container.faux-fullscreen #controls.ctrl-hidden {
+  #video-container.faux-fullscreen #controls.ctrl-hidden,
+  #video-container:fullscreen #controls.ctrl-hidden {
     opacity: 0;
     pointer-events: none;
   }
@@ -383,7 +385,8 @@
     pointer-events: none;
     z-index: 10;
   }
-  #video-container.faux-fullscreen #mini-time { display: block; }
+  #video-container.faux-fullscreen #mini-time,
+  #video-container:fullscreen #mini-time { display: block; }
 
   #ctrl-row {
     display: flex;
@@ -1330,6 +1333,7 @@ function privacyClose() {
   video.pause();
   video.src = '';
   if (saveInterval) { clearInterval(saveInterval); saveInterval = null; }
+  resetFullscreenPlaybackUI();
   currentFile = null;
   currentInitialSweepState = null;
   document.getElementById('video-container').classList.remove('active');
@@ -2257,6 +2261,7 @@ async function playVideo(idx) {
 function closeMobilePlayer() {
   document.getElementById('player-panel').classList.remove('mobile-active');
   video.pause();
+  resetFullscreenPlaybackUI();
 }
 
 function togglePlay() {
@@ -2462,7 +2467,7 @@ video.addEventListener('touchend', e => {
         if (controls.classList.contains('ctrl-hidden')) {
           showControlsFS();
         } else {
-          controls.classList.add('ctrl-hidden');
+          hideControlsFS();
         }
       } else if (isMid) {
         // Centre (not bottom): play/pause
@@ -2547,6 +2552,7 @@ function releaseVideoIfCurrent(path) {
   if (currentFile && currentFile.path === path) {
     video.pause();
     video.src = '';  // releases the file lock on Windows
+    resetFullscreenPlaybackUI();
     document.getElementById('video-container').classList.remove('active');
     document.getElementById('player-empty').style.display = '';
     currentFile = null;
@@ -2833,13 +2839,55 @@ function showToast(msg) {
 }
 
 // Fullscreen (faux-fullscreen on touch devices / iOS / PWA)
+const FULLSCREEN_CONTROLS_IDLE_MS = 2200;
+let fullscreenControlsTimer = null;
+
 function isInFullscreen() {
   return document.getElementById('video-container').classList.contains('faux-fullscreen')
       || !!document.fullscreenElement;
 }
 
+function clearFullscreenControlsTimer() {
+  if (fullscreenControlsTimer !== null) {
+    clearTimeout(fullscreenControlsTimer);
+    fullscreenControlsTimer = null;
+  }
+}
+
+function scheduleControlsFSHide() {
+  clearFullscreenControlsTimer();
+  if (!isInFullscreen()) return;
+  fullscreenControlsTimer = setTimeout(() => {
+    if (isInFullscreen()) {
+      document.getElementById('controls').classList.add('ctrl-hidden');
+    }
+    fullscreenControlsTimer = null;
+  }, FULLSCREEN_CONTROLS_IDLE_MS);
+}
+
+function hideControlsFS() {
+  clearFullscreenControlsTimer();
+  if (!isInFullscreen()) return;
+  document.getElementById('controls').classList.add('ctrl-hidden');
+}
+
 function showControlsFS() {
   document.getElementById('controls').classList.remove('ctrl-hidden');
+  if (isInFullscreen()) {
+    scheduleControlsFSHide();
+  } else {
+    clearFullscreenControlsTimer();
+  }
+}
+
+function resetFullscreenPlaybackUI() {
+  clearFullscreenControlsTimer();
+  document.getElementById('video-container').classList.remove('faux-fullscreen');
+  document.getElementById('controls').classList.remove('ctrl-hidden');
+  if (document.fullscreenElement) {
+    document.exitFullscreen().catch(() => {});
+  }
+  updateFullscreenBtn();
 }
 
 function updateFullscreenBtn() {
@@ -2847,30 +2895,56 @@ function updateFullscreenBtn() {
   if (btn) btn.textContent = isInFullscreen() ? '\u29c4' : '\u26f6';
 }
 
+function syncFullscreenUI() {
+  updateFullscreenBtn();
+  if (isInFullscreen()) {
+    hideControlsFS();
+  } else {
+    document.getElementById('controls').classList.remove('ctrl-hidden');
+    clearFullscreenControlsTimer();
+  }
+}
+
 function toggleFullscreen() {
   const vc = document.getElementById('video-container');
   const useFaux = !document.fullscreenEnabled || navigator.maxTouchPoints > 0;
   if (vc.classList.contains('faux-fullscreen')) {
     vc.classList.remove('faux-fullscreen');
-    document.getElementById('controls').classList.remove('ctrl-hidden');
+    syncFullscreenUI();
   } else if (document.fullscreenElement) {
     document.exitFullscreen();
   } else if (useFaux) {
     vc.classList.add('faux-fullscreen');
+    syncFullscreenUI();
   } else {
     vc.requestFullscreen();
   }
-  updateFullscreenBtn();
 }
 
 document.addEventListener('fullscreenchange', () => {
-  updateFullscreenBtn();
-  document.getElementById('controls').classList.remove('ctrl-hidden');
+  syncFullscreenUI();
+});
+
+document.getElementById('video-container').addEventListener('mousemove', () => {
+  if (isInFullscreen()) showControlsFS();
+});
+
+document.getElementById('video-container').addEventListener('pointerdown', event => {
+  if (event.pointerType !== 'touch' && isInFullscreen()) {
+    showControlsFS();
+  }
+});
+
+document.getElementById('controls').addEventListener('pointerdown', () => {
+  if (isInFullscreen()) showControlsFS();
 });
 
 // Keyboard shortcuts
 document.addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT') return;
+  if (isInFullscreen() && ['Space', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'KeyF'].includes(e.code)) {
+    showControlsFS();
+  }
   if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
   if (e.code === 'ArrowLeft') skip(-10);
   if (e.code === 'ArrowRight') skip(10);

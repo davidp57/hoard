@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Configurable initial sweep for new videos**: add a global `initial_sweep_seconds` player setting plus per-folder overrides. Brand-new videos can now start at a configured offset (for example 10 minutes in), while videos with saved progress still resume from their actual saved position.
 - **Folder-level initial sweep controls in the player**: while playing a video, Hoard now shows the current folder's effective initial-sweep source (global vs override) and lets you save a folder override or revert to the global value.
 
+### Changed
+- **Fullscreen controls now auto-hide**: entering fullscreen now hides player controls by default. On desktop they reappear on mouse movement or keyboard interaction; on touch devices they can be brought back with the existing bottom-centre controls gesture.
+
 ## [2.0.0] - 2026-04-06
 
 ### Added

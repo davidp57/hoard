@@ -51,6 +51,11 @@ Hovering over a file (or long-pressing on mobile) reveals action buttons:
 | **Volume** | Volume slider |
 | **⛶** | Fullscreen |
 
+When you enter fullscreen, Hoard hides the controls automatically to maximize the video area.
+
+- On desktop, move the mouse or use keyboard shortcuts to bring the controls back temporarily.
+- On touch devices, use the existing bottom-centre tap zone to show or hide the controls.
+
 ### Auto-resume
 
 Position is saved automatically every 5 seconds. When you re-open a file, playback resumes from where you stopped.
@@ -81,7 +86,7 @@ Gestures work directly on the video image.
 | Area | Action |
 |------|--------|
 | Centre (upper area) | Play / Pause |
-| Centre (bottom strip) | Show / hide controls |
+| Centre (bottom strip) | Show / hide controls in fullscreen |
 
 ### Double Tap
 
