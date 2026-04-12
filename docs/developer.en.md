@@ -97,6 +97,12 @@ def safe_path(rel: str) -> Path:
 | POST | `/api/jobs/{job_id}/cancel` | Cancel a pending or running download job |
 | DELETE | `/api/jobs/{job_id}` | Remove a completed/failed/cancelled job from the in-memory store |
 
+### Native Playback Versus Transcode
+
+Hoard currently tries native playback first by assigning `/api/stream` to the HTML5 video element. If the browser rejects the source with `MEDIA_ERR_SRC_NOT_SUPPORTED`, the frontend retries with `/api/transcode`.
+
+BL-019 documents the next step: move from a pure runtime fallback to a metadata-driven probe so Hoard can prefer native playback only when the browser and device actually support the file's container and codecs. See `docs/native-playback.en.md` for the compatibility matrix and the recommended detection ladder.
+
 ### SQLite Schema
 
 ```sql

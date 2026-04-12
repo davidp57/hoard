@@ -97,6 +97,12 @@ def safe_path(rel: str) -> Path:
 | POST | `/api/jobs/{job_id}/cancel` | Annule un job de téléchargement en attente ou en cours |
 | DELETE | `/api/jobs/{job_id}` | Retire un job terminé/échoué/annulé du store en mémoire |
 
+### Lecture native versus transcodage
+
+Hoard tente aujourd'hui la lecture native en premier en assignant `/api/stream` a l'element video HTML5. Si le navigateur rejette la source avec `MEDIA_ERR_SRC_NOT_SUPPORTED`, le frontend retente via `/api/transcode`.
+
+BL-019 documente l'etape suivante : passer d'un simple fallback a l'erreur a une decision guidee par les metadonnees afin que Hoard ne privilegie la lecture native que lorsque le navigateur et l'appareil confirment reellement la prise en charge du conteneur et des codecs du fichier. Voir `docs/native-playback.fr.md` pour la matrice de compatibilite et la strategie de detection recommandee.
+
 ### Schéma SQLite
 
 ```sql

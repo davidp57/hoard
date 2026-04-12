@@ -72,7 +72,6 @@ Any concrete point raised by the user that needs follow-up beyond the current se
 | BL-014 | 2026-04-12 | Improvement | Platform | P3 | Add a PWA manifest and service worker so Hoard can be installed on tablet and desktop devices |
 | BL-015 | 2026-04-12 | Evolution | Watch progress | P2 | Support multi-user watch progress instead of a single global progress row per file |
 | BL-016 | 2026-04-12 | Improvement | Media | P3 | Display video metadata in the UI (duration, resolution, codec), likely via `ffprobe` |
-| BL-019 | 2026-04-12 | Research | Playback / Codecs | P1 | Investigate broader native playback support across codecs and containers before transcoding, especially on iPad and other Safari-based clients |
 
 ## Subject Details
 
@@ -231,7 +230,7 @@ Any concrete point raised by the user that needs follow-up beyond the current se
 
 ### BL-019 — Investigate Broader Native Codec Playback
 
-- **Dates**: `created=2026-04-12`
+- **Dates**: `created=2026-04-12`, `started=2026-04-12`, `completed=2026-04-12`
 
 - **Why**: some devices currently fall back to transcoding, for example H.265 to H.264 on iPad, even though native playback support may exist for part of the matrix of codecs, containers, browser engines, and hardware.
 - **Expected outcome**: produce a clear compatibility matrix and identify where Hoard can prefer native playback over transcoding.
@@ -247,6 +246,8 @@ Any concrete point raised by the user that needs follow-up beyond the current se
 - No topic yet.
 
 ## Done
+
+- **BL-019** — `created=2026-04-12`, `started=2026-04-12`, `completed=2026-04-12` — Native playback investigation delivered with a bilingual compatibility note, a documented native-versus-transcode decision ladder, and product guidance for when Hoard should probe support before preferring `/api/stream`.
 
 - **BL-018** — `created=2026-04-12`, `started=2026-04-12`, `completed=2026-04-12` — Fullscreen controls auto-hide delivered: controls hide immediately on fullscreen entry, reappear on mouse movement or keyboard interaction on desktop, and via the bottom-centre tap zone on touch devices.
 - **BL-017** — `created=2026-04-12`, `started=2026-04-12`, `completed=2026-04-12` — Configurable initial sweep per folder delivered with a global default in Settings, a per-folder override from the player UI, and resume behavior that preserves existing saved progress.
