@@ -99,9 +99,9 @@ def safe_path(rel: str) -> Path:
 
 ### Lecture native versus transcodage
 
-Hoard tente aujourd'hui la lecture native en premier en assignant `/api/stream` a l'element video HTML5. Si le navigateur rejette la source avec `MEDIA_ERR_SRC_NOT_SUPPORTED`, le frontend retente via `/api/transcode`.
+Hoard tente aujourd'hui la lecture native en premier en assignant `/api/stream` à l'élément vidéo HTML5. Si le navigateur rejette la source avec `MEDIA_ERR_SRC_NOT_SUPPORTED`, le frontend retente via `/api/transcode`.
 
-BL-019 documente l'etape suivante : passer d'un simple fallback a l'erreur a une decision guidee par les metadonnees afin que Hoard ne privilegie la lecture native que lorsque le navigateur et l'appareil confirment reellement la prise en charge du conteneur et des codecs du fichier. Voir `docs/native-playback.fr.md` pour la matrice de compatibilite et la strategie de detection recommandee.
+BL-019 documente l'étape suivante : passer d'un simple fallback à l'erreur à une décision guidée par les métadonnées afin que Hoard ne privilégie la lecture native que lorsque le navigateur et l'appareil confirment réellement la prise en charge du conteneur et des codecs du fichier. Voir `docs/native-playback.fr.md` pour la matrice de compatibilité et la stratégie de détection recommandée.
 
 ### Schéma SQLite
 

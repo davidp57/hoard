@@ -1,93 +1,93 @@
-# Hoard - Investigation lecture native
+# Hoard - Investigation sur la lecture native
 
 ## Objectif
 
-BL-019 est un ticket de recherche. L'objectif est de decider quand Hoard doit conserver le chemin de lecture native du navigateur et quand il doit basculer vers `/api/transcode`, en particulier sur iPad et sur les autres clients bases sur Safari.
+BL-019 est un ticket de recherche. L'objectif est de décider quand Hoard doit conserver le chemin de lecture native du navigateur et quand il doit basculer vers `/api/transcode`, en particulier sur iPad et sur les autres clients basés sur Safari.
 
-Ce document reste volontairement pragmatique : il ne cherche pas a lister tous les profils de codecs publies par tous les navigateurs. Il identifie les combinaisons que Hoard peut traiter comme sures, celles qui exigent une verification, et celles qui doivent rester sur un chemin de repli.
+Ce document reste volontairement pragmatique : il ne cherche pas à lister tous les profils de codecs publiés par tous les navigateurs. Il identifie les combinaisons que Hoard peut traiter comme sûres, celles qui exigent une vérification, et celles qui doivent rester sur un chemin de repli.
 
 ## Comportement actuel de Hoard
 
-Aujourd'hui Hoard suit ce flux :
+Aujourd'hui, Hoard suit ce flux :
 
 1. Ouvrir le fichier via `/api/stream`.
-2. Laisser le navigateur tenter la lecture du fichier original avec l'element HTML5 `<video>`.
-3. Si la lecture echoue avec `MEDIA_ERR_SRC_NOT_SUPPORTED`, retenter via `/api/transcode`.
+2. Laisser le navigateur tenter la lecture du fichier original avec l'élément HTML5 `<video>`.
+3. Si la lecture échoue avec `MEDIA_ERR_SRC_NOT_SUPPORTED`, retenter via `/api/transcode`.
 
-Cette approche reste simple et fonctionne deja, mais la decision arrive trop tard. L'erreur navigateur n'apparait qu'apres une tentative de chargement, et Hoard ne possede aucune connaissance structuree du conteneur, des codecs, de la profondeur de couleur ou des autres contraintes du fichier.
+Cette approche reste simple et fonctionne déjà, mais la décision arrive trop tard. L'erreur navigateur n'apparaît qu'après une tentative de chargement, et Hoard ne possède aucune connaissance structurée du conteneur, des codecs, de la profondeur de couleur ou des autres contraintes du fichier.
 
 ## Matrice de compatibilite
 
-Le conteneur et le codec doivent etre evalues ensemble. Un codec peut etre pris en charge dans un conteneur et echouer dans un autre.
+Le conteneur et le codec doivent être évalués ensemble. Un codec peut être pris en charge dans un conteneur et échouer dans un autre.
 
-| Combinaison | Recommendation Hoard | Pourquoi |
+| Combinaison | Recommandation Hoard | Pourquoi |
 |---|---|---|
-| MP4 + video H.264/AVC + audio AAC | Preferer nativement par defaut | C'est la base la plus compatible entre navigateurs. Apple recommande explicitement le MP4 encode en H.264 pour les fichiers statiques, et MDN traite toujours MP4/H.264 comme le fallback le plus large. |
-| MP4 + video HEVC/H.265 + audio AAC | Verifier d'abord, ne jamais supposer | Safari et Safari iOS prennent largement en charge HEVC sur le materiel Apple compatible, mais hors Safari le support depend de l'OS, du navigateur, d'extensions et du decodage materiel. Ce n'est pas une base web universelle. |
-| MP4 + video AV1 + audio AAC ou Opus | Verifier d'abord, ne jamais supposer | AV1 est largement disponible dans Chromium et Firefox, mais le support Safari reste limite au materiel recent equipe d'un decodeur adapte. |
-| WebM + video VP8/VP9 + audio Opus/Vorbis | Verifier d'abord, mais le natif est raisonnable sur navigateurs modernes | WebM est maintenant largement disponible, y compris sur Safari recent, mais les anciennes versions Safari et iOS ont longtemps ete partielles. Hoard doit le traiter comme moderne-natif, pas universel-natif. |
-| MKV / Matroska avec codecs web a l'interieur | Ne pas preferer nativement par defaut | Le support HTML5 navigateur n'est pas defini de facon fiable par le seul conteneur, et Matroska reste un mauvais pari par defaut pour la lecture directe dans le navigateur. |
-| MOV / QuickTime historique / conteneurs MPEG anciens | Ne pas preferer nativement par defaut | Les conteneurs historiques ou tres dependants d'une plate-forme ne constituent pas une base web solide, meme quand le codec embarque est courant. |
+| MP4 + vidéo H.264/AVC + audio AAC | Préférer nativement par défaut | C'est la base la plus compatible entre navigateurs. Apple recommande explicitement le MP4 encodé en H.264 pour les fichiers statiques, et MDN traite toujours MP4/H.264 comme le fallback le plus large. |
+| MP4 + vidéo HEVC/H.265 + audio AAC | Vérifier d'abord, ne jamais supposer | Safari et Safari iOS prennent largement en charge HEVC sur le matériel Apple compatible, mais hors Safari le support dépend de l'OS, du navigateur, d'extensions et du décodage matériel. Ce n'est pas une base web universelle. |
+| MP4 + vidéo AV1 + audio AAC ou Opus | Vérifier d'abord, ne jamais supposer | AV1 est largement disponible dans Chromium et Firefox, mais le support Safari reste limité au matériel récent équipé d'un décodeur adapté. |
+| WebM + vidéo VP8/VP9 + audio Opus/Vorbis | Vérifier d'abord, mais le natif est raisonnable sur navigateurs modernes | WebM est maintenant largement disponible, y compris sur Safari récent, mais les anciennes versions Safari et iOS ont longtemps été partielles. Hoard doit le traiter comme moderne-natif, pas universel-natif. |
+| MKV / Matroska avec codecs web à l'intérieur | Ne pas préférer nativement par défaut | Le support HTML5 navigateur n'est pas défini de façon fiable par le seul conteneur, et Matroska reste un mauvais pari par défaut pour la lecture directe dans le navigateur. |
+| MOV / QuickTime historique / conteneurs MPEG anciens | Ne pas préférer nativement par défaut | Les conteneurs historiques ou très dépendants d'une plate-forme ne constituent pas une base web solide, même quand le codec embarqué est courant. |
 
 ## Conclusions pratiques pour Hoard
 
-### Base sure en lecture native
+### Base sûre en lecture native
 
-Si Hoard sait qu'un fichier est en `video/mp4` avec video H.264/AVC et audio AAC, la lecture native peut rester le choix par defaut.
+Si Hoard sait qu'un fichier est en `video/mp4` avec vidéo H.264/AVC et audio AAC, la lecture native peut rester le choix par défaut.
 
-### Formats qui doivent etre verifies selon l'appareil
+### Formats qui doivent être vérifiés selon l'appareil
 
-Ces formats ne doivent etre preferes nativement qu'apres verification du navigateur et de l'appareil courants :
+Ces formats ne doivent être préférés nativement qu'après vérification du navigateur et de l'appareil courants :
 
 - HEVC / H.265
 - AV1
 - WebM / VP8 / VP9
-- Tout ce qui depend du support Safari recent
-- Toute combinaison avec piste audio atypique, profondeur de couleur elevee, HDR ou particularite de conteneur
+- Tout ce qui dépend du support Safari récent
+- Toute combinaison avec piste audio atypique, profondeur de couleur élevée, HDR ou particularité de conteneur
 
 ### Formats qui doivent rester sur des chemins de repli
 
-Ces formats ne doivent pas etre traites comme surs cote navigateur tant que Hoard ne dispose pas d'une preuve contraire :
+Ces formats ne doivent pas être traités comme sûrs côté navigateur tant que Hoard ne dispose pas d'une preuve contraire :
 
 - MKV / Matroska
 - MOV et autres conteneurs historiques
-- Combinaisons conteneur / codec non identifiees
+- Combinaisons conteneur / codec non identifiées
 
-## Strategie de detection recommandee
+## Stratégie de détection recommandée
 
-BL-019 n'implemente pas encore cette strategie, mais fixe la direction recommandee.
+BL-019 n'implémente pas encore cette stratégie, mais fixe la direction recommandée.
 
-1. Ajouter un endpoint de metadonnees leger base sur `ffprobe`.
-2. Retourner au minimum : conteneur, codec video, codec audio, largeur, hauteur, debit, frequence d'image, canaux audio, frequence d'echantillonnage et profondeur de couleur quand elle est disponible.
-3. Construire cote frontend une chaine MIME precise, par exemple `video/mp4; codecs="avc1.640028, mp4a.40.2"`.
-4. Appeler `video.canPlayType(contentType)` comme premier filtre peu couteux.
-5. Quand les metadonnees sont completes et que `navigator.mediaCapabilities.decodingInfo` est disponible, verifier exactement le fichier en `type: "file"`.
+1. Ajouter un endpoint de métadonnées léger basé sur `ffprobe`.
+2. Retourner au minimum : conteneur, codec vidéo, codec audio, largeur, hauteur, débit, fréquence d'image, canaux audio, fréquence d'échantillonnage et profondeur de couleur quand elle est disponible.
+3. Construire côté frontend une chaîne MIME précise, par exemple `video/mp4; codecs="avc1.640028, mp4a.40.2"`.
+4. Appeler `video.canPlayType(contentType)` comme premier filtre peu coûteux.
+5. Quand les métadonnées sont complètes et que `navigator.mediaCapabilities.decodingInfo` est disponible, vérifier exactement le fichier en `type: "file"`.
 6. Utiliser la lecture native uniquement lorsque le navigateur annonce un support effectif.
-7. Conserver le retry actuel sur `/api/transcode` via `video.onerror` comme filet de securite final.
-8. Mettre en cache les resultats de verification par empreinte media et signature navigateur afin d'eviter de recalculer la decision a chaque ouverture.
+7. Conserver le retry actuel sur `/api/transcode` via `video.onerror` comme filet de sécurité final.
+8. Mettre en cache les résultats de vérification par empreinte média et signature navigateur afin d'éviter de recalculer la décision à chaque ouverture.
 
-## Regles a conserver
+## Règles à conserver
 
-- Ne pas decider a partir du seul user agent.
-- Ne pas assimiler "iPad" a "tous les fichiers HEVC passent en natif".
-- Ne pas assimiler "Safari supporte WebM" a "toutes les combinaisons WebM sont sures".
-- Traiter le conteneur, les codecs et la capacite materielle comme des entrees distinctes.
-- Conserver `/api/transcode` comme echappatoire de compatibilite meme apres ajout du probing.
+- Ne pas décider à partir du seul user agent.
+- Ne pas assimiler "iPad" à "tous les fichiers HEVC passent en natif".
+- Ne pas assimiler "Safari supporte WebM" à "toutes les combinaisons WebM sont sûres".
+- Traiter le conteneur, les codecs et la capacité matérielle comme des entrées distinctes.
+- Conserver `/api/transcode` comme échappatoire de compatibilité même après ajout du probing.
 
-## Decision produit a l'issue de cette investigation
+## Décision produit à l'issue de cette investigation
 
-La conclusion immediate pour Hoard doit etre :
+La conclusion immédiate pour Hoard doit être :
 
-1. Conserver le fallback actuel `/api/stream` puis `/api/transcode` tant que le support de metadonnees n'existe pas.
-2. Planifier l'extraction de metadonnees avant de changer les heuristiques native-versus-transcode.
-3. Une fois le probing ajoute, ne marquer comme universellement native-first que MP4/H.264/AAC.
-4. Marquer les familles HEVC, AV1 et WebM comme lecture native conditionnelle sur verification a l'execution.
-5. Conserver des regles prudentes de fallback pour MKV et les conteneurs historiques.
+1. Conserver le fallback actuel `/api/stream` puis `/api/transcode` tant que le support de métadonnées n'existe pas.
+2. Planifier l'extraction de métadonnées avant de changer les heuristiques native-versus-transcode.
+3. Une fois le probing ajouté, ne marquer comme universellement native-first que MP4/H.264/AAC.
+4. Marquer les familles HEVC, AV1 et WebM comme lecture native conditionnelle sur vérification à l'exécution.
+5. Conserver des règles prudentes de fallback pour MKV et les conteneurs historiques.
 
-## Sources utilisees
+## Sources utilisées
 
-- Documentation Apple WebKit sur la livraison de contenu video dans Safari, y compris la recommandation d'utiliser du MP4 H.264 pour les fichiers statiques.
+- Documentation Apple WebKit sur la livraison de contenu vidéo dans Safari, y compris la recommandation d'utiliser du MP4 H.264 pour les fichiers statiques.
 - Documentation MDN pour `HTMLMediaElement.canPlayType()`.
 - Documentation MDN pour `MediaCapabilities.decodingInfo()`.
-- Guides MDN sur les conteneurs media, la compatibilite codec et la gestion des medias non supportes.
-- Tableaux Can I Use pour HEVC, WebM et AV1, consultes le 2026-04-12 pour valider les tendances.
+- Guides MDN sur les conteneurs média, la compatibilité codec et la gestion des médias non supportés.
+- Tableaux Can I Use pour HEVC, WebM et AV1, consultés le 2026-04-12 pour valider les tendances.
