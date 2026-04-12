@@ -10,11 +10,14 @@ Ce document reste volontairement pragmatique : il ne cherche pas à lister tous 
 
 Aujourd'hui, Hoard suit ce flux :
 
-1. Ouvrir le fichier via `/api/stream`.
-2. Laisser le navigateur tenter la lecture du fichier original avec l'élément HTML5 `<video>`.
-3. Si la lecture échoue avec `MEDIA_ERR_SRC_NOT_SUPPORTED`, retenter via `/api/transcode`.
+1. Récupérer `/api/media-info` à la demande pour le fichier sélectionné.
+2. Construire des chaînes MIME tenant compte des codecs à partir des métadonnées ffprobe.
+3. Utiliser `video.canPlayType()` comme premier filtre.
+4. Quand il est disponible, utiliser `navigator.mediaCapabilities.decodingInfo()` avec les métadonnées exactes du fichier.
+5. Ouvrir le fichier via `/api/stream` uniquement quand le support est confirmé ou reste plausible.
+6. Si le probing rejette la lecture native, ou si le navigateur échoue ensuite avec `MEDIA_ERR_SRC_NOT_SUPPORTED`, retenter via `/api/transcode`.
 
-Cette approche reste simple et fonctionne déjà, mais la décision arrive trop tard. L'erreur navigateur n'apparaît qu'après une tentative de chargement, et Hoard ne possède aucune connaissance structurée du conteneur, des codecs, de la profondeur de couleur ou des autres contraintes du fichier.
+Cela conserve `/api/transcode` comme échappatoire de compatibilité, tout en déplaçant la majorité des décisions plus tôt pour éviter d'attendre systématiquement un échec de chargement natif avant de basculer.
 
 ## Matrice de compatibilite
 
@@ -53,18 +56,20 @@ Ces formats ne doivent pas être traités comme sûrs côté navigateur tant que
 - MOV et autres conteneurs historiques
 - Combinaisons conteneur / codec non identifiées
 
-## Stratégie de détection recommandée
+## Stratégie de détection implémentée
 
-BL-019 n'implémente pas encore cette stratégie, mais fixe la direction recommandée.
+1. `/api/media-info` retourne les métadonnées d'un fichier sélectionné via ffprobe.
+2. Le frontend construit à partir de cette réponse des chaînes MIME tenant compte des codecs.
+3. `video.canPlayType(contentType)` écarte tôt les combinaisons manifestement non supportées.
+4. `navigator.mediaCapabilities.decodingInfo()` est utilisé quand le navigateur le supporte et que les métadonnées sont assez complètes.
+5. La lecture native reste le choix par défaut seulement pour la base sûre ou pour les formats que le probing navigateur ne rejette pas.
+6. `/api/transcode` reste le fallback quand le probing rejette la lecture native ou quand le chargement natif échoue malgré tout à l'exécution.
 
-1. Ajouter un endpoint de métadonnées léger basé sur `ffprobe`.
-2. Retourner au minimum : conteneur, codec vidéo, codec audio, largeur, hauteur, débit, fréquence d'image, canaux audio, fréquence d'échantillonnage et profondeur de couleur quand elle est disponible.
-3. Construire côté frontend une chaîne MIME précise, par exemple `video/mp4; codecs="avc1.640028, mp4a.40.2"`.
-4. Appeler `video.canPlayType(contentType)` comme premier filtre peu coûteux.
-5. Quand les métadonnées sont complètes et que `navigator.mediaCapabilities.decodingInfo` est disponible, vérifier exactement le fichier en `type: "file"`.
-6. Utiliser la lecture native uniquement lorsque le navigateur annonce un support effectif.
-7. Conserver le retry actuel sur `/api/transcode` via `video.onerror` comme filet de sécurité final.
-8. Mettre en cache les résultats de vérification par empreinte média et signature navigateur afin d'éviter de recalculer la décision à chaque ouverture.
+## Limites restantes
+
+- Hoard ne met pas encore en cache les résultats de probing entre les sessions.
+- La logique de fallback reste limitée au player ; la liste de fichiers n'affiche pas encore d'indication de compatibilité codec.
+- Les fichiers inconnus ou décrits partiellement reposent encore sur un `/api/stream` optimiste puis un fallback à l'exécution.
 
 ## Règles à conserver
 
@@ -74,15 +79,14 @@ BL-019 n'implémente pas encore cette stratégie, mais fixe la direction recomma
 - Traiter le conteneur, les codecs et la capacité matérielle comme des entrées distinctes.
 - Conserver `/api/transcode` comme échappatoire de compatibilité même après ajout du probing.
 
-## Décision produit à l'issue de cette investigation
+## Règle produit actuelle
 
-La conclusion immédiate pour Hoard doit être :
+Hoard suit désormais ces règles :
 
-1. Conserver le fallback actuel `/api/stream` puis `/api/transcode` tant que le support de métadonnées n'existe pas.
-2. Planifier l'extraction de métadonnées avant de changer les heuristiques native-versus-transcode.
-3. Une fois le probing ajouté, ne marquer comme universellement native-first que MP4/H.264/AAC.
-4. Marquer les familles HEVC, AV1 et WebM comme lecture native conditionnelle sur vérification à l'exécution.
-5. Conserver des règles prudentes de fallback pour MKV et les conteneurs historiques.
+1. MP4/H.264/AAC reste universellement native-first.
+2. Les familles HEVC, AV1 et WebM ne restent natives que si le probing navigateur ne les rejette pas.
+3. MKV et les conteneurs historiques restent prudents et finissent généralement sur des chemins de fallback, sauf si le navigateur les accepte clairement.
+4. `/api/transcode` reste obligatoire comme dernier filet de compatibilité.
 
 ## Sources utilisées
 

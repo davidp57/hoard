@@ -1262,6 +1262,77 @@ async function fetchInitialSweepState(folderPath) {
   return resp.json();
 }
 
+async function fetchMediaInfo(path) {
+  const resp = await fetch(`${API}/api/media-info?path=${encodeURIComponent(path)}`).catch(() => null);
+  if (!resp || !resp.ok) return null;
+  return resp.json();
+}
+
+function buildMediaCapabilitiesConfig(mediaInfo) {
+  const info = mediaInfo && mediaInfo.video;
+  if (!info || !info.content_type) return null;
+  if (!(info.width > 0 && info.height > 0 && info.bitrate > 0 && info.framerate > 0)) {
+    return null;
+  }
+
+  const config = {
+    type: 'file',
+    video: {
+      contentType: info.content_type,
+      width: info.width,
+      height: info.height,
+      bitrate: info.bitrate,
+      framerate: info.framerate,
+    },
+  };
+
+  const audio = mediaInfo.audio;
+  if (audio && audio.content_type && audio.channels > 0 && audio.bitrate > 0 && audio.sample_rate > 0) {
+    config.audio = {
+      contentType: audio.content_type,
+      channels: String(audio.channels),
+      bitrate: audio.bitrate,
+      samplerate: audio.sample_rate,
+    };
+  }
+
+  return config;
+}
+
+async function choosePlaybackSource(entry, mediaInfo) {
+  const streamUrl = `${API}/api/stream?path=${encodeURIComponent(entry.path)}`;
+  const transcodeUrl = `${API}/api/transcode?path=${encodeURIComponent(entry.path)}`;
+
+  if (!mediaInfo) {
+    return { src: streamUrl, mode: 'stream', reason: 'no-metadata' };
+  }
+
+  if (mediaInfo.strategy === 'baseline') {
+    return { src: streamUrl, mode: 'stream', reason: 'baseline' };
+  }
+
+  const canPlayTypeValue = mediaInfo.content_type ? video.canPlayType(mediaInfo.content_type) : '';
+  if (!canPlayTypeValue) {
+    return { src: transcodeUrl, mode: 'transcode', reason: 'canplaytype-rejected' };
+  }
+
+  if (typeof navigator.mediaCapabilities?.decodingInfo === 'function') {
+    const config = buildMediaCapabilitiesConfig(mediaInfo);
+    if (config) {
+      try {
+        const result = await navigator.mediaCapabilities.decodingInfo(config);
+        if (!result.supported) {
+          return { src: transcodeUrl, mode: 'transcode', reason: 'decoding-unsupported' };
+        }
+      } catch (_) {
+        // Ignore probing errors and keep the optimistic native path.
+      }
+    }
+  }
+
+  return { src: streamUrl, mode: 'stream', reason: 'probe-passed' };
+}
+
 function refreshInitialSweepPanel() {
   const panel = document.getElementById('initial-sweep-panel');
   const status = document.getElementById('initial-sweep-status');
@@ -2206,24 +2277,12 @@ async function playVideo(idx) {
   vc.classList.add('active');
   document.getElementById('now-playing-name').textContent = entry.name;
 
-  video.src = `${API}/api/stream?path=${encodeURIComponent(entry.path)}`;
-
-  // Fallback: if codec unsupported, retry via server-side transcode (H.265 → H.264)
-  video.onerror = () => {
-    if (video.error && video.error.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED
-        && !video.src.includes('/api/transcode')) {
-      showToast('Transcodage H.265 → H.264…');
-      video.src = `${API}/api/transcode?path=${encodeURIComponent(entry.path)}`;
-      video.load();
-      video.onerror = null;
-    }
-  };
-
   // Restore position + cut points
   const folderPath = getCurrentFolderPath(entry.path);
-  const [prog, initialSweepState] = await Promise.all([
+  const [prog, initialSweepState, mediaInfo] = await Promise.all([
     fetch(`${API}/api/progress?path=${encodeURIComponent(entry.path)}`).then(r => r.json()),
     fetchInitialSweepState(folderPath),
+    fetchMediaInfo(entry.path),
   ]);
   currentInitialSweepState = initialSweepState;
   refreshInitialSweepPanel();
@@ -2235,6 +2294,15 @@ async function playVideo(idx) {
     cutOut = prog.cut_out;
     document.getElementById('cut-out-btn').classList.add('active');
   }
+  video.onerror = () => {
+    if (video.error && video.error.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED
+        && !video.src.includes('/api/transcode')) {
+      showToast('Lecture native refusée — transcodage…');
+      video.src = `${API}/api/transcode?path=${encodeURIComponent(entry.path)}`;
+      video.load();
+      video.onerror = null;
+    }
+  };
   video.onloadedmetadata = () => {
     updateCutUI();
     const safeDuration = Math.max(0, video.duration - 1);
@@ -2248,6 +2316,12 @@ async function playVideo(idx) {
     }
     video.play();
   };
+
+  const playbackChoice = await choosePlaybackSource(entry, mediaInfo);
+  if (playbackChoice.mode === 'transcode') {
+    showToast('Lecture native non confirmée — transcodage…');
+  }
+  video.src = playbackChoice.src;
 
   // Auto-save every 5s
   if (saveInterval) clearInterval(saveInterval);

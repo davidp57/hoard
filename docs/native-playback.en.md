@@ -10,11 +10,14 @@ This document is intentionally pragmatic: it does not try to list every codec pr
 
 Today Hoard uses this flow:
 
-1. Open the file with `/api/stream`.
-2. Let the browser try to play the original file with the native HTML5 `<video>` element.
-3. If playback fails with `MEDIA_ERR_SRC_NOT_SUPPORTED`, retry with `/api/transcode`.
+1. Fetch `/api/media-info` on demand for the selected file.
+2. Build codec-aware MIME types from ffprobe metadata.
+3. Use `video.canPlayType()` as the first gate.
+4. When available, use `navigator.mediaCapabilities.decodingInfo()` with the exact file metadata.
+5. Open the file with `/api/stream` only when support is confirmed or still plausible.
+6. If probing rejects native playback, or if the browser later fails with `MEDIA_ERR_SRC_NOT_SUPPORTED`, retry with `/api/transcode`.
 
-This is simple and already works, but the decision happens too late. The browser error arrives only after an attempted load, and Hoard has no structured knowledge of the file's container, codecs, bit depth, or other constraints.
+This keeps `/api/transcode` as the compatibility escape hatch, but moves most decisions earlier so Hoard does not always wait for a failed native load before switching.
 
 ## Compatibility Matrix
 
@@ -53,18 +56,20 @@ These should not be treated as browser-safe until Hoard has hard evidence otherw
 - MOV and other legacy containers
 - Unidentified container or codec combinations
 
-## Recommended Detection Strategy
+## Implemented Detection Strategy
 
-BL-019 does not implement this strategy yet, but it establishes the recommended direction.
+1. `/api/media-info` returns ffprobe-based metadata for a single selected file.
+2. The frontend builds codec-aware MIME strings from that response.
+3. `video.canPlayType(contentType)` rejects obviously unsupported combinations early.
+4. `navigator.mediaCapabilities.decodingInfo()` is used when the browser supports it and the metadata is complete enough.
+5. Native playback stays the default only for the safe baseline or for formats the browser probe does not reject.
+6. `/api/transcode` remains the fallback when probing rejects native playback or when the native load still fails at runtime.
 
-1. Add a lightweight metadata endpoint backed by `ffprobe`.
-2. Return at least: container, video codec, audio codec, width, height, bitrate, framerate, audio channels, sample rate, and bit depth when available.
-3. Build a precise MIME string in the frontend, for example `video/mp4; codecs="avc1.640028, mp4a.40.2"`.
-4. Call `video.canPlayType(contentType)` as a cheap first gate.
-5. When metadata is complete and `navigator.mediaCapabilities.decodingInfo` is available, probe the exact file as `type: "file"`.
-6. Use native playback only when the browser reports support.
-7. Keep the current `video.onerror` retry to `/api/transcode` as a last-resort safety net.
-8. Cache probe results by a media fingerprint plus browser signature so repeated opens do not re-run the full decision path unnecessarily.
+## Remaining Gaps
+
+- Hoard still does not cache probe results across sessions.
+- The fallback logic remains player-side only; file lists are not pre-annotated with codec support.
+- Unknown or partially described files still rely on optimistic `/api/stream` plus runtime fallback.
 
 ## Rules To Keep
 
@@ -74,15 +79,14 @@ BL-019 does not implement this strategy yet, but it establishes the recommended 
 - Treat container, codecs, and hardware capability as separate inputs.
 - Keep `/api/transcode` as the compatibility escape hatch even after probing is added.
 
-## Product Decision After This Investigation
+## Current Product Rule
 
-The immediate outcome for Hoard should be:
+Hoard now follows this rule set:
 
-1. Keep the current optimistic `/api/stream` then `/api/transcode` fallback until metadata support exists.
-2. Plan metadata extraction before changing native-versus-transcode heuristics.
-3. After probing is added, only mark MP4/H.264/AAC as universally native-first.
-4. Mark HEVC, AV1, and WebM families as conditional native playback based on runtime probing.
-5. Keep MKV and legacy containers on conservative fallback rules.
+1. MP4/H.264/AAC remains universally native-first.
+2. HEVC, AV1, and WebM families are native only when browser probing does not reject them.
+3. MKV and legacy containers remain conservative and usually end up on fallback paths unless the browser clearly accepts them.
+4. `/api/transcode` stays mandatory as the last compatibility fallback.
 
 ## Sources Used
 

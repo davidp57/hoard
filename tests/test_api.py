@@ -1,5 +1,6 @@
 """Unit tests for MediaBrowser API endpoints."""
 
+import json
 import sys
 import threading
 from unittest.mock import MagicMock
@@ -8,6 +9,7 @@ import pytest
 from starlette.testclient import TestClient  # bundled with fastapi
 
 # Env vars are already set by conftest.py before this import
+import backend.main as main_mod
 from backend.main import MEDIA_ROOT, app
 
 client = TestClient(app)
@@ -299,6 +301,117 @@ class TestStream:
 
     def test_stream_path_traversal_blocked(self):
         resp = client.get("/api/stream?path=../../etc/passwd")
+        assert resp.status_code == 403
+
+
+class TestMediaInfo:
+    def test_media_info_returns_baseline_strategy_for_mp4_h264_aac(self, video_file, monkeypatch):
+        ffprobe_payload = {
+            "streams": [
+                {
+                    "codec_type": "video",
+                    "codec_name": "h264",
+                    "codec_tag_string": "avc1",
+                    "width": 1920,
+                    "height": 1080,
+                    "bit_rate": "1500000",
+                    "r_frame_rate": "30000/1001",
+                    "bits_per_raw_sample": "8",
+                },
+                {
+                    "codec_type": "audio",
+                    "codec_name": "aac",
+                    "codec_tag_string": "mp4a",
+                    "channels": 2,
+                    "sample_rate": "48000",
+                    "bit_rate": "128000",
+                },
+            ],
+            "format": {
+                "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+                "bit_rate": "1628000",
+                "duration": "60.0",
+            },
+        }
+
+        monkeypatch.setattr(main_mod, "FFPROBE_BIN", "ffprobe")
+        monkeypatch.setattr(
+            main_mod.subprocess,
+            "run",
+            lambda *args, **kwargs: MagicMock(stdout=json.dumps(ffprobe_payload)),
+        )
+
+        resp = client.get(f"/api/media-info?path={video_file}")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["path"] == video_file
+        assert data["mime_type"] == "video/mp4"
+        assert data["strategy"] == "baseline"
+        assert data["content_type"] == 'video/mp4; codecs="avc1, mp4a.40.2"'
+        assert data["video"]["codec"] == "h264"
+        assert data["video"]["content_type"] == 'video/mp4; codecs="avc1"'
+        assert data["audio"]["codec"] == "aac"
+        assert data["audio"]["content_type"] == 'audio/mp4; codecs="mp4a.40.2"'
+
+    def test_media_info_returns_probe_strategy_for_mp4_hevc(self, video_file, monkeypatch):
+        ffprobe_payload = {
+            "streams": [
+                {
+                    "codec_type": "video",
+                    "codec_name": "hevc",
+                    "codec_tag_string": "hvc1",
+                    "width": 3840,
+                    "height": 2160,
+                    "bit_rate": "9000000",
+                    "avg_frame_rate": "24/1",
+                    "bits_per_raw_sample": "10",
+                },
+                {
+                    "codec_type": "audio",
+                    "codec_name": "aac",
+                    "codec_tag_string": "mp4a",
+                    "channels": 6,
+                    "sample_rate": "48000",
+                    "bit_rate": "384000",
+                },
+            ],
+            "format": {
+                "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+                "bit_rate": "9384000",
+                "duration": "120.0",
+            },
+        }
+
+        monkeypatch.setattr(main_mod, "FFPROBE_BIN", "ffprobe")
+        monkeypatch.setattr(
+            main_mod.subprocess,
+            "run",
+            lambda *args, **kwargs: MagicMock(stdout=json.dumps(ffprobe_payload)),
+        )
+
+        resp = client.get(f"/api/media-info?path={video_file}")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["strategy"] == "probe"
+        assert data["content_type"] == 'video/mp4; codecs="hvc1, mp4a.40.2"'
+        assert data["video"]["codec"] == "hevc"
+        assert data["video"]["bit_depth"] == 10
+
+    def test_media_info_returns_503_without_ffprobe(self, video_file, monkeypatch):
+        monkeypatch.setattr(main_mod, "FFPROBE_BIN", "")
+
+        resp = client.get(f"/api/media-info?path={video_file}")
+
+        assert resp.status_code == 503
+
+    def test_media_info_not_found(self):
+        resp = client.get("/api/media-info?path=ghost.mp4")
+        assert resp.status_code == 404
+
+    def test_media_info_path_traversal_blocked(self):
+        resp = client.get("/api/media-info?path=../../etc/passwd")
         assert resp.status_code == 403
 
 

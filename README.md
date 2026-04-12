@@ -20,6 +20,7 @@ Hoard remplace un lecteur vidéo mobile sur NAS. Il comble un besoin que Jellyfi
 - 🟡 État de lecture visible dans la liste : **non vu** / **en cours** (% + barre) / **vu** (≥ 90 %)
 - 📌 Dossiers rapides épinglables pour déplacement en 2 taps
 - ✂ Découpe vidéo intégrée (via ffmpeg)
+- 🧠 Sélection de lecture plus intelligente : Hoard vérifie d'abord la lecture native possible avant de basculer vers le transcodage
 - 📥 **Téléchargement de vidéos web** via bookmarklet + yt-dlp : envoie n'importe quelle vidéo en ligne directement sur le NAS depuis n'importe quel onglet, sans quitter la page
 - 👆 Gestes tactiles : seek, volume, luminosité, double-tap zones
 - ⌨ Raccourcis clavier
@@ -67,6 +68,7 @@ Hoard is a web video player and file manager for a NAS. It fills a gap that Jell
 - 🟡 Watch status visible in the list: **unseen** / **in progress** (% + bar) / **watched** (≥ 90 %)
 - 📌 Pinnable quick folders for two-tap moves
 - ✂ Built-in video trim (via ffmpeg)
+- 🧠 Smarter playback selection: Hoard probes native browser playback before falling back to transcoding
 - 📥 **Web video download** via bookmarklet + yt-dlp: send any online video directly to the NAS from any browser tab, without leaving the page
 - 👆 Touch gestures: seek, volume, brightness, double-tap zones
 - ⌨ Keyboard shortcuts

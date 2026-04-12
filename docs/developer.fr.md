@@ -91,6 +91,7 @@ def safe_path(rel: str) -> Path:
 | GET | `/api/browse?path=` | Parcourt l'arborescence (usage : modal de déplacement) |
 | GET | `/api/settings` | Lit les paramètres utilisateur |
 | POST | `/api/settings` | Sauvegarde les paramètres |
+| GET | `/api/media-info?path=` | Lit à la demande les métadonnées de lecture via ffprobe |
 | GET | `/api/stream?path=` | Stream HTTP avec support `Range` (seeking natif) |
 | GET | `/api/transcode?path=` | Stream transcodé via ffmpeg |
 | POST | `/api/download` | Télécharge une vidéo web via yt-dlp `{url, cookies?, referer?, title?}` |
@@ -99,9 +100,16 @@ def safe_path(rel: str) -> Path:
 
 ### Lecture native versus transcodage
 
-Hoard tente aujourd'hui la lecture native en premier en assignant `/api/stream` à l'élément vidéo HTML5. Si le navigateur rejette la source avec `MEDIA_ERR_SRC_NOT_SUPPORTED`, le frontend retente via `/api/transcode`.
+Hoard récupère maintenant `/api/media-info` avant la lecture quand c'est possible, puis utilise les métadonnées de conteneur et de codecs retournées pour décider si la lecture native est vraisemblablement sûre.
 
-BL-019 documente l'étape suivante : passer d'un simple fallback à l'erreur à une décision guidée par les métadonnées afin que Hoard ne privilégie la lecture native que lorsque le navigateur et l'appareil confirment réellement la prise en charge du conteneur et des codecs du fichier. Voir `docs/native-playback.fr.md` pour la matrice de compatibilité et la stratégie de détection recommandée.
+Le frontend applique une échelle de décision :
+
+1. `video.canPlayType()` sur la chaîne MIME combinant conteneur et codecs.
+2. `navigator.mediaCapabilities.decodingInfo()` quand le navigateur l'expose et que les métadonnées sont assez complètes.
+3. `/api/stream` quand le support est confirmé ou reste plausible.
+4. `/api/transcode` quand le support est rejeté ou échoue ensuite au chargement réel.
+
+Voir `docs/native-playback.fr.md` pour la matrice de compatibilité et la stratégie désormais implémentée.
 
 ### Schéma SQLite
 

@@ -233,9 +233,9 @@ Any concrete point raised by the user that needs follow-up beyond the current se
 - **Dates**: `created=2026-04-12`, `started=2026-04-12`, `completed=2026-04-12`
 
 - **Why**: some devices currently fall back to transcoding, for example H.265 to H.264 on iPad, even though native playback support may exist for part of the matrix of codecs, containers, browser engines, and hardware.
-- **Expected outcome**: produce a clear compatibility matrix and identify where Hoard can prefer native playback over transcoding.
-- **Scope**: codec support, container support, browser differences, media source constraints, and practical detection strategy in the frontend/backend.
-- **Attention point**: this should start as an investigation ticket, not as an implementation assumption.
+- **Expected outcome**: produce a clear compatibility matrix and ship a first metadata-driven decision path so Hoard can prefer native playback over transcoding when browser support is actually confirmed.
+- **Scope**: codec support, container support, browser differences, media source constraints, an on-demand metadata endpoint, and practical detection strategy in the frontend/backend.
+- **Attention point**: keep `/api/transcode` as the safety net even after browser-side probing is added.
 
 ## Ready
 
@@ -247,7 +247,7 @@ Any concrete point raised by the user that needs follow-up beyond the current se
 
 ## Done
 
-- **BL-019** — `created=2026-04-12`, `started=2026-04-12`, `completed=2026-04-12` — Native playback investigation delivered with a bilingual compatibility note, a documented native-versus-transcode decision ladder, and product guidance for when Hoard should probe support before preferring `/api/stream`.
+- **BL-019** — `created=2026-04-12`, `started=2026-04-12`, `completed=2026-04-12` — Native playback investigation and first implementation delivered with a bilingual compatibility note, a new `/api/media-info` ffprobe endpoint, and player-side probing via `canPlayType()` plus `MediaCapabilities` before falling back to `/api/transcode`.
 
 - **BL-018** — `created=2026-04-12`, `started=2026-04-12`, `completed=2026-04-12` — Fullscreen controls auto-hide delivered: controls hide immediately on fullscreen entry, reappear on mouse movement or keyboard interaction on desktop, and via the bottom-centre tap zone on touch devices.
 - **BL-017** — `created=2026-04-12`, `started=2026-04-12`, `completed=2026-04-12` — Configurable initial sweep per folder delivered with a global default in Settings, a per-folder override from the player UI, and resume behavior that preserves existing saved progress.

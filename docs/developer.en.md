@@ -91,6 +91,7 @@ def safe_path(rel: str) -> Path:
 | GET | `/api/browse?path=` | Browse the directory tree (used by the move modal) |
 | GET | `/api/settings` | Read user settings |
 | POST | `/api/settings` | Save user settings |
+| GET | `/api/media-info?path=` | Read on-demand playback metadata via ffprobe |
 | GET | `/api/stream?path=` | HTTP video stream with `Range` support (native seeking) |
 | GET | `/api/transcode?path=` | Transcoded stream via ffmpeg |
 | POST | `/api/download` | Download a web video via yt-dlp `{url, cookies?, referer?, title?}` |
@@ -99,9 +100,16 @@ def safe_path(rel: str) -> Path:
 
 ### Native Playback Versus Transcode
 
-Hoard currently tries native playback first by assigning `/api/stream` to the HTML5 video element. If the browser rejects the source with `MEDIA_ERR_SRC_NOT_SUPPORTED`, the frontend retries with `/api/transcode`.
+Hoard now fetches `/api/media-info` before playback when possible, then uses the returned container and codec metadata to decide whether native playback is likely safe.
 
-BL-019 documents the next step: move from a pure runtime fallback to a metadata-driven probe so Hoard can prefer native playback only when the browser and device actually support the file's container and codecs. See `docs/native-playback.en.md` for the compatibility matrix and the recommended detection ladder.
+The frontend applies a layered decision ladder:
+
+1. `video.canPlayType()` against the combined container/codecs MIME string.
+2. `navigator.mediaCapabilities.decodingInfo()` when the browser exposes it and the metadata is complete enough.
+3. `/api/stream` when support is confirmed or still plausible.
+4. `/api/transcode` when support is rejected or later fails at load time.
+
+See `docs/native-playback.en.md` for the compatibility matrix and the implemented strategy.
 
 ### SQLite Schema
 

@@ -1,5 +1,6 @@
 import hashlib
 import ipaddress
+import json
 import mimetypes
 import os
 import queue as _queue_module
@@ -44,7 +45,32 @@ def _resolve_ffmpeg() -> str:
     return "ffmpeg"
 
 
+def _resolve_ffprobe() -> str:
+    explicit = os.environ.get("FFPROBE_BIN")
+    if explicit:
+        return explicit
+    if shutil.which("ffprobe"):
+        return "ffprobe"
+    explicit_ffmpeg = os.environ.get("FFMPEG_BIN") or ""
+    if explicit_ffmpeg:
+        ffmpeg_path = Path(explicit_ffmpeg)
+        if ffmpeg_path.exists():
+            probe_name = "ffprobe.exe" if ffmpeg_path.suffix.lower() == ".exe" else "ffprobe"
+            candidate = ffmpeg_path.with_name(probe_name)
+            if candidate.exists():
+                return str(candidate)
+    local_app = os.environ.get("LOCALAPPDATA", "")
+    if local_app:
+        winget_base = Path(local_app) / "Microsoft" / "WinGet" / "Packages"
+        if winget_base.exists():
+            for candidate in winget_base.rglob("ffprobe.exe"):
+                if "LosslessCut" not in str(candidate):
+                    return str(candidate)
+    return ""
+
+
 FFMPEG_BIN = _resolve_ffmpeg()
+FFPROBE_BIN = _resolve_ffprobe()
 
 # ── App ───────────────────────────────────────────────────────────────────────
 VERSION = "1.0.0"
@@ -650,6 +676,204 @@ VIDEO_EXTENSIONS = {
 
 def is_video(path: Path) -> bool:
     return path.suffix.lower() in VIDEO_EXTENSIONS
+
+
+def _safe_int(value):
+    if value in (None, ""):
+        return None
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return None
+
+
+def _safe_float(value):
+    if value in (None, ""):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _parse_frame_rate(value):
+    if value in (None, "", "0/0"):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if "/" in str(value):
+        num_str, den_str = str(value).split("/", 1)
+        num = _safe_float(num_str)
+        den = _safe_float(den_str)
+        if not num or not den:
+            return None
+        return num / den
+    return _safe_float(value)
+
+
+def _infer_bit_depth(stream):
+    bits = _safe_int(stream.get("bits_per_raw_sample")) or _safe_int(stream.get("bits_per_sample"))
+    if bits:
+        return bits
+    pix_fmt = (stream.get("pix_fmt") or "").lower()
+    match = re.search(r"p(\d+)(?:le|be)?$", pix_fmt)
+    if match:
+        return int(match.group(1))
+    if pix_fmt.endswith("p"):
+        return 8
+    return None
+
+
+def _codec_parameter(codec_name: str | None, codec_tag: str | None) -> str | None:
+    codec = (codec_name or "").lower()
+    tag = (codec_tag or "").lower()
+    if codec == "h264":
+        return tag if tag in {"avc1", "avc3"} else "avc1"
+    if codec in {"hevc", "h265"}:
+        return tag if tag in {"hvc1", "hev1"} else "hvc1"
+    if codec == "aac":
+        return "mp4a.40.2"
+    if codec == "opus":
+        return "opus"
+    if codec == "vorbis":
+        return "vorbis"
+    if codec == "vp8":
+        return "vp8"
+    if codec == "vp9":
+        return "vp09"
+    if codec == "av1":
+        return "av01"
+    return None
+
+
+def _audio_mime_type(video_mime_type: str | None) -> str | None:
+    if video_mime_type == "video/mp4":
+        return "audio/mp4"
+    if video_mime_type == "video/webm":
+        return "audio/webm"
+    return None
+
+
+def _combine_content_type(mime_type: str | None, codec_params: list[str]) -> str | None:
+    if not mime_type or not codec_params:
+        return None
+    joined = ", ".join(codec_params)
+    return f'{mime_type}; codecs="{joined}"'
+
+
+def _playback_strategy(
+    mime_type: str | None, video_codec: str | None, audio_codec: str | None
+) -> str:
+    codec = (video_codec or "").lower()
+    audio = (audio_codec or "").lower() or None
+    if mime_type == "video/mp4" and codec == "h264" and audio in {None, "aac"}:
+        return "baseline"
+    if mime_type in {"video/mp4", "video/webm"} and codec in {
+        "h264",
+        "hevc",
+        "h265",
+        "vp8",
+        "vp9",
+        "av1",
+    }:
+        return "probe"
+    return "fallback"
+
+
+def _read_media_info(file: Path) -> dict:
+    if not FFPROBE_BIN:
+        raise HTTPException(status_code=503, detail="FFprobe not available")
+
+    cmd = [
+        FFPROBE_BIN,
+        "-v",
+        "error",
+        "-show_entries",
+        "format=format_name,bit_rate,duration:stream=index,codec_type,codec_name,codec_tag_string,width,height,bit_rate,r_frame_rate,avg_frame_rate,bits_per_raw_sample,bits_per_sample,pix_fmt,channels,sample_rate",
+        "-show_streams",
+        "-of",
+        "json",
+        str(file),
+    ]
+    try:
+        completed = subprocess.run(
+            cmd,
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=503, detail="FFprobe not available") from exc
+    except subprocess.CalledProcessError as exc:
+        raise HTTPException(status_code=422, detail="Could not read media metadata") from exc
+
+    payload = json.loads(completed.stdout or "{}")
+    streams = payload.get("streams") or []
+    format_info = payload.get("format") or {}
+    video_stream = next((stream for stream in streams if stream.get("codec_type") == "video"), None)
+    audio_stream = next((stream for stream in streams if stream.get("codec_type") == "audio"), None)
+    if not video_stream:
+        raise HTTPException(status_code=422, detail="Video stream metadata missing")
+
+    mime_type = mimetypes.guess_type(str(file))[0] or "video/mp4"
+    container = file.suffix.lower().lstrip(".") or (format_info.get("format_name") or "unknown")
+
+    video_codec_param = _codec_parameter(
+        video_stream.get("codec_name"), video_stream.get("codec_tag_string")
+    )
+    audio_codec_param = None
+    audio_mime_type = _audio_mime_type(mime_type)
+    if audio_stream:
+        audio_codec_param = _codec_parameter(
+            audio_stream.get("codec_name"), audio_stream.get("codec_tag_string")
+        )
+
+    video_payload = {
+        "codec": video_stream.get("codec_name"),
+        "codec_tag": video_stream.get("codec_tag_string"),
+        "width": _safe_int(video_stream.get("width")),
+        "height": _safe_int(video_stream.get("height")),
+        "bitrate": _safe_int(video_stream.get("bit_rate"))
+        or _safe_int(format_info.get("bit_rate")),
+        "framerate": _parse_frame_rate(video_stream.get("avg_frame_rate"))
+        or _parse_frame_rate(video_stream.get("r_frame_rate")),
+        "bit_depth": _infer_bit_depth(video_stream),
+        "content_type": _combine_content_type(
+            mime_type, [video_codec_param] if video_codec_param else []
+        ),
+    }
+
+    audio_payload = None
+    if audio_stream:
+        audio_payload = {
+            "codec": audio_stream.get("codec_name"),
+            "codec_tag": audio_stream.get("codec_tag_string"),
+            "channels": _safe_int(audio_stream.get("channels")),
+            "sample_rate": _safe_int(audio_stream.get("sample_rate")),
+            "bitrate": _safe_int(audio_stream.get("bit_rate")),
+            "content_type": _combine_content_type(
+                audio_mime_type, [audio_codec_param] if audio_codec_param else []
+            ),
+        }
+
+    combined_codec_params = [p for p in (video_codec_param, audio_codec_param) if p]
+    return {
+        "path": to_rel(file),
+        "container": container,
+        "format_name": format_info.get("format_name"),
+        "mime_type": mime_type,
+        "duration": _safe_float(format_info.get("duration")),
+        "bitrate": _safe_int(format_info.get("bit_rate")),
+        "strategy": _playback_strategy(
+            mime_type,
+            video_stream.get("codec_name"),
+            audio_stream.get("codec_name") if audio_stream else None,
+        ),
+        "content_type": _combine_content_type(mime_type, combined_codec_params),
+        "video": video_payload,
+        "audio": audio_payload,
+    }
 
 
 def safe_path(rel: str) -> Path:
@@ -1383,6 +1607,14 @@ def stream_video(path: str, request: Request):
         media_type=mime_type,
         headers={"Accept-Ranges": "bytes", "Content-Length": str(file_size)},
     )
+
+
+@app.get("/api/media-info")
+def media_info(path: str):
+    file = safe_path(path)
+    if not file.exists() or not is_video(file):
+        raise HTTPException(status_code=404)
+    return _read_media_info(file)
 
 
 @app.get("/api/transcode")
