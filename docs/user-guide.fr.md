@@ -51,6 +51,11 @@ En passant sur un fichier (ou en appuyant longuement sur mobile), des boutons d'
 | **Volume** | Curseur de volume |
 | **⛶** | Plein écran |
 
+Quand tu passes en plein écran, Hoard masque automatiquement les contrôles pour maximiser la zone vidéo.
+
+- Sur desktop, bouge la souris ou utilise les raccourcis clavier pour faire réapparaître temporairement les contrôles.
+- Sur tactile, utilise la zone de tap en bas au centre déjà prévue pour afficher ou masquer les contrôles.
+
 ### Reprise automatique
 
 La position est sauvegardée automatiquement toutes les 5 secondes. Lorsque tu ouvres à nouveau un fichier, la lecture reprend là où tu t'es arrêté.
@@ -81,7 +86,7 @@ Les gestes fonctionnent directement sur l'image vidéo.
 | Zone | Action |
 |------|--------|
 | Centre (haut) | Lecture / Pause |
-| Centre (bas, dernière rangée) | Afficher / masquer les contrôles |
+| Centre (bas, dernière rangée) | Afficher / masquer les contrôles en plein écran |
 
 ### Double-tap
 

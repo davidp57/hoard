@@ -72,7 +72,6 @@ Any concrete point raised by the user that needs follow-up beyond the current se
 | BL-014 | 2026-04-12 | Improvement | Platform | P3 | Add a PWA manifest and service worker so Hoard can be installed on tablet and desktop devices |
 | BL-015 | 2026-04-12 | Evolution | Watch progress | P2 | Support multi-user watch progress instead of a single global progress row per file |
 | BL-016 | 2026-04-12 | Improvement | Media | P3 | Display video metadata in the UI (duration, resolution, codec), likely via `ffprobe` |
-| BL-018 | 2026-04-12 | Improvement | Player / Fullscreen | P2 | Hide player controls automatically when entering fullscreen, while preserving an obvious way to bring them back |
 | BL-019 | 2026-04-12 | Research | Playback / Codecs | P1 | Investigate broader native playback support across codecs and containers before transcoding, especially on iPad and other Safari-based clients |
 
 ## Subject Details
@@ -224,7 +223,7 @@ Any concrete point raised by the user that needs follow-up beyond the current se
 
 ### BL-018 — Hide Controls In Fullscreen
 
-- **Dates**: `created=2026-04-12`
+- **Dates**: `created=2026-04-12`, `started=2026-04-12`, `completed=2026-04-12`
 
 - **Why**: visible controls take too much space in fullscreen playback, especially on tablets and smaller screens.
 - **Expected outcome**: hide player controls automatically in fullscreen and restore them on user interaction.
@@ -249,6 +248,7 @@ Any concrete point raised by the user that needs follow-up beyond the current se
 
 ## Done
 
+- **BL-018** — `created=2026-04-12`, `started=2026-04-12`, `completed=2026-04-12` — Fullscreen controls auto-hide delivered: controls hide immediately on fullscreen entry, reappear on mouse movement or keyboard interaction on desktop, and via the bottom-centre tap zone on touch devices.
 - **BL-017** — `created=2026-04-12`, `started=2026-04-12`, `completed=2026-04-12` — Configurable initial sweep per folder delivered with a global default in Settings, a per-folder override from the player UI, and resume behavior that preserves existing saved progress.
 - **BL-101** — `created=2026-04-05`, `started=2026-04-05`, `completed=2026-04-06` — Web video download delivered in v2.0 with a bookmarklet, yt-dlp integration, smart source detection, server-side HTML sniffing fallback, cookie / referer passthrough, and SSRF protection.
 - **BL-102** — `created=2026-04-06`, `started=2026-04-06`, `completed=2026-04-06` — Sequential download queue delivered in v2.0 with live queue modal, active badge, stop / cancel action, two-phase preparation, automatic temporary file cleanup, and download-folder auto-refresh.
