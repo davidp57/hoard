@@ -223,7 +223,7 @@ Any concrete point raised by the user that needs follow-up beyond the current se
 
 ### BL-018 — Hide Controls In Fullscreen
 
-- **Dates**: `created=2026-04-12`, `started=2026-04-12`
+- **Dates**: `created=2026-04-12`, `started=2026-04-12`, `completed=2026-04-12`
 
 - **Why**: visible controls take too much space in fullscreen playback, especially on tablets and smaller screens.
 - **Expected outcome**: hide player controls automatically in fullscreen and restore them on user interaction.
@@ -244,10 +244,11 @@ Any concrete point raised by the user that needs follow-up beyond the current se
 
 ## In Progress
 
-- **BL-018** — `started=2026-04-12` — Hide player controls automatically in fullscreen and reveal them again on user interaction without making fullscreen playback confusing on touch or desktop.
+- No topic yet.
 
 ## Done
 
+- **BL-018** — `created=2026-04-12`, `started=2026-04-12`, `completed=2026-04-12` — Fullscreen controls auto-hide delivered: controls hide immediately on fullscreen entry, reappear on mouse movement or keyboard interaction on desktop, and via the bottom-centre tap zone on touch devices.
 - **BL-017** — `created=2026-04-12`, `started=2026-04-12`, `completed=2026-04-12` — Configurable initial sweep per folder delivered with a global default in Settings, a per-folder override from the player UI, and resume behavior that preserves existing saved progress.
 - **BL-101** — `created=2026-04-05`, `started=2026-04-05`, `completed=2026-04-06` — Web video download delivered in v2.0 with a bookmarklet, yt-dlp integration, smart source detection, server-side HTML sniffing fallback, cookie / referer passthrough, and SSRF protection.
 - **BL-102** — `created=2026-04-06`, `started=2026-04-06`, `completed=2026-04-06` — Sequential download queue delivered in v2.0 with live queue modal, active badge, stop / cancel action, two-phase preparation, automatic temporary file cleanup, and download-folder auto-refresh.

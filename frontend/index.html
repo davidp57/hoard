@@ -1333,7 +1333,6 @@ function privacyClose() {
   video.pause();
   video.src = '';
   if (saveInterval) { clearInterval(saveInterval); saveInterval = null; }
-  resetFullscreenPlaybackUI();
   currentFile = null;
   currentInitialSweepState = null;
   document.getElementById('video-container').classList.remove('active');
