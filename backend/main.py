@@ -20,7 +20,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 # ── Config ────────────────────────────────────────────────────────────────────
 MEDIA_ROOT = Path(os.environ.get("MEDIA_ROOT", "/media"))
@@ -95,6 +95,13 @@ def init_db():
                 value TEXT NOT NULL
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS initial_sweep_folders (
+                path TEXT PRIMARY KEY,
+                seconds INTEGER NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
         conn.commit()
 
 
@@ -128,6 +135,11 @@ class MoveRequest(BaseModel):
 
 class QuickFolderRequest(BaseModel):
     path: str  # relative path from MEDIA_ROOT
+
+
+class InitialSweepFolderRequest(BaseModel):
+    path: str  # relative folder path from MEDIA_ROOT (empty string = root)
+    seconds: int = Field(ge=0, le=7200)
 
 
 class MkdirRequest(BaseModel):
@@ -668,8 +680,45 @@ def get_progress(path: Path) -> dict:
             "percent": round(pct, 1),
             "cut_in": row["cut_in"],
             "cut_out": row["cut_out"],
+            "has_saved_progress": True,
         }
-    return {"position": 0, "duration": 0, "percent": 0, "cut_in": None, "cut_out": None}
+    return {
+        "position": 0,
+        "duration": 0,
+        "percent": 0,
+        "cut_in": None,
+        "cut_out": None,
+        "has_saved_progress": False,
+    }
+
+
+def _validate_folder_setting_path(path: str) -> str:
+    if path in ("", "."):
+        return ""
+    target = safe_path(path)
+    if not target.exists() or not target.is_dir():
+        raise HTTPException(status_code=404, detail="Folder not found")
+    rel = to_rel(target)
+    return "" if rel == "." else rel
+
+
+def _get_initial_sweep_state(folder_path: str) -> dict[str, int | str | None]:
+    folder_rel = _validate_folder_setting_path(folder_path)
+    with get_db() as conn:
+        settings = _read_all_settings(conn)
+        row = conn.execute(
+            "SELECT seconds FROM initial_sweep_folders WHERE path = ?", (folder_rel,)
+        ).fetchone()
+    default_seconds = max(0, int(settings.get("initial_sweep_seconds", "0") or 0))
+    override_seconds = int(row["seconds"]) if row else None
+    effective_seconds = override_seconds if override_seconds is not None else default_seconds
+    return {
+        "path": folder_rel,
+        "default_seconds": default_seconds,
+        "override_seconds": override_seconds,
+        "effective_seconds": effective_seconds,
+        "source": "override" if override_seconds is not None else "default",
+    }
 
 
 def get_folder_state(folder: Path, progress_map: dict) -> str:
@@ -1019,6 +1068,45 @@ def remove_quick_folder(path: str):
     return {"ok": True}
 
 
+@app.get("/api/initial-sweep")
+def get_initial_sweep(path: str = ""):
+    return _get_initial_sweep_state(path)
+
+
+@app.post("/api/initial-sweep")
+def set_initial_sweep(body: InitialSweepFolderRequest):
+    folder_rel = _validate_folder_setting_path(body.path)
+    with get_db() as conn:
+        conn.execute(
+            """
+            INSERT INTO initial_sweep_folders (path, seconds, updated_at)
+            VALUES (?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(path) DO UPDATE SET
+                seconds=excluded.seconds,
+                updated_at=CURRENT_TIMESTAMP
+            """,
+            (folder_rel, body.seconds),
+        )
+        conn.commit()
+    return {"ok": True}
+
+
+@app.delete("/api/initial-sweep")
+def clear_initial_sweep(path: str = ""):
+    # Use safe_path for traversal protection only — no existence check, so stale
+    # overrides can still be cleared even if the folder was deleted/renamed.
+    if path in ("", "."):
+        folder_rel = ""
+    else:
+        target = safe_path(path)
+        rel = to_rel(target)
+        folder_rel = "" if rel == "." else rel
+    with get_db() as conn:
+        conn.execute("DELETE FROM initial_sweep_folders WHERE path = ?", (folder_rel,))
+        conn.commit()
+    return {"ok": True}
+
+
 # ── Filesystem browser (unrestricted, dirs only) ──────────────────────────────
 
 
@@ -1092,6 +1180,7 @@ _SETTINGS_KEYS = {
     "doubletap_right_bottom",  # seconds int
     "doubletap_right_mid",  # seconds int
     "doubletap_right_top",  # seconds int
+    "initial_sweep_seconds",  # seconds int, default 0 = disabled
     "download_folder",  # relative path from MEDIA_ROOT, default 'Downloads'
     "download_cookies_path",  # absolute path to a Netscape cookies.txt file, optional
 }
@@ -1115,6 +1204,7 @@ _SETTINGS_DEFAULTS: dict[str, str] = {
     "doubletap_right_bottom": "30",
     "doubletap_right_mid": "60",
     "doubletap_right_top": "90",
+    "initial_sweep_seconds": "0",
     "download_folder": "Downloads",
     "download_cookies_path": "",
 }
@@ -1157,6 +1247,7 @@ class SettingsPayload(BaseModel):
     doubletap_right_bottom: int | None = None
     doubletap_right_mid: int | None = None
     doubletap_right_top: int | None = None
+    initial_sweep_seconds: int | None = Field(default=None, ge=0, le=7200)
     download_folder: str | None = None
     download_cookies_path: str | None = None
 
@@ -1206,6 +1297,7 @@ def update_settings(body: SettingsPayload):
             ("doubletap_right_bottom", body.doubletap_right_bottom),
             ("doubletap_right_mid", body.doubletap_right_mid),
             ("doubletap_right_top", body.doubletap_right_top),
+            ("initial_sweep_seconds", body.initial_sweep_seconds),
             ("download_folder", body.download_folder),
             ("download_cookies_path", body.download_cookies_path),
         ]

@@ -85,6 +85,9 @@ def safe_path(rel: str) -> Path:
 | GET | `/api/quick-folders` | List pinned folders |
 | POST | `/api/quick-folders` | Pin a folder `{path}` |
 | DELETE | `/api/quick-folders?path=` | Unpin a folder |
+| GET | `/api/initial-sweep?path=` | Read the effective initial-sweep config for a folder |
+| POST | `/api/initial-sweep` | Set a folder override `{path, seconds}` |
+| DELETE | `/api/initial-sweep?path=` | Remove a folder override and fall back to the global default |
 | GET | `/api/browse?path=` | Browse the directory tree (used by the move modal) |
 | GET | `/api/settings` | Read user settings |
 | POST | `/api/settings` | Save user settings |
@@ -114,7 +117,23 @@ CREATE TABLE settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+
+CREATE TABLE initial_sweep_folders (
+    path TEXT PRIMARY KEY,
+    seconds INTEGER NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 ```
+
+### Initial Sweep
+
+Initial sweep lets Hoard start a **brand-new video** at a configured offset instead of `0`.
+
+- Global default: stored in the regular `settings` table as `initial_sweep_seconds`
+- Folder override: stored in `initial_sweep_folders`, keyed by relative folder path
+- Folder override wins over the global default
+- `0` means disabled
+- Saved playback progress always wins over any initial-sweep rule
 
 ### Background Jobs
 

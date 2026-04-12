@@ -40,6 +40,8 @@ def clean_media():
     try:
         _conn.execute("DELETE FROM progress")
         _conn.execute("DELETE FROM quick_folders")
+        _conn.execute("DELETE FROM settings")
+        _conn.execute("DELETE FROM initial_sweep_folders")
         _conn.commit()
     finally:
         _conn.close()
