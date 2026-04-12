@@ -38,9 +38,9 @@ Any concrete point raised by the user that needs follow-up beyond the current se
 
 ## Proposed Priorities For The Next Discussion
 
-1. **BL-005** — free-move destination picker in the filesystem tree.
-2. **BL-002** — sort controls in the file list.
-3. **BL-011** — basic authentication for LAN-external exposure.
+1. **BL-017** — configurable initial sweep per folder, with a global default and per-folder override.
+2. **BL-005** — free-move destination picker in the filesystem tree.
+3. **BL-019** — investigate broader native codec playback before transcoding.
 
 ## Inbox
 
@@ -62,6 +62,9 @@ Any concrete point raised by the user that needs follow-up beyond the current se
 | BL-014 | Improvement | Platform | P3 | Add a PWA manifest and service worker so Hoard can be installed on tablet and desktop devices |
 | BL-015 | Evolution | Watch progress | P2 | Support multi-user watch progress instead of a single global progress row per file |
 | BL-016 | Improvement | Media | P3 | Display video metadata in the UI (duration, resolution, codec), likely via `ffprobe` |
+| BL-017 | Improvement | Player / Resume | P1 | Add a configurable "initial sweep" per folder so new videos in that folder open at a defined time offset, with a global default in Settings and a per-folder override from the player UI |
+| BL-018 | Improvement | Player / Fullscreen | P2 | Hide player controls automatically when entering fullscreen, while preserving an obvious way to bring them back |
+| BL-019 | Research | Playback / Codecs | P1 | Investigate broader native playback support across codecs and containers before transcoding, especially on iPad and other Safari-based clients |
 
 ## Subject Details
 
@@ -160,6 +163,34 @@ Any concrete point raised by the user that needs follow-up beyond the current se
 - **Why**: codec, duration, and resolution would help identify files before opening them.
 - **Expected outcome**: display metadata in a lightweight detail pane or hover/card treatment.
 - **Attention point**: any `ffprobe` usage must stay performant and avoid making folder navigation sluggish.
+
+### BL-017 — Configurable Initial Sweep Per Folder
+
+- **Functional rules**:
+	- apply only when the file has no saved progress yet;
+	- do not apply to already watched or already started videos;
+	- allow `0` to mean "disabled";
+	- folder override wins over the global default.
+- **UX expectation**:
+	- global default is configured in Settings;
+	- per-folder value is editable directly from the player while a video from that folder is open;
+	- the player should make it clear whether the current folder uses the global value or an override.
+- **Data shape to discuss**: store a global `initial_sweep_seconds` setting plus a folder-level mapping keyed by relative folder path.
+- **Attention point**: the rule should never override an existing saved position, and the folder-level configuration must stay easy to understand and edit.
+- **Acceptance signal**: opening a brand-new video in a configured folder should start at the configured offset, while reopening the same video later should resume from its real saved progress instead.
+
+### BL-018 — Hide Controls In Fullscreen
+
+- **Why**: visible controls take too much space in fullscreen playback, especially on tablets and smaller screens.
+- **Expected outcome**: hide player controls automatically in fullscreen and restore them on user interaction.
+- **Attention point**: touch, mouse, and keyboard interactions need consistent behavior so controls remain discoverable and accessible.
+
+### BL-019 — Investigate Broader Native Codec Playback
+
+- **Why**: some devices currently fall back to transcoding, for example H.265 to H.264 on iPad, even though native playback support may exist for part of the matrix of codecs, containers, browser engines, and hardware.
+- **Expected outcome**: produce a clear compatibility matrix and identify where Hoard can prefer native playback over transcoding.
+- **Scope**: codec support, container support, browser differences, media source constraints, and practical detection strategy in the frontend/backend.
+- **Attention point**: this should start as an investigation ticket, not as an implementation assumption.
 
 ## Ready
 

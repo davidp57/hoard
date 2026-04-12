@@ -33,6 +33,7 @@ Hoard remplace un lecteur vidéo mobile sur NAS. Il comble un besoin que Jellyfi
 | **Guide utilisateur** | [docs/user-guide.fr.md](docs/user-guide.fr.md) | [docs/user-guide.en.md](docs/user-guide.en.md) |
 | **Installation** | [docs/installation.fr.md](docs/installation.fr.md) | [docs/installation.en.md](docs/installation.en.md) |
 | **Développeur** | [docs/developer.fr.md](docs/developer.fr.md) | [docs/developer.en.md](docs/developer.en.md) |
+| **Backlog** | [docs/backlog.en.md](docs/backlog.en.md) | [docs/backlog.en.md](docs/backlog.en.md) |
 
 ### Démarrage rapide
 
@@ -78,6 +79,7 @@ Hoard is a web video player and file manager for a NAS. It fills a gap that Jell
 | **User guide** | [docs/user-guide.fr.md](docs/user-guide.fr.md) | [docs/user-guide.en.md](docs/user-guide.en.md) |
 | **Installation** | [docs/installation.fr.md](docs/installation.fr.md) | [docs/installation.en.md](docs/installation.en.md) |
 | **Developer** | [docs/developer.fr.md](docs/developer.fr.md) | [docs/developer.en.md](docs/developer.en.md) |
+| **Backlog** | [docs/backlog.en.md](docs/backlog.en.md) | [docs/backlog.en.md](docs/backlog.en.md) |
 
 ### Quick start
 
