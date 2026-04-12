@@ -454,6 +454,16 @@ class TestInitialSweep:
         resp = client.get("/api/initial-sweep?path=../../etc")
         assert resp.status_code == 403
 
+    def test_delete_override_for_nonexistent_folder_succeeds(self):
+        # Clearing a stale override (folder deleted/renamed on disk) must not 404
+        resp = client.delete("/api/initial-sweep?path=no_such_folder")
+        assert resp.status_code == 200
+        assert resp.json()["ok"] is True
+
+    def test_delete_override_still_rejects_path_traversal(self):
+        resp = client.delete("/api/initial-sweep?path=../../etc")
+        assert resp.status_code == 403
+
 
 # ── /api/files/mkdir ──────────────────────────────────────────────────────────
 

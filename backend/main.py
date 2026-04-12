@@ -1093,7 +1093,14 @@ def set_initial_sweep(body: InitialSweepFolderRequest):
 
 @app.delete("/api/initial-sweep")
 def clear_initial_sweep(path: str = ""):
-    folder_rel = _validate_folder_setting_path(path)
+    # Use safe_path for traversal protection only — no existence check, so stale
+    # overrides can still be cleared even if the folder was deleted/renamed.
+    if path in ("", "."):
+        folder_rel = ""
+    else:
+        target = safe_path(path)
+        rel = to_rel(target)
+        folder_rel = "" if rel == "." else rel
     with get_db() as conn:
         conn.execute("DELETE FROM initial_sweep_folders WHERE path = ?", (folder_rel,))
         conn.commit()
