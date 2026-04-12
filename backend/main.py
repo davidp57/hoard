@@ -20,7 +20,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 # ── Config ────────────────────────────────────────────────────────────────────
 MEDIA_ROOT = Path(os.environ.get("MEDIA_ROOT", "/media"))
@@ -139,7 +139,7 @@ class QuickFolderRequest(BaseModel):
 
 class InitialSweepFolderRequest(BaseModel):
     path: str  # relative folder path from MEDIA_ROOT (empty string = root)
-    seconds: int
+    seconds: int = Field(ge=0, le=7200)
 
 
 class MkdirRequest(BaseModel):
@@ -680,8 +680,16 @@ def get_progress(path: Path) -> dict:
             "percent": round(pct, 1),
             "cut_in": row["cut_in"],
             "cut_out": row["cut_out"],
+            "has_saved_progress": True,
         }
-    return {"position": 0, "duration": 0, "percent": 0, "cut_in": None, "cut_out": None}
+    return {
+        "position": 0,
+        "duration": 0,
+        "percent": 0,
+        "cut_in": None,
+        "cut_out": None,
+        "has_saved_progress": False,
+    }
 
 
 def _validate_folder_setting_path(path: str) -> str:
@@ -1067,8 +1075,6 @@ def get_initial_sweep(path: str = ""):
 
 @app.post("/api/initial-sweep")
 def set_initial_sweep(body: InitialSweepFolderRequest):
-    if body.seconds < 0:
-        raise HTTPException(status_code=400, detail="seconds must be >= 0")
     folder_rel = _validate_folder_setting_path(body.path)
     with get_db() as conn:
         conn.execute(
@@ -1234,7 +1240,7 @@ class SettingsPayload(BaseModel):
     doubletap_right_bottom: int | None = None
     doubletap_right_mid: int | None = None
     doubletap_right_top: int | None = None
-    initial_sweep_seconds: int | None = None
+    initial_sweep_seconds: int | None = Field(default=None, ge=0, le=7200)
     download_folder: str | None = None
     download_cookies_path: str | None = None
 

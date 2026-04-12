@@ -2234,9 +2234,10 @@ async function playVideo(idx) {
   }
   video.onloadedmetadata = () => {
     updateCutUI();
-    const initialSweep = Math.max(cutIn ?? 0, Math.min(initialSweepState.effective_seconds || 0, Math.max(0, video.duration - 1)));
-    if (prog.position > 5 && prog.position < video.duration - 10) {
-      video.currentTime = Math.max(cutIn ?? 0, prog.position);
+    const safeDuration = Math.max(0, video.duration - 1);
+    const initialSweep = Math.max(cutIn ?? 0, Math.min(initialSweepState.effective_seconds || 0, safeDuration));
+    if (prog.has_saved_progress) {
+      video.currentTime = Math.max(cutIn ?? 0, Math.min(prog.position, safeDuration));
     } else if (initialSweep > 0) {
       video.currentTime = initialSweep;
     } else if (cutIn !== null) {

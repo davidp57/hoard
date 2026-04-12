@@ -163,6 +163,7 @@ class TestProgress:
         assert data["position"] == 0
         assert data["duration"] == 0
         assert data["percent"] == 0
+        assert data["has_saved_progress"] is False
 
     def test_save_and_read(self, video_file):
         # Save
@@ -179,6 +180,7 @@ class TestProgress:
         assert data["position"] == 120.5
         assert data["duration"] == 600.0
         assert data["percent"] == pytest.approx(20.1, abs=0.1)
+        assert data["has_saved_progress"] is True
 
     def test_update_overwrites(self, video_file):
         client.post(f"/api/progress?path={video_file}", json={"position": 10, "duration": 100})
@@ -365,6 +367,10 @@ class TestSettings:
         assert resp.status_code == 200
         assert resp.json()["initial_sweep_seconds"] == "600"
 
+    def test_update_initial_sweep_seconds_rejects_large_value(self):
+        resp = client.post("/api/settings", json={"initial_sweep_seconds": 7201})
+        assert resp.status_code == 422
+
 
 # ── /api/initial-sweep ───────────────────────────────────────────────────────
 
@@ -439,6 +445,10 @@ class TestInitialSweep:
     def test_override_rejects_file_path(self, video_file):
         resp = client.post("/api/initial-sweep", json={"path": video_file, "seconds": 90})
         assert resp.status_code == 404
+
+    def test_override_rejects_large_value(self, subdir_with_video):
+        resp = client.post("/api/initial-sweep", json={"path": "series", "seconds": 7201})
+        assert resp.status_code == 422
 
     def test_get_initial_sweep_rejects_path_traversal(self):
         resp = client.get("/api/initial-sweep?path=../../etc")
