@@ -761,7 +761,7 @@ def _combine_content_type(mime_type: str | None, codec_params: list[str]) -> str
     return f'{mime_type}; codecs="{joined}"'
 
 
-def _trusted_ffprobe_bin() -> str:
+def _ffprobe_env() -> dict[str, str] | None:
     if not FFPROBE_BIN:
         raise HTTPException(status_code=503, detail="FFprobe not available")
 
@@ -770,11 +770,18 @@ def _trusted_ffprobe_bin() -> str:
     if candidate.is_absolute():
         if candidate.name.lower() not in allowed_names or not candidate.is_file():
             raise HTTPException(status_code=503, detail="FFprobe not available")
-        return str(candidate)
+        env = os.environ.copy()
+        current_path = env.get("PATH", "")
+        env["PATH"] = (
+            f"{candidate.parent}{os.pathsep}{current_path}"
+            if current_path
+            else str(candidate.parent)
+        )
+        return env
 
     if FFPROBE_BIN.lower() not in allowed_names:
         raise HTTPException(status_code=503, detail="FFprobe not available")
-    return FFPROBE_BIN
+    return None
 
 
 def _playback_strategy(
@@ -797,10 +804,10 @@ def _playback_strategy(
 
 
 def _read_media_info(file: Path) -> dict:
-    ffprobe_bin = _trusted_ffprobe_bin()
+    ffprobe_env = _ffprobe_env()
 
     cmd = [
-        ffprobe_bin,
+        "ffprobe",
         "-v",
         "error",
         "-show_entries",
@@ -817,6 +824,7 @@ def _read_media_info(file: Path) -> dict:
             capture_output=True,
             text=True,
             encoding="utf-8",
+            env=ffprobe_env,
             shell=False,
         )
     except FileNotFoundError as exc:
