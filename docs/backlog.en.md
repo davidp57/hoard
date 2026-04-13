@@ -48,16 +48,15 @@ Any concrete point raised by the user that needs follow-up beyond the current se
 
 ## Proposed Priorities For The Next Discussion
 
-1. **BL-017** — simplify the folder initial-sweep UX to a single in-player action.
-2. **BL-018** — fix the fullscreen controls hitbox regression.
-3. **BL-005** — free-move destination picker in the filesystem tree.
+1. **BL-005** — free-move destination picker in the filesystem tree.
+2. **BL-002** — complete the existing file-list sorting modes.
+3. **BL-003** — manual watched / unwatched toggle.
 
 ## Inbox
 
 | ID | Created | Type | Area | Proposed Priority | Topic |
 |---|---|---|---|---|---|
-| BL-001 | 2026-04-12 | Process | Product | P2 | Stabilize backlog triage and decide how this backlog is reviewed at the start of work sessions |
-| BL-002 | 2026-04-12 | Improvement | File list | P1 | Add sort controls in the file list: name, modified date, size, watch status |
+| BL-002 | 2026-04-12 | Improvement | File list | P2 | Complete the existing file-list sorting by adding size and watch-status modes to the current name/date controls |
 | BL-003 | 2026-04-12 | Improvement | Watch state | P2 | Allow users to mark a file watched or unwatched manually from the UI |
 | BL-004 | 2026-04-12 | Improvement | Player | P2 | Add a proper fullscreen button and `F` keyboard shortcut |
 | BL-005 | 2026-04-12 | Improvement | File management | P1 | Add a free-move destination picker that browses the filesystem tree |
@@ -69,7 +68,7 @@ Any concrete point raised by the user that needs follow-up beyond the current se
 | BL-011 | 2026-04-12 | Security | Access | P1 | Add basic authentication for LAN-external exposure |
 | BL-012 | 2026-04-12 | Improvement | Search | P3 | Add search across filenames under `MEDIA_ROOT` |
 | BL-013 | 2026-04-12 | Improvement | UI | P3 | Add a light theme toggle persisted locally |
-| BL-014 | 2026-04-12 | Improvement | Platform | P3 | Add a PWA manifest and service worker so Hoard can be installed on tablet and desktop devices |
+| BL-014 | 2026-04-12 | Improvement | Platform | P3 | Add an optional PWA install shell (manifest + service worker) for standalone launch on tablet and desktop devices |
 | BL-015 | 2026-04-12 | Evolution | Watch progress | P2 | Support multi-user watch progress instead of a single global progress row per file |
 | BL-016 | 2026-04-12 | Improvement | Media | P3 | Display video metadata in the UI (duration, resolution, codec), likely via `ffprobe` |
 
@@ -77,19 +76,19 @@ Any concrete point raised by the user that needs follow-up beyond the current se
 
 ### BL-001 — Stabilize Backlog Triage
 
-- **Dates**: `created=2026-04-12`
+- **Dates**: `created=2026-04-12`, `completed=2026-04-13`
 
 - **Why**: avoid leaving product decisions, bugs, and follow-up ideas only inside chat history.
 - **Expected outcome**: a simple rule for when an item enters the backlog and how it is reprioritized.
-- **Decision to make**: review cadence, expected level of detail, and when an item moves from `Inbox` to `Ready`.
+- **Completed because**: the backlog workflow is now already applied in practice, with explicit status meanings, date rules, and recurring updates during ticket work.
 
 ### BL-002 — Sort Controls In The File List
 
 - **Dates**: `created=2026-04-12`
 
-- **Why**: browsing large raw folders becomes slower when everything is locked to the current sort behavior.
-- **Expected outcome**: let users sort by name, modified date, size, and watch status, with a clear UI state.
-- **Attention point**: keep the behavior simple on both desktop and touch devices.
+- **Why**: the file list already supports sorting by name and modified date, but larger folders still need size and watch-status sorting to make the controls feel complete.
+- **Expected outcome**: extend the existing sort UI so users can sort by name, modified date, size, and watch status, with a clear active state.
+- **Attention point**: keep the behavior simple on both desktop and touch devices, and avoid turning the sort bar into a crowded toolbar.
 
 ### BL-003 — Manual Watched / Unwatched Toggle
 
@@ -183,9 +182,9 @@ Any concrete point raised by the user that needs follow-up beyond the current se
 
 - **Dates**: `created=2026-04-12`
 
-- **Why**: Hoard already works well on iPad and desktop browsers; installability would reduce friction further.
-- **Expected outcome**: manifest + service worker so users can install Hoard like an app on supported devices.
-- **Attention point**: define how much offline behavior is actually desirable for a NAS-first application.
+- **Why**: Hoard already works well in Safari and desktop browsers, but a standalone install shell could reduce friction for home-screen launch and make the app feel less like a browser tab.
+- **Expected outcome**: add a manifest and service worker so supported devices can install Hoard in standalone mode, with app-shell caching where it helps.
+- **Attention point**: this should improve installability and launch ergonomics, not promise offline NAS video playback.
 
 ### BL-015 — Multi-User Watch Progress
 
@@ -250,6 +249,7 @@ Any concrete point raised by the user that needs follow-up beyond the current se
 
 ## Done
 
+- **BL-001** — `created=2026-04-12`, `completed=2026-04-13` — Backlog triage process considered established: ticket states, date fields, and regular backlog updates are now already part of the working workflow.
 - **BL-018** — `created=2026-04-12`, `started=2026-04-13`, `completed=2026-04-13` — Fullscreen controls hitbox corrected: hide/show is again limited to the intended bottom-centre zone near the controls instead of reacting across the fullscreen video area.
 - **BL-017** — `created=2026-04-12`, `started=2026-04-13`, `completed=2026-04-13` — Folder initial sweep UX simplified: the player now exposes a single compact action that saves the current playback position as the folder default start, without the previous inline editor.
 - **BL-019** — `created=2026-04-12`, `started=2026-04-12`, `completed=2026-04-12` — Native playback investigation and first implementation delivered with a bilingual compatibility note, a new `/api/media-info` ffprobe endpoint, and player-side probing via `canPlayType()` plus `MediaCapabilities` before falling back to `/api/transcode`.
