@@ -200,3 +200,9 @@ The bookmarklet forwards `document.cookie` from the source page. Note that **Htt
 |-------------|------|
 | > 700 px | Split view: list on the left, player on the right |
 | ≤ 700 px | Full-screen list, player as overlay |
+
+## Install As An App
+
+On browsers that support web app install prompts, Hoard can now be installed as a standalone app instead of staying in a regular tab. On iPad and iPhone, use the browser's **Add to Home Screen** action to get the same standalone launch behavior.
+
+The install shell only caches the app shell assets needed to reopen the interface faster. Hoard still expects a live connection to your NAS for API calls, browsing, and video playback.

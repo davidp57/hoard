@@ -227,6 +227,12 @@ All colour tokens are defined in `:root`:
 - Breakpoint at **700 px**: above, split view (list + player). Below, full-screen list with player as overlay.
 - `dvh` used throughout to avoid mobile viewport unit issues.
 
+### PWA Shell
+
+- `frontend/manifest.webmanifest` provides install metadata for supported browsers and home-screen launchers.
+- `frontend/service-worker.js` caches only the app shell (`/`, favicon, manifest) and explicitly avoids `/api/*` requests, so installability does not imply offline NAS browsing or playback.
+- The frontend registers the service worker only in secure contexts and applies safe-area padding so the standalone shell behaves better on tablets and iOS home-screen launch.
+
 ---
 
 ## Local Development
