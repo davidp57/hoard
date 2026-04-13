@@ -244,6 +244,10 @@
   }
   .action-btn:hover { border-color: var(--accent); color: var(--accent); }
   .action-btn.danger:hover { border-color: var(--danger); color: var(--danger); }
+  .action-btn:disabled {
+    opacity: 0.55;
+    cursor: wait;
+  }
 
   /* ── Player panel ── */
   #player-panel {
@@ -293,16 +297,28 @@
   }
 
   #now-playing {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
     font-size: 12px;
     font-weight: 600;
     color: var(--text-mid);
     margin-bottom: 10px;
+    font-family: 'DM Mono', monospace;
+  }
+  #now-playing-label {
+    flex: 1;
+    min-width: 0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    font-family: 'DM Mono', monospace;
   }
-  #now-playing span { color: var(--accent); }
+  #now-playing-name { color: var(--accent); }
+  #initial-sweep-btn {
+    flex-shrink: 0;
+    padding: 4px 7px;
+  }
 
   #seekbar-wrap {
     position: relative;
@@ -1020,16 +1036,9 @@
       <video id="video" preload="metadata"></video>
       <div id="mini-time">0:00 / 0:00</div>
       <div id="controls">
-        <div id="now-playing">— <span id="now-playing-name"></span></div>
-        <div id="initial-sweep-panel" style="display:none;margin-bottom:10px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px">
-          <div id="initial-sweep-status" style="font-size:11px;color:var(--text-dim);margin-bottom:8px"></div>
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            <span style="font-size:11px;color:var(--text-mid);font-family:'DM Mono',monospace">This folder</span>
-            <input type="number" id="folder-initial-sweep" min="0" max="7200" step="30" style="width:88px;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:6px 8px;outline:none">
-            <span style="font-size:11px;color:var(--text-dim)">s</span>
-            <button class="action-btn" onclick="saveFolderInitialSweep()">Save folder</button>
-            <button class="action-btn" onclick="clearFolderInitialSweep()">Use global</button>
-          </div>
+        <div id="now-playing">
+          <div id="now-playing-label">— <span id="now-playing-name"></span></div>
+          <button id="initial-sweep-btn" class="action-btn" onclick="saveCurrentPositionAsInitialSweep()" title="Enregistrer la position actuelle comme départ du dossier" style="display:none">⏱ Départ dossier</button>
         </div>
         <div id="seekbar-wrap" id="seekbar">
           <div id="seekbar-fill"></div>
@@ -1176,8 +1185,10 @@ let isSeeking = false;
 let pendingMovePath = null;
 let entries = [];
 let currentInitialSweepState = null;
+let isSavingInitialSweep = false;
 const dirCache = new Map(); // path -> {entries, breadcrumb, ts}
 const DIR_CACHE_TTL = 30_000; // ms — no background refresh if data is this fresh
+const MAX_INITIAL_SWEEP_SECONDS = 7200;
 
 // ── Settings cache (loaded from backend on init) ─────────────────────────────
 let cfg = {
@@ -1365,12 +1376,10 @@ async function choosePlaybackSource(entry, mediaInfo) {
   return { src: streamUrl, mode: 'stream', reason: 'probe-optimistic' };
 }
 
-function refreshInitialSweepPanel() {
-  const panel = document.getElementById('initial-sweep-panel');
-  const status = document.getElementById('initial-sweep-status');
-  const input = document.getElementById('folder-initial-sweep');
-  if (!panel || !status || !input || !currentFile) {
-    if (panel) panel.style.display = 'none';
+function refreshInitialSweepAction() {
+  const button = document.getElementById('initial-sweep-btn');
+  if (!button || !currentFile) {
+    if (button) button.style.display = 'none';
     return;
   }
 
@@ -1384,49 +1393,48 @@ function refreshInitialSweepPanel() {
   };
   const folderLabel = folderPath || '/';
   const sourceText = state.override_seconds !== null
-    ? `Folder override: ${formatSweepSeconds(state.override_seconds)}`
-    : `Using global default: ${formatSweepSeconds(state.default_seconds)}`;
-  status.textContent = `Initial sweep for ${folderLabel} — ${sourceText}`;
-  input.value = String(state.override_seconds ?? state.default_seconds ?? 0);
-  panel.style.display = '';
+    ? `Départ du dossier: ${formatSweepSeconds(state.override_seconds)}`
+    : `Valeur globale: ${formatSweepSeconds(state.default_seconds)}`;
+  button.style.display = '';
+  button.disabled = isSavingInitialSweep;
+  button.textContent = state.override_seconds !== null ? '⏱ Mettre à jour départ' : '⏱ Départ dossier';
+  button.title = `${sourceText} — enregistrer la position actuelle comme départ par défaut pour ${folderLabel}`;
 }
 
-async function saveFolderInitialSweep() {
-  if (!currentFile) return;
-  const input = document.getElementById('folder-initial-sweep');
-  const seconds = parseInt(input.value || '0', 10);
+async function saveCurrentPositionAsInitialSweep() {
+  if (!currentFile || isSavingInitialSweep) return;
+  const seconds = Math.round(video.currentTime || 0);
   if (Number.isNaN(seconds) || seconds < 0) {
     showToast('Valeur de sweep invalide');
     return;
   }
-  const folderPath = getCurrentFolderPath(currentFile.path);
-  const resp = await fetch(`${API}/api/initial-sweep`, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ path: folderPath, seconds }),
-  });
-  if (!resp.ok) {
-    showToast('Erreur lors de la sauvegarde du dossier');
+  if (seconds > MAX_INITIAL_SWEEP_SECONDS) {
+    showToast(`Le sweep dossier est limité à ${MAX_INITIAL_SWEEP_SECONDS}s`);
     return;
   }
-  currentInitialSweepState = await fetchInitialSweepState(folderPath);
-  refreshInitialSweepPanel();
-  showToast('✓ Sweep du dossier enregistré');
-}
-
-async function clearFolderInitialSweep() {
-  if (!currentFile) return;
   const folderPath = getCurrentFolderPath(currentFile.path);
-  const resp = await fetch(`${API}/api/initial-sweep?path=${encodeURIComponent(folderPath)}`, {
-    method: 'DELETE',
-  });
-  if (!resp.ok) {
-    showToast('Erreur lors du retour à la valeur globale');
-    return;
+  isSavingInitialSweep = true;
+  refreshInitialSweepAction();
+  try {
+    const resp = await fetch(`${API}/api/initial-sweep`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ path: folderPath, seconds }),
+    });
+    if (!resp.ok) {
+      showToast('Erreur lors de la sauvegarde du dossier');
+      return;
+    }
+    currentInitialSweepState = await fetchInitialSweepState(folderPath);
+    showToast(
+      seconds === 0
+        ? '✓ Départ dossier désactivé'
+        : `✓ Départ dossier réglé sur ${formatSweepSeconds(seconds)}`
+    );
+  } finally {
+    isSavingInitialSweep = false;
+    refreshInitialSweepAction();
   }
-  currentInitialSweepState = await fetchInitialSweepState(folderPath);
-  refreshInitialSweepPanel();
-  showToast('✓ Retour à la valeur globale');
 }
 
 // ── Privacy: auto-close player after being hidden for a while ─────────────────
@@ -1441,7 +1449,7 @@ function privacyClose() {
   document.getElementById('video-container').classList.remove('active');
   document.getElementById('player-empty').style.display = '';
   closeMobilePlayer();
-  refreshInitialSweepPanel();
+  refreshInitialSweepAction();
 }
 
 document.addEventListener('visibilitychange', () => {
@@ -2317,7 +2325,7 @@ async function playVideo(idx) {
     fetchMediaInfo(entry.path),
   ]);
   currentInitialSweepState = initialSweepState;
-  refreshInitialSweepPanel();
+  refreshInitialSweepAction();
   if (prog.cut_in != null) {
     cutIn = prog.cut_in;
     document.getElementById('cut-in-btn').classList.add('active');

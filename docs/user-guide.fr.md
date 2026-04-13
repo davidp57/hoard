@@ -73,7 +73,7 @@ Avant de basculer vers le transcodage côté serveur, Hoard vérifie maintenant 
 Tu peux configurer un **initial sweep** pour les vidéos qui n'ont **encore aucune progression enregistrée**.
 
 - Une **valeur globale par défaut** est disponible dans **Paramètres → Player**.
-- Une **surcharge par dossier** peut être définie directement depuis le player quand une vidéo de ce dossier est ouverte.
+- Pendant la lecture, une unique action **départ dossier** permet d'enregistrer la **position actuelle** comme départ par défaut du dossier courant.
 - `0` signifie désactivé.
 - Une surcharge de dossier prend le pas sur la valeur globale.
 
