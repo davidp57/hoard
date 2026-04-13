@@ -15,6 +15,24 @@ from backend.main import MEDIA_ROOT, app
 client = TestClient(app)
 
 
+# ── Frontend shell ────────────────────────────────────────────────────────────
+
+
+class TestFrontendShell:
+    def test_manifest_is_served(self):
+        resp = client.get("/manifest.webmanifest")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["name"] == "Hoard"
+        assert data["display"] == "standalone"
+
+    def test_service_worker_is_served(self):
+        resp = client.get("/service-worker.js")
+        assert resp.status_code == 200
+        assert "self.addEventListener" in resp.text
+        assert "CACHE_NAME" in resp.text
+
+
 # ── /api/quick-folders ──────────────────────────────────────────────────────────────────
 
 

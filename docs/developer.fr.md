@@ -227,6 +227,12 @@ Tous les tokens de couleur sont définis dans `:root` :
 - Breakpoint à **700 px** : au-delà, vue divisée (liste + player). En dessous, liste plein écran et player en overlay.
 - `dvh` utilisé partout pour éviter les problèmes d'unité viewport sur mobile.
 
+### Shell PWA
+
+- `frontend/manifest.webmanifest` fournit les métadonnées d'installation pour les navigateurs compatibles et les lanceurs home-screen.
+- `frontend/service-worker.js` ne met en cache que le shell applicatif (`/`, favicon, manifest) et évite explicitement les requêtes `/api/*`, donc l'installabilité ne signifie pas navigation ou lecture NAS hors ligne.
+- Le frontend enregistre le service worker uniquement en contexte sécurisé et applique les marges safe-area pour que le shell standalone se comporte mieux sur tablette et en lancement home-screen iOS.
+
 ---
 
 ## Développement local

@@ -200,3 +200,9 @@ La bookmarklet transmet le `document.cookie` de la page source. Attention : les 
 |-------|------|
 | Largeur > 700 px | Vue divisée : liste à gauche, player à droite |
 | Largeur ≤ 700 px | Liste plein écran, player en overlay |
+
+## Installer comme une app
+
+Sur les navigateurs qui prennent en charge l'installation des web apps, Hoard peut maintenant s'installer comme une application autonome au lieu de rester dans un onglet classique. Sur iPad et iPhone, utilise l'action **Ajouter à l'écran d'accueil** du navigateur pour obtenir le même lancement en mode standalone.
+
+Cette couche d'installation ne met en cache que le shell de l'application pour rouvrir l'interface plus vite. Hoard a toujours besoin d'une connexion active au NAS pour les appels API, la navigation dans les dossiers et la lecture vidéo.

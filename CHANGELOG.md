@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Configurable initial sweep for new videos**: add a global `initial_sweep_seconds` player setting plus per-folder overrides. Brand-new videos can now start at a configured offset (for example 10 minutes in), while videos with saved progress still resume from their actual saved position.
 - **Playback metadata endpoint**: add `/api/media-info` backed by `ffprobe` so Hoard can inspect container, codecs, bitrate, frame rate, and audio properties before deciding how to play a file.
+- **Optional PWA install shell**: Hoard now ships a web app manifest, a minimal service worker, and standalone-shell polish so supported browsers can install it as an app without changing the online-only NAS playback model.
 
 ### Fixed
 - **Probe playback no longer transcodes too early**: formats such as HEVC-in-MP4 now keep the optimistic native `/api/stream` path even when `canPlayType()` or `MediaCapabilities` stay conservative, and only fall back to `/api/transcode` on explicit `fallback` formats or real playback failure.

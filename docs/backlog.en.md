@@ -68,7 +68,6 @@ Any concrete point raised by the user that needs follow-up beyond the current se
 | BL-011 | 2026-04-12 | Security | Access | P1 | Add basic authentication for LAN-external exposure |
 | BL-012 | 2026-04-12 | Improvement | Search | P3 | Add search across filenames under `MEDIA_ROOT` |
 | BL-013 | 2026-04-12 | Improvement | UI | P3 | Add a light theme toggle persisted locally |
-| BL-014 | 2026-04-12 | Improvement | Platform | P3 | Add an optional PWA install shell (manifest + service worker) for standalone launch on tablet and desktop devices |
 | BL-015 | 2026-04-12 | Evolution | Watch progress | P2 | Support multi-user watch progress instead of a single global progress row per file |
 | BL-016 | 2026-04-12 | Improvement | Media | P3 | Display video metadata in the UI (duration, resolution, codec), likely via `ffprobe` |
 
@@ -180,7 +179,7 @@ Any concrete point raised by the user that needs follow-up beyond the current se
 
 ### BL-014 — PWA Support
 
-- **Dates**: `created=2026-04-12`
+- **Dates**: `created=2026-04-12`, `started=2026-04-13`, `completed=2026-04-13`
 
 - **Why**: Hoard already works well in Safari and desktop browsers, but a standalone install shell could reduce friction for home-screen launch and make the app feel less like a browser tab.
 - **Expected outcome**: add a manifest and service worker so supported devices can install Hoard in standalone mode, with app-shell caching where it helps.
@@ -249,6 +248,7 @@ Any concrete point raised by the user that needs follow-up beyond the current se
 
 ## Done
 
+- **BL-014** — `created=2026-04-12`, `started=2026-04-13`, `completed=2026-04-13` — Optional PWA install shell delivered with a manifest, a minimal service worker, standalone-launch polish, and explicit limits so app installability does not imply offline NAS playback.
 - **BL-001** — `created=2026-04-12`, `completed=2026-04-13` — Backlog triage process considered established: ticket states, date fields, and regular backlog updates are now already part of the working workflow.
 - **BL-018** — `created=2026-04-12`, `started=2026-04-13`, `completed=2026-04-13` — Fullscreen controls hitbox corrected: hide/show is again limited to the intended bottom-centre zone near the controls instead of reacting across the fullscreen video area.
 - **BL-017** — `created=2026-04-12`, `started=2026-04-13`, `completed=2026-04-13` — Folder initial sweep UX simplified: the player now exposes a single compact action that saves the current playback position as the folder default start, without the previous inline editor.
