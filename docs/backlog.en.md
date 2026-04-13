@@ -223,7 +223,7 @@ Any concrete point raised by the user that needs follow-up beyond the current se
 
 ### BL-018 — Hide Controls In Fullscreen
 
-- **Dates**: `created=2026-04-12`
+- **Dates**: `created=2026-04-12`, `started=2026-04-13`
 
 - **Why**: visible controls take too much space in fullscreen playback, especially on tablets and smaller screens.
 - **Expected outcome**: keep fullscreen auto-hide, but restrict the hide/show tap or click behavior to the intended bottom-centre zone near the controls.
@@ -242,11 +242,11 @@ Any concrete point raised by the user that needs follow-up beyond the current se
 
 ## Ready
 
-- **BL-018** — Fix the fullscreen controls hitbox so hide/show is only triggered from the intended bottom-centre zone near the controls.
+- No topic yet.
 
 ## In Progress
 
-- No topic yet.
+- **BL-018** — Fix the fullscreen controls hitbox so hide/show is only triggered from the intended bottom-centre zone near the controls.
 
 ## Done
 
