@@ -3052,12 +3052,6 @@ videoContainer.addEventListener('mousemove', () => {
   bumpFullscreenControlsIdle(true);
 });
 
-videoContainer.addEventListener('pointerdown', event => {
-  if (event.pointerType !== 'touch' && isInFullscreen()) {
-    bumpFullscreenControlsIdle(true);
-  }
-});
-
 fullscreenControls.addEventListener('pointerdown', () => {
   if (isInFullscreen()) bumpFullscreenControlsIdle();
 });

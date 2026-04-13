@@ -54,7 +54,7 @@ Hovering over a file (or long-pressing on mobile) reveals action buttons:
 When you enter fullscreen, Hoard hides the controls automatically to maximize the video area.
 
 - On desktop, move the mouse or use keyboard shortcuts to bring the controls back temporarily.
-- On touch devices, use the existing bottom-centre tap zone to show or hide the controls.
+- On touch devices, only the existing bottom-centre tap zone near the controls should show or hide them.
 
 ### Auto-resume
 

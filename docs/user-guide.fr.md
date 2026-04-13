@@ -54,7 +54,7 @@ En passant sur un fichier (ou en appuyant longuement sur mobile), des boutons d'
 Quand tu passes en plein écran, Hoard masque automatiquement les contrôles pour maximiser la zone vidéo.
 
 - Sur desktop, bouge la souris ou utilise les raccourcis clavier pour faire réapparaître temporairement les contrôles.
-- Sur tactile, utilise la zone de tap en bas au centre déjà prévue pour afficher ou masquer les contrôles.
+- Sur tactile, seule la zone de tap en bas au centre, près des contrôles, doit afficher ou masquer les contrôles.
 
 ### Reprise automatique
 
