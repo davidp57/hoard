@@ -93,8 +93,8 @@ Les gestes fonctionnent directement sur l'image vidéo.
 
 | Zone | Action |
 |------|--------|
-| Centre (haut) | Lecture / Pause |
-| Centre (bas, dernière rangée) | Afficher / masquer les contrôles en plein écran |
+| Bande centrale étroite (haut) | Lecture / Pause |
+| Bande étroite en bas-centre | Afficher / masquer les contrôles en plein écran |
 
 ### Double-tap
 

@@ -93,8 +93,8 @@ Gestures work directly on the video image.
 
 | Area | Action |
 |------|--------|
-| Centre (upper area) | Play / Pause |
-| Centre (bottom strip) | Show / hide controls in fullscreen |
+| Narrow centre band (upper area) | Play / Pause |
+| Narrow bottom-centre strip | Show / hide controls in fullscreen |
 
 ### Double Tap
 
