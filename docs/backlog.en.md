@@ -48,9 +48,9 @@ Any concrete point raised by the user that needs follow-up beyond the current se
 
 ## Proposed Priorities For The Next Discussion
 
-1. **BL-005** — free-move destination picker in the filesystem tree.
-2. **BL-019** — investigate broader native codec playback before transcoding.
-3. **BL-002** — sort controls in the file list.
+1. **BL-017** — simplify the folder initial-sweep UX to a single in-player action.
+2. **BL-018** — fix the fullscreen controls hitbox regression.
+3. **BL-005** — free-move destination picker in the filesystem tree.
 
 ## Inbox
 
@@ -205,7 +205,7 @@ Any concrete point raised by the user that needs follow-up beyond the current se
 
 ### BL-017 — Configurable Initial Sweep Per Folder
 
-- **Dates**: `created=2026-04-12`, `started=2026-04-12`, `completed=2026-04-12`
+- **Dates**: `created=2026-04-12`
 
 - **Functional rules**:
 	- apply only when the file has no saved progress yet;
@@ -213,20 +213,23 @@ Any concrete point raised by the user that needs follow-up beyond the current se
 	- allow `0` to mean "disabled";
 	- folder override wins over the global default.
 - **UX expectation**:
-	- global default is configured in Settings;
-	- per-folder value is editable directly from the player while a video from that folder is open;
-	- the player should make it clear whether the current folder uses the global value or an override.
+	- global default stays configured in Settings;
+	- from the player, a single explicit action should save the current playback position as the default initial sweep for the current folder;
+	- the player should avoid a permanent inline numeric editor for this folder-level action.
 - **Data shape to discuss**: store a global `initial_sweep_seconds` setting plus a folder-level mapping keyed by relative folder path.
-- **Attention point**: the rule should never override an existing saved position, and the folder-level configuration must stay easy to understand and edit.
-- **Acceptance signal**: opening a brand-new video in a configured folder should start at the configured offset, while reopening the same video later should resume from its real saved progress instead.
+- **Attention point**: the rule should never override an existing saved position, and the player action should feel like a quick "use current position for this folder" command rather than a settings form.
+- **Reopened because**: the first implementation works functionally, but the current player UI is too heavy for the intended use.
+- **Acceptance signal**: while playing a file, the user can save the current time as the folder default in one explicit action, and brand-new videos in that folder start there while previously started videos still resume from real saved progress.
 
 ### BL-018 — Hide Controls In Fullscreen
 
-- **Dates**: `created=2026-04-12`, `started=2026-04-12`, `completed=2026-04-12`
+- **Dates**: `created=2026-04-12`
 
 - **Why**: visible controls take too much space in fullscreen playback, especially on tablets and smaller screens.
-- **Expected outcome**: hide player controls automatically in fullscreen and restore them on user interaction.
-- **Attention point**: touch, mouse, and keyboard interactions need consistent behavior so controls remain discoverable and accessible.
+- **Expected outcome**: keep fullscreen auto-hide, but restrict the hide/show tap or click behavior to the intended bottom-centre zone near the controls.
+- **Attention point**: user interaction outside that bottom-centre zone must not trigger hide/show side effects, otherwise normal clicks and taps become disruptive.
+- **Reopened because**: the first implementation introduced a hitbox regression where hide/show behavior is triggered too broadly across the fullscreen video area.
+- **Acceptance signal**: in fullscreen, clicking or tapping outside the bottom-centre control zone does not toggle the controls, while the intended bottom-centre area still does.
 
 ### BL-019 — Investigate Broader Native Codec Playback
 
@@ -239,7 +242,8 @@ Any concrete point raised by the user that needs follow-up beyond the current se
 
 ## Ready
 
-- No topic yet.
+- **BL-017** — Rework the folder initial-sweep UX so the player offers a single action to save the current playback position as the folder default, instead of a permanent inline editor.
+- **BL-018** — Fix the fullscreen controls hitbox so hide/show is only triggered from the intended bottom-centre zone near the controls.
 
 ## In Progress
 
@@ -248,9 +252,6 @@ Any concrete point raised by the user that needs follow-up beyond the current se
 ## Done
 
 - **BL-019** — `created=2026-04-12`, `started=2026-04-12`, `completed=2026-04-12` — Native playback investigation and first implementation delivered with a bilingual compatibility note, a new `/api/media-info` ffprobe endpoint, and player-side probing via `canPlayType()` plus `MediaCapabilities` before falling back to `/api/transcode`.
-
-- **BL-018** — `created=2026-04-12`, `started=2026-04-12`, `completed=2026-04-12` — Fullscreen controls auto-hide delivered: controls hide immediately on fullscreen entry, reappear on mouse movement or keyboard interaction on desktop, and via the bottom-centre tap zone on touch devices.
-- **BL-017** — `created=2026-04-12`, `started=2026-04-12`, `completed=2026-04-12` — Configurable initial sweep per folder delivered with a global default in Settings, a per-folder override from the player UI, and resume behavior that preserves existing saved progress.
 - **BL-101** — `created=2026-04-05`, `started=2026-04-05`, `completed=2026-04-06` — Web video download delivered in v2.0 with a bookmarklet, yt-dlp integration, smart source detection, server-side HTML sniffing fallback, cookie / referer passthrough, and SSRF protection.
 - **BL-102** — `created=2026-04-06`, `started=2026-04-06`, `completed=2026-04-06` — Sequential download queue delivered in v2.0 with live queue modal, active badge, stop / cancel action, two-phase preparation, automatic temporary file cleanup, and download-folder auto-refresh.
 - **BL-103** — `created=2026-04-06`, `started=2026-04-06`, `completed=2026-04-06` — Native HTTPS delivered in v2.0 via `SSL_CERTFILE` / `SSL_KEYFILE`, with Docker and installation documentation.
