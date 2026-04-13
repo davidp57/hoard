@@ -244,6 +244,10 @@
   }
   .action-btn:hover { border-color: var(--accent); color: var(--accent); }
   .action-btn.danger:hover { border-color: var(--danger); color: var(--danger); }
+  .action-btn:disabled {
+    opacity: 0.55;
+    cursor: wait;
+  }
 
   /* ── Player panel ── */
   #player-panel {
@@ -1181,8 +1185,10 @@ let isSeeking = false;
 let pendingMovePath = null;
 let entries = [];
 let currentInitialSweepState = null;
+let isSavingInitialSweep = false;
 const dirCache = new Map(); // path -> {entries, breadcrumb, ts}
 const DIR_CACHE_TTL = 30_000; // ms — no background refresh if data is this fresh
+const MAX_INITIAL_SWEEP_SECONDS = 7200;
 
 // ── Settings cache (loaded from backend on init) ─────────────────────────────
 let cfg = {
@@ -1390,38 +1396,45 @@ function refreshInitialSweepAction() {
     ? `Départ du dossier: ${formatSweepSeconds(state.override_seconds)}`
     : `Valeur globale: ${formatSweepSeconds(state.default_seconds)}`;
   button.style.display = '';
+  button.disabled = isSavingInitialSweep;
   button.textContent = state.override_seconds !== null ? '⏱ Mettre à jour départ' : '⏱ Départ dossier';
   button.title = `${sourceText} — enregistrer la position actuelle comme départ par défaut pour ${folderLabel}`;
 }
 
 async function saveCurrentPositionAsInitialSweep() {
-  if (!currentFile) return;
+  if (!currentFile || isSavingInitialSweep) return;
   const seconds = Math.round(video.currentTime || 0);
   if (Number.isNaN(seconds) || seconds < 0) {
     showToast('Valeur de sweep invalide');
     return;
   }
-  if (seconds > 7200) {
-    showToast('Le sweep dossier est limité à 7200s');
+  if (seconds > MAX_INITIAL_SWEEP_SECONDS) {
+    showToast(`Le sweep dossier est limité à ${MAX_INITIAL_SWEEP_SECONDS}s`);
     return;
   }
   const folderPath = getCurrentFolderPath(currentFile.path);
-  const resp = await fetch(`${API}/api/initial-sweep`, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ path: folderPath, seconds }),
-  });
-  if (!resp.ok) {
-    showToast('Erreur lors de la sauvegarde du dossier');
-    return;
-  }
-  currentInitialSweepState = await fetchInitialSweepState(folderPath);
+  isSavingInitialSweep = true;
   refreshInitialSweepAction();
-  showToast(
-    seconds === 0
-      ? '✓ Départ dossier désactivé'
-      : `✓ Départ dossier réglé sur ${formatSweepSeconds(seconds)}`
-  );
+  try {
+    const resp = await fetch(`${API}/api/initial-sweep`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ path: folderPath, seconds }),
+    });
+    if (!resp.ok) {
+      showToast('Erreur lors de la sauvegarde du dossier');
+      return;
+    }
+    currentInitialSweepState = await fetchInitialSweepState(folderPath);
+    showToast(
+      seconds === 0
+        ? '✓ Départ dossier désactivé'
+        : `✓ Départ dossier réglé sur ${formatSweepSeconds(seconds)}`
+    );
+  } finally {
+    isSavingInitialSweep = false;
+    refreshInitialSweepAction();
+  }
 }
 
 // ── Privacy: auto-close player after being hidden for a while ─────────────────
