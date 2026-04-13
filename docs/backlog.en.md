@@ -223,7 +223,7 @@ Any concrete point raised by the user that needs follow-up beyond the current se
 
 ### BL-018 — Hide Controls In Fullscreen
 
-- **Dates**: `created=2026-04-12`, `started=2026-04-13`
+- **Dates**: `created=2026-04-12`, `started=2026-04-13`, `completed=2026-04-13`
 
 - **Why**: visible controls take too much space in fullscreen playback, especially on tablets and smaller screens.
 - **Expected outcome**: keep fullscreen auto-hide, but restrict the hide/show tap or click behavior to the intended bottom-centre zone near the controls.
@@ -246,10 +246,11 @@ Any concrete point raised by the user that needs follow-up beyond the current se
 
 ## In Progress
 
-- **BL-018** — Fix the fullscreen controls hitbox so hide/show is only triggered from the intended bottom-centre zone near the controls.
+- No topic yet.
 
 ## Done
 
+- **BL-018** — `created=2026-04-12`, `started=2026-04-13`, `completed=2026-04-13` — Fullscreen controls hitbox corrected: hide/show is again limited to the intended bottom-centre zone near the controls instead of reacting across the fullscreen video area.
 - **BL-017** — `created=2026-04-12`, `started=2026-04-13`, `completed=2026-04-13` — Folder initial sweep UX simplified: the player now exposes a single compact action that saves the current playback position as the folder default start, without the previous inline editor.
 - **BL-019** — `created=2026-04-12`, `started=2026-04-12`, `completed=2026-04-12` — Native playback investigation and first implementation delivered with a bilingual compatibility note, a new `/api/media-info` ffprobe endpoint, and player-side probing via `canPlayType()` plus `MediaCapabilities` before falling back to `/api/transcode`.
 - **BL-101** — `created=2026-04-05`, `started=2026-04-05`, `completed=2026-04-06` — Web video download delivered in v2.0 with a bookmarklet, yt-dlp integration, smart source detection, server-side HTML sniffing fallback, cookie / referer passthrough, and SSRF protection.
