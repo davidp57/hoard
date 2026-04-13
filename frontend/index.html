@@ -1200,6 +1200,9 @@ const dirCache = new Map(); // path -> {entries, breadcrumb, ts}
 const DIR_CACHE_TTL = 30_000; // ms — no background refresh if data is this fresh
 const MAX_INITIAL_SWEEP_SECONDS = 7200;
 const STANDALONE_DISPLAY_QUERY = '(display-mode: standalone)';
+const SINGLE_TAP_CENTER_MIN_X = 0.35;
+const SINGLE_TAP_CENTER_MAX_X = 0.65;
+const SINGLE_TAP_CONTROLS_MIN_Y = 0.72;
 
 // ── Settings cache (loaded from backend on init) ─────────────────────────────
 let cfg = {
@@ -2607,20 +2610,20 @@ video.addEventListener('touchend', e => {
     const rect = video.getBoundingClientRect();
     const xPct = (tapX - rect.left) / rect.width;
     const yPct = (tapY - rect.top) / rect.height;
-    const isMid = xPct >= 0.2 && xPct <= 0.8;
-    const isBottom = yPct > 0.7;
+    const isSingleTapCenter = xPct >= SINGLE_TAP_CENTER_MIN_X && xPct <= SINGLE_TAP_CENTER_MAX_X;
+    const isBottomCentre = isSingleTapCenter && yPct >= SINGLE_TAP_CONTROLS_MIN_Y;
 
     if (tapCount === 1) {
-      if (isMid && isBottom) {
-        // Bottom-centre: toggle controls
+      if (isBottomCentre) {
+        // Narrow bottom-centre strip: toggle controls
         const controls = document.getElementById('controls');
         if (controls.classList.contains('ctrl-hidden')) {
           showControlsFS();
         } else {
           hideControlsFS();
         }
-      } else if (isMid) {
-        // Centre (not bottom): play/pause
+      } else if (isSingleTapCenter) {
+        // Narrow centre strip above controls: play/pause
         togglePlay();
       }
     } else if (tapCount >= 2 && cfg.gesture_doubletap) {

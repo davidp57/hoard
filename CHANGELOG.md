@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - **Probe playback no longer transcodes too early**: formats such as HEVC-in-MP4 now keep the optimistic native `/api/stream` path even when `canPlayType()` or `MediaCapabilities` stay conservative, and only fall back to `/api/transcode` on explicit `fallback` formats or real playback failure.
 - **Fullscreen controls no longer toggle from the whole video area**: the hide/show action is again limited to the intended bottom-centre zone near the controls instead of reacting to clicks across the fullscreen container.
+- **Single taps on the side zones no longer trigger centre actions**: left and right fullscreen gesture areas now stay inert on single taps instead of accidentally toggling controls or play/pause.
 
 ### Changed
 - **Fullscreen controls now auto-hide**: entering fullscreen now hides player controls by default. On desktop they reappear on mouse movement or keyboard interaction; on touch devices they can be brought back with the existing bottom-centre controls gesture.
