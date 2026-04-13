@@ -73,7 +73,7 @@ Before falling back to server-side transcoding, Hoard now checks whether the cur
 You can configure an **initial sweep** offset for videos that have **no saved progress yet**.
 
 - A **global default** is available in **Settings → Player**.
-- A **folder-specific override** can be set directly from the player while a video from that folder is open.
+- While playing a video, a single **folder start** action can save the **current playback position** as the default start for that folder.
 - `0` means disabled.
 - A folder override takes precedence over the global default.
 

@@ -145,6 +145,7 @@ L'initial sweep permet à Hoard de démarrer une **vidéo neuve** à un offset c
 
 - Valeur globale par défaut : stockée dans la table `settings` sous la clé `initial_sweep_seconds`
 - Surcharge par dossier : stockée dans `initial_sweep_folders`, indexée par chemin relatif de dossier
+- Action player : la position de lecture actuelle peut être enregistrée directement comme surcharge de dossier via un contrôle compact unique dans le player
 - La surcharge de dossier gagne sur la valeur globale
 - `0` signifie désactivé
 - Une progression de lecture déjà sauvegardée gagne toujours sur toute règle d'initial sweep

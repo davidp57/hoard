@@ -145,6 +145,7 @@ Initial sweep lets Hoard start a **brand-new video** at a configured offset inst
 
 - Global default: stored in the regular `settings` table as `initial_sweep_seconds`
 - Folder override: stored in `initial_sweep_folders`, keyed by relative folder path
+- Player action: the current playback position can be saved directly as the folder override from a single compact control in the player
 - Folder override wins over the global default
 - `0` means disabled
 - Saved playback progress always wins over any initial-sweep rule

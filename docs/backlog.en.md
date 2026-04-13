@@ -205,7 +205,7 @@ Any concrete point raised by the user that needs follow-up beyond the current se
 
 ### BL-017 — Configurable Initial Sweep Per Folder
 
-- **Dates**: `created=2026-04-12`
+- **Dates**: `created=2026-04-12`, `started=2026-04-13`
 
 - **Functional rules**:
 	- apply only when the file has no saved progress yet;
@@ -242,12 +242,11 @@ Any concrete point raised by the user that needs follow-up beyond the current se
 
 ## Ready
 
-- **BL-017** — Rework the folder initial-sweep UX so the player offers a single action to save the current playback position as the folder default, instead of a permanent inline editor.
 - **BL-018** — Fix the fullscreen controls hitbox so hide/show is only triggered from the intended bottom-centre zone near the controls.
 
 ## In Progress
 
-- No topic yet.
+- **BL-017** — Rework the folder initial-sweep UX so the player offers a single action to save the current playback position as the folder default, instead of a permanent inline editor.
 
 ## Done
 

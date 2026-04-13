@@ -9,7 +9,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Configurable initial sweep for new videos**: add a global `initial_sweep_seconds` player setting plus per-folder overrides. Brand-new videos can now start at a configured offset (for example 10 minutes in), while videos with saved progress still resume from their actual saved position.
-- **Folder-level initial sweep controls in the player**: while playing a video, Hoard now shows the current folder's effective initial-sweep source (global vs override) and lets you save a folder override or revert to the global value.
 - **Playback metadata endpoint**: add `/api/media-info` backed by `ffprobe` so Hoard can inspect container, codecs, bitrate, frame rate, and audio properties before deciding how to play a file.
 
 ### Fixed
@@ -18,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **Fullscreen controls now auto-hide**: entering fullscreen now hides player controls by default. On desktop they reappear on mouse movement or keyboard interaction; on touch devices they can be brought back with the existing bottom-centre controls gesture.
 - **Smarter native playback selection**: the player now probes native browser support with `canPlayType()` and `MediaCapabilities` when metadata is available, and only falls back to `/api/transcode` when support is not confirmed or playback is rejected.
+- **Folder initial sweep UI simplified**: the player now uses a single compact action to save the current playback position as the default start for the current folder, instead of a permanent inline editor.
 
 ## [2.0.0] - 2026-04-06
 
