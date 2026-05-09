@@ -3069,7 +3069,7 @@ function syncFullscreenUI() {
 }
 
 function toggleFullscreen() {
-  const useFaux = !document.fullscreenEnabled || navigator.maxTouchPoints > 0;
+  const useFaux = !document.fullscreenEnabled;
   if (videoContainer.classList.contains('faux-fullscreen')) {
     videoContainer.classList.remove('faux-fullscreen');
     syncFullscreenUI();
@@ -3079,7 +3079,7 @@ function toggleFullscreen() {
     videoContainer.classList.add('faux-fullscreen');
     syncFullscreenUI();
   } else {
-    videoContainer.requestFullscreen();
+    videoContainer.requestFullscreen().catch(() => {});
   }
 }
 

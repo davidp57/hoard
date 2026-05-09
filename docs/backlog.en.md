@@ -70,6 +70,7 @@ Any concrete point raised by the user that needs follow-up beyond the current se
 | BL-013 | 2026-04-12 | Improvement | UI | P3 | Add a light theme toggle persisted locally |
 | BL-015 | 2026-04-12 | Evolution | Watch progress | P2 | Support multi-user watch progress instead of a single global progress row per file |
 | BL-016 | 2026-04-12 | Improvement | Media | P3 | Display video metadata in the UI (duration, resolution, codec), likely via `ffprobe` |
+| BL-020 | 2026-05-09 | Bug | Player | P1 | Native fullscreen broken on touch-capable desktop browsers (SteamDeck/Firefox): `navigator.maxTouchPoints > 0` incorrectly forces faux-fullscreen even when `document.fullscreenEnabled` is true |
 
 ## Subject Details
 
@@ -239,6 +240,14 @@ Any concrete point raised by the user that needs follow-up beyond the current se
 - **Scope**: codec support, container support, browser differences, media source constraints, an on-demand metadata endpoint, and practical detection strategy in the frontend/backend.
 - **Attention point**: keep `/api/transcode` as the safety net even after browser-side probing is added.
 
+### BL-020 — Native Fullscreen Broken On Touch-Capable Desktop Browsers
+
+- **Dates**: `created=2026-05-09`
+
+- **Why**: `toggleFullscreen()` uses `navigator.maxTouchPoints > 0` as a second condition to force faux-fullscreen (CSS overlay). This was originally intended for iPad/Safari where `document.fullscreenEnabled` is already `false`. However it also fires on any touch-capable device that actually supports native fullscreen (e.g. SteamDeck running Firefox), causing native fullscreen to never be requested even though the browser supports it.
+- **Expected outcome**: native fullscreen works on Firefox/SteamDeck and any other touch-capable desktop browser. iPad continues to use faux-fullscreen because `fullscreenEnabled` remains false on Safari.
+- **Scope**: `toggleFullscreen()` in `frontend/index.html` — remove the `|| navigator.maxTouchPoints > 0` branch; rely solely on `!document.fullscreenEnabled`.
+
 ## Ready
 
 - No topic yet.
@@ -248,6 +257,8 @@ Any concrete point raised by the user that needs follow-up beyond the current se
 - No topic yet.
 
 ## Done
+
+- **BL-020** — `created=2026-05-09`, `started=2026-05-09`, `completed=2026-05-09` — Native fullscreen now works on touch-capable desktop browsers (SteamDeck/Firefox): removed the overly-broad `navigator.maxTouchPoints > 0` condition from `toggleFullscreen()`; rely solely on `!document.fullscreenEnabled` to decide between native and faux-fullscreen. iPad/Safari unaffected because `fullscreenEnabled` is already `false` there.
 
 - **BL-014** — `created=2026-04-12`, `started=2026-04-13`, `completed=2026-04-13` — Optional PWA install shell delivered with a manifest, a minimal service worker, standalone-launch polish, and explicit limits so app installability does not imply offline NAS playback.
 - **BL-001** — `created=2026-04-12`, `completed=2026-04-13` — Backlog triage process considered established: ticket states, date fields, and regular backlog updates are now already part of the working workflow.
