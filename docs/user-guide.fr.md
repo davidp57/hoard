@@ -44,8 +44,8 @@ En passant sur un fichier (ou en appuyant longuement sur mobile), des boutons d'
 | Élément | Rôle |
 |---------|------|
 | **Barre de progression** | Indique et contrôle la position dans la vidéo |
-| **⏮ / ⏭** | Recule / avance de 30 secondes |
-| **◀◀ / ▶▶** | Recule / avance de 10 secondes |
+| **⏮ / ⏭** | Seek moyen (30 s par défaut, configurable) |
+| **◀◀ / ▶▶** | Seek court (10 s par défaut, configurable) |
 | **▶ / ⏸** | Lecture / Pause |
 | **🔊** | Muet/son |
 | **Volume** | Curseur de volume |
@@ -101,9 +101,9 @@ Les gestes fonctionnent directement sur l'image vidéo.
 | Zone | Action |
 |------|--------|
 | Bord gauche (< 20 % de largeur) | Reculer de 30 s |
-| Bord droit — tiers bas | Avancer de 30 s |
-| Bord droit — tiers médian | Avancer de 60 s |
-| Bord droit — tiers haut | Avancer de 90 s |
+| Bord droit — tiers bas | Avancer de seek moyen (30 s par défaut) |
+| Bord droit — tiers médian | Avancer de seek long (60 s par défaut) |
+| Bord droit — tiers haut | Avancer de seek très long (120 s par défaut) |
 | Centre | Plein écran |
 
 ### Triple-tap
@@ -128,12 +128,21 @@ Seek progressif dans la vidéo. La **vitesse dépend de la hauteur du doigt** : 
 | Touche | Action |
 |--------|--------|
 | `Espace` | Lecture / Pause |
-| `←` | Reculer de 10 s |
-| `→` | Avancer de 10 s |
-| `↑` | Volume + 10 % |
-| `↓` | Volume − 10 % |
+| `← / →` | Seek court (10 s par défaut) |
+| `Shift + ← / →` | Seek moyen (30 s par défaut) |
+| `Ctrl + ← / →` | Seek long (60 s par défaut) |
+| `Alt + ← / →` | Seek très long (120 s par défaut) |
+| `↑ / ↓` | Volume +/− 10 % |
 | `F` | Plein écran |
-| `M` | Muet |
+| `M` | Muet / Son |
+| `A` | Cycle aspect ratio (Fit / Fill / …) |
+| `PageDown / PageUp` | Vidéo suivante / précédente |
+| `I / O` | Marquer point IN / OUT |
+| `C` | Ouvrir la fenêtre Couper |
+| `D` | Ouvrir la fenêtre Déplacer |
+| `Suppr` | Supprimer le fichier en cours |
+| `S` | Sauvegarder la position initiale du dossier |
+| `?` | Afficher / masquer l'aide clavier |
 
 ---
 
@@ -184,6 +193,8 @@ Tous les téléchargements sont regroupés dans une file centrale accessible dep
 
 | Paramètre | Description |
 |-----------|-------------|
+| **Durées de seek** | Quatre niveaux configurables dans **Paramètres → Player** : court (défaut 10 s), moyen (30 s), long (60 s), très long (120 s). Utilisés par les boutons, les raccourcis clavier et les double-taps. |
+| **Activer le transcodage** | Quand désactivé, Hoard envoie toujours le flux original (`/api/stream`) sans appeler le transcodeur. Utile si votre NAS est lent ou si votre navigateur lit nativement le format. |
 | **Initial sweep par défaut** | Démarre les vidéos neuves à N secondes au lieu de 0. S'applique seulement si le fichier n'a aucune progression enregistrée. `0` le désactive globalement. |
 | **Dossier de téléchargement** | Dossier cible, relatif à `MEDIA_ROOT` (défaut : `Downloads`). Créé automatiquement s'il n'existe pas. |
 | **Chemin du fichier cookies** | Chemin absolu vers un fichier `cookies.txt` au format Netscape. Utile pour les sites qui nécessitent une authentification. |

@@ -44,8 +44,8 @@ Hovering over a file (or long-pressing on mobile) reveals action buttons:
 | Element | Role |
 |---------|------|
 | **Progress bar** | Shows and controls position in the video |
-| **⏮ / ⏭** | Seek back / forward 30 seconds |
-| **◀◀ / ▶▶** | Seek back / forward 10 seconds |
+| **⏮ / ⏭** | Seek back / forward — medium (30 s default, configurable) |
+| **◀◀ / ▶▶** | Seek back / forward — short (10 s default, configurable) |
 | **▶ / ⏸** | Play / Pause |
 | **🔊** | Mute/unmute |
 | **Volume** | Volume slider |
@@ -101,9 +101,9 @@ Gestures work directly on the video image.
 | Area | Action |
 |------|--------|
 | Left edge (< 20 % width) | Seek back 30 s |
-| Right edge — bottom third | Seek forward 30 s |
-| Right edge — middle third | Seek forward 60 s |
-| Right edge — top third | Seek forward 90 s |
+| Right edge — bottom third | Seek forward — medium (30 s default) |
+| Right edge — middle third | Seek forward — long (60 s default) |
+| Right edge — top third | Seek forward — extra-long (120 s default) |
 | Centre | Fullscreen |
 
 ### Triple Tap
@@ -128,12 +128,21 @@ Progressive seek through the video. **Speed depends on the vertical position of 
 | Key | Action |
 |-----|--------|
 | `Space` | Play / Pause |
-| `←` | Seek back 10 s |
-| `→` | Seek forward 10 s |
-| `↑` | Volume + 10 % |
-| `↓` | Volume − 10 % |
+| `← / →` | Short seek (10 s default) |
+| `Shift + ← / →` | Medium seek (30 s default) |
+| `Ctrl + ← / →` | Long seek (60 s default) |
+| `Alt + ← / →` | Extra-long seek (120 s default) |
+| `↑ / ↓` | Volume +/− 10 % |
 | `F` | Fullscreen |
-| `M` | Mute |
+| `M` | Mute / Unmute |
+| `A` | Cycle aspect ratio (Fit / Fill / …) |
+| `PageDown / PageUp` | Next / previous video |
+| `I / O` | Set IN / OUT marker |
+| `C` | Open Trim window |
+| `D` | Open Move window |
+| `Delete` | Delete current file |
+| `S` | Save folder start position |
+| `?` | Show / hide keyboard help |
 
 ---
 
@@ -184,6 +193,8 @@ All downloads are tracked in a central queue accessible from the **📥** button
 
 | Setting | Description |
 |---------|-------------|
+| **Seek durations** | Four configurable levels in **Settings → Player**: short (default 10 s), medium (30 s), long (60 s), extra-long (120 s). Used by skip buttons, keyboard shortcuts, and double-taps. |
+| **Enable transcoding** | When disabled, Hoard always serves the original stream (`/api/stream`) without calling the transcoder. Useful if your NAS is slow or your browser can play the format natively. |
 | **Default initial sweep** | Start brand-new videos at N seconds instead of 0. Applies only when the file has no saved progress yet. `0` disables it globally. |
 | **Download folder** | Target folder, relative to `MEDIA_ROOT` (default: `Downloads`). Created automatically if it does not exist. |
 | **Cookies file path** | Absolute path to a Netscape `cookies.txt` file. Useful for sites that require authentication. |
