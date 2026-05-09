@@ -1,6 +1,7 @@
 import hashlib
 import ipaddress
 import json
+import logging
 import mimetypes
 import os
 import queue as _queue_module
@@ -22,6 +23,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+
+# ── Logging ──────────────────────────────────────────────────────────────────
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger("hoard")
 
 # ── Config ────────────────────────────────────────────────────────────────────
 MEDIA_ROOT = Path(os.environ.get("MEDIA_ROOT", "/media"))
@@ -929,7 +937,10 @@ def _read_media_info(file: Path) -> dict:
 def safe_path(rel: str) -> Path:
     """Resolve and ensure path stays within MEDIA_ROOT."""
     resolved = (MEDIA_ROOT / rel).resolve()
-    if not str(resolved).startswith(str(MEDIA_ROOT.resolve())):
+    media_resolved = MEDIA_ROOT.resolve()
+    logger.debug("safe_path: rel=%r resolved=%s media_root=%s", rel, resolved, media_resolved)
+    if not str(resolved).startswith(str(media_resolved)):
+        logger.warning("safe_path DENIED: %s is outside %s", resolved, media_resolved)
         raise HTTPException(status_code=403, detail="Access denied")
     return resolved
 
@@ -1428,10 +1439,12 @@ def add_home_root(body: HomeRootRequest):
         raise HTTPException(status_code=400, detail="Name is required")
     # Accept both absolute paths (from browse modal) and relative paths
     path = body.path
+    logger.info("add_home_root: name=%r raw_path=%r MEDIA_ROOT=%s", name, path, MEDIA_ROOT)
     try:
         path = str(Path(path).relative_to(MEDIA_ROOT))
+        logger.debug("add_home_root: converted to relative path=%r", path)
     except ValueError:
-        pass  # Already relative, let safe_path validate
+        logger.debug("add_home_root: path not under MEDIA_ROOT, passing as-is: %r", path)
     target = safe_path(path)
     if not target.is_dir():
         raise HTTPException(status_code=404, detail="Folder not found")
