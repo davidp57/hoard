@@ -10,10 +10,15 @@ Quand un sujet est livré, mettre à jour `CHANGELOG.md` et passer le ticket en 
 
 ## Calibration estimations
 
-Facteur de marge actuel : **1,15** (15%) — valeur initiale, pas encore calibrée.
+Facteur de marge actuel : **1,00** (0%) — repris de Solde (voir notes).
 
 | Lot | Estimé Copilot | Réel Copilot | Ratio | Estimé gestion | Réel gestion | Ajustement |
 | --- | --- | --- | --- | --- | --- | --- |
+
+> **Leçons importées de Solde** : après 3 lots calibrés (ratios 0,46 / 0,29 / 0,37), les estimations naïves Copilot sont systématiquement 2–3× trop élevées. Le facteur a été abaissé à 1,00. Règles à appliquer pour Hoard :
+> - Tickets de finition / tests simples → estimation de référence 3–5 min, pas 10–20 min.
+> - Avant d'estimer un ticket de « review fix », vérifier si le problème existe réellement.
+> - Pour les tickets d'implémentation technique pure, appliquer un facteur **0,60** par rapport à l'estimation initiale naïve.
 
 ---
 
@@ -30,6 +35,7 @@ Facteur de marge actuel : **1,15** (15%) — valeur initiale, pas encore calibr�
 | BL-023 | Liste de dossiers « home » (plusieurs racines de navigation) | P2 | — | 2026-05-09 | | |
 | BL-022 | Option pour désactiver le transcodage (lecture native directe) | P1 | — | 2026-05-09 | | |
 | BL-024 | Contrôle gamepad (manette, Steam Deck, iPhone + controller) | P2 | — | 2026-05-09 | | |
+| BL-025 | Changer l'icône « aspect » (même icône que plein écran) | P3 | — | 2026-05-09 | | |
 | BL-021 | Seek multi-niveaux unifié + raccourcis clavier étendus + modaux en plein écran | P2 | — | 2026-05-09 | | |
 | BL-005 | Sélecteur de destination libre (arborescence filesystem) | P1 | — | 2026-04-12 | | |
 | BL-007 | Tags arbitraires sur les fichiers + filtrage | P1 | — | 2026-04-12 | | |
@@ -304,6 +310,15 @@ Facteur de marge actuel : **1,15** (15%) — valeur initiale, pas encore calibr�
   - `<dialog>.showModal()` is fully supported in all evergreen browsers; verify behavior inside the faux-fullscreen CSS fallback as well.
   - The shortcut reference dialog (`?`) should be a lightweight static table, not a dynamic component.
 - **Acceptance signal**: from keyboard alone, a user can play/pause, seek at 4 speeds, adjust volume and mute, toggle aspect, set markers, cut, move, delete, save folder sweep, and navigate to the next/previous video — all without exiting native fullscreen.
+
+### BL-025 — Changer L'Icône « Aspect »
+
+- **Dates**: `created=2026-05-09`
+
+- **Why**: le bouton « aspect ratio » utilise actuellement la même icône SVG que le bouton plein écran, ce qui rend les deux actions visuellement indiscernables dans la barre de contrôles du player.
+- **Expected outcome**: remplacer l'icône du bouton aspect ratio par une icône distincte qui évoque le recadrage ou le changement de ratio (ex. : deux flèches diagonales opposées avec un rectangle, ou une icône crop/fit).
+- **Scope**: `frontend/index.html` — uniquement l'icône SVG inline du bouton aspect, pas de changement fonctionnel.
+- **Attention point**: l'icône doit rester lisible à la taille utilisée dans la barre de contrôles (environ 20×20 px) et cohérente visuellement avec les autres icônes du player.
 
 ### BL-020 — Native Fullscreen Broken On Touch-Capable Desktop Browsers
 
