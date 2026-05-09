@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Racine de navigation par défaut (BL-040)** : chaque home root peut être désignée comme racine par défaut (colonne `is_default` en base, endpoint `POST /api/home-roots/{id}/set-default`). L'app navigue directement vers la racine par défaut au démarrage et après validation du PIN, sans passer par l'écran de sélection. Un indicateur visuel (🏠, bordure accent, badge « défaut ») et un bouton « ⌂ » permettent de changer la racine par défaut depuis les Paramètres.
+- **Contrôles manette étendus** :
+  - `L1+R1+B` → supprimer le fichier courant (lecteur ou curseur browser)
+  - `L1+R1+X` → déplacer le fichier courant (lecteur ou curseur browser)
+  - Navigation dans les **Paramètres** : D↑/D↓ pour défiler, B ou Start pour fermer
+  - Navigation dans les **dialogues** : A = confirmer (supprimer), B = annuler ; dans le dialogue de déplacement, D↑/D↓ sélectionne le dossier, A valide
+  - Mise à jour de l'overlay d'aide (`Start`) avec les nouveaux raccourcis contextuel (browser, paramètres, dialogues)
 
 ### Fixed
 - **Bouton « Ajouter une racine »** dans les Paramètres : le modal de navigation s'affichait derrière la page des paramètres (z-index). `openRootPicker()` ferme maintenant les paramètres avant d'ouvrir le modal.
