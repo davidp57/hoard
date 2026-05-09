@@ -1952,6 +1952,7 @@ async function addHomeRoot(name, path) {
   if (!resp.ok) { const err = await resp.json().catch(() => ({})); showToast('Erreur : ' + (err.detail || resp.status)); return; }
   await loadHomeRoots();
   updateSettingsHomeRoots();
+  openSettings();
   showToast(`✅ Racine « ${name} » ajoutée`);
 }
 
@@ -3094,7 +3095,8 @@ async function playVideo(idx) {
     updateCutUI();
     const safeDuration = Math.max(0, video.duration - 1);
     const initialSweep = Math.max(cutIn ?? 0, Math.min(initialSweepState.effective_seconds || 0, safeDuration));
-    if (prog.has_saved_progress) {
+    const isWatched = (prog.percent ?? 0) >= cfg.watched_threshold;
+    if (prog.has_saved_progress && !isWatched) {
       video.currentTime = Math.max(cutIn ?? 0, Math.min(prog.position, safeDuration));
     } else if (initialSweep > 0) {
       video.currentTime = initialSweep;
