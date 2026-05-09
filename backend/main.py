@@ -1426,7 +1426,13 @@ def add_home_root(body: HomeRootRequest):
     name = body.name.strip()
     if not name:
         raise HTTPException(status_code=400, detail="Name is required")
-    target = safe_path(body.path)
+    # Accept both absolute paths (from browse modal) and relative paths
+    path = body.path
+    try:
+        path = str(Path(path).relative_to(MEDIA_ROOT))
+    except ValueError:
+        pass  # Already relative, let safe_path validate
+    target = safe_path(path)
     if not target.is_dir():
         raise HTTPException(status_code=404, detail="Folder not found")
     rel = to_rel(target)
