@@ -64,14 +64,6 @@ Facteur de marge actuel : **0,40**.
 
 ---
 
-### Hors lots
-
-| ID | Titre | Prio | Est. | Créé | Démarré | Terminé |
-| --- | --- | --- | --- | --- | --- | --- |
-| BL-040 | BL-023 follow-up : picker + clarification UX home roots | P2 | 20 min | 2026-05-09 | 2026-05-09 | 2026-05-09 |
-
----
-
 ## Détails
 
 ### BL-002 — Sort Controls In The File List
@@ -138,6 +130,8 @@ Facteur de marge actuel : **0,40**.
 
 ### Lot 4 — UI Browser & Player Extensions
 
+- **BL-040** — `created=2026-05-09`, `started=2026-05-09`, `completed=2026-05-09` — Racine de navigation par défaut : colonne `is_default` en base, endpoint `POST /api/home-roots/{id}/set-default`, navigation directe au démarrage et après PIN, indicateur visuel dans les Paramètres. `openRootPicker()` ouvre la browse modal au lieu d'utiliser `currentPath` silencieusement.
+
 - **BL-024** — `created=2026-05-09`, `started=2026-05-09`, `completed=2026-05-09` — Support gamepad complet : Gamepad API, 4 couches L1/R1, contrôles lecteur, navigation navigateur, scrubbing analogique, HUD badge, overlay aide, toasts, haptique Chrome, section Paramètres Manette. Backend : clés `gamepad_enabled/deadzone/haptic/mapping` en SQLite.
 
 - **BL-023** — `created=2026-05-09`, `started=2026-05-09`, `completed=2026-05-09` — Liste de dossiers « home » multiples avec gestion backend (`home_roots`) et écran de sélection UI.
@@ -164,31 +158,6 @@ Facteur de marge actuel : **0,40**.
 - **BL-101** — `created=2026-04-05`, `started=2026-04-05`, `completed=2026-04-06` — Web video download delivered in v2.0 with a bookmarklet, yt-dlp integration, smart source detection, server-side HTML sniffing fallback, cookie / referer passthrough, and SSRF protection.
 - **BL-102** — `created=2026-04-06`, `started=2026-04-06`, `completed=2026-04-06` — Sequential download queue delivered in v2.0 with live queue modal, active badge, stop / cancel action, two-phase preparation, automatic temporary file cleanup, and download-folder auto-refresh.
 - **BL-103** — `created=2026-04-06`, `started=2026-04-06`, `completed=2026-04-06` — Native HTTPS delivered in v2.0 via `SSL_CERTFILE` / `SSL_KEYFILE`, with Docker and installation documentation.
-
----
-
-### BL-040 — BL-023 Follow-up: Root Picker + Home Roots UX Clarification
-
-- **Dates**: `created=2026-05-09`
-- **Origine**: retour utilisateur post-BL-023.
-
-**Objectif**  
-Les home roots doivent être la seule mécanique de point d'entrée. Chaque racine a un nom et un chemin choisi via un filebrowser. Une racine peut être marquée comme **défaut** : au démarrage (et au clic sur ⌂), l'app navigue directement vers elle sans passer par le picker. Si aucune racine n'est marquée défaut, c'est la première racine valide qui est utilisée. Le picker multi-cartes n'apparaît que si l'utilisateur le demande explicitement (ex. : clic ⌂ depuis une racine qui est déjà la défaut).
-
-**Problème 1 — "Ajouter une racine…" n'ouvre pas de filebrowser**  
-`openRootPicker()` utilise silencieusement `currentPath` sans le montrer ni le demander. Quand on est dans les Paramètres, `currentPath` est aléatoire.  
-Fix : le bouton "Ajouter une racine…" ouvre la browse modal (réutiliser `browseCallback`). L'utilisateur navigue jusqu'au dossier voulu, clique "Ajouter comme racine", puis un `prompt` lui demande le nom (pré-rempli avec le basename du dossier). La première racine ajoutée est automatiquement marquée défaut.
-
-**Problème 2 — Racine par défaut**  
-Ajouter un indicateur visuel dans la liste des racines (Paramètres) pour savoir laquelle est la défaut, et un bouton "Définir comme défaut" sur chaque racine non-défaut.  
-Backend : ajouter une colonne `is_default INTEGER DEFAULT 0` dans `home_roots`. `GET /api/home-roots` retourne le flag. Nouvel endpoint `POST /api/home-roots/{id}/set-default` qui remet tous les autres à 0.
-
-**Problème 3 — "Définir comme départ" dans la browse modal (conflit)**  
-La browse modal du player propose encore "⌂ Définir comme départ" qui change `MEDIA_ROOT` (mécanique historique, lourde). Quand des home roots sont configurées, cette action est source de confusion.  
-Fix : si `homeRoots.length > 0`, remplacer le bouton par "🏠 Ajouter comme racine" (ouvre le prompt de nom puis appelle `addHomeRoot`). La modification directe de `MEDIA_ROOT` reste accessible uniquement via les Paramètres ⚙️.
-
-- **Expected outcome**: flux cohérent — filebrowser → nom → racine ajoutée ; une seule racine est la défaut et l'app y va directement au démarrage ; plus de double-emploi entre "Définir comme départ" et les home roots.
-- **Attention point**: ne pas casser le mode "Déplacer ici" qui utilise aussi la browse modal via `browseCallback` ; le flag `is_default` doit être unique (contrainte SQL ou gestion applicative).
 
 ---
 
