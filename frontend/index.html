@@ -223,6 +223,7 @@
   }
   .entry:hover { background: var(--surface2); border-color: var(--border); }
   .entry.active { background: var(--accent-dim); border-color: var(--accent); }
+  .entry.gp-cursor { outline: 2px solid var(--accent); outline-offset: -1px; }
   .entry.seen { background: rgba(58,90,58,0.25); }
   .entry.inprogress { background: rgba(90,74,26,0.3); }
 
@@ -671,6 +672,74 @@
   }
   #toast.show { transform: translateX(-50%) translateY(0); }
 
+  /* ── Gamepad HUD ── */
+  #gp-hud {
+    position: fixed;
+    top: 12px;
+    right: 14px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--accent);
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    padding: 3px 8px;
+    border-radius: 6px;
+    z-index: 300;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  #gp-hud.visible { opacity: 1; }
+  #gp-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.82);
+    z-index: 500;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 8px;
+    padding: 24px;
+    overflow-y: auto;
+  }
+  #gp-overlay.open { display: flex; }
+  #gp-overlay h2 {
+    color: var(--accent);
+    font-size: 15px;
+    margin: 0 0 4px 0;
+    letter-spacing: .06em;
+  }
+  .gp-layer-title {
+    color: var(--text-dim);
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    margin: 10px 0 4px;
+  }
+  .gp-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    font-size: 12px;
+    width: 100%;
+    max-width: 420px;
+  }
+  .gp-btn-badge {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 2px 7px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    min-width: 38px;
+    text-align: center;
+    flex-shrink: 0;
+    color: var(--text);
+  }
+  .gp-action { color: var(--text-mid); flex: 1; }
+
   /* ── Mobile ── */
   @media (max-width: 700px) {
     #filelist-panel { width: 100%; border-right: none; }
@@ -1083,6 +1152,27 @@
       </div>
     </div>
 
+    <!-- Gamepad -->
+    <div>
+      <div class="s-section-title">🎮 Manette</div>
+      <div class="s-row">
+        <div><div class="s-label">Manette activée</div><div class="s-desc">Gamepad API (Xbox, Switch Pro, Steam Deck…)</div></div>
+        <div class="s-right"><label class="toggle"><input type="checkbox" id="s-gamepad-enabled"><div class="toggle-track"></div></label></div>
+      </div>
+      <div class="s-row">
+        <div><div class="s-label">Retour haptique</div><div class="s-desc">Vibration sur les actions (Chrome uniquement)</div></div>
+        <div class="s-right"><label class="toggle"><input type="checkbox" id="s-gamepad-haptic"><div class="toggle-track"></div></label></div>
+      </div>
+      <div class="s-row">
+        <div><div class="s-label">Zone morte</div><div class="s-desc">Seuil de détection des sticks analogiques</div></div>
+        <div class="s-right"><input type="number" class="s-num" id="s-gamepad-deadzone" min="0" max="50" step="1"> <span style="font-size:12px;color:var(--text-dim)">%</span></div>
+      </div>
+      <div class="s-row" style="flex-direction:column;align-items:flex-start;gap:6px">
+        <div class="s-label">Aide raccourcis manette</div>
+        <button class="s-btn" onclick="openGpOverlay()">Afficher la carte des boutons</button>
+      </div>
+    </div>
+
     <button id="settings-save-btn" onclick="saveSettings()">Enregistrer</button>
   </div>
 </div>
@@ -1370,6 +1460,16 @@
 <!-- Toast -->
 <div id="toast"></div>
 
+<!-- Gamepad layer HUD badge -->
+<div id="gp-hud"></div>
+
+<!-- Gamepad mapping overlay -->
+<div id="gp-overlay">
+  <h2>🎮 Manette — Actions</h2>
+  <div id="gp-overlay-body"></div>
+  <button onclick="closeGpOverlay()" style="margin-top:14px;background:var(--surface2);border:1px solid var(--border);color:var(--text-mid);font-size:13px;cursor:pointer;padding:8px 20px;border-radius:8px;font-family:inherit">Fermer</button>
+</div>
+
 <script>
 const API = '';  // same origin
 let currentPath = '';
@@ -1423,6 +1523,10 @@ let cfg = {
   download_folder: 'Downloads',
   download_cookies_path: '',
   transcode_enabled: true,
+  gamepad_enabled: true,
+  gamepad_deadzone: 0.20,
+  gamepad_haptic: true,
+  gamepad_mapping: {},
 };
 
 function applyCfg(s) {
@@ -1456,6 +1560,10 @@ function applyCfg(s) {
   cfg.download_folder            = s.download_folder        || 'Downloads';
   cfg.download_cookies_path      = s.download_cookies_path  || '';
   cfg.transcode_enabled          = s.transcode_enabled !== '0' && s.transcode_enabled !== false;
+  cfg.gamepad_enabled            = s.gamepad_enabled !== '0' && s.gamepad_enabled !== false;
+  cfg.gamepad_deadzone           = parseFloat(s.gamepad_deadzone ?? 0.20);
+  cfg.gamepad_haptic             = s.gamepad_haptic !== '0' && s.gamepad_haptic !== false;
+  try { cfg.gamepad_mapping = JSON.parse(s.gamepad_mapping || '{}'); } catch { cfg.gamepad_mapping = {}; }
   // propagate navigation prefs
   homeFolder = cfg.home_folder;
   sortBy     = cfg.sort_by;
@@ -2048,6 +2156,8 @@ async function init() {
   updateSortUI();
   // Pick up any download jobs still running in the backend (survives page reload)
   _initDlQueue();
+  // Scan for already-connected gamepads (Firefox compat: fires before gamepadconnected)
+  _gpScanConnected();
   // Auto-refresh: re-fetch the current folder every 30 s (stale-while-revalidate,
   // no flicker). Skipped when the home screen or a video is active and no search is active.
   setInterval(() => {
@@ -2234,6 +2344,9 @@ function openSettings() {
   document.getElementById('s-download-folder').value   = cfg.download_folder;
   document.getElementById('s-cookies-path').value      = cfg.download_cookies_path;
   document.getElementById('s-transcode-enabled').checked = cfg.transcode_enabled;
+  document.getElementById('s-gamepad-enabled').checked  = cfg.gamepad_enabled;
+  document.getElementById('s-gamepad-haptic').checked   = cfg.gamepad_haptic;
+  document.getElementById('s-gamepad-deadzone').value   = Math.round((cfg.gamepad_deadzone ?? 0.20) * 100);
   updateSettingsHomeRoots();
   _updateBookmarkletLink();
   _refreshPinStatusUI();
@@ -2278,6 +2391,9 @@ async function saveSettings() {
     download_folder:           (document.getElementById('s-download-folder').value || 'Downloads').trim(),
     download_cookies_path:     document.getElementById('s-cookies-path').value.trim(),
     transcode_enabled:         document.getElementById('s-transcode-enabled').checked,
+    gamepad_enabled:           document.getElementById('s-gamepad-enabled').checked,
+    gamepad_haptic:            document.getElementById('s-gamepad-haptic').checked,
+    gamepad_deadzone:          parseInt(document.getElementById('s-gamepad-deadzone').value, 10) / 100,
   };
   const resp = await fetch(`${API}/api/settings`, {
     method: 'POST',
@@ -2287,6 +2403,7 @@ async function saveSettings() {
   if (!resp.ok) { showToast('Erreur lors de la sauvegarde'); return; }
   applyCfg({ ...cfg, ...payload });
   updateSortUI();
+  _gpScanConnected(); // restart polling if gamepad was just re-enabled
   closeSettings();
   showToast('\u2713 Param\u00e8tres enregistr\u00e9s');
 }
@@ -2847,10 +2964,13 @@ function renderFiles(list) {
   const filtered = activeTagFilter ? list.filter(e => e.tags && e.tags.includes(activeTagFilter)) : list;
   if (!filtered.length) {
     el.innerHTML = `<div style="color:var(--text-dim);font-size:13px;padding:20px;text-align:center">${activeTagFilter ? 'Aucun fichier avec ce tag' : 'Dossier vide'}</div>`;
+    _gpRenderedList = []; _gpCursorIdx = -1;
     return;
   }
 
   const { pinned, rest } = sortedList(filtered);
+  _gpRenderedList = [...pinned, ...rest];
+  _gpCursorIdx = -1;
 
   let html = '';
   if (pinned.length) {
@@ -3802,6 +3922,460 @@ function prevVideoInFolder() {
 
 function openShortcutsDialog() {
   document.getElementById('shortcuts-dialog').showModal();
+}
+
+// ── Gamepad engine ────────────────────────────────────────────────────────────
+// Standard mapping indices (gamepad.mapping === 'standard')
+// Buttons: 0=A, 1=B, 2=X, 3=Y, 4=L1, 5=R1, 6=L2, 7=R2, 8=Select, 9=Start
+//          10=L3, 11=R3, 12=Up, 13=Down, 14=Left, 15=Right
+// Axes: 0=LS-X, 1=LS-Y, 2=RS-X, 3=RS-Y
+
+const GP_DEFAULT_MAPPING = {
+  // Base layer (no modifier)
+  base: {
+    0: 'play_pause',       // A
+    1: 'close_player',     // B
+    2: 'toggle_watched',   // X
+    3: 'fullscreen',       // Y
+    8: 'open_settings',    // Select
+    9: 'open_overlay',     // Start
+    12: 'seek_back_medium', // D-pad Up  (volume up / base: seek back medium)
+    13: 'seek_fwd_medium',  // D-pad Down
+    14: 'seek_back_medium', // D-pad Left
+    15: 'seek_fwd_medium',  // D-pad Right
+  },
+  // D-pad overrides in player context
+  player_base: {
+    12: 'volume_up',
+    13: 'volume_down',
+    14: 'seek_back_medium',
+    15: 'seek_fwd_medium',
+  },
+  // L1 modifier layer (player)
+  l1: {
+    14: 'seek_back_long',
+    15: 'seek_fwd_long',
+    12: 'prev_file',
+    13: 'next_file',
+    2: 'aspect_ratio',     // L1+X
+    0: 'subtitles',        // L1+A (no-op without BL-008)
+    3: 'jump_0',           // L1+Y
+  },
+  // R1 modifier layer (player)
+  r1: {
+    14: 'seek_back_xlong',
+    15: 'seek_fwd_xlong',
+    12: 'jump_25',
+    13: 'jump_75',
+    0: 'move_quick_1',    // R1+A
+    1: 'move_quick_2',    // R1+B
+    2: 'move_quick_3',    // R1+X
+  },
+  // L1+R1 modifier layer
+  lr: {
+    0: 'jump_0',
+    2: 'jump_50',
+    3: 'jump_100',
+  },
+};
+
+// Active gamepad state
+let _gpPollId = null;
+let _gpConnected = {};          // index -> true
+let _gpPrevButtons = {};        // index -> bool[]
+let _gpNavAccum = 0;            // accumulator for left-stick Y cursor navigation
+const _GP_SCRUB_THROTTLE_MS = 100;
+let _gpLastScrubTime = 0;
+
+function _gpDeadzone(v) {
+  const dz = cfg.gamepad_deadzone ?? 0.20;
+  return Math.abs(v) < dz ? 0 : (v - Math.sign(v) * dz) / (1 - dz);
+}
+
+function _gpVibrate(gamepad, ms = 80) {
+  if (!cfg.gamepad_haptic) return;
+  try {
+    gamepad.vibrationActuator?.playEffect?.('dual-rumble', {
+      duration: ms, strongMagnitude: 0.3, weakMagnitude: 0.1,
+    });
+  } catch {}
+}
+
+function _gpAction(action, gamepad) {
+  const hasVideo = !!currentFile;
+  switch (action) {
+    case 'play_pause':
+      if (hasVideo) { togglePlay(); _gpVibrate(gamepad, 60); }
+      break;
+    case 'close_player':
+      if (hasVideo) { privacyClose(); }
+      break;
+    case 'toggle_watched':
+      if (hasVideo) { _gpToggleWatched(); _gpVibrate(gamepad, 60); }
+      break;
+    case 'fullscreen':
+      if (hasVideo) { toggleFullscreen(); }
+      break;
+    case 'open_settings':
+      openSettings();
+      break;
+    case 'open_overlay':
+      openGpOverlay();
+      break;
+    case 'seek_back_medium':
+      if (hasVideo) { skip(-cfg.seek_medium); _gpVibrate(gamepad, 40); }
+      break;
+    case 'seek_fwd_medium':
+      if (hasVideo) { skip(cfg.seek_medium); _gpVibrate(gamepad, 40); }
+      break;
+    case 'seek_back_long':
+      if (hasVideo) { skip(-cfg.seek_long); _gpVibrate(gamepad, 60); }
+      break;
+    case 'seek_fwd_long':
+      if (hasVideo) { skip(cfg.seek_long); _gpVibrate(gamepad, 60); }
+      break;
+    case 'seek_back_xlong':
+      if (hasVideo) { skip(-cfg.seek_xlong); _gpVibrate(gamepad, 80); }
+      break;
+    case 'seek_fwd_xlong':
+      if (hasVideo) { skip(cfg.seek_xlong); _gpVibrate(gamepad, 80); }
+      break;
+    case 'volume_up':
+      if (hasVideo) { setVolume(Math.min(1, video.volume + 0.10)); showToast('🔊 +10%'); }
+      break;
+    case 'volume_down':
+      if (hasVideo) { setVolume(Math.max(0, video.volume - 0.10)); showToast('🔉 −10%'); }
+      break;
+    case 'prev_file':
+      prevVideoInFolder();
+      break;
+    case 'next_file':
+      nextVideoInFolder();
+      break;
+    case 'jump_0':
+      if (hasVideo) { video.currentTime = cutIn ?? 0; showToast('⏮ 0%'); }
+      break;
+    case 'jump_25':
+      if (hasVideo) { video.currentTime = (video.duration || 0) * 0.25; showToast('⏩ 25%'); }
+      break;
+    case 'jump_50':
+      if (hasVideo) { video.currentTime = (video.duration || 0) * 0.50; showToast('⏩ 50%'); }
+      break;
+    case 'jump_75':
+      if (hasVideo) { video.currentTime = (video.duration || 0) * 0.75; showToast('⏩ 75%'); }
+      break;
+    case 'jump_100':
+      if (hasVideo) { video.currentTime = cutOut ?? (video.duration || 0); showToast('⏭ 100%'); }
+      break;
+    case 'aspect_ratio':
+      if (hasVideo) { toggleVideoFit(); }
+      break;
+    case 'subtitles':
+      // no-op until BL-008
+      showToast('Sous-titres : non disponible');
+      break;
+    case 'move_quick_1':
+      if (hasVideo && quickFolders[0]) {
+        pendingMovePath = currentFile.path;
+        moveToFolder(quickFolders[0].path, quickFolders[0].name);
+      }
+      break;
+    case 'move_quick_2':
+      if (hasVideo && quickFolders[1]) {
+        pendingMovePath = currentFile.path;
+        moveToFolder(quickFolders[1].path, quickFolders[1].name);
+      }
+      break;
+    case 'move_quick_3':
+      if (hasVideo && quickFolders[2]) {
+        pendingMovePath = currentFile.path;
+        moveToFolder(quickFolders[2].path, quickFolders[2].name);
+      }
+      break;
+    // Browser navigation
+    case 'nav_up':
+      _gpMoveCursor(-1);
+      break;
+    case 'nav_down':
+      _gpMoveCursor(1);
+      break;
+    case 'nav_enter':
+      _gpActivateCursor();
+      break;
+    case 'nav_back':
+      if (currentPath) navigate(currentPath.split('/').slice(0, -1).join('/'));
+      break;
+  }
+}
+
+// ── Gamepad async toggle watched ──────────────────────────────────────────────
+async function _gpToggleWatched() {
+  if (!currentFile || !video.duration) return;
+  const isSeen = (currentFile.progress?.percent ?? 0) >= cfg.watched_threshold;
+  const newPos = isSeen ? 0 : video.duration * (cfg.watched_threshold / 100);
+  const resp = await fetch(`${API}/api/progress?path=${encodeURIComponent(currentFile.path)}`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ position: newPos, duration: video.duration }),
+  });
+  if (!resp.ok) { showToast('❌ Erreur lors de la mise à jour'); return; }
+  if (currentFile.progress) currentFile.progress.percent = isSeen ? 0 : cfg.watched_threshold;
+  showToast(isSeen ? '🎬 Marqué non vu' : '✅ Marqué vu');
+}
+
+// ── Gamepad cursor (browser navigation) ──────────────────────────────────────
+let _gpCursorIdx = -1;
+let _gpRenderedList = [];  // mirrors DOM order: [...pinned, ...rest] after each renderFiles()
+
+function _gpMoveCursor(delta) {
+  if (!_gpRenderedList.length) return;
+  _gpCursorIdx = Math.max(0, Math.min(_gpRenderedList.length - 1, _gpCursorIdx + delta));
+  const items = document.querySelectorAll('#filelist .entry');
+  items.forEach((el, i) => el.classList.toggle('gp-cursor', i === _gpCursorIdx));
+  items[_gpCursorIdx]?.scrollIntoView({ block: 'nearest' });
+}
+
+function _gpActivateCursor() {
+  if (_gpCursorIdx < 0 || _gpCursorIdx >= _gpRenderedList.length) return;
+  const entry = _gpRenderedList[_gpCursorIdx];
+  if (entry.is_video) {
+    playVideo(entries.indexOf(entry));
+  } else {
+    navigate(entry.path);
+  }
+}
+
+// ── Gamepad poll loop ─────────────────────────────────────────────────────────
+function _gpPoll() {
+  if (!cfg.gamepad_enabled) { _gpStopPolling(); return; }
+
+  const gamepads = navigator.getGamepads();
+  for (const gp of gamepads) {
+    if (!gp) continue;
+    const idx = gp.index;
+
+    // First time seeing this gamepad
+    if (!_gpPrevButtons[idx]) {
+      _gpPrevButtons[idx] = new Array(gp.buttons.length).fill(false);
+    }
+    const prev = _gpPrevButtons[idx];
+    const cur = gp.buttons.map(b => b.pressed);
+
+    // Detect modifier buttons (L1=4, R1=5)
+    const l1 = cur[4];
+    const r1 = cur[5];
+
+    // Update HUD
+    const hud = document.getElementById('gp-hud');
+    if (hud) {
+      const label = l1 && r1 ? 'L1+R1' : l1 ? 'L1' : r1 ? 'R1' : null;
+      hud.textContent = label ? `🎮 ${label}` : '';
+      hud.classList.toggle('visible', !!(label));
+    }
+
+    // Button edge detection (pressed this frame, not last)
+    for (let i = 0; i < cur.length; i++) {
+      if (i === 4 || i === 5) { prev[i] = cur[i]; continue; } // skip modifier tracking below
+      if (cur[i] && !prev[i]) {
+        // Button just pressed — dispatch action
+        _gpDispatch(i, l1, r1, gp);
+      }
+      prev[i] = cur[i];
+    }
+    _gpPrevButtons[idx] = prev;
+
+    // Analog left stick X — scrubbing
+    const lx = _gpDeadzone(gp.axes[0] ?? 0);
+    if (lx !== 0 && currentFile && video.duration) {
+      const now = performance.now();
+      if (now - _gpLastScrubTime > _GP_SCRUB_THROTTLE_MS) {
+        const dur = video.duration;
+        const lo = cutIn  != null ? cutIn  / dur : 0;
+        const hi = cutOut != null ? cutOut / dur : 1;
+        const pct = Math.max(lo, Math.min(hi, video.currentTime / dur + lx * 0.005));
+        seekbarFill.style.width = (pct * 100) + '%';
+        seekbarThumb.style.left = (pct * 100) + '%';
+        video.currentTime = pct * dur;
+        _gpLastScrubTime = now;
+      }
+    }
+
+    // Analog right stick Y — volume
+    const ry = _gpDeadzone(gp.axes[3] ?? 0);
+    if (ry !== 0 && currentFile) {
+      setVolume(Math.max(0, Math.min(1, video.volume - ry * 0.02)));
+    }
+
+    // Left stick Y — browser cursor navigation
+    if (!currentFile) {
+      const ly = _gpDeadzone(gp.axes[1] ?? 0);
+      if (Math.abs(ly) > 0.5) {
+        _gpNavAccum += ly;
+        if (Math.abs(_gpNavAccum) >= 10) {
+          _gpMoveCursor(Math.sign(_gpNavAccum));
+          _gpNavAccum = 0;
+        }
+      } else {
+        _gpNavAccum = 0;
+      }
+    }
+  }
+
+  _gpPollId = requestAnimationFrame(_gpPoll);
+}
+
+function _gpDispatch(btnIdx, l1, r1, gp) {
+  const hasVideo = !!currentFile;
+  const mapping = cfg.gamepad_mapping || {};
+
+  // Try user-defined mapping override first (flat, no layer)
+  if (mapping[String(btnIdx)]) {
+    _gpAction(mapping[String(btnIdx)], gp);
+    return;
+  }
+
+  if (l1 && r1) {
+    const act = GP_DEFAULT_MAPPING.lr[btnIdx];
+    if (act) { _gpAction(act, gp); return; }
+  }
+  if (l1) {
+    if (hasVideo) {
+      const act = GP_DEFAULT_MAPPING.l1[btnIdx];
+      if (act) { _gpAction(act, gp); return; }
+    }
+  }
+  if (r1) {
+    if (hasVideo) {
+      const act = GP_DEFAULT_MAPPING.r1[btnIdx];
+      if (act) { _gpAction(act, gp); return; }
+    }
+  }
+  // Base layer
+  if (hasVideo) {
+    const act = GP_DEFAULT_MAPPING.player_base[btnIdx] ?? GP_DEFAULT_MAPPING.base[btnIdx];
+    if (act) { _gpAction(act, gp); return; }
+  } else {
+    // Browser nav when no video
+    const browserMap = { 12: 'nav_up', 13: 'nav_down', 15: 'nav_down', 14: 'nav_up',
+                         0: 'nav_enter', 1: 'nav_back', 9: 'open_settings' };
+    const act = browserMap[btnIdx] ?? GP_DEFAULT_MAPPING.base[btnIdx];
+    if (act) { _gpAction(act, gp); return; }
+  }
+}
+
+function _gpStartPolling() {
+  if (_gpPollId !== null) return;
+  _gpPollId = requestAnimationFrame(_gpPoll);
+}
+
+function _gpStopPolling() {
+  if (_gpPollId !== null) { cancelAnimationFrame(_gpPollId); _gpPollId = null; }
+}
+
+function _gpScanConnected() {
+  const gamepads = navigator.getGamepads();
+  let anyNew = false;
+  for (const gp of gamepads) {
+    if (!gp) continue;
+    if (!_gpConnected[gp.index]) {
+      _gpConnected[gp.index] = true;
+      anyNew = true;
+      // Firefox: if mapping is '' the gamepad needs a button press to activate
+      if (gp.mapping === '') {
+        showToast('🎮 Appuyez sur un bouton pour activer la manette');
+      } else {
+        showToast(`🎮 Manette connectée : ${gp.id.slice(0, 30)}`);
+        _gpStartPolling();
+      }
+    }
+  }
+  return anyNew;
+}
+
+window.addEventListener('gamepadconnected', (e) => {
+  _gpConnected[e.gamepad.index] = true;
+  if (e.gamepad.mapping === '') {
+    showToast('🎮 Appuyez sur un bouton pour activer la manette');
+  } else {
+    showToast(`🎮 Manette connectée : ${e.gamepad.id.slice(0, 30)}`);
+  }
+  _gpStartPolling();
+});
+
+window.addEventListener('gamepaddisconnected', (e) => {
+  delete _gpConnected[e.gamepad.index];
+  delete _gpPrevButtons[e.gamepad.index];
+  showToast('🎮 Manette déconnectée');
+  if (Object.keys(_gpConnected).length === 0) _gpStopPolling();
+});
+
+// Scan on load + on tab visibility (Firefox compat)
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) _gpScanConnected();
+});
+
+// ── Gamepad mapping overlay ───────────────────────────────────────────────────
+function openGpOverlay() {
+  const body = document.getElementById('gp-overlay-body');
+  const LABEL = {
+    0: 'A', 1: 'B', 2: 'X', 3: 'Y',
+    8: 'Select', 9: 'Start',
+    12: 'D↑', 13: 'D↓', 14: 'D←', 15: 'D→',
+  };
+  const ACTION_LABEL = {
+    play_pause: 'Lecture / Pause',
+    close_player: 'Fermer le lecteur',
+    toggle_watched: 'Marquer vu / non vu',
+    fullscreen: 'Plein écran',
+    open_settings: 'Paramètres',
+    open_overlay: 'Cette aide',
+    seek_back_medium: `Reculer ${cfg.seek_medium}s`,
+    seek_fwd_medium: `Avancer ${cfg.seek_medium}s`,
+    seek_back_long: `Reculer ${cfg.seek_long}s`,
+    seek_fwd_long: `Avancer ${cfg.seek_long}s`,
+    seek_back_xlong: `Reculer ${cfg.seek_xlong}s`,
+    seek_fwd_xlong: `Avancer ${cfg.seek_xlong}s`,
+    volume_up: 'Volume +10%',
+    volume_down: 'Volume −10%',
+    prev_file: 'Fichier précédent',
+    next_file: 'Fichier suivant',
+    jump_0: 'Aller à 0%',
+    jump_25: 'Aller à 25%',
+    jump_50: 'Aller à 50%',
+    jump_75: 'Aller à 75%',
+    jump_100: 'Aller à 100%',
+    aspect_ratio: 'Ratio image',
+    subtitles: 'Sous-titres',
+    move_quick_1: `Déplacer → ${esc(quickFolders[0]?.name ?? 'Dossier 1')}`,
+    move_quick_2: `Déplacer → ${esc(quickFolders[1]?.name ?? 'Dossier 2')}`,
+    move_quick_3: `Déplacer → ${esc(quickFolders[2]?.name ?? 'Dossier 3')}`,
+    nav_up: 'Curseur ↑',
+    nav_down: 'Curseur ↓',
+    nav_enter: 'Ouvrir',
+    nav_back: 'Dossier parent',
+  };
+  const renderLayer = (title, mapObj) => {
+    const rows = Object.entries(mapObj).map(([bi, act]) => {
+      const btn = LABEL[+bi] ?? `Btn ${bi}`;
+      const lbl = ACTION_LABEL[act] ?? act;
+      return `<div class="gp-row"><span class="gp-btn-badge">${btn}</span><span class="gp-action">${lbl}</span></div>`;
+    }).join('');
+    return `<div class="gp-layer-title">${title}</div>${rows}`;
+  };
+  body.innerHTML = [
+    renderLayer('Base (joueur)', { ...GP_DEFAULT_MAPPING.player_base, ...GP_DEFAULT_MAPPING.base }),
+    renderLayer('L1 (joueur)', GP_DEFAULT_MAPPING.l1),
+    renderLayer('R1 (joueur)', GP_DEFAULT_MAPPING.r1),
+    renderLayer('L1 + R1', GP_DEFAULT_MAPPING.lr),
+    `<div class="gp-layer-title">Analogique</div>
+     <div class="gp-row"><span class="gp-btn-badge">LS-X</span><span class="gp-action">Scrubbing (seek)</span></div>
+     <div class="gp-row"><span class="gp-btn-badge">RS-Y</span><span class="gp-action">Volume</span></div>`,
+  ].join('');
+  document.getElementById('gp-overlay').classList.add('open');
+}
+
+function closeGpOverlay() {
+  document.getElementById('gp-overlay').classList.remove('open');
 }
 
 installStandaloneShellHooks();

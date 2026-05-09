@@ -616,6 +616,51 @@ class TestSettings:
         resp = client.get("/api/settings")
         assert resp.json()["transcode_enabled"] == "1"
 
+    def test_gamepad_enabled_default_is_true(self):
+        resp = client.get("/api/settings")
+        assert resp.status_code == 200
+        assert resp.json()["gamepad_enabled"] == "1"
+
+    def test_gamepad_enabled_can_be_toggled(self):
+        resp = client.post("/api/settings", json={"gamepad_enabled": False})
+        assert resp.status_code == 200
+        resp = client.get("/api/settings")
+        assert resp.json()["gamepad_enabled"] == "0"
+        client.post("/api/settings", json={"gamepad_enabled": True})
+
+    def test_gamepad_haptic_default_is_true(self):
+        resp = client.get("/api/settings")
+        assert resp.json()["gamepad_haptic"] == "1"
+
+    def test_gamepad_deadzone_default(self):
+        resp = client.get("/api/settings")
+        assert resp.json()["gamepad_deadzone"] == "0.20"
+
+    def test_gamepad_deadzone_can_be_set(self):
+        resp = client.post("/api/settings", json={"gamepad_deadzone": 0.30})
+        assert resp.status_code == 200
+        resp = client.get("/api/settings")
+        assert resp.json()["gamepad_deadzone"] == "0.3"
+
+    def test_gamepad_deadzone_clamped(self):
+        resp = client.post("/api/settings", json={"gamepad_deadzone": 0.99})
+        assert resp.status_code == 422
+
+    def test_gamepad_mapping_default(self):
+        resp = client.get("/api/settings")
+        assert resp.json()["gamepad_mapping"] == "{}"
+
+    def test_gamepad_mapping_can_be_set(self):
+        mapping = '{"0":"play_pause","1":"close_player"}'
+        resp = client.post("/api/settings", json={"gamepad_mapping": mapping})
+        assert resp.status_code == 200
+        resp = client.get("/api/settings")
+        assert resp.json()["gamepad_mapping"] == mapping
+
+    def test_gamepad_mapping_invalid_json_rejected(self):
+        resp = client.post("/api/settings", json={"gamepad_mapping": "{not valid json}"})
+        assert resp.status_code == 422
+
 
 # ── /api/initial-sweep ───────────────────────────────────────────────────────
 

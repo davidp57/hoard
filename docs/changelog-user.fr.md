@@ -14,6 +14,7 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 - **Vitesse de lecture** : bouton de cycle 0.5× / 1× / 1.5× / 2× dans les contrôles.
 - **Rafraîchissement automatique** : la liste de fichiers se met à jour toutes les 30 secondes quand vous n'êtes pas en train de regarder une vidéo.
 - **Dossiers home multiples** : possibilité de définir plusieurs racines de navigation.
+- **Support manette / gamepad** : Hoard reconnaît désormais les manettes Xbox, Switch Pro, DualSense, Steam Deck et tout contrôleur Bluetooth compatible. Contrôles en lecture : A (play/pause), B (fermer), X (marquer vu), Y (plein écran), D-pad ←/→ (seek), D-pad ↑/↓ (volume), L1 / R1 comme modificateurs pour les sauts longs et les actions avancées. Navigation dans la liste au D-pad. Stick gauche pour le scrubbing, stick droit pour le volume. Un badge en coin indique la couche active (L1/R1), Start affiche la carte de tous les raccourcis. Activation, zone morte et retour haptique configurables dans Paramètres → 🎮 Manette.
 
 - **4 niveaux de seek configurables** : les boutons de saut, les raccourcis clavier, les swipes et les double-taps utilisent désormais quatre durées réglables dans les Paramètres (court, moyen, long, très long — 10 s / 30 s / 60 s / 120 s par défaut).
 - **Raccourcis clavier étendus** : Shift+← / → (seek moyen), Ctrl+← / → (seek long), Alt+← / → (seek très long), A (aspect ratio), PageDown / PageUp (vidéo suivante/précédente), I / O (marqueurs IN/OUT), C (découpe), D (déplacement), Suppr (supprimer), S (position initiale du dossier), ? (aide).

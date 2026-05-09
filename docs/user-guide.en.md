@@ -177,6 +177,61 @@ Progressive seek through the video. **Speed depends on the vertical position of 
 
 ---
 
+## Gamepad / Controller Support
+
+Hoard supports game controllers via the browser's **Gamepad API** (Xbox, PlayStation DualSense, Switch Pro, Steam Deck, iPhone with a Bluetooth controller, etc.).
+
+### Connecting
+
+- Plug in or pair the controller, then press any button while Hoard is open.
+- A « 🎮 Controller connected » toast confirms detection.
+- **Steam Deck / Firefox**: Firefox only fires `gamepadconnected` after a button press. A toast « Press a button to activate the controller » appears if the device is detected but not yet active.
+
+### Actions — Video Player
+
+| Button | Base | + L1 | + R1 | + L1+R1 |
+|--------|------|------|------|---------|
+| **A** | Play / Pause | Subtitles | Move → Folder 1 | Jump to 0% |
+| **B** | Close player | — | Move → Folder 2 | — |
+| **X** | Toggle watched | Aspect ratio | Move → Folder 3 | Jump to 50% |
+| **Y** | Fullscreen | Jump to 0% | — | Jump to 100% |
+| **D-pad ←/→** | Seek medium | Seek long | Seek extra-long | — |
+| **D-pad ↑/↓** | Volume ±10% | Prev/next file | Jump to 25%/75% | — |
+| **Select** | Open Settings | — | — | — |
+| **Start** | Show button map | — | — | — |
+| **Left stick X** | Analog scrubbing | — | — | — |
+| **Right stick Y** | Analog volume | — | — | — |
+
+### Actions — File Browser (no video open)
+
+| Button | Action |
+|--------|--------|
+| **D-pad ↑/↓** | Move cursor in the list |
+| **Left stick Y** | Move cursor (analog) |
+| **A** | Open the selected file or folder |
+| **B** | Go up one level |
+| **Start** | Open Settings |
+
+### Modifier Layers (L1 / R1)
+
+Hold **L1** or **R1** to access extra command layers. Holding both (L1+R1) activates a fourth layer. A small **corner badge** (e.g. « 🎮 L1 ») shows the active layer.
+
+### Button Map Overlay
+
+Press **Start** (or the « Show button map » button in Settings) to display an overlay listing all actions per layer, dynamically updated with your configured seek durations.
+
+### Controller Settings
+
+In **Settings → 🎮 Controller**:
+
+| Setting | Description |
+|---------|-------------|
+| **Controller enabled** | Enable / disable gamepad detection entirely |
+| **Haptic feedback** | Short vibration on play/pause, seek, watched toggle (Chrome only) |
+| **Dead zone** | Stick detection threshold (default 20%). Increase if sticks drift. |
+
+---
+
 ## Quick Folders (Pins)
 
 **Quick folders** let you move a file to a frequently used folder in two taps.

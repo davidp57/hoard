@@ -176,6 +176,61 @@ Seek progressif dans la vidéo. La **vitesse dépend de la hauteur du doigt** : 
 
 ---
 
+## Manette / Gamepad
+
+Hoard supporte les manettes de jeu via la **Gamepad API** du navigateur (Xbox, PlayStation DualSense, Switch Pro, Steam Deck, iPhone avec manette Bluetooth, etc.).
+
+### Connexion
+
+- Connecte la manette (USB ou Bluetooth) et appuie sur un bouton dans Hoard.
+- Un toast « 🎮 Manette connectée » confirme la détection.
+- **Steam Deck / Firefox** : Firefox n'envoie l'événement `gamepadconnected` qu'après un appui. Un toast « Appuyez sur un bouton pour activer la manette » apparaît si la manette est détectée mais pas encore active.
+
+### Actions — Lecteur vidéo
+
+| Bouton | Base | + L1 | + R1 | + L1+R1 |
+|--------|------|------|------|---------|
+| **A** | Lecture / Pause | Sous-titres | Déplacer → Dossier 1 | Aller à 0% |
+| **B** | Fermer le lecteur | — | Déplacer → Dossier 2 | — |
+| **X** | Marquer vu / non vu | Ratio image | Déplacer → Dossier 3 | Aller à 50% |
+| **Y** | Plein écran | Aller à 0% | — | Aller à 100% |
+| **D-pad ←/→** | Seek moyen | Seek long | Seek très long | — |
+| **D-pad ↑/↓** | Volume ±10% | Fichier précédent/suivant | Aller à 25%/75% | — |
+| **Select** | Paramètres | — | — | — |
+| **Start** | Afficher la carte des boutons | — | — | — |
+| **Stick gauche X** | Scrubbing analogique | — | — | — |
+| **Stick droit Y** | Volume analogique | — | — | — |
+
+### Actions — Navigateur de fichiers (sans vidéo)
+
+| Bouton | Action |
+|--------|--------|
+| **D-pad ↑/↓** | Déplacer le curseur dans la liste |
+| **Stick gauche Y** | Déplacer le curseur (analogique) |
+| **A** | Ouvrir le fichier ou dossier sélectionné |
+| **B** | Remonter d'un niveau |
+| **Start** | Ouvrir les Paramètres |
+
+### Modificateurs (L1 / R1)
+
+Maintenir **L1** ou **R1** active une couche de commandes supplémentaires. Les deux ensemble (L1+R1) activent une quatrième couche. Un **badge en coin** (ex : « 🎮 L1 ») indique la couche active.
+
+### Carte des boutons
+
+Appuie sur **Start** (ou le bouton « Afficher la carte des boutons » dans Paramètres) pour afficher un overlay listant toutes les actions disponibles par couche, mis à jour dynamiquement avec les durées de seek configurées.
+
+### Paramètres manette
+
+Dans **Paramètres → 🎮 Manette** :
+
+| Paramètre | Description |
+|-----------|-------------|
+| **Manette activée** | Active / désactive complètement la détection gamepad |
+| **Retour haptique** | Vibration courte sur play/pause, seek, vu/non vu (Chrome uniquement) |
+| **Zone morte** | Seuil de détection des sticks (défaut 20%). Augmenter si les sticks dérivent. |
+
+---
+
 ## Dossiers rapides (épingles)
 
 Les **dossiers rapides** permettent de déplacer un fichier vers un dossier fréquemment utilisé en deux taps.
