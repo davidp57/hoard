@@ -1933,9 +1933,11 @@ async function openRootPicker() {
     if (!trimmedName) { showToast('Le nom ne peut pas être vide'); return; }
     await addHomeRoot(trimmedName, selectedPath);
   };
-  browsePath = '';
+  // Start from MEDIA_ROOT so the user can only pick within the media filesystem
+  const settings = await fetch(`${API}/api/settings`).then(r => r.json()).catch(() => ({}));
+  const startPath = settings.media_root || '';
   document.getElementById('browse-overlay').style.display = 'flex';
-  await loadBrowseDir('');
+  await loadBrowseDir(startPath);
 }
 
 async function addHomeRoot(name, path) {
@@ -1947,7 +1949,7 @@ async function addHomeRoot(name, path) {
   if (!resp) { showToast('Erreur réseau'); return; }
   if (resp.status === 409) { showToast('Cette racine existe déjà'); return; }
   if (resp.status === 404) { showToast('Dossier introuvable'); return; }
-  if (!resp.ok) { showToast('Erreur lors de l\'ajout'); return; }
+  if (!resp.ok) { const err = await resp.json().catch(() => ({})); showToast('Erreur : ' + (err.detail || resp.status)); return; }
   await loadHomeRoots();
   updateSettingsHomeRoots();
   showToast(`✅ Racine « ${name} » ajoutée`);
