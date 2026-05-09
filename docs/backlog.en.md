@@ -71,6 +71,7 @@ Any concrete point raised by the user that needs follow-up beyond the current se
 | BL-015 | 2026-04-12 | Evolution | Watch progress | P2 | Support multi-user watch progress instead of a single global progress row per file |
 | BL-016 | 2026-04-12 | Improvement | Media | P3 | Display video metadata in the UI (duration, resolution, codec), likely via `ffprobe` |
 | BL-020 | 2026-05-09 | Bug | Player | P1 | Native fullscreen broken on touch-capable desktop browsers (SteamDeck/Firefox): `navigator.maxTouchPoints > 0` incorrectly forces faux-fullscreen even when `document.fullscreenEnabled` is true |
+| BL-021 | 2026-05-09 | Improvement | Player | P2 | Unified multi-level seek: 4 configurable durations (short/medium/long/x-long) shared across keyboard shortcuts, touch double-tap zones, and player buttons; full keyboard shortcut set for all player actions; modals usable in native fullscreen |
 
 ## Subject Details
 
@@ -239,6 +240,42 @@ Any concrete point raised by the user that needs follow-up beyond the current se
 - **Expected outcome**: produce a clear compatibility matrix and ship a first metadata-driven decision path so Hoard can prefer native playback over transcoding when browser support is actually confirmed.
 - **Scope**: codec support, container support, browser differences, media source constraints, an on-demand metadata endpoint, and practical detection strategy in the frontend/backend.
 - **Attention point**: keep `/api/transcode` as the safety net even after browser-side probing is added.
+
+### BL-021 — Unified Multi-Level Seek And Extended Keyboard Shortcuts
+
+- **Dates**: `created=2026-05-09`
+
+- **Why**: seek is currently hardcoded at 10s (keyboard) and configured separately for touch double-tap zones; there is no consistency between input methods, and keyboard shortcuts cover only basic playback while all other player actions (move, delete, cut, aspect ratio, markers, sweep, navigation) are mouse/touch-only.
+- **Expected outcome**:
+  1. **Unified 4-level seek** — one set of 4 configurable durations (`seek_short=10s`, `seek_medium=30s`, `seek_long=60s`, `seek_xlong=120s`) applied consistently to both keyboard and touch double-tap:
+     - Keyboard: `←/→` (short), `Shift+←/→` (medium), `Ctrl+←/→` (long), `Alt+←/→` (x-long)
+     - Double-tap left zone → medium (rewind)
+     - Double-tap right zone, bottom third → medium (forward)
+     - Double-tap right zone, middle third → long (forward)
+     - Double-tap right zone, top third → x-long (forward)
+     - Player skip buttons: driven by `seek_short` and `seek_medium`
+     - Settings: replace the current separate `doubletap_right_*` and `doubletap_left` inputs with the 4 unified seek inputs
+  2. **Extended keyboard shortcuts** — new bindings active when a video is open:
+     - `M` → mute toggle (bug fix: was documented but missing from the keydown handler)
+     - `A` → aspect ratio cycle
+     - `I` / `O` → set IN / OUT marker at current position
+     - `C` → open Cut modal
+     - `D` → open Move modal
+     - `Delete` → delete with confirmation
+     - `S` → save current position as folder start offset
+     - `PageDown` / `PageUp` → next / previous video in folder
+     - `?` → show keyboard shortcut reference overlay
+  3. **Modals usable in native fullscreen** — convert move, cut, and delete confirmation overlays to `<dialog>.showModal()` so they appear above the native fullscreen element without exiting fullscreen.
+- **Functional rules**:
+  - Keyboard shortcuts that require an open video (`A`, `I`, `O`, `C`, `D`, `Delete`, `S`) are no-ops when `currentFile` is null.
+  - `Delete` and `D` from the keyboard: after completion, auto-advance to the next video in folder if one exists.
+  - `window.confirm()` in `confirmDelete` must be replaced by a `<dialog>` confirmation (Chrome silently blocks `window.confirm()` during native fullscreen).
+  - `doubletap_left` and `doubletap_right_*` settings keys are removed; their stored values are ignored after migration (no migration needed — defaults are overwritten on first save).
+- **Attention points**:
+  - `Alt+←/→` may conflict with browser history navigation in some configurations — test on Chrome, Firefox, and SteamDeck.
+  - `<dialog>.showModal()` is fully supported in all evergreen browsers; verify behavior inside the faux-fullscreen CSS fallback as well.
+  - The shortcut reference dialog (`?`) should be a lightweight static table, not a dynamic component.
+- **Acceptance signal**: from keyboard alone, a user can play/pause, seek at 4 speeds, adjust volume and mute, toggle aspect, set markers, cut, move, delete, save folder sweep, and navigate to the next/previous video — all without exiting native fullscreen.
 
 ### BL-020 — Native Fullscreen Broken On Touch-Capable Desktop Browsers
 
