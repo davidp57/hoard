@@ -25,9 +25,9 @@ Facteur de marge actuel : **0,40**.
 
 ## Lots actifs
 
-### Lot 5 — Fonctionnalités avancées (~150 min : 135 min Copilot + 15 min gestion)
+### Lot 5 — Fonctionnalités avancées (~110 min : 95 min Copilot + 15 min gestion)
 
-> Dépendance interne : BL-015 dépend de BL-011 (la progression multi-utilisateur présuppose une couche d'authentification) — exécuter BL-011 en premier.
+> Dépendance interne : BL-015 dépend de BL-011 (progression multi-utilisateur présuppose une couche d'authentification) — BL-011 est dans le Lot 6 (sécurité) et doit être livré en premier.
 
 | ID | Titre | Prio | Est. | Créé | Démarré | Terminé |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -36,14 +36,39 @@ Facteur de marge actuel : **0,40**.
 | BL-006 | Renommage de fichiers/dossiers depuis l'UI | P2 | 15 min | 2026-04-12 | | |
 | BL-008 | Sous-titres (`.srt` / `.ass` dans le même dossier) | P2 | 25 min | 2026-04-12 | | |
 | BL-013 | Thème clair (toggle) | P3 | 20 min | 2026-04-12 | | |
-| BL-011 | Authentification basique pour exposition hors LAN | P1 | 20 min | 2026-04-12 | | |
 | BL-015 | Progression de lecture multi-utilisateur *(dépend de BL-011)* | P2 | 35 min | 2026-04-12 | | |
+
+---
+
+### Lot 6 — Sécurité, Qualité & UX (~175 min : 160 min Copilot + 15 min gestion)
+
+> Issu de la revue technique complète du 2026-05-09. Tickets ordonnés par criticité descendante.
+> BL-011 est le prérequis de BL-015 (Lot 5) — livrer ce lot avant le Lot 5.
+
+| ID | Titre | Prio | Est. | Créé | Démarré | Terminé |
+| --- | --- | --- | --- | --- | --- | --- |
+| BL-011 | Authentification basique pour exposition hors LAN | P1 | 20 min | 2026-04-12 | | |
+| BL-027 | Streaming — validation Range header (HTTP 416) | P1 | 5 min | 2026-05-09 | | |
+| BL-028 | safe_path() — bloquer les symlinks dans rglob/iterdir | P1 | 10 min | 2026-05-09 | | |
+| BL-029 | Security headers HTTP (X-Content-Type-Options, X-Frame-Options) | P1 | 5 min | 2026-05-09 | | |
+| BL-030 | PIN — remplacer SHA-256 sans sel par scrypt | P1 | 10 min | 2026-05-09 | | |
+| BL-031 | download_cookies_path — valider et restreindre le chemin | P1 | 5 min | 2026-05-09 | | |
+| BL-032 | MEDIA_ROOT global — thread-safety (threading.Lock) | P2 | 10 min | 2026-05-09 | | |
+| BL-033 | _jobs — purge TTL des jobs terminés (fuite mémoire) | P2 | 10 min | 2026-05-09 | | |
+| BL-034 | delete/move — inverser ordre FS+DB pour atomicité | P2 | 10 min | 2026-05-09 | | |
+| BL-035 | init_db() — index sur progress.path | P2 | 5 min | 2026-05-09 | | |
+| BL-036 | Logging — audit trail des opérations sur fichiers | P2 | 20 min | 2026-05-09 | | |
+| BL-037 | Frontend — timeout fetch + feedback réseau (AbortController) | P2 | 10 min | 2026-05-09 | | |
+| BL-038 | Gestes tactiles — overlay découverte au premier lancement | P3 | 15 min | 2026-05-09 | | |
+| BL-039 | Accessibilité — aria-label, :focus-visible, contraste text-dim | P3 | 20 min | 2026-05-09 | | |
 
 ---
 
 ### Hors lots
 
-*Aucun ticket hors lot pour le moment.*
+| ID | Titre | Prio | Est. | Créé | Démarré | Terminé |
+| --- | --- | --- | --- | --- | --- | --- |
+| BL-040 | BL-023 follow-up : picker + clarification UX home roots | P2 | 20 min | 2026-05-09 | 2026-05-09 | 2026-05-09 |
 
 ---
 
@@ -139,3 +164,158 @@ Facteur de marge actuel : **0,40**.
 - **BL-101** — `created=2026-04-05`, `started=2026-04-05`, `completed=2026-04-06` — Web video download delivered in v2.0 with a bookmarklet, yt-dlp integration, smart source detection, server-side HTML sniffing fallback, cookie / referer passthrough, and SSRF protection.
 - **BL-102** — `created=2026-04-06`, `started=2026-04-06`, `completed=2026-04-06` — Sequential download queue delivered in v2.0 with live queue modal, active badge, stop / cancel action, two-phase preparation, automatic temporary file cleanup, and download-folder auto-refresh.
 - **BL-103** — `created=2026-04-06`, `started=2026-04-06`, `completed=2026-04-06` — Native HTTPS delivered in v2.0 via `SSL_CERTFILE` / `SSL_KEYFILE`, with Docker and installation documentation.
+
+---
+
+### BL-040 — BL-023 Follow-up: Root Picker + Home Roots UX Clarification
+
+- **Dates**: `created=2026-05-09`
+- **Origine**: retour utilisateur post-BL-023.
+
+**Objectif**  
+Les home roots doivent être la seule mécanique de point d'entrée. Chaque racine a un nom et un chemin choisi via un filebrowser. Une racine peut être marquée comme **défaut** : au démarrage (et au clic sur ⌂), l'app navigue directement vers elle sans passer par le picker. Si aucune racine n'est marquée défaut, c'est la première racine valide qui est utilisée. Le picker multi-cartes n'apparaît que si l'utilisateur le demande explicitement (ex. : clic ⌂ depuis une racine qui est déjà la défaut).
+
+**Problème 1 — "Ajouter une racine…" n'ouvre pas de filebrowser**  
+`openRootPicker()` utilise silencieusement `currentPath` sans le montrer ni le demander. Quand on est dans les Paramètres, `currentPath` est aléatoire.  
+Fix : le bouton "Ajouter une racine…" ouvre la browse modal (réutiliser `browseCallback`). L'utilisateur navigue jusqu'au dossier voulu, clique "Ajouter comme racine", puis un `prompt` lui demande le nom (pré-rempli avec le basename du dossier). La première racine ajoutée est automatiquement marquée défaut.
+
+**Problème 2 — Racine par défaut**  
+Ajouter un indicateur visuel dans la liste des racines (Paramètres) pour savoir laquelle est la défaut, et un bouton "Définir comme défaut" sur chaque racine non-défaut.  
+Backend : ajouter une colonne `is_default INTEGER DEFAULT 0` dans `home_roots`. `GET /api/home-roots` retourne le flag. Nouvel endpoint `POST /api/home-roots/{id}/set-default` qui remet tous les autres à 0.
+
+**Problème 3 — "Définir comme départ" dans la browse modal (conflit)**  
+La browse modal du player propose encore "⌂ Définir comme départ" qui change `MEDIA_ROOT` (mécanique historique, lourde). Quand des home roots sont configurées, cette action est source de confusion.  
+Fix : si `homeRoots.length > 0`, remplacer le bouton par "🏠 Ajouter comme racine" (ouvre le prompt de nom puis appelle `addHomeRoot`). La modification directe de `MEDIA_ROOT` reste accessible uniquement via les Paramètres ⚙️.
+
+- **Expected outcome**: flux cohérent — filebrowser → nom → racine ajoutée ; une seule racine est la défaut et l'app y va directement au démarrage ; plus de double-emploi entre "Définir comme départ" et les home roots.
+- **Attention point**: ne pas casser le mode "Déplacer ici" qui utilise aussi la browse modal via `browseCallback` ; le flag `is_default` doit être unique (contrainte SQL ou gestion applicative).
+
+---
+
+### BL-027 — Streaming Range Header Validation
+
+- **Dates**: `created=2026-05-09`
+- **Origine**: revue technique 2026-05-09 — critique.
+- **Why**: the Range header parser in `/api/stream` does not validate that `start <= end` or that values are within file bounds. An inverted or out-of-bounds range can cause a 500 or unexpected behavior. Multi-range requests (`bytes=0-100,200-300`) are not handled and crash the parser.
+- **Expected outcome**: return HTTP 416 (Range Not Satisfiable) for any malformed, inverted, or out-of-bounds range; ignore unsupported multi-range syntax gracefully.
+- **Attention point**: must not break normal browser seeks or partial content responses.
+
+---
+
+### BL-028 — safe_path() Symlink Escape Fix
+
+- **Dates**: `created=2026-05-09`
+- **Origine**: revue technique 2026-05-09 — critique.
+- **Why**: `folder.rglob("*")` and `folder.iterdir()` follow symlinks by default. A symlink inside `MEDIA_ROOT` pointing to `/etc` passes `safe_path()` (which only checks the root) and exposes system files in directory listings.
+- **Expected outcome**: for every item discovered by rglob/iterdir, skip symlinks or verify `item.resolve().is_relative_to(MEDIA_ROOT)` before including it in any response or operation.
+- **Attention point**: must not break legitimate directory traversal for real nested folders.
+
+---
+
+### BL-029 — Security HTTP Headers Middleware
+
+- **Dates**: `created=2026-05-09`
+- **Origine**: revue technique 2026-05-09 — critique.
+- **Why**: no security headers are set. Missing `X-Content-Type-Options: nosniff` enables MIME-sniffing attacks; missing `X-Frame-Options: DENY` allows clickjacking; missing `Content-Security-Policy` reduces defense-in-depth.
+- **Expected outcome**: add a `BaseHTTPMiddleware` that injects at minimum `X-Content-Type-Options`, `X-Frame-Options`, and a minimal CSP (`default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'`) on every response.
+- **Attention point**: CSP must not break the single-file inline CSS/JS frontend; `unsafe-inline` is acceptable given the architecture.
+
+---
+
+### BL-030 — PIN Hashing: SHA-256 → scrypt
+
+- **Dates**: `created=2026-05-09`
+- **Origine**: revue technique 2026-05-09 — élevé.
+- **Why**: PIN is currently hashed with `hashlib.sha256` with no salt. A 4-digit PIN has only 10 000 possibilities; a rainbow table cracks it instantly. A slow KDF is required for any credential storage.
+- **Expected outcome**: replace with `hashlib.scrypt` (stdlib, no new dependency) with a random salt stored alongside the hash in the `settings` table. Existing stored PINs must be migrated gracefully (force re-entry on first login after upgrade).
+- **Attention point**: scrypt parameters (N, r, p) must be tuned to balance security and latency on NAS hardware; default N=2^14 is a reasonable starting point.
+
+---
+
+### BL-031 — download_cookies_path Path Restriction
+
+- **Dates**: `created=2026-05-09`
+- **Origine**: revue technique 2026-05-09 — élevé.
+- **Why**: the `download_cookies_path` setting accepts any absolute path without validation. A malicious or mistaken value like `/etc/passwd` would be passed verbatim to yt-dlp, potentially leaking file contents.
+- **Expected outcome**: validate that the path is absolute, exists, ends with `.txt`, and is readable. Optionally restrict to a configurable safe directory (env var `COOKIES_DIR`).
+- **Attention point**: the check must be done at save time (POST /api/settings), not only at download time.
+
+---
+
+### BL-032 — MEDIA_ROOT Global Thread Safety
+
+- **Dates**: `created=2026-05-09`
+- **Origine**: revue technique 2026-05-09 — élevé.
+- **Why**: `MEDIA_ROOT` is a module-level global mutated by `POST /api/settings` without a lock. A concurrent request in `safe_path()` during the update can read a torn value, potentially allowing path traversal.
+- **Expected outcome**: protect all reads and writes of `MEDIA_ROOT` with a `threading.Lock`. `safe_path()` captures the lock value once at the start of each call.
+- **Attention point**: FastAPI runs handlers in threads; the lock must be non-reentrant (standard `threading.Lock` suffices).
+
+---
+
+### BL-033 — Job Store TTL Purge
+
+- **Dates**: `created=2026-05-09`
+- **Origine**: revue technique 2026-05-09 — moyen.
+- **Why**: the `_jobs` dict accumulates completed/errored/cancelled download jobs indefinitely. A long-running server will eventually exhaust memory.
+- **Expected outcome**: after each job transitions to a terminal state (`done`, `error`, `cancelled`), schedule its removal after a configurable TTL (default 1 hour). Implement as a simple periodic cleanup triggered on job-list reads or as a background thread.
+- **Attention point**: do not delete jobs that are still being polled (e.g., client checks status every second); the TTL should only apply to terminal states.
+
+---
+
+### BL-034 — Delete / Move: DB-First Atomicity
+
+- **Dates**: `created=2026-05-09`
+- **Origine**: revue technique 2026-05-09 — élevé.
+- **Why**: `delete_file` and `move_file` currently delete/move the file on disk first, then update the DB. If the DB write fails, the file is gone but stale progress rows remain, causing permanent inconsistency.
+- **Expected outcome**: reverse the order — update the DB first, then perform the filesystem operation. If the filesystem operation fails, roll back the DB change (wrap both in a try/except with explicit rollback or re-insert).
+- **Attention point**: the DB update must be committed only after the filesystem operation succeeds, or the rollback must restore the original DB state cleanly.
+
+---
+
+### BL-035 — SQLite Index on progress.path
+
+- **Dates**: `created=2026-05-09`
+- **Origine**: revue technique 2026-05-09 — moyen.
+- **Why**: every `/api/files` and `/api/search` call does a full table scan of `progress` to build the progress map. With large libraries this degrades linearly.
+- **Expected outcome**: add `CREATE INDEX IF NOT EXISTS idx_progress_path ON progress(path)` in `init_db()`.
+- **Attention point**: SQLite index creation is idempotent with `IF NOT EXISTS`; no migration tooling needed.
+
+---
+
+### BL-036 — Audit Logging for File Operations
+
+- **Dates**: `created=2026-05-09`
+- **Origine**: revue technique 2026-05-09 — élevé.
+- **Why**: there is no logging anywhere in `main.py`. Destructive operations (delete, move) leave no trace, making incident investigation impossible on a NAS exposed externally.
+- **Expected outcome**: add `import logging` with a module-level `logger = logging.getLogger("hoard")`. Log at INFO level: file deleted, file moved, download started/completed/failed, settings changed, PIN check failed. Include client IP from `Request.client.host`.
+- **Attention point**: do not log file content or PINs. Configure log level via `LOG_LEVEL` env var (default `INFO`).
+
+---
+
+### BL-037 — Frontend Fetch Timeout + Network Error Feedback
+
+- **Dates**: `created=2026-05-09`
+- **Origine**: revue technique 2026-05-09 — moyen.
+- **Why**: fetch calls have no timeout. If the NAS is waking from sleep or the network is slow, the UI hangs silently with no feedback. Several API calls also swallow errors with `.catch(() => null)` without showing a toast.
+- **Expected outcome**: wrap fetch calls with an `AbortController` + `setTimeout` (15 s default). Replace silent `.catch(() => null)` patterns with error toasts. At minimum cover: directory listing, search, progress save, move, delete.
+- **Attention point**: streaming and download-progress polling endpoints should keep their own timeout logic and not use the generic wrapper.
+
+---
+
+### BL-038 — Touch Gesture Discovery Overlay
+
+- **Dates**: `created=2026-05-09`
+- **Origine**: revue technique 2026-05-09 — moyen.
+- **Why**: swipe, double-tap, and triple-tap gestures are powerful but completely invisible. New users on touch devices have no way to discover them without reading the external user guide.
+- **Expected outcome**: on first launch (or after a settings reset), display a one-shot modal or translucent overlay on the player area illustrating the main gesture zones (seek zones, volume swipe, double-tap). Dismissible and never shown again (flag stored in settings).
+- **Attention point**: must not appear on desktop-only (non-touch) browsers; detect via `window.matchMedia('(pointer: coarse)')`.
+
+---
+
+### BL-039 — Accessibility: ARIA Labels, Focus Ring, Contrast
+
+- **Dates**: `created=2026-05-09`
+- **Origine**: revue technique 2026-05-09 — moyen.
+- **Why**: icon-only buttons have no `aria-label`; tabbing through the UI shows no focus indicator (CSS resets `outline`); `--text-dim: #666` on `--surface2: #1e1e21` is ~3:1 contrast ratio, below WCAG AA (4.5:1).
+- **Expected outcome**: add `aria-label` to all interactive elements that lack visible text (home, settings, refresh, play/pause, skip, fullscreen buttons etc.); add a `:focus-visible` outline rule in CSS; raise `--text-dim` to at least `#888` or equivalent passing contrast.
+- **Attention point**: aria-labels must be in French to match `lang="fr"` on the HTML element. Do not change visual design beyond contrast fix.
