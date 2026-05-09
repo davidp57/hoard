@@ -73,7 +73,15 @@ def subdir_with_video():
 
 @pytest.fixture()
 def subdir_without_video():
-    """Create an empty subdirectory (no video files)."""
-    d = MEDIA_DIR / "empty_dir"
+    """Create a unique empty subdirectory (no video files) and clean it up afterwards."""
+    import shutil
+    import uuid
+
+    name = f"empty_dir_{uuid.uuid4().hex}"
+    d = MEDIA_DIR / name
     d.mkdir()
-    return "empty_dir"
+    try:
+        yield name
+    finally:
+        if d.exists():
+            shutil.rmtree(d)

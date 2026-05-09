@@ -176,6 +176,7 @@ class TestHomeRoots:
         data = client.get("/api/home-roots").json()
         assert len(data) == 1
         assert data[0]["is_default"] is True
+        assert data[0]["name"] == "Second"
 
 
 # ── /api/files ────────────────────────────────────────────────────────────────

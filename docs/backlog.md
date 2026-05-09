@@ -307,7 +307,7 @@ Fix : si `homeRoots.length > 0`, remplacer le bouton par "🏠 Ajouter comme rac
 - **Dates**: `created=2026-05-09`
 - **Origine**: revue technique 2026-05-09 — moyen.
 - **Why**: swipe, double-tap, and triple-tap gestures are powerful but completely invisible. New users on touch devices have no way to discover them without reading the external user guide.
-- **Expected outcome**: on first launch (or after a settings reset), display a one-shot modal or translucent overlay on the player area illustrating the main gesture zones (seek zones, volume swipe, double-tap). Dismissable and never shown again (flag stored in settings).
+- **Expected outcome**: on first launch (or after a settings reset), display a one-shot modal or translucent overlay on the player area illustrating the main gesture zones (seek zones, volume swipe, double-tap). Dismissible and never shown again (flag stored in settings).
 - **Attention point**: must not appear on desktop-only (non-touch) browsers; detect via `window.matchMedia('(pointer: coarse)')`.
 
 ---
