@@ -1084,10 +1084,6 @@ def search_files(q: str, path: str = ""):
         qf_paths = {
             row["path"] for row in conn.execute("SELECT path FROM quick_folders").fetchall()
         }
-        rows = conn.execute(
-            "SELECT path, position, duration FROM progress WHERE duration > 0"
-        ).fetchall()
-        progress_map = {row["path"]: row["position"] / row["duration"] * 100 for row in rows}
         tag_rows_s = conn.execute("SELECT path, tag FROM file_tags").fetchall()
 
     tags_map_s: dict[str, list[str]] = {}
@@ -1113,7 +1109,7 @@ def search_files(q: str, path: str = ""):
             "size": st.st_size if item.is_file() else 0,
             "mtime": st.st_mtime,
             "is_quick_folder": rel in qf_paths if item.is_dir() else False,
-            "folder_state": get_folder_state(item, progress_map) if item.is_dir() else None,
+            "folder_state": None,  # skip get_folder_state to avoid nested rglob in search
         }
         if entry["is_video"]:
             entry["progress"] = get_progress(item)
@@ -1422,6 +1418,8 @@ def add_home_root(body: HomeRootRequest):
     if not target.is_dir():
         raise HTTPException(status_code=404, detail="Folder not found")
     rel = to_rel(target)
+    if rel == ".":
+        rel = ""
     with get_db() as conn:
         try:
             conn.execute(
@@ -1429,7 +1427,7 @@ def add_home_root(body: HomeRootRequest):
                 (name, rel),
             )
             conn.commit()
-        except Exception:
+        except sqlite3.IntegrityError:
             raise HTTPException(status_code=409, detail="Root already exists") from None
     return {"ok": True}
 
@@ -1450,31 +1448,31 @@ class TagRequest(BaseModel):
 
 @app.get("/api/tags")
 def get_file_tags(path: str):
-    safe_path(path)  # validate path stays within MEDIA_ROOT
+    rel = to_rel(safe_path(path))
     with get_db() as conn:
         rows = conn.execute(
-            "SELECT tag FROM file_tags WHERE path = ? ORDER BY tag", (path,)
+            "SELECT tag FROM file_tags WHERE path = ? ORDER BY tag", (rel,)
         ).fetchall()
     return {"tags": [r["tag"] for r in rows]}
 
 
 @app.post("/api/tags")
 def add_file_tag(path: str, body: TagRequest):
-    safe_path(path)
+    rel = to_rel(safe_path(path))
     tag = body.tag.strip().lower()
     if not tag:
         raise HTTPException(status_code=400, detail="Tag must not be empty")
     with get_db() as conn:
-        conn.execute("INSERT OR IGNORE INTO file_tags (path, tag) VALUES (?, ?)", (path, tag))
+        conn.execute("INSERT OR IGNORE INTO file_tags (path, tag) VALUES (?, ?)", (rel, tag))
         conn.commit()
     return {"ok": True}
 
 
 @app.delete("/api/tags")
 def remove_file_tag(path: str, tag: str):
-    safe_path(path)
+    rel = to_rel(safe_path(path))
     with get_db() as conn:
-        conn.execute("DELETE FROM file_tags WHERE path = ? AND tag = ?", (path, tag))
+        conn.execute("DELETE FROM file_tags WHERE path = ? AND tag = ?", (rel, tag))
         conn.commit()
     return {"ok": True}
 

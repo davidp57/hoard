@@ -115,6 +115,10 @@ class TestHomeRoots:
         resp = client.post("/api/home-roots", json={"name": "", "path": subdir_with_video})
         assert resp.status_code == 400
 
+    def test_add_whitespace_name_rejected(self, subdir_with_video):
+        resp = client.post("/api/home-roots", json={"name": "   ", "path": subdir_with_video})
+        assert resp.status_code == 400
+
     def test_add_duplicate_rejected(self, subdir_with_video):
         client.post("/api/home-roots", json={"name": "A", "path": subdir_with_video})
         resp = client.post("/api/home-roots", json={"name": "B", "path": subdir_with_video})
@@ -1601,6 +1605,23 @@ class TestSearch:
     def test_search_path_traversal_blocked(self):
         resp = client.get("/api/search?q=test&path=../../../etc")
         assert resp.status_code == 403
+
+    def test_search_scoped_to_subfolder(self):
+        from tests.conftest import MEDIA_DIR
+
+        subdir = MEDIA_DIR / "shows"
+        subdir.mkdir(exist_ok=True)
+        (subdir / "episode_sub.mp4").write_bytes(b"\x00" * 8)
+        (MEDIA_DIR / "episode_root.mp4").write_bytes(b"\x00" * 8)
+        resp = client.get("/api/search?q=episode&path=shows")
+        assert resp.status_code == 200
+        names = [e["name"] for e in resp.json()["entries"]]
+        assert "episode_sub.mp4" in names
+        assert "episode_root.mp4" not in names
+
+    def test_search_nonexistent_path_returns_404(self):
+        resp = client.get("/api/search?q=test&path=nonexistent_folder_xyz")
+        assert resp.status_code == 404
 
 
 class TestFileTags:
