@@ -15,7 +15,11 @@ The interface is split into two areas:
 
 ### File Browser
 
-The browser displays the contents of a folder. A **breadcrumb** at the top lets you navigate up. The **🏠** button returns to the root.
+The browser displays the contents of a folder. A **breadcrumb** at the top lets you navigate up. The **🏠** button returns to the home screen.
+
+### Home Screen and Home Roots
+
+If no home roots are configured, the browser opens directly at `MEDIA_ROOT`. If home roots are defined (via **Settings → Home roots**), pressing **🏠** shows a selection screen listing each named home root. Click one to navigate directly to it.
 
 Each file or folder is shown with:
 
@@ -25,15 +29,33 @@ Each file or folder is shown with:
   - Yellow background + progress bar + percentage → **in progress**
   - Green background → **watched** (≥ 90 % viewed)
 
-### File Actions
+### Search
 
-Hovering over a file (or long-pressing on mobile) reveals action buttons:
+A **🔍** field is available in the sort bar. The search is case-insensitive and recursive within the current folder. Results replace the list; clearing the field (or pressing ✕) returns to normal browsing.
 
-| Action | Description |
+### Tags and Tag Filtering
+
+Any file or folder can carry **free-form text tags** (e.g. `excellent`, `to-finish`). Tags are stored in SQLite and displayed as coloured badges in the list.
+
+| Action | How |
+|--------|-----|
+| Add / remove a tag | Click the **🏷** button next to the entry |
+| Filter the list by a tag | Click a badge in the **tag filter bar** below the sort bar |
+| Clear the filter | Click the same badge again, or navigate to another folder |
+
+The tag filter bar appears automatically as soon as a folder contains at least one tagged file.
 |--------|-------------|
 | **▶ Play** | Opens the video in the player |
-| **📁 Move** | Opens the quick-move modal (pinned folders) |
+| **🏷 Tags** | Opens the tag management modal |
+| **📁 Move** | Opens the move modal (pinned folders + free-pick browser) |
 | **🗑 Delete** | Deletes the file after confirmation |
+
+### Moving to Any Folder
+
+The move modal offers two modes:
+
+- **Pinned folders**: one-tap move to a predefined folder.
+- **📂 Browse…**: opens a destination picker that browses the full folder tree so you can choose any destination.
 
 ---
 
@@ -49,12 +71,17 @@ Hovering over a file (or long-pressing on mobile) reveals action buttons:
 | **▶ / ⏸** | Play / Pause |
 | **🔊** | Mute/unmute |
 | **Volume** | Volume slider |
+| **🐢 / 🐇** | Speed cycle: 0.5× → 1× → 1.5× → 2× (reset on each file open) |
 | **⛶** | Fullscreen |
 
 When you enter fullscreen, Hoard hides the controls automatically to maximize the video area.
 
 - On desktop, move the mouse or use keyboard shortcuts to bring the controls back temporarily.
 - On touch devices, only the existing bottom-centre tap zone near the controls should show or hide them.
+
+### Video Metadata
+
+When a file is playing, the codec, resolution, duration, and bitrate are shown below the filename (fetched from the server via `ffprobe`).
 
 ### Auto-resume
 
@@ -82,6 +109,10 @@ This rule only applies to brand-new videos. Once a file has saved progress, Hoar
 ### IN/OUT Markers (trim)
 
 The `[IN` and `OUT]` buttons define a restricted playback zone (without modifying the file). The ✂ button triggers a physical file cut via ffmpeg.
+
+### Auto-refresh File List
+
+The file list refreshes automatically every 30 seconds when the tab is visible, the video is paused, and no search is active. This makes new files appear without a manual page reload.
 
 ---
 
@@ -196,6 +227,7 @@ All downloads are tracked in a central queue accessible from the **📥** button
 | **Seek durations** | Four configurable levels in **Settings → Player**: short (default 10 s), medium (30 s), long (60 s), extra-long (120 s). Used by skip buttons, keyboard shortcuts, and double-taps. |
 | **Enable transcoding** | When disabled, Hoard always serves the original stream (`/api/stream`) without calling the transcoder. Useful if your NAS is slow or your browser can play the format natively. |
 | **Default initial sweep** | Start brand-new videos at N seconds instead of 0. Applies only when the file has no saved progress yet. `0` disables it globally. |
+| **Home roots** | Named root folders shown on the home screen. Add or remove them in **Settings → Home roots**. |
 | **Download folder** | Target folder, relative to `MEDIA_ROOT` (default: `Downloads`). Created automatically if it does not exist. |
 | **Cookies file path** | Absolute path to a Netscape `cookies.txt` file. Useful for sites that require authentication. |
 

@@ -34,24 +34,26 @@
 
 ## v1.2 — Player & Sort *(next)*
 
-- [ ] **Unified multi-level seek** (BL-021): 4 configurable seek durations (short/medium/long/x-long) shared by keyboard shortcuts, touch double-tap zones, and player buttons; extended keyboard shortcut set (M, A, I, O, C, D, Delete, S, PageDown/PageUp, ?); move/cut/delete modals usable in native fullscreen via `<dialog>.showModal()`
-- [ ] **Sort controls** in file list: by name (asc/desc), date modified, size, watch status
-- [ ] **Fullscreen button** on player + `F` shortcut
-- [ ] **Playback speed** selector (0.5×, 1×, 1.5×, 2×)
-- [ ] Mark file as watched / unwatched manually (right-click / long-press)
+- [x] **Unified multi-level seek** (BL-021): 4 configurable seek durations (short/medium/long/x-long) shared by keyboard shortcuts, touch double-tap zones, and player buttons; extended keyboard shortcut set (M, A, I, O, C, D, Delete, S, PageDown/PageUp, ?); move/cut/delete modals usable in native fullscreen via `<dialog>.showModal()`
+- [ ] **Sort controls** in file list: by name (asc/desc), date modified, size, watch status (BL-002)
+- [x] **Fullscreen button** on player + `F` shortcut (BL-021)
+- [x] **Playback speed** selector (0.5×, 1×, 1.5×, 2×) (BL-010)
+- [ ] Mark file as watched / unwatched manually (right-click / long-press) (BL-003)
 
-## v1.3 — Navigation & Tags
+## v1.3 — Navigation & Tags *(done)*
 
-- [ ] **Free-move**: destination picker that browses the filesystem (folder tree)
-- [ ] **Rename** file/folder inline
-- [ ] **Arbitrary tags** on files (e.g. "excellent", "à finir") — stored in SQLite, shown as badges in the list
-- [ ] Filter list by tag
+- [x] **Multiple home roots**: configure named root folders so the home screen lists several roots (BL-023)
+- [x] **Free-move**: destination picker that browses the filesystem (folder tree) (BL-005)
+- [x] **Arbitrary tags** on files (e.g. "excellent", "à finir") — stored in SQLite, shown as badges in the list (BL-007)
+- [x] **Filter list by tag** — tag filter bar appears dynamically in the sort bar (BL-007)
+- [x] **Search across filenames** — recursive search field in the sort bar, scoped to the current folder (BL-012)
+- [ ] **Rename** file/folder inline (BL-006)
 
 ## v1.4 — Media & Subtitles
 
-- [ ] **Subtitle support**: auto-detect `.srt` / `.ass` files in the same folder and offer them as text tracks
-- [ ] **Auto-refresh** file list (poll or SSE) to detect new downloads without reloading
-- [ ] Display video metadata on hover / detail pane (duration, resolution, codec) via `ffprobe`
+- [ ] **Subtitle support**: auto-detect `.srt` / `.ass` files in the same folder and offer them as text tracks (BL-008)
+- [x] **Auto-refresh** file list every 30 s when the tab is active and video is paused (BL-009)
+- [x] Display video metadata under the player title (duration, resolution, codec, bitrate) via `ffprobe` (BL-016)
 
 ## v2.0 — Platform
 

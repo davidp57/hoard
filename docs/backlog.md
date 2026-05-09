@@ -77,7 +77,7 @@ Facteur de marge actuel : **0,40**.
 
 ### BL-023 — Multiple Home Folders
 
-- **Dates**: `created=2026-05-09`
+- **Dates**: `created=2026-05-09`, `started=2026-05-09`, `completed=2026-05-09`
 
 - **Why**: currently a single `MEDIA_ROOT` is the only navigation root. Users who organise content across several top-level directories (e.g. `/media/movies`, `/media/series`, `/media/music`) must either merge them under one root or navigate manually.
 - **Expected outcome**: configure a list of named home folders (name + path pairs); the UI shows a home screen listing all of them so users jump directly to any root without nesting everything.
@@ -110,7 +110,7 @@ Facteur de marge actuel : **0,40**.
 
 ### BL-005 — Free-Move Destination Picker
 
-- **Dates**: `created=2026-04-12`
+- **Dates**: `created=2026-04-12`, `started=2026-05-09`, `completed=2026-05-09`
 
 - **Why**: predefined quick folders cover only a subset of real file-management flows.
 - **Expected outcome**: browse the filesystem tree and choose any destination folder from the UI.
@@ -126,7 +126,7 @@ Facteur de marge actuel : **0,40**.
 
 ### BL-007 — File Tags And Tag Filtering
 
-- **Dates**: `created=2026-04-12`
+- **Dates**: `created=2026-04-12`, `started=2026-05-09`, `completed=2026-05-09`
 
 - **Why**: users need lightweight organization beyond watched / in-progress / watched.
 - **Expected outcome**: store arbitrary tags in SQLite, display them in the list, and filter by tag.
@@ -142,7 +142,7 @@ Facteur de marge actuel : **0,40**.
 
 ### BL-009 — Auto-Refresh The File List
 
-- **Dates**: `created=2026-04-12`
+- **Dates**: `created=2026-04-12`, `started=2026-05-09`, `completed=2026-05-09`
 
 - **Why**: the UI currently refreshes the download folder after completed downloads, but general folder changes are still manual.
 - **Expected outcome**: detect new files or external changes without requiring a full manual reload.
@@ -150,7 +150,7 @@ Facteur de marge actuel : **0,40**.
 
 ### BL-010 — Playback Speed Selector
 
-- **Dates**: `created=2026-04-12`
+- **Dates**: `created=2026-04-12`, `started=2026-05-09`, `completed=2026-05-09`
 
 - **Why**: users increasingly expect variable playback speed in a media player.
 - **Expected outcome**: expose a simple speed selector with a few useful presets.
@@ -166,7 +166,7 @@ Facteur de marge actuel : **0,40**.
 
 ### BL-012 — Search Across Filenames
 
-- **Dates**: `created=2026-04-12`
+- **Dates**: `created=2026-04-12`, `started=2026-05-09`, `completed=2026-05-09`
 
 - **Why**: raw filesystem browsing becomes less efficient as the media tree grows.
 - **Expected outcome**: search across filenames under `MEDIA_ROOT` without introducing a metadata library.
@@ -198,7 +198,7 @@ Facteur de marge actuel : **0,40**.
 
 ### BL-016 — Video Metadata In The UI
 
-- **Dates**: `created=2026-04-12`
+- **Dates**: `created=2026-04-12`, `started=2026-05-09`, `completed=2026-05-09`
 
 - **Why**: codec, duration, and resolution would help identify files before opening them.
 - **Expected outcome**: display metadata in a lightweight detail pane or hover/card treatment.
