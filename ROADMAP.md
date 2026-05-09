@@ -63,6 +63,10 @@
 - [ ] **Search** across all filenames in MEDIA_ROOT
 - [ ] **Multi-user** watch progress (per-user SQLite rows)
 
+## v1.5 — Gamepad / Controller Support *(done)*
+
+- [x] **Gamepad support** (BL-024): Gamepad API, 4-layer button system (base / L1 / R1 / L1+R1), full player controls (play/pause, seek multi-level, volume, fullscreen, watched toggle, aspect ratio, quick-folder moves), file browser cursor navigation, analog left-stick scrubbing, analog right-stick volume, layer HUD badge, dynamic button-map overlay (Start), connection/disconnection toasts, haptic feedback (Chrome), configurable deadzone and on/off toggle in Settings
+
 ---
 
 > Items within each milestone are roughly ordered by priority.

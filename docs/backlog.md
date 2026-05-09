@@ -14,6 +14,8 @@ Facteur de marge actuel : **0,40**.
 
 | Lot | Estimé Copilot | Réel Copilot | Ratio | Estimé gestion | Réel gestion | Ajustement |
 | --- | --- | --- | --- | --- | --- | --- |
+| Lot 2 — BL-024 Gamepad | 70 min | ~90 min | 1.29 | 15 min | ~15 min | facteur inchangé (0,40) : dépassement lié au review Copilot (7 corrections) |
+| Lot 2 — BL-024 Gamepad | 70 min | ~90 min | 1.29 | 15 min | ~15 min | facteur inchangé (0,40) : dépassement lié au review Copilot (+7 fixes), pas à la complexité initiale |
 
 > - Tickets de finition / tests simples → estimation de référence 3–5 min, pas 10–20 min.
 > - Avant d'estimer un ticket de « review fix », vérifier si le problème existe réellement.
@@ -102,36 +104,6 @@ Facteur de marge actuel : **0,40**.
 - **Why**: a single watch-progress row per file is limiting when several people use the same Hoard instance.
 - **Expected outcome**: separate watch progress by user while preserving the current lightweight architecture.
 - **Attention point**: this has implications for authentication, settings, and UI complexity.
-
-### BL-024 — Gamepad Support (Steam Deck, iPhone + Controller, Xbox, etc.)
-
-- **Dates**: `created=2026-05-09`
-
-- **Why**: Hoard is used on touch-capable devices including the Steam Deck and iPad with Bluetooth controller. No gamepad input is currently supported, forcing users to switch between controller and touch/mouse for navigation and player control.
-- **Expected outcome**:
-  1. **Gamepad API integration** — poll `navigator.getGamepads()` via a `requestAnimationFrame` loop; detect button press edges (pressed this frame, not last); suspend the loop when the tab is hidden (Page Visibility API).
-  2. **4-layer system** — L1 and R1 bumpers act as modifiers; four independent layers: base / L1 / R1 / L1+R1.
-  3. **Player controls** (when a video is open):
-     - Base: A → play/pause, B → close player, X → toggle watched, Y → fullscreen
-     - D-pad ←/→: seek by `cfg.seek_medium` (base), `cfg.seek_long` (L1), `cfg.seek_xlong` (R1)
-     - D-pad ↑/↓: volume ±10% (base), previous/next file in list (L1), jump to 25%/75% (R1)
-     - Stick left X → **analog scrubbing**: visual update every frame (`seekbarFill`, `seekbarThumb`), `video.currentTime` throttled to ~100ms; mirrors the existing pointer-drag seekbar behavior
-     - Stick right Y → analog volume
-     - L1+R1 + A/X/Y → jump to 0% / 50% / 100%
-     - L1 + X → aspect ratio toggle; L1 + A → subtitles (no-op if BL-008 not delivered)
-     - R1 + A/B/X → move to predefined folder #1/#2/#3
-  4. **File browser navigation** (when no video is open):
-     - D-pad ↑/↓ / stick left Y → move cursor through file list, auto-scroll
-     - A → open file or folder, B → go up one level, Start → open settings
-  5. **Steam Deck / Firefox compatibility** — Firefox only fires `gamepadconnected` after a user interaction. On page load and on `visibilitychange`, scan `navigator.getGamepads()` for already-connected devices. Show a persistent subtle toast « 🎮 Appuyez sur un bouton pour activer la manette » if a gamepad is detected but polling has not yet started (identified by `mapping === ''`).
-  6. **Connection toasts** — brief toast on `gamepadconnected` / `gamepaddisconnected`.
-  7. **Layer HUD** — small corner badge showing the active modifier (L1 / R1 / L1+R1) while a bumper is held.
-  8. **Mapping overlay** — triggered by Select or R1+Start; semi-transparent overlay listing all actions per layer, generated dynamically from the current mapping.
-  9. **Haptic feedback** (optional, Chrome only) — short vibration on play/pause, watched toggle, and long seeks via `gamepad.vibrationActuator`.
-  10. **Configurable mapping** — mapping stored as JSON under key `gamepad_mapping` in the `settings` SQLite table (initialized in `init_db()`). Settings UI: « Manette » tab with action list, Rebind button, deadzone slider, haptic toggle, gamepad on/off toggle.
-- **Functional rules**: All gamepad actions mirror existing JS functions (`skip()`, `togglePlay()`, `toggleFullscreen()`, etc.). Seek values come from `cfg.seek_medium/long/xlong` (co-delivered with BL-021 in the same lot). Analog scrubbing respects cut IN/OUT boundaries. Gamepad actions are no-ops when the relevant UI state is not active (e.g., player actions are ignored when no file is open).
-- **Attention points**: Stick deadzone is configurable (default 20%); scrubbing throttle must not conflict with the `timeupdate` handler that normally syncs the seekbar. `vibrationActuator` is Chrome-only — guard with feature detection. Trigger axes (buttons 6/7) are inconsistently mapped across platforms — avoid relying on them.
-- **Files**: `frontend/index.html` (Gamepad engine, CSS HUD/overlay, analog scrubbing), `backend/main.py` (`init_db()`: `gamepad_mapping` key), `docs/user-guide.en.md`, `docs/user-guide.fr.md`.
 
 ---
 
