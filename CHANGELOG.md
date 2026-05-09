@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Toast systématique sur tous les seeks (BL-026)**: chaque seek (bouton, clavier, swipe) affiche un toast de confirmation indiquant le delta réel.
 - **Modaux fullscreen compatibles (BL-021)**: les fenêtres Déplacer, Découper, Supprimer et l'aide clavier utilisent désormais les `<dialog>` HTML natifs qui restent visibles au-dessus du plein écran natif (plus de blocage par `window.confirm()`).
 - **Zone de reveal des contrôles en fullscreen restreinte (BL-026)**: le déplacement de la souris ne révèle les contrôles qu'en bas de l'écran (10 %), évitant l'affichage intempestif pendant la lecture.
+- **Option pour désactiver le transcodage (BL-022)**: nouveau paramètre `transcode_enabled` (défaut : activé). Quand il est désactivé, le player utilise toujours `/api/stream` sans appeler `/api/transcode`, ce qui réduit la charge CPU du NAS pour les formats supportés nativement.
 
 ### Fixed
 - **Probe playback no longer transcodes too early**: formats such as HEVC-in-MP4 now keep the optimistic native `/api/stream` path even when `canPlayType()` or `MediaCapabilities` stay conservative, and only fall back to `/api/transcode` on explicit `fallback` formats or real playback failure.
