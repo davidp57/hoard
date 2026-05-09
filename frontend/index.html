@@ -1873,7 +1873,7 @@ function renderHomeScreen() {
     return;
   }
   const cards = homeRoots.map(r => `
-    <div class="root-card" onclick="navigate(${JSON.stringify(r.path)})">
+    <div class="root-card" onclick="navigate(this.dataset.path)" data-path="${esc(r.path)}">
       <div class="rc-icon">📁</div>
       <div class="rc-name">${esc(r.name)}</div>
       <div class="rc-path">${esc(r.path || '/')}</div>
