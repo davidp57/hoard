@@ -1,5 +1,17 @@
 # Hoard — Copilot Instructions
 
+## Language rules
+
+- **Code and comments**: English only.
+- **Communication with the user**: French only.
+- **Documentation**:
+  - User-facing docs (`user-guide`, `installation`, `getting-started`): **French + English** (paired files `*.fr.md` / `*.en.md`).
+  - Developer / technical docs: **English**.
+  - `CHANGELOG.md`, backlog, release notes: **French**.
+- Update relevant docs in the **same commit** as the code change.
+
+---
+
 ## Project Overview
 
 **Hoard** 🐦 is a self-hosted media browser and video player for a Synology NAS.
@@ -28,10 +40,18 @@ Core features: filesystem browser (raw, no metadata library), watch progress tra
 
 ### Documentation
 
-- **Documentation MUST be kept up to date** with every code change.
-- **Bilingual**: All documentation files must be written in **both English and French**, as separate files under `docs/` (e.g. `user-guide.en.md` / `user-guide.fr.md`).
-- Code-level comments are in **English only**.
-- Update relevant docs in the SAME commit as the code change.
+Documentation must be kept up to date with every code change. Update in the **same commit** as the code.
+
+| Document | Language | Location | Trigger |
+|---|---|---|---|
+| User docs (user-guide, installation, getting-started) | **FR + EN** | `docs/*.en.md` / `docs/*.fr.md` | Feature added or modified |
+| Developer / technical docs | **EN** | `docs/developer.en.md` | Architecture or API changed |
+| `CHANGELOG.md` | **FR** | root | Every PR merged into `develop` |
+| `docs/changelog-user.fr.md` | **FR** | `docs/` | Every user-visible feature or fix |
+| `docs/backlog.md` | **FR** | `docs/` | Ticket created, progressed, or completed |
+| `ROADMAP.md` | **EN** | root | Lot completed, planned, or reprioritised |
+
+`docs/changelog-user.fr.md` is the end-user changelog (no jargon, plain French). Keep it in sync with `CHANGELOG.md` for every version.
 
 ### Architecture Rules
 
@@ -105,7 +125,12 @@ When the user asks to commit, follow these steps **in order** before creating th
    - `python -m pytest tests/`
 3. **Documentation** — update relevant `docs/*.en.md` and `docs/*.fr.md` files if the change affects user-facing behavior or architecture.
 4. **CHANGELOG** — add an entry under `## [Unreleased]` in `CHANGELOG.md` describing the change.
-5. **Commit** — stage all modified files (code + tests + docs + CHANGELOG) and commit in one clean commit with a descriptive Conventional Commits message.
+5. **Commit** — stage all modified files (code + tests + docs + CHANGELOG) and commit in one clean commit following **Conventional Commits** with scope:
+   - `feat(player): add 4-level seek keyboard shortcuts`
+   - `fix(api): correct path traversal guard on move endpoint`
+   - `chore(deps): upgrade uvicorn to 0.34`
+   - `docs(user-guide): document touch gesture zones`
+   - `test(api): add seek settings defaults test`
 
 ### PR preparation workflow
 
@@ -179,6 +204,84 @@ docker compose -f docker-compose.dev.yml up  # Dev with hot-reload
 | DB columns        | snake_case        | `updated_at`              |
 | Test files        | `test_` prefix    | `test_api.py`             |
 
+---
+
+## Git workflow
+
+This project follows **Git Flow**:
+
+- `main` — production-ready releases only
+- `develop` — integration branch, always deployable
+- `feature/*` — new features branched from `develop`
+- `fix/*` — bug fixes branched from `develop`
+- `hotfix/*` — urgent fixes branched from `main`
+- `release/*` — release preparation branched from `develop`
+
+Never commit directly to `main` or `develop`.
+
+### Branch naming
+
+```
+feature/short-description
+fix/short-description
+hotfix/short-description
+release/x.y.z
+```
+
+### Multi-PC workflow
+
+Before starting any work on a branch:
+
+```powershell
+git pull --rebase
+```
+
+This avoids non-fast-forward push rejections. If a push is rejected, always use `git pull --rebase` (not `git merge`) before retrying.
+
+---
+
+## Per-change checklist
+
+After every change (feature, fix, refactor), before committing:
+
+1. Add or update tests for changed behavior.
+2. Run the full quality gate (`ruff check .`, `ruff format --check .`, `pytest`).
+3. Zero errors in VS Code (ruff, Pylance).
+4. Update `CHANGELOG.md` (in **French**, under `## [Unreleased]`).
+5. If user-visible: update `docs/changelog-user.fr.md`.
+6. Update `docs/backlog.md` if the change closes or advances a ticket.
+7. Update relevant user docs (EN + FR) or developer docs (EN).
+8. **Bump the patch version** in `pyproject.toml` (e.g. `1.2.3` → `1.2.4`).
+
+---
+
+## Project planning
+
+### Backlog
+
+`docs/backlog.md` is the single source of truth for all tracked work items. Written in **French**.
+
+Work items are grouped into **lots**. Each lot has:
+- A ticket table: `ID | Titre | Prio | Est. | Créé | Démarré | Terminé`
+- A Copilot time estimate displayed in the lot header.
+
+**Estimation rules:**
+- Per ticket: estimate raw implementation time, multiply by the current margin factor (default **1.15**), round to nearest 5 min.
+- Per lot header: sum of ticket estimates + 15 min user project management.
+- Track actuals in `/memories/session/timing.md` during implementation; report at end of lot.
+- After each completed lot, compare estimated vs. actual. If the ratio differs from the current factor by more than 20%, adjust and inform the user. Log in the `## Calibration estimations` section of `docs/backlog.md`.
+
+Completed lots older than 3 days → move to `docs/backlog-archive.md`.
+
+### Roadmap
+
+`ROADMAP.md` tracks the delivery plan. Every lot with an agreed target version appears there:
+- Functional lots: one subsection per feature with detail.
+- Technical lots: one-line summary.
+
+Update after completing a lot, planning new lots, or changing priorities.
+
+---
 
 ## Development Principles
 

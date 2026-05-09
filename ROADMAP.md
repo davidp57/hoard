@@ -32,8 +32,9 @@
 - [x] HTTPS support: native via `SSL_CERTFILE` / `SSL_KEYFILE` env vars (no reverse proxy needed)
 - [x] SSRF protection on `/api/download` (rejects `file://`, localhost, RFC-1918)
 
-## v1.2 — Quality & Sort *(next)*
+## v1.2 — Player & Sort *(next)*
 
+- [ ] **Unified multi-level seek** (BL-021): 4 configurable seek durations (short/medium/long/x-long) shared by keyboard shortcuts, touch double-tap zones, and player buttons; extended keyboard shortcut set (M, A, I, O, C, D, Delete, S, PageDown/PageUp, ?); move/cut/delete modals usable in native fullscreen via `<dialog>.showModal()`
 - [ ] **Sort controls** in file list: by name (asc/desc), date modified, size, watch status
 - [ ] **Fullscreen button** on player + `F` shortcut
 - [ ] **Playback speed** selector (0.5×, 1×, 1.5×, 2×)

@@ -1,79 +1,51 @@
-# Hoard — Backlog
+# Backlog — Hoard 🐦
 
-## Purpose
+Backlog produit pour Hoard — navigateur de médias et lecteur vidéo auto-hébergé.
+Quand le travail démarre sur un sujet, créer une branche `feature/` depuis `develop`.
+Quand un sujet est livré, mettre à jour `CHANGELOG.md` et passer le ticket en Terminé ici.
 
-This document is the source of truth for changes to discuss and plan outside the milestone roadmap:
+> Lots terminés depuis plus de 3 jours → [backlog-archive.md](backlog-archive.md)
 
-- fixes discovered through testing or real usage;
-- UX improvements;
-- feature evolutions;
-- targeted technical debt;
-- follow-up items raised during user discussions.
+---
 
-It is intentionally lightweight, versioned in Git, and reviewed alongside the code.
+## Calibration estimations
 
-Any concrete point raised by the user that needs follow-up beyond the current session should be captured here with an explicit status and updated over time.
+Facteur de marge actuel : **1,15** (15%) — valeur initiale, pas encore calibrée.
 
-## Working Rules
+| Lot | Estimé Copilot | Réel Copilot | Ratio | Estimé gestion | Réel gestion | Ajustement |
+| --- | --- | --- | --- | --- | --- | --- |
 
-1. Add every new topic to **Inbox** with a short, concrete description.
-2. Propose a **priority** (`P1`, `P2`, `P3`) before arbitration.
-3. Move a topic to **Ready** once the need is clarified.
-4. Move a topic to **In progress** when work starts on an active branch.
-5. Move a topic to **Done** in the working branch once the pull request is ready for merge and the implementation is considered delivered in backlog terms.
-6. Track ticket dates using ISO format (`YYYY-MM-DD`): `created`, `started`, `completed`.
-7. Do not leave any actionable follow-up only in chat if it needs to survive beyond the current exchange.
+---
 
-### Priority Meaning
+## Lots actifs
 
-- `P1` — important to discuss soon; strong product impact, operational need, or notable risk.
-- `P2` — useful but not blocking; improvement to schedule.
-- `P3` — comfort, polish, or optional technical debt.
+*Aucun lot actif pour le moment.*
 
-### Status Meaning
+---
 
-- `Inbox` — captured idea or need, not yet arbitrated.
-- `Ready` — clarified enough to be picked up.
-- `In progress` — currently being implemented on an active branch.
-- `Done` — implementation delivered and PR-ready for merge.
+### Hors lots
 
-### Date Fields
+| ID | Titre | Prio | Est. | Créé | Démarré | Terminé |
+| --- | --- | --- | --- | --- | --- | --- |
+| BL-021 | Seek multi-niveaux unifié + raccourcis clavier étendus + modaux en plein écran | P2 | — | 2026-05-09 | | |
+| BL-005 | Sélecteur de destination libre (arborescence filesystem) | P1 | — | 2026-04-12 | | |
+| BL-007 | Tags arbitraires sur les fichiers + filtrage | P1 | — | 2026-04-12 | | |
+| BL-011 | Authentification basique pour exposition hors LAN | P1 | — | 2026-04-12 | | |
+| BL-002 | Tri dans la liste : taille + état de lecture | P2 | — | 2026-04-12 | | |
+| BL-003 | Marquer manuellement vu / non vu | P2 | — | 2026-04-12 | | |
+| BL-004 | Bouton plein écran + raccourci `F` | P2 | — | 2026-04-12 | | |
+| BL-006 | Renommage de fichiers/dossiers depuis l'UI | P2 | — | 2026-04-12 | | |
+| BL-008 | Sous-titres (`.srt` / `.ass` dans le même dossier) | P2 | — | 2026-04-12 | | |
+| BL-009 | Rafraîchissement auto de la liste de fichiers | P2 | — | 2026-04-12 | | |
+| BL-010 | Sélecteur de vitesse de lecture (0,5×, 1×, 1,5×, 2×) | P2 | — | 2026-04-12 | | |
+| BL-015 | Progression de lecture multi-utilisateur | P2 | — | 2026-04-12 | | |
+| BL-012 | Recherche dans les noms de fichiers | P3 | — | 2026-04-12 | | |
+| BL-013 | Thème clair (toggle) | P3 | — | 2026-04-12 | | |
+| BL-016 | Métadonnées vidéo dans l'UI (durée, résolution, codec) | P3 | — | 2026-04-12 | | |
 
-- `created` — date when the topic first entered the backlog.
-- `started` — date when active implementation work began on a branch.
-- `completed` — date when the ticket was considered delivered in backlog terms.
-- Always use ISO format: `YYYY-MM-DD`.
-- In `Subject Details`, always add a `Dates` line and include only the fields already known for the current status.
-- For historical tickets created before this backlog existed, approximate `created` from the first implementation trace available in Git history.
+---
 
-## Proposed Priorities For The Next Discussion
-
-1. **BL-005** — free-move destination picker in the filesystem tree.
-2. **BL-002** — complete the existing file-list sorting modes.
-3. **BL-003** — manual watched / unwatched toggle.
-
-## Inbox
-
-| ID | Created | Type | Area | Proposed Priority | Topic |
-|---|---|---|---|---|---|
-| BL-002 | 2026-04-12 | Improvement | File list | P2 | Complete the existing file-list sorting by adding size and watch-status modes to the current name/date controls |
-| BL-003 | 2026-04-12 | Improvement | Watch state | P2 | Allow users to mark a file watched or unwatched manually from the UI |
-| BL-004 | 2026-04-12 | Improvement | Player | P2 | Add a proper fullscreen button and `F` keyboard shortcut |
-| BL-005 | 2026-04-12 | Improvement | File management | P1 | Add a free-move destination picker that browses the filesystem tree |
-| BL-006 | 2026-04-12 | Improvement | File management | P2 | Add rename from the UI for files and folders |
-| BL-007 | 2026-04-12 | Improvement | Organization | P1 | Add arbitrary tags on files and allow filtering the list by tag |
-| BL-008 | 2026-04-12 | Improvement | Media | P2 | Add subtitle support by detecting `.srt` and `.ass` files in the same folder |
-| BL-009 | 2026-04-12 | Improvement | Refresh | P2 | Auto-refresh the file list to detect new downloads or external filesystem changes |
-| BL-010 | 2026-04-12 | Improvement | Player | P2 | Add a playback speed selector (0.5x, 1x, 1.5x, 2x) |
-| BL-011 | 2026-04-12 | Security | Access | P1 | Add basic authentication for LAN-external exposure |
-| BL-012 | 2026-04-12 | Improvement | Search | P3 | Add search across filenames under `MEDIA_ROOT` |
-| BL-013 | 2026-04-12 | Improvement | UI | P3 | Add a light theme toggle persisted locally |
-| BL-015 | 2026-04-12 | Evolution | Watch progress | P2 | Support multi-user watch progress instead of a single global progress row per file |
-| BL-016 | 2026-04-12 | Improvement | Media | P3 | Display video metadata in the UI (duration, resolution, codec), likely via `ffprobe` |
-| BL-020 | 2026-05-09 | Bug | Player | P1 | Native fullscreen broken on touch-capable desktop browsers (SteamDeck/Firefox): `navigator.maxTouchPoints > 0` incorrectly forces faux-fullscreen even when `document.fullscreenEnabled` is true |
-| BL-021 | 2026-05-09 | Improvement | Player | P2 | Unified multi-level seek: 4 configurable durations (short/medium/long/x-long) shared across keyboard shortcuts, touch double-tap zones, and player buttons; full keyboard shortcut set for all player actions; modals usable in native fullscreen |
-
-## Subject Details
+## Détails
 
 ### BL-001 — Stabilize Backlog Triage
 
@@ -285,15 +257,9 @@ Any concrete point raised by the user that needs follow-up beyond the current se
 - **Expected outcome**: native fullscreen works on Firefox/SteamDeck and any other touch-capable desktop browser. iPad continues to use faux-fullscreen because `fullscreenEnabled` remains false on Safari.
 - **Scope**: `toggleFullscreen()` in `frontend/index.html` — remove the `|| navigator.maxTouchPoints > 0` branch; rely solely on `!document.fullscreenEnabled`.
 
-## Ready
+## Lots terminés
 
-- No topic yet.
-
-## In Progress
-
-- No topic yet.
-
-## Done
+> Lots terminés depuis plus de 3 jours → [backlog-archive.md](backlog-archive.md)
 
 - **BL-020** — `created=2026-05-09`, `started=2026-05-09`, `completed=2026-05-09` — Native fullscreen now works on touch-capable desktop browsers (SteamDeck/Firefox): removed the overly-broad `navigator.maxTouchPoints > 0` condition from `toggleFullscreen()`; rely solely on `!document.fullscreenEnabled` to decide between native and faux-fullscreen. iPad/Safari unaffected because `fullscreenEnabled` is already `false` there.
 
