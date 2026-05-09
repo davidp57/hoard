@@ -23,27 +23,11 @@ Facteur de marge actuel : **0,40**.
 
 ## Lots actifs
 
-### Lot 1 — Player UX, Seek & Raccourcis clavier (~85 min : 70 min Copilot + 15 min gestion)
-
-> Dépendances internes : BL-026 dépend de BL-021 (valeurs seek unifiées) — exécuter dans l'ordre du tableau.
-
-| ID | Titre | Prio | Est. | Créé | Démarré | Terminé |
-| --- | --- | --- | --- | --- | --- | --- |
-| BL-025 | Changer l'icône « aspect » (même icône que plein écran) | P3 | 5 min | 2026-05-09 | 2026-05-09 | 2026-05-09 |
-| BL-021 | Seek multi-niveaux unifié + raccourcis clavier étendus + modaux en plein écran *(inclut BL-004)* | P2 | 40 min | 2026-05-09 | 2026-05-09 | 2026-05-09 |
-| BL-026 | Contrôles plein écran : affichage zone basse + toast seek systématique | P2 | 25 min | 2026-05-09 | 2026-05-09 | 2026-05-09 |
-
 ### Lot 2 — Gamepad (~85 min : 70 min Copilot + 15 min gestion) — dépend du Lot 1
 
 | ID | Titre | Prio | Est. | Créé | Démarré | Terminé |
 | --- | --- | --- | --- | --- | --- | --- |
 | BL-024 | Contrôle gamepad (manette, Steam Deck, iPhone + controller) | P2 | 70 min | 2026-05-09 | | |
-
-### Lot 3 — Option Transcodage (~30 min : 15 min Copilot + 15 min gestion)
-
-| ID | Titre | Prio | Est. | Créé | Démarré | Terminé |
-| --- | --- | --- | --- | --- | --- | --- |
-| BL-022 | Option pour désactiver le transcodage (lecture native directe) | P1 | 15 min | 2026-05-09 | 2026-05-09 | 2026-05-09 |
 
 ### Lot 4 — UI Browser & Player Extensions (~165 min : 150 min Copilot + 15 min gestion)
 
@@ -260,7 +244,7 @@ Facteur de marge actuel : **0,40**.
 
 ### BL-022 — Option To Disable Transcoding (Direct Native Playback)
 
-- **Dates**: `created=2026-05-09`
+- **Dates**: `created=2026-05-09`, `started=2026-05-09`, `completed=2026-05-09`
 
 - **Why**: `/api/transcode` is sometimes invoked unnecessarily, even when the browser can play the original format natively. Transcoding is CPU-intensive and the NAS lacks the power for it; even a short transcode stall degrades the viewing experience.
 - **Expected outcome**: add a boolean setting `transcode_enabled` (default `true`). When disabled, the player always streams the raw file via `/api/stream` regardless of codec or container, and never calls `/api/transcode`. The setting is toggleable from the Settings panel.
@@ -305,7 +289,7 @@ Facteur de marge actuel : **0,40**.
 
 ### BL-021 — Unified Multi-Level Seek, Extended Keyboard Shortcuts & Fullscreen Button *(absorbe BL-004)*
 
-- **Dates**: `created=2026-05-09`
+- **Dates**: `created=2026-05-09`, `started=2026-05-09`, `completed=2026-05-09`
 
 - **Why**: seek is currently hardcoded at 10s (keyboard) and configured separately for touch double-tap zones; there is no consistency between input methods, and keyboard shortcuts cover only basic playback while all other player actions (move, delete, cut, aspect ratio, markers, sweep, navigation) are mouse/touch-only. BL-004 (fullscreen button + `F` shortcut) is included here since `F` is already part of the keyboard handler and the fullscreen button belongs in the same controls bar refactor.
 - **Expected outcome**:
@@ -342,7 +326,7 @@ Facteur de marge actuel : **0,40**.
 
 ### BL-025 — Changer L'Icône « Aspect »
 
-- **Dates**: `created=2026-05-09`
+- **Dates**: `created=2026-05-09`, `started=2026-05-09`, `completed=2026-05-09`
 
 - **Why**: le bouton « aspect ratio » utilise actuellement la même icône SVG que le bouton plein écran, ce qui rend les deux actions visuellement indiscernables dans la barre de contrôles du player.
 - **Expected outcome**: remplacer l'icône du bouton aspect ratio par une icône distincte qui évoque le recadrage ou le changement de ratio (ex. : deux flèches diagonales opposées avec un rectangle, ou une icône crop/fit).
@@ -351,7 +335,7 @@ Facteur de marge actuel : **0,40**.
 
 ### BL-026 — Contrôles Plein Écran : Affichage Zone Basse + Toast Seek Systématique
 
-- **Dates**: `created=2026-05-09`
+- **Dates**: `created=2026-05-09`, `started=2026-05-09`, `completed=2026-05-09`
 
 - **Why**: la barre de contrôles apparaît intempestivement en plein écran — sur les sauts clavier (←/→), le survol souris (`mousemove`), et, une fois BL-024 livré, lors du scrubbing analogique au stick. Par ailleurs, le toast de seek (déjà affiché sur double-tap) est le bon feedback visuel pour toutes les actions de navigation temporelle, mais il est absent pour les touches clavier, les boutons skip et le swipe horizontal.
 - **Expected outcome**:
@@ -385,6 +369,10 @@ Facteur de marge actuel : **0,40**.
 
 > Lots terminés depuis plus de 3 jours → [backlog-archive.md](backlog-archive.md)
 
+- **BL-026** — `created=2026-05-09`, `started=2026-05-09`, `completed=2026-05-09` — Contrôles plein écran : les boutons skip, les touches clavier et le swipe horizontal affichent désormais tous un toast de seek ; le reveal de la barre de contrôles est limité aux 10 % bas de l'écran ; `mousemove` ne déclenche plus la révélation hors de la zone basse.
+- **BL-021** — `created=2026-05-09`, `started=2026-05-09`, `completed=2026-05-09` — Seek unifié 4 niveaux (`seek_short/medium/long/xlong` configurables), raccourcis clavier étendus (Shift/Ctrl/Alt+←/→, A, M, I/O, C, D, Suppr, S, PageDown/PageUp, ?), et toutes les boîtes de dialogue (déplacement, découpe, suppression, aide) converties en `<dialog>.showModal()` pour rester visibles au-dessus du plein écran natif.
+- **BL-025** — `created=2026-05-09`, `started=2026-05-09`, `completed=2026-05-09` — Icône du bouton aspect ratio remplacée par une icône SVG de cadre distincte, évitant la confusion avec le bouton plein écran.
+- **BL-022** — `created=2026-05-09`, `started=2026-05-09`, `completed=2026-05-09` — Paramètre `transcode_enabled` ajouté (défaut : activé). Quand désactivé, le player utilise toujours `/api/stream` et n'appelle jamais `/api/transcode`.
 - **BL-020** — `created=2026-05-09`, `started=2026-05-09`, `completed=2026-05-09` — Native fullscreen now works on touch-capable desktop browsers (SteamDeck/Firefox): removed the overly-broad `navigator.maxTouchPoints > 0` condition from `toggleFullscreen()`; rely solely on `!document.fullscreenEnabled` to decide between native and faux-fullscreen. iPad/Safari unaffected because `fullscreenEnabled` is already `false` there.
 
 - **BL-014** — `created=2026-04-12`, `started=2026-04-13`, `completed=2026-04-13` — Optional PWA install shell delivered with a manifest, a minimal service worker, standalone-launch polish, and explicit limits so app installability does not imply offline NAS playback.
