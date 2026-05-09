@@ -17,7 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Mise à jour de l'overlay d'aide (`Start`) avec les nouveaux raccourcis contextuel (browser, paramètres, dialogues)
 
 ### Fixed
-- **Bouton « Ajouter une racine »** dans les Paramètres : le modal de navigation s'affichait derrière la page des paramètres (z-index). `openRootPicker()` ferme maintenant les paramètres avant d'ouvrir le modal.
+- **Overlay manette (Start)** : converti en `<dialog>` avec `showModal()` — désormais visible en plein écran natif et hors plein écran. L'ancienne div `position:fixed` était masquée par le mode fullscreen du navigateur.
+- **Rafraîchissement auto** : la liste ne se rafraîchit plus quand un fichier vidéo est chargé (même en pause). La condition `video.paused` est remplacée par `!currentFile` pour éviter d'interrompre une session de lecture.
 - **Dockerfile** : correction des fins de ligne CRLF sur `entrypoint.sh` lors du build depuis Windows (`sed -i 's/\r//'`).
 
 ### Changed
