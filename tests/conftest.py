@@ -69,3 +69,11 @@ def subdir_with_video():
     d.mkdir()
     (d / "episode01.mp4").write_bytes(b"\x00" * 512)
     return "series"
+
+
+@pytest.fixture()
+def subdir_without_video():
+    """Create an empty subdirectory (no video files)."""
+    d = MEDIA_DIR / "empty_dir"
+    d.mkdir()
+    return "empty_dir"

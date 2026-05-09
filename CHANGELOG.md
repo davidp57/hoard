@@ -8,7 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **Tags arbitraires sur les fichiers (BL-007)** : possibilité d'associer des tags texte libres à n'importe quel fichier ou dossier. Les tags sont stockés en base SQLite (`file_tags`), affichés comme badges dans la liste, et un filtre par tag apparaît dynamiquement dans la barre de tri.
+- **Racine de navigation par défaut (BL-040)** : chaque home root peut être désignée comme racine par défaut (colonne `is_default` en base, endpoint `POST /api/home-roots/{id}/set-default`). L'app navigue directement vers la racine par défaut au démarrage et après validation du PIN, sans passer par l'écran de sélection. Un indicateur visuel (🏠, bordure accent, badge « défaut ») et un bouton « ⌂ » permettent de changer la racine par défaut depuis les Paramètres.
+
+### Changed
+- **UX « Ajouter une racine »** : le bouton n'utilise plus `currentPath` silencieusement. Il ouvre désormais la modale de navigation pour choisir le dossier, puis demande un nom (pré-rempli avec le nom du dossier sélectionné).
+- **Bouton « ⌂ Dossier de départ »** dans les Paramètres : quand des home roots existent, il ouvre le sélecteur de dossier pour *ajouter* une nouvelle racine (au lieu de modifier `MEDIA_ROOT` directement). Le comportement historique (changer `MEDIA_ROOT`) est conservé si aucune home root n'est configurée.
+- **`navigateHome` (bouton 🏠)** : navigue vers la racine par défaut si l'utilisateur n'y est pas déjà ; appuyer une seconde fois depuis la racine par défaut affiche l'écran de sélection multi-racines.
+
+ Les tags sont stockés en base SQLite (`file_tags`), affichés comme badges dans la liste, et un filtre par tag apparaît dynamiquement dans la barre de tri.
 - **Sélecteur de destination libre (BL-005)** : bouton « 📂 Parcourir… » dans la fenêtre de déplacement permettant de choisir n'importe quel dossier de l'arborescence comme destination.
 - **Recherche dans les noms de fichiers (BL-012)** : champ de recherche dans la barre de tri ; la recherche est récursive dans le dossier courant via le nouvel endpoint `GET /api/search`.
 - **Métadonnées vidéo dans l'UI (BL-016)** : codec, résolution, durée et bitrate affichés sous le titre du fichier en cours de lecture via `GET /api/media-info`.

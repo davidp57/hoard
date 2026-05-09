@@ -139,6 +139,44 @@ class TestHomeRoots:
         resp = client.post("/api/home-roots", json={"name": "Escape", "path": "../../../etc"})
         assert resp.status_code == 403
 
+    def test_first_root_is_default(self, subdir_with_video):
+        client.post("/api/home-roots", json={"name": "First", "path": subdir_with_video})
+        data = client.get("/api/home-roots").json()
+        assert data[0]["is_default"] is True
+
+    def test_second_root_not_default(self, subdir_with_video, subdir_without_video):
+        client.post("/api/home-roots", json={"name": "First", "path": subdir_with_video})
+        client.post("/api/home-roots", json={"name": "Second", "path": subdir_without_video})
+        data = client.get("/api/home-roots").json()
+        defaults = [r for r in data if r["is_default"]]
+        assert len(defaults) == 1
+        assert defaults[0]["name"] == "First"
+
+    def test_set_default(self, subdir_with_video, subdir_without_video):
+        client.post("/api/home-roots", json={"name": "First", "path": subdir_with_video})
+        client.post("/api/home-roots", json={"name": "Second", "path": subdir_without_video})
+        data = client.get("/api/home-roots").json()
+        second_id = next(r["id"] for r in data if r["name"] == "Second")
+        resp = client.post(f"/api/home-roots/{second_id}/set-default")
+        assert resp.status_code == 200
+        data = client.get("/api/home-roots").json()
+        assert next(r for r in data if r["name"] == "Second")["is_default"] is True
+        assert next(r for r in data if r["name"] == "First")["is_default"] is False
+
+    def test_set_default_nonexistent(self):
+        resp = client.post("/api/home-roots/9999/set-default")
+        assert resp.status_code == 404
+
+    def test_delete_default_promotes_next(self, subdir_with_video, subdir_without_video):
+        client.post("/api/home-roots", json={"name": "First", "path": subdir_with_video})
+        client.post("/api/home-roots", json={"name": "Second", "path": subdir_without_video})
+        data = client.get("/api/home-roots").json()
+        first_id = next(r["id"] for r in data if r["name"] == "First")
+        client.delete(f"/api/home-roots/{first_id}")
+        data = client.get("/api/home-roots").json()
+        assert len(data) == 1
+        assert data[0]["is_default"] is True
+
 
 # ── /api/files ────────────────────────────────────────────────────────────────
 

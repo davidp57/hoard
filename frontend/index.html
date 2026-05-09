@@ -1798,10 +1798,16 @@ document.addEventListener('visibilitychange', () => {
 });
 
 function navigateHome() {
-  if (homeRoots.length > 0) {
+  if (homeRoots.length === 0) {
+    navigate(homeFolder);
+    return;
+  }
+  // If already at the default root, show the picker screen
+  const def = homeRoots.find(r => r.is_default) || homeRoots[0];
+  if (showingHomeScreen || currentPath === def.path) {
     renderHomeScreen();
   } else {
-    navigate(homeFolder);
+    navigate(def.path);
   }
 }
 
@@ -1885,15 +1891,24 @@ function updateSettingsHomeRoots() {
     return;
   }
   list.innerHTML = homeRoots.map(r => `
-    <div style="display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:7px 10px">
-      <span style="font-size:14px">📁</span>
+    <div style="display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid ${r.is_default ? 'var(--accent)' : 'var(--border)'};border-radius:6px;padding:7px 10px">
+      <span style="font-size:14px">${r.is_default ? '🏠' : '📁'}</span>
       <div style="flex:1;min-width:0">
-        <div style="font-size:12px;font-weight:600;color:var(--text)">${esc(r.name)}</div>
+        <div style="font-size:12px;font-weight:600;color:var(--text)">${esc(r.name)}${r.is_default ? ' <span style="font-size:10px;color:var(--accent);font-weight:400">défaut</span>' : ''}</div>
         <div style="font-size:10px;color:var(--text-dim);font-family:'DM Mono',monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.path || '/')}</div>
       </div>
+      ${r.is_default ? '' : `<button onclick="setDefaultHomeRoot(${r.id})" style="background:none;border:1px solid var(--border);border-radius:4px;color:var(--text-dim);cursor:pointer;font-size:10px;padding:2px 5px;flex-shrink:0" title="Définir par défaut">⌂</button>`}
       <button onclick="removeHomeRoot(${r.id})" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:14px;padding:2px 4px;flex-shrink:0" title="Supprimer">✕</button>
     </div>
   `).join('');
+}
+
+async function setDefaultHomeRoot(id) {
+  const resp = await fetch(`${API}/api/home-roots/${id}/set-default`, { method: 'POST' }).catch(() => null);
+  if (!resp || !resp.ok) { showToast('Erreur lors de la mise à jour'); return; }
+  await loadHomeRoots();
+  updateSettingsHomeRoots();
+  showToast('✅ Racine par défaut mise à jour');
 }
 
 async function removeHomeRoot(id) {
@@ -1904,14 +1919,22 @@ async function removeHomeRoot(id) {
   showToast('Racine supprimée');
 }
 
-function openRootPicker() {
-  const defaultName = currentPath ? currentPath.split('/').filter(Boolean).pop() || 'Racine' : 'Racine';
-  const name = window.prompt('Nom de la racine :', defaultName);
-  if (name === null) return; // cancelled
-  const trimmedName = name.trim();
-  if (!trimmedName) { showToast('Le nom ne peut pas être vide'); return; }
-  const path = currentPath || '';
-  addHomeRoot(trimmedName, path);
+async function openRootPicker() {
+  const title = document.getElementById('browse-modal-title');
+  const btn = document.getElementById('browse-confirm-btn');
+  if (title) title.textContent = 'Choisir un dossier racine…';
+  if (btn) btn.textContent = '🏠 Ajouter comme racine';
+  browseCallback = async (selectedPath) => {
+    const basename = selectedPath ? selectedPath.split('/').filter(Boolean).pop() || 'Racine' : 'Racine';
+    const name = window.prompt('Nom de la racine :', basename);
+    if (name === null) return;
+    const trimmedName = name.trim();
+    if (!trimmedName) { showToast('Le nom ne peut pas être vide'); return; }
+    await addHomeRoot(trimmedName, selectedPath);
+  };
+  browsePath = '';
+  document.getElementById('browse-overlay').style.display = 'flex';
+  await loadBrowseDir('');
 }
 
 async function addHomeRoot(name, path) {
@@ -1937,8 +1960,21 @@ async function openBrowseModal() {
   browseCallback = null;
   const title = document.getElementById('browse-modal-title');
   const btn = document.getElementById('browse-confirm-btn');
-  if (title) title.textContent = 'Choisir le dossier de départ';
-  if (btn) btn.textContent = '⌂ Définir comme départ';
+  if (homeRoots.length > 0) {
+    if (title) title.textContent = 'Ajouter une racine de navigation…';
+    if (btn) btn.textContent = '🏠 Ajouter comme racine';
+    browseCallback = async (selectedPath) => {
+      const basename = selectedPath ? selectedPath.split('/').filter(Boolean).pop() || 'Racine' : 'Racine';
+      const name = window.prompt('Nom de la racine :', basename);
+      if (name === null) return;
+      const trimmedName = name.trim();
+      if (!trimmedName) { showToast('Le nom ne peut pas être vide'); return; }
+      await addHomeRoot(trimmedName, selectedPath);
+    };
+  } else {
+    if (title) title.textContent = 'Choisir le dossier de départ';
+    if (btn) btn.textContent = '⌂ Définir comme départ';
+  }
   // Start from current server MEDIA_ROOT
   const settings = await fetch(`${API}/api/settings`).then(r => r.json());
   browsePath = settings.media_root || '';
@@ -2191,7 +2227,8 @@ async function init() {
   if (cfg.pin_set) {
     showPinScreen();
   } else if (homeRoots.length > 0) {
-    renderHomeScreen();
+    const def = homeRoots.find(r => r.is_default) || homeRoots[0];
+    navigate(def.path);
   } else {
     navigate(homeFolder);
   }
@@ -2241,7 +2278,8 @@ async function submitPin() {
   if (resp.ok) {
     hidePinScreen();
     if (homeRoots.length > 0) {
-      renderHomeScreen();
+      const def = homeRoots.find(r => r.is_default) || homeRoots[0];
+      navigate(def.path);
     } else {
       navigate(homeFolder);
     }

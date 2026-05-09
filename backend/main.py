@@ -133,10 +133,15 @@ def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
                 path TEXT NOT NULL UNIQUE,
+                is_default INTEGER DEFAULT 0,
                 sort_order INTEGER DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        # Migration: add is_default column if it doesn't exist yet
+        existing = [r["name"] for r in conn.execute("PRAGMA table_info(home_roots)").fetchall()]
+        if "is_default" not in existing:
+            conn.execute("ALTER TABLE home_roots ADD COLUMN is_default INTEGER DEFAULT 0")
         conn.execute("""
             CREATE TABLE IF NOT EXISTS file_tags (
                 path TEXT NOT NULL,
@@ -1399,13 +1404,20 @@ def remove_quick_folder(path: str):
 def list_home_roots():
     with get_db() as conn:
         rows = conn.execute(
-            "SELECT id, name, path FROM home_roots ORDER BY sort_order, created_at"
+            "SELECT id, name, path, is_default FROM home_roots ORDER BY sort_order, created_at"
         ).fetchall()
     result = []
     for row in rows:
         p = MEDIA_ROOT / row["path"]
         if p.is_dir():
-            result.append({"id": row["id"], "name": row["name"], "path": row["path"]})
+            result.append(
+                {
+                    "id": row["id"],
+                    "name": row["name"],
+                    "path": row["path"],
+                    "is_default": bool(row["is_default"]),
+                }
+            )
     return result
 
 
@@ -1421,10 +1433,13 @@ def add_home_root(body: HomeRootRequest):
     if rel == ".":
         rel = ""
     with get_db() as conn:
+        # First root added becomes the default automatically
+        count = conn.execute("SELECT COUNT(*) FROM home_roots").fetchone()[0]
+        is_default = 1 if count == 0 else 0
         try:
             conn.execute(
-                "INSERT INTO home_roots (name, path) VALUES (?, ?)",
-                (name, rel),
+                "INSERT INTO home_roots (name, path, is_default) VALUES (?, ?, ?)",
+                (name, rel, is_default),
             )
             conn.commit()
         except sqlite3.IntegrityError:
@@ -1432,13 +1447,34 @@ def add_home_root(body: HomeRootRequest):
     return {"ok": True}
 
 
+@app.post("/api/home-roots/{root_id}/set-default")
+def set_default_home_root(root_id: int):
+    with get_db() as conn:
+        row = conn.execute("SELECT id FROM home_roots WHERE id = ?", (root_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Root not found")
+        conn.execute("UPDATE home_roots SET is_default = 0")
+        conn.execute("UPDATE home_roots SET is_default = 1 WHERE id = ?", (root_id,))
+        conn.commit()
+    return {"ok": True}
+
+
 @app.delete("/api/home-roots/{root_id}")
 def remove_home_root(root_id: int):
     with get_db() as conn:
-        result = conn.execute("DELETE FROM home_roots WHERE id = ?", (root_id,))
+        row = conn.execute("SELECT is_default FROM home_roots WHERE id = ?", (root_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Root not found")
+        conn.execute("DELETE FROM home_roots WHERE id = ?", (root_id,))
         conn.commit()
-    if result.rowcount == 0:
-        raise HTTPException(status_code=404, detail="Root not found")
+        # If the deleted root was the default, promote the first remaining root
+        if row["is_default"]:
+            first = conn.execute(
+                "SELECT id FROM home_roots ORDER BY sort_order, created_at LIMIT 1"
+            ).fetchone()
+            if first:
+                conn.execute("UPDATE home_roots SET is_default = 1 WHERE id = ?", (first["id"],))
+                conn.commit()
     return {"ok": True}
 
 
