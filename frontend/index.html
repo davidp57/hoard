@@ -1061,11 +1061,11 @@
           <div id="seekbar-thumb"></div>
         </div>
         <div id="ctrl-row">
-          <button class="ctrl-btn" onclick="skip(-cfg.seek_medium)" title="-30s">⏪</button>
-          <button class="ctrl-btn" onclick="skip(-cfg.seek_short)" title="-10s">◀◀</button>
+          <button class="ctrl-btn" data-seek="seek_medium" data-dir="back" onclick="skip(-cfg.seek_medium)" title="-30s">⏪</button>
+          <button class="ctrl-btn" data-seek="seek_short" data-dir="back" onclick="skip(-cfg.seek_short)" title="-10s">◀◀</button>
           <button class="ctrl-btn" id="playpause-btn" onclick="togglePlay()">▶</button>
-          <button class="ctrl-btn" onclick="skip(cfg.seek_short)" title="+10s">▶▶</button>
-          <button class="ctrl-btn" onclick="skip(cfg.seek_medium)" title="+30s">⏩</button>
+          <button class="ctrl-btn" data-seek="seek_short" data-dir="fwd" onclick="skip(cfg.seek_short)" title="+10s">▶▶</button>
+          <button class="ctrl-btn" data-seek="seek_medium" data-dir="fwd" onclick="skip(cfg.seek_medium)" title="+30s">⏩</button>
           <div id="time-display">0:00 / 0:00</div>
           <div id="volume-wrap">
             <span style="font-size:16px;cursor:pointer" onclick="toggleMute()">🔊</span>
@@ -1300,6 +1300,14 @@ function applyCfg(s) {
   cfg.seek_long                 = parseInt(s.seek_long    ?? 60, 10);
   cfg.seek_xlong                = parseInt(s.seek_xlong   ?? 120, 10);
   cfg.initial_sweep_seconds     = parseInt(s.initial_sweep_seconds    ?? 0, 10);
+  // Sync skip button tooltips with configured seek durations
+  const skipBtns = document.querySelectorAll('#ctrl-row .ctrl-btn[data-seek]');
+  skipBtns.forEach(btn => {
+    const key = btn.dataset.seek;
+    const val = cfg[key];
+    const sign = btn.dataset.dir === 'back' ? '-' : '+';
+    btn.title = `${sign}${val}s`;
+  });
   cfg.download_folder            = s.download_folder        || 'Downloads';
   cfg.download_cookies_path      = s.download_cookies_path  || '';
   // propagate navigation prefs
@@ -2968,8 +2976,8 @@ async function confirmDelete(path, name) {
   dlg.showModal();
   return new Promise(resolve => {
     const btn = document.getElementById('delete-dialog-confirm');
-    const handler = async () => {
-      btn.removeEventListener('click', handler);
+    btn.onclick = async () => {
+      btn.onclick = null;
       dlg.close();
       releaseVideoIfCurrent(path);
       const doDelete = () => fetch(`${API}/api/files?path=${encodeURIComponent(path)}`, { method: 'DELETE' });
@@ -2984,8 +2992,7 @@ async function confirmDelete(path, name) {
       await navigate(currentPath);
       resolve();
     };
-    btn.addEventListener('click', handler);
-    dlg.addEventListener('close', () => { btn.removeEventListener('click', handler); resolve(); }, { once: true });
+    dlg.addEventListener('close', () => { btn.onclick = null; resolve(); }, { once: true });
   });
 }
 
