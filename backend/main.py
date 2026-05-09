@@ -1424,10 +1424,10 @@ _SETTINGS_KEYS = {
     "gesture_edge_pct",  # int 10-35
     "gesture_swipe_threshold",  # px int, default 15
     "gesture_swipe_sensitivity",  # 'slow'|'medium'|'fast'
-    "doubletap_left",  # seconds int
-    "doubletap_right_bottom",  # seconds int
-    "doubletap_right_mid",  # seconds int
-    "doubletap_right_top",  # seconds int
+    "seek_short",  # seconds int, default 10
+    "seek_medium",  # seconds int, default 30
+    "seek_long",  # seconds int, default 60
+    "seek_xlong",  # seconds int, default 120
     "initial_sweep_seconds",  # seconds int, default 0 = disabled
     "download_folder",  # relative path from MEDIA_ROOT, default 'Downloads'
     "download_cookies_path",  # absolute path to a Netscape cookies.txt file, optional
@@ -1448,10 +1448,10 @@ _SETTINGS_DEFAULTS: dict[str, str] = {
     "gesture_edge_pct": "20",
     "gesture_swipe_threshold": "15",
     "gesture_swipe_sensitivity": "medium",
-    "doubletap_left": "30",
-    "doubletap_right_bottom": "30",
-    "doubletap_right_mid": "60",
-    "doubletap_right_top": "90",
+    "seek_short": "10",
+    "seek_medium": "30",
+    "seek_long": "60",
+    "seek_xlong": "120",
     "initial_sweep_seconds": "0",
     "download_folder": "Downloads",
     "download_cookies_path": "",
@@ -1491,10 +1491,10 @@ class SettingsPayload(BaseModel):
     gesture_edge_pct: int | None = None
     gesture_swipe_threshold: int | None = None
     gesture_swipe_sensitivity: str | None = None
-    doubletap_left: int | None = None
-    doubletap_right_bottom: int | None = None
-    doubletap_right_mid: int | None = None
-    doubletap_right_top: int | None = None
+    seek_short: int | None = None
+    seek_medium: int | None = None
+    seek_long: int | None = None
+    seek_xlong: int | None = None
     initial_sweep_seconds: int | None = Field(default=None, ge=0, le=7200)
     download_folder: str | None = None
     download_cookies_path: str | None = None
@@ -1541,10 +1541,10 @@ def update_settings(body: SettingsPayload):
             ("gesture_swipe_threshold", body.gesture_swipe_threshold),
             ("gesture_edge_pct", body.gesture_edge_pct),
             ("gesture_swipe_sensitivity", body.gesture_swipe_sensitivity),
-            ("doubletap_left", body.doubletap_left),
-            ("doubletap_right_bottom", body.doubletap_right_bottom),
-            ("doubletap_right_mid", body.doubletap_right_mid),
-            ("doubletap_right_top", body.doubletap_right_top),
+            ("seek_short", body.seek_short),
+            ("seek_medium", body.seek_medium),
+            ("seek_long", body.seek_long),
+            ("seek_xlong", body.seek_xlong),
             ("initial_sweep_seconds", body.initial_sweep_seconds),
             ("download_folder", body.download_folder),
             ("download_cookies_path", body.download_cookies_path),

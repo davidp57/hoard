@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Configurable initial sweep for new videos**: add a global `initial_sweep_seconds` player setting plus per-folder overrides. Brand-new videos can now start at a configured offset (for example 10 minutes in), while videos with saved progress still resume from their actual saved position.
 - **Playback metadata endpoint**: add `/api/media-info` backed by `ffprobe` so Hoard can inspect container, codecs, bitrate, frame rate, and audio properties before deciding how to play a file.
 - **Optional PWA install shell**: Hoard now ships a web app manifest, a minimal service worker, and standalone-shell polish so supported browsers can install it as an app without changing the online-only NAS playback model.
+- **4 niveaux de seek unifiés (BL-021)**: les raccourcis clavier, le double-tap et les boutons skip utilisent désormais 4 durées configurables (`seek_short`, `seek_medium`, `seek_long`, `seek_xlong`) au lieu des anciennes valeurs `doubletap_*` séparées.
+- **Nouveaux raccourcis clavier (BL-021)**: navigation vidéo suivante/précédente (PageDown/PageUp), muet (M), cycle aspect ratio (A), marquer points IN/OUT (I/O), ouvrir découpe (C), ouvrir déplacement (D), supprimer (Suppr), sauvegarder position initiale (S), aide raccourcis (?).
+- **Icône aspect ratio distincte (BL-025)**: le bouton Fit/Fill affiche désormais une icône SVG de cadre au lieu du symbole ⛶ qui ressemblait au bouton plein écran.
+- **Toast systématique sur tous les seeks (BL-026)**: chaque seek (bouton, clavier, swipe) affiche un toast de confirmation indiquant le delta réel.
+- **Modaux fullscreen compatibles (BL-021)**: les fenêtres Déplacer, Découper, Supprimer et l'aide clavier utilisent désormais les `<dialog>` HTML natifs qui restent visibles au-dessus du plein écran natif (plus de blocage par `window.confirm()`).
+- **Zone de reveal des contrôles en fullscreen restreinte (BL-026)**: le déplacement de la souris ne révèle les contrôles qu'en bas de l'écran (10 %), évitant l'affichage intempestif pendant la lecture.
 
 ### Fixed
 - **Probe playback no longer transcodes too early**: formats such as HEVC-in-MP4 now keep the optimistic native `/api/stream` path even when `canPlayType()` or `MediaCapabilities` stay conservative, and only fall back to `/api/transcode` on explicit `fallback` formats or real playback failure.
