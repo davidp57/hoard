@@ -657,6 +657,10 @@ class TestSettings:
         resp = client.get("/api/settings")
         assert resp.json()["gamepad_mapping"] == mapping
 
+    def test_gamepad_mapping_invalid_json_rejected(self):
+        resp = client.post("/api/settings", json={"gamepad_mapping": "{not valid json}"})
+        assert resp.status_code == 422
+
 
 # ── /api/initial-sweep ───────────────────────────────────────────────────────
 

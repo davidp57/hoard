@@ -2403,6 +2403,7 @@ async function saveSettings() {
   if (!resp.ok) { showToast('Erreur lors de la sauvegarde'); return; }
   applyCfg({ ...cfg, ...payload });
   updateSortUI();
+  _gpScanConnected(); // restart polling if gamepad was just re-enabled
   closeSettings();
   showToast('\u2713 Param\u00e8tres enregistr\u00e9s');
 }
@@ -2963,10 +2964,13 @@ function renderFiles(list) {
   const filtered = activeTagFilter ? list.filter(e => e.tags && e.tags.includes(activeTagFilter)) : list;
   if (!filtered.length) {
     el.innerHTML = `<div style="color:var(--text-dim);font-size:13px;padding:20px;text-align:center">${activeTagFilter ? 'Aucun fichier avec ce tag' : 'Dossier vide'}</div>`;
+    _gpRenderedList = []; _gpCursorIdx = -1;
     return;
   }
 
   const { pinned, rest } = sortedList(filtered);
+  _gpRenderedList = [...pinned, ...rest];
+  _gpCursorIdx = -1;
 
   let html = '';
   if (pinned.length) {
@@ -3979,8 +3983,7 @@ const GP_DEFAULT_MAPPING = {
 let _gpPollId = null;
 let _gpConnected = {};          // index -> true
 let _gpPrevButtons = {};        // index -> bool[]
-let _gpStickSeekAccum = 0;      // throttle analog scrub
-let _gpStickVolAccum = 0;
+let _gpNavAccum = 0;            // accumulator for left-stick Y cursor navigation
 const _GP_SCRUB_THROTTLE_MS = 100;
 let _gpLastScrubTime = 0;
 
@@ -4110,30 +4113,33 @@ async function _gpToggleWatched() {
   if (!currentFile || !video.duration) return;
   const isSeen = (currentFile.progress?.percent ?? 0) >= cfg.watched_threshold;
   const newPos = isSeen ? 0 : video.duration * (cfg.watched_threshold / 100);
-  await fetch(`${API}/api/progress?path=${encodeURIComponent(currentFile.path)}`, {
+  const resp = await fetch(`${API}/api/progress?path=${encodeURIComponent(currentFile.path)}`, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({ position: newPos, duration: video.duration }),
   });
+  if (!resp.ok) { showToast('❌ Erreur lors de la mise à jour'); return; }
+  if (currentFile.progress) currentFile.progress.percent = isSeen ? 0 : cfg.watched_threshold;
   showToast(isSeen ? '🎬 Marqué non vu' : '✅ Marqué vu');
 }
 
 // ── Gamepad cursor (browser navigation) ──────────────────────────────────────
 let _gpCursorIdx = -1;
+let _gpRenderedList = [];  // mirrors DOM order: [...pinned, ...rest] after each renderFiles()
 
 function _gpMoveCursor(delta) {
-  if (!entries.length) return;
-  _gpCursorIdx = Math.max(0, Math.min(entries.length - 1, _gpCursorIdx + delta));
+  if (!_gpRenderedList.length) return;
+  _gpCursorIdx = Math.max(0, Math.min(_gpRenderedList.length - 1, _gpCursorIdx + delta));
   const items = document.querySelectorAll('#filelist .entry');
   items.forEach((el, i) => el.classList.toggle('gp-cursor', i === _gpCursorIdx));
   items[_gpCursorIdx]?.scrollIntoView({ block: 'nearest' });
 }
 
 function _gpActivateCursor() {
-  if (_gpCursorIdx < 0 || _gpCursorIdx >= entries.length) return;
-  const entry = entries[_gpCursorIdx];
+  if (_gpCursorIdx < 0 || _gpCursorIdx >= _gpRenderedList.length) return;
+  const entry = _gpRenderedList[_gpCursorIdx];
   if (entry.is_video) {
-    playVideo(_gpCursorIdx);
+    playVideo(entries.indexOf(entry));
   } else {
     navigate(entry.path);
   }
@@ -4141,7 +4147,7 @@ function _gpActivateCursor() {
 
 // ── Gamepad poll loop ─────────────────────────────────────────────────────────
 function _gpPoll() {
-  if (!cfg.gamepad_enabled) { _gpPollId = requestAnimationFrame(_gpPoll); return; }
+  if (!cfg.gamepad_enabled) { _gpStopPolling(); return; }
 
   const gamepads = navigator.getGamepads();
   for (const gp of gamepads) {
@@ -4204,13 +4210,13 @@ function _gpPoll() {
     if (!currentFile) {
       const ly = _gpDeadzone(gp.axes[1] ?? 0);
       if (Math.abs(ly) > 0.5) {
-        _gpStickVolAccum += ly;
-        if (Math.abs(_gpStickVolAccum) >= 10) {
-          _gpMoveCursor(Math.sign(_gpStickVolAccum));
-          _gpStickVolAccum = 0;
+        _gpNavAccum += ly;
+        if (Math.abs(_gpNavAccum) >= 10) {
+          _gpMoveCursor(Math.sign(_gpNavAccum));
+          _gpNavAccum = 0;
         }
       } else {
-        _gpStickVolAccum = 0;
+        _gpNavAccum = 0;
       }
     }
   }
@@ -4340,9 +4346,9 @@ function openGpOverlay() {
     jump_100: 'Aller à 100%',
     aspect_ratio: 'Ratio image',
     subtitles: 'Sous-titres',
-    move_quick_1: `Déplacer → ${quickFolders[0]?.name ?? 'Dossier 1'}`,
-    move_quick_2: `Déplacer → ${quickFolders[1]?.name ?? 'Dossier 2'}`,
-    move_quick_3: `Déplacer → ${quickFolders[2]?.name ?? 'Dossier 3'}`,
+    move_quick_1: `Déplacer → ${esc(quickFolders[0]?.name ?? 'Dossier 1')}`,
+    move_quick_2: `Déplacer → ${esc(quickFolders[1]?.name ?? 'Dossier 2')}`,
+    move_quick_3: `Déplacer → ${esc(quickFolders[2]?.name ?? 'Dossier 3')}`,
     nav_up: 'Curseur ↑',
     nav_down: 'Curseur ↓',
     nav_enter: 'Ouvrir',

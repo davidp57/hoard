@@ -1715,6 +1715,14 @@ def update_settings(body: SettingsPayload):
                 h = hashlib.sha256(body.pin.encode()).hexdigest()
                 _write_setting(conn, "pin_hash", h)
 
+        if body.gamepad_mapping is not None:
+            try:
+                json.loads(body.gamepad_mapping)
+            except (ValueError, TypeError) as exc:
+                raise HTTPException(
+                    status_code=422, detail="gamepad_mapping must be valid JSON"
+                ) from exc
+
         _simple: list[tuple[str, object]] = [
             ("privacy_timeout", body.privacy_timeout),
             ("watched_threshold", body.watched_threshold),
