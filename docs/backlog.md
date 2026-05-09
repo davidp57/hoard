@@ -29,9 +29,9 @@ Facteur de marge actuel : **0,40**.
 
 | ID | Titre | Prio | Est. | Créé | Démarré | Terminé |
 | --- | --- | --- | --- | --- | --- | --- |
-| BL-025 | Changer l'icône « aspect » (même icône que plein écran) | P3 | 5 min | 2026-05-09 | | |
-| BL-021 | Seek multi-niveaux unifié + raccourcis clavier étendus + modaux en plein écran *(inclut BL-004)* | P2 | 40 min | 2026-05-09 | | |
-| BL-026 | Contrôles plein écran : affichage zone basse + toast seek systématique | P2 | 25 min | 2026-05-09 | | |
+| BL-025 | Changer l'icône « aspect » (même icône que plein écran) | P3 | 5 min | 2026-05-09 | 2026-05-09 | 2026-05-09 |
+| BL-021 | Seek multi-niveaux unifié + raccourcis clavier étendus + modaux en plein écran *(inclut BL-004)* | P2 | 40 min | 2026-05-09 | 2026-05-09 | 2026-05-09 |
+| BL-026 | Contrôles plein écran : affichage zone basse + toast seek systématique | P2 | 25 min | 2026-05-09 | 2026-05-09 | 2026-05-09 |
 
 ### Lot 2 — Gamepad (~85 min : 70 min Copilot + 15 min gestion) — dépend du Lot 1
 
@@ -43,7 +43,7 @@ Facteur de marge actuel : **0,40**.
 
 | ID | Titre | Prio | Est. | Créé | Démarré | Terminé |
 | --- | --- | --- | --- | --- | --- | --- |
-| BL-022 | Option pour désactiver le transcodage (lecture native directe) | P1 | 15 min | 2026-05-09 | | |
+| BL-022 | Option pour désactiver le transcodage (lecture native directe) | P1 | 15 min | 2026-05-09 | 2026-05-09 | 2026-05-09 |
 
 ### Lot 4 — UI Browser & Player Extensions (~165 min : 150 min Copilot + 15 min gestion)
 
