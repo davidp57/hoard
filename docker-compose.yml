@@ -1,13 +1,15 @@
 services:
   hoard:
     image: ghcr.io/davidp57/hoard:main
+    build: .
     container_name: hoard
     user: root
     ports:
-      - "8000:8000"
+      - "8001:8000"
     volumes:
       # Ton dossier downloads sur le NAS → monté en /media dans le container
-      - /volume1/downloads:/media:rw
+      - a:\Downloads:/media/downloads:rw
+      - /mnt/salon-downloads:/media:rw
       # Persistence de la base SQLite (progression)
       - hoard_data:/data
     environment:

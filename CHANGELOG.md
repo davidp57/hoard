@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Racine de navigation par défaut (BL-040)** : chaque home root peut être désignée comme racine par défaut (colonne `is_default` en base, endpoint `POST /api/home-roots/{id}/set-default`). L'app navigue directement vers la racine par défaut au démarrage et après validation du PIN, sans passer par l'écran de sélection. Un indicateur visuel (🏠, bordure accent, badge « défaut ») et un bouton « ⌂ » permettent de changer la racine par défaut depuis les Paramètres.
 
+### Fixed
+- **Bouton « Ajouter une racine »** dans les Paramètres : le modal de navigation s'affichait derrière la page des paramètres (z-index). `openRootPicker()` ferme maintenant les paramètres avant d'ouvrir le modal.
+- **Dockerfile** : correction des fins de ligne CRLF sur `entrypoint.sh` lors du build depuis Windows (`sed -i 's/\r//'`).
+
 ### Changed
 - **UX « Ajouter une racine »** : le bouton n'utilise plus `currentPath` silencieusement. Il ouvre désormais la modale de navigation pour choisir le dossier, puis demande un nom (pré-rempli avec le nom du dossier sélectionné).
 - **Bouton « ⌂ Dossier de départ »** dans les Paramètres : quand des home roots existent, il ouvre le sélecteur de dossier pour *ajouter* une nouvelle racine (au lieu de modifier `MEDIA_ROOT` directement). Le comportement historique (changer `MEDIA_ROOT`) est conservé si aucune home root n'est configurée.
