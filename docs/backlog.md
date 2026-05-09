@@ -27,6 +27,9 @@ Facteur de marge actuel : **1,15** (15%) — valeur initiale, pas encore calibr�
 
 | ID | Titre | Prio | Est. | Créé | Démarré | Terminé |
 | --- | --- | --- | --- | --- | --- | --- |
+| BL-023 | Liste de dossiers « home » (plusieurs racines de navigation) | P2 | — | 2026-05-09 | | |
+| BL-022 | Option pour désactiver le transcodage (lecture native directe) | P1 | — | 2026-05-09 | | |
+| BL-024 | Contrôle gamepad (manette, Steam Deck, iPhone + controller) | P2 | — | 2026-05-09 | | |
 | BL-021 | Seek multi-niveaux unifié + raccourcis clavier étendus + modaux en plein écran | P2 | — | 2026-05-09 | | |
 | BL-005 | Sélecteur de destination libre (arborescence filesystem) | P1 | — | 2026-04-12 | | |
 | BL-007 | Tags arbitraires sur les fichiers + filtrage | P1 | — | 2026-04-12 | | |
@@ -54,6 +57,14 @@ Facteur de marge actuel : **1,15** (15%) — valeur initiale, pas encore calibr�
 - **Why**: avoid leaving product decisions, bugs, and follow-up ideas only inside chat history.
 - **Expected outcome**: a simple rule for when an item enters the backlog and how it is reprioritized.
 - **Completed because**: the backlog workflow is now already applied in practice, with explicit status meanings, date rules, and recurring updates during ticket work.
+
+### BL-023 — Multiple Home Folders
+
+- **Dates**: `created=2026-05-09`
+
+- **Why**: currently a single `MEDIA_ROOT` is the only navigation root. Users who organise content across several top-level directories (e.g. `/media/movies`, `/media/series`, `/media/music`) must either merge them under one root or navigate manually.
+- **Expected outcome**: configure a list of named home folders (name + path pairs); the UI shows a home screen listing all of them so users jump directly to any root without nesting everything.
+- **Attention point**: all paths must still pass through `safe_path()` scoped to each declared root; each root is independent (no cross-root moves).
 
 ### BL-002 — Sort Controls In The File List
 
@@ -212,6 +223,51 @@ Facteur de marge actuel : **1,15** (15%) — valeur initiale, pas encore calibr�
 - **Expected outcome**: produce a clear compatibility matrix and ship a first metadata-driven decision path so Hoard can prefer native playback over transcoding when browser support is actually confirmed.
 - **Scope**: codec support, container support, browser differences, media source constraints, an on-demand metadata endpoint, and practical detection strategy in the frontend/backend.
 - **Attention point**: keep `/api/transcode` as the safety net even after browser-side probing is added.
+
+### BL-022 — Option To Disable Transcoding (Direct Native Playback)
+
+- **Dates**: `created=2026-05-09`
+
+- **Why**: `/api/transcode` is sometimes invoked unnecessarily, even when the browser can play the original format natively. Transcoding is CPU-intensive and the NAS lacks the power for it; even a short transcode stall degrades the viewing experience.
+- **Expected outcome**: add a boolean setting `transcode_enabled` (default `true`). When disabled, the player always streams the raw file via `/api/stream` regardless of codec or container, and never calls `/api/transcode`. The setting is toggleable from the Settings panel.
+- **Functional rules**:
+  - When `transcode_enabled = false`, skip `canPlayType()` / `MediaCapabilities` probing and go straight to `/api/stream`.
+  - The transcode endpoint remains available (no removal) but is simply not called.
+  - The setting persists in the `settings` SQLite table like all other settings.
+- **Attention point**: disabling transcoding may cause playback to fail silently for formats the browser truly cannot handle; document this tradeoff clearly in the UI (tooltip or note near the toggle).
+- **Acceptance signal**: with `transcode_enabled = false`, opening any video never triggers a call to `/api/transcode`; with `transcode_enabled = true`, the existing probing logic is unchanged.
+
+### BL-024 — Gamepad Support (Steam Deck, iPhone + Controller, Xbox, etc.)
+
+- **Dates**: `created=2026-05-09`
+
+- **Why**: Hoard is used on touch-capable devices including the Steam Deck and iPad with Bluetooth controller. No gamepad input is currently supported, forcing users to switch between controller and touch/mouse for navigation and player control.
+- **Expected outcome**:
+  1. **Gamepad API integration** — poll `navigator.getGamepads()` via a `requestAnimationFrame` loop; detect button press edges (pressed this frame, not last); suspend the loop when the tab is hidden (Page Visibility API).
+  2. **4-layer system** — L1 and R1 bumpers act as modifiers; four independent layers: base / L1 / R1 / L1+R1.
+  3. **Player controls** (when a video is open):
+     - Base: A → play/pause, B → close player, X → toggle watched, Y → fullscreen
+     - D-pad ←/→: seek by `cfg.seek_medium` (base), `cfg.seek_long` (L1), `cfg.seek_xlong` (R1)
+     - D-pad ↑/↓: volume ±10% (base), previous/next file in list (L1), jump to 25%/75% (R1)
+     - Stick left X → **analog scrubbing**: visual update every frame (`seekbarFill`, `seekbarThumb`), `video.currentTime` throttled to ~100ms; mirrors the existing pointer-drag seekbar behavior
+     - Stick right Y → analog volume
+     - L1+R1 + A/X/Y → jump to 0% / 50% / 100%
+     - L1 + X → aspect ratio toggle; L1 + A → subtitles (no-op if BL-008 not delivered)
+     - R1 + A/B/X → move to predefined folder #1/#2/#3
+  4. **File browser navigation** (when no video is open):
+     - D-pad ↑/↓ / stick left Y → move cursor through file list, auto-scroll
+     - A → open file or folder, B → go up one level, Start → open settings
+  5. **Steam Deck / Firefox compatibility** — Firefox only fires `gamepadconnected` after a user interaction. On page load and on `visibilitychange`, scan `navigator.getGamepads()` for already-connected devices. Show a persistent subtle toast « 🎮 Appuyez sur un bouton pour activer la manette » if a gamepad is detected but polling has not yet started (identified by `mapping === ''`).
+  6. **Connection toasts** — brief toast on `gamepadconnected` / `gamepaddisconnected`.
+  7. **Layer HUD** — small corner badge showing the active modifier (L1 / R1 / L1+R1) while a bumper is held.
+  8. **Mapping overlay** — triggered by Select or R1+Start; semi-transparent overlay listing all actions per layer, generated dynamically from the current mapping.
+  9. **Haptic feedback** (optional, Chrome only) — short vibration on play/pause, watched toggle, and long seeks via `gamepad.vibrationActuator`.
+  10. **Configurable mapping** — mapping stored as JSON under key `gamepad_mapping` in the `settings` SQLite table (initialized in `init_db()`). Settings UI: « Manette » tab with action list, Rebind button, deadzone slider, haptic toggle, gamepad on/off toggle.
+- **Functional rules**: All gamepad actions mirror existing JS functions (`skip()`, `togglePlay()`, `toggleFullscreen()`, etc.). Seek values come from `cfg.seek_medium/long/xlong` (co-delivered with BL-021 in the same lot). Analog scrubbing respects cut IN/OUT boundaries. Gamepad actions are no-ops when the relevant UI state is not active (e.g., player actions are ignored when no file is open).
+- **Attention points**: Stick deadzone is configurable (default 20%); scrubbing throttle must not conflict with the `timeupdate` handler that normally syncs the seekbar. `vibrationActuator` is Chrome-only — guard with feature detection. Trigger axes (buttons 6/7) are inconsistently mapped across platforms — avoid relying on them.
+- **Files**: `frontend/index.html` (Gamepad engine, CSS HUD/overlay, analog scrubbing), `backend/main.py` (`init_db()`: `gamepad_mapping` key), `docs/user-guide.en.md`, `docs/user-guide.fr.md`.
+
+---
 
 ### BL-021 — Unified Multi-Level Seek And Extended Keyboard Shortcuts
 
