@@ -128,6 +128,22 @@ def init_db():
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS home_roots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                path TEXT NOT NULL UNIQUE,
+                sort_order INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS file_tags (
+                path TEXT NOT NULL,
+                tag  TEXT NOT NULL,
+                PRIMARY KEY (path, tag)
+            )
+        """)
         conn.commit()
 
 
@@ -170,6 +186,11 @@ class InitialSweepFolderRequest(BaseModel):
 
 class MkdirRequest(BaseModel):
     name: str  # folder name only (no slashes)
+
+
+class HomeRootRequest(BaseModel):
+    name: str  # display name
+    path: str  # relative path from MEDIA_ROOT
 
 
 class CutRequest(BaseModel):
@@ -1001,6 +1022,11 @@ def list_files(path: str = ""):
             "SELECT path, position, duration FROM progress WHERE duration > 0"
         ).fetchall()
         progress_map = {row["path"]: row["position"] / row["duration"] * 100 for row in rows}
+        tag_rows = conn.execute("SELECT path, tag FROM file_tags").fetchall()
+
+    tags_map: dict[str, list[str]] = {}
+    for tr in tag_rows:
+        tags_map.setdefault(tr["path"], []).append(tr["tag"])
 
     # Gather items with stat cached
     items_with_stat = []
@@ -1031,9 +1057,8 @@ def list_files(path: str = ""):
         }
         if entry["is_video"]:
             entry["progress"] = get_progress(item)
+        entry["tags"] = tags_map.get(rel, [])
         entries.append(entry)
-
-    # Breadcrumb
     parts = []
     current = Path(path)
     accumulated = Path("")
@@ -1042,6 +1067,61 @@ def list_files(path: str = ""):
         parts.append({"name": part, "path": str(accumulated).replace("\\", "/")})
 
     return {"path": path, "breadcrumb": parts, "entries": entries}
+
+
+@app.get("/api/search")
+def search_files(q: str, path: str = ""):
+    """Search filenames recursively under *path* (default: MEDIA_ROOT)."""
+    if not q or not q.strip():
+        raise HTTPException(status_code=400, detail="Query required")
+    folder = safe_path(path)
+    if not folder.exists() or not folder.is_dir():
+        raise HTTPException(status_code=404, detail="Folder not found")
+
+    needle = q.strip().lower()
+
+    with get_db() as conn:
+        qf_paths = {
+            row["path"] for row in conn.execute("SELECT path FROM quick_folders").fetchall()
+        }
+        rows = conn.execute(
+            "SELECT path, position, duration FROM progress WHERE duration > 0"
+        ).fetchall()
+        progress_map = {row["path"]: row["position"] / row["duration"] * 100 for row in rows}
+        tag_rows_s = conn.execute("SELECT path, tag FROM file_tags").fetchall()
+
+    tags_map_s: dict[str, list[str]] = {}
+    for tr in tag_rows_s:
+        tags_map_s.setdefault(tr["path"], []).append(tr["tag"])
+
+    entries = []
+    for item in folder.rglob("*"):
+        if item.name.startswith("."):
+            continue
+        if needle not in item.name.lower():
+            continue
+        try:
+            st = item.stat()
+        except PermissionError:
+            continue
+        rel = to_rel(item)
+        entry = {
+            "name": item.name,
+            "path": rel,
+            "is_dir": item.is_dir(),
+            "is_video": is_video(item) if item.is_file() else False,
+            "size": st.st_size if item.is_file() else 0,
+            "mtime": st.st_mtime,
+            "is_quick_folder": rel in qf_paths if item.is_dir() else False,
+            "folder_state": get_folder_state(item, progress_map) if item.is_dir() else None,
+        }
+        if entry["is_video"]:
+            entry["progress"] = get_progress(item)
+        entry["tags"] = tags_map_s.get(rel, [])
+        entries.append(entry)
+
+    entries.sort(key=lambda e: e["name"].lower())
+    return {"q": q, "path": path, "entries": entries}
 
 
 @app.get("/api/progress")
@@ -1314,6 +1394,96 @@ def remove_quick_folder(path: str):
         conn.execute("DELETE FROM quick_folders WHERE path = ?", (rel,))
         conn.commit()
     return {"ok": True}
+
+
+# ── Home roots ────────────────────────────────────────────────────────────────
+
+
+@app.get("/api/home-roots")
+def list_home_roots():
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT id, name, path FROM home_roots ORDER BY sort_order, created_at"
+        ).fetchall()
+    result = []
+    for row in rows:
+        p = MEDIA_ROOT / row["path"]
+        if p.is_dir():
+            result.append({"id": row["id"], "name": row["name"], "path": row["path"]})
+    return result
+
+
+@app.post("/api/home-roots")
+def add_home_root(body: HomeRootRequest):
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Name is required")
+    target = safe_path(body.path)
+    if not target.is_dir():
+        raise HTTPException(status_code=404, detail="Folder not found")
+    rel = to_rel(target)
+    with get_db() as conn:
+        try:
+            conn.execute(
+                "INSERT INTO home_roots (name, path) VALUES (?, ?)",
+                (name, rel),
+            )
+            conn.commit()
+        except Exception:
+            raise HTTPException(status_code=409, detail="Root already exists") from None
+    return {"ok": True}
+
+
+@app.delete("/api/home-roots/{root_id}")
+def remove_home_root(root_id: int):
+    with get_db() as conn:
+        result = conn.execute("DELETE FROM home_roots WHERE id = ?", (root_id,))
+        conn.commit()
+    if result.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Root not found")
+    return {"ok": True}
+
+
+class TagRequest(BaseModel):
+    tag: str
+
+
+@app.get("/api/tags")
+def get_file_tags(path: str):
+    safe_path(path)  # validate path stays within MEDIA_ROOT
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT tag FROM file_tags WHERE path = ? ORDER BY tag", (path,)
+        ).fetchall()
+    return {"tags": [r["tag"] for r in rows]}
+
+
+@app.post("/api/tags")
+def add_file_tag(path: str, body: TagRequest):
+    safe_path(path)
+    tag = body.tag.strip().lower()
+    if not tag:
+        raise HTTPException(status_code=400, detail="Tag must not be empty")
+    with get_db() as conn:
+        conn.execute("INSERT OR IGNORE INTO file_tags (path, tag) VALUES (?, ?)", (path, tag))
+        conn.commit()
+    return {"ok": True}
+
+
+@app.delete("/api/tags")
+def remove_file_tag(path: str, tag: str):
+    safe_path(path)
+    with get_db() as conn:
+        conn.execute("DELETE FROM file_tags WHERE path = ? AND tag = ?", (path, tag))
+        conn.commit()
+    return {"ok": True}
+
+
+@app.get("/api/all-tags")
+def list_all_tags():
+    with get_db() as conn:
+        rows = conn.execute("SELECT DISTINCT tag FROM file_tags ORDER BY tag").fetchall()
+    return {"tags": [r["tag"] for r in rows]}
 
 
 @app.get("/api/initial-sweep")

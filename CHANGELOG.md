@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Tags arbitraires sur les fichiers (BL-007)** : possibilité d'associer des tags texte libres à n'importe quel fichier ou dossier. Les tags sont stockés en base SQLite (`file_tags`), affichés comme badges dans la liste, et un filtre par tag apparaît dynamiquement dans la barre de tri.
+- **Sélecteur de destination libre (BL-005)** : bouton « 📂 Parcourir… » dans la fenêtre de déplacement permettant de choisir n'importe quel dossier de l'arborescence comme destination.
+- **Recherche dans les noms de fichiers (BL-012)** : champ de recherche dans la barre de tri ; la recherche est récursive dans le dossier courant via le nouvel endpoint `GET /api/search`.
+- **Métadonnées vidéo dans l'UI (BL-016)** : codec, résolution, durée et bitrate affichés sous le titre du fichier en cours de lecture via `GET /api/media-info`.
+- **Vitesse de lecture (BL-010)** : bouton de cycle de vitesse (0.5×, 1×, 1.5×, 2×) dans les contrôles du player ; la vitesse est réinitialisée à chaque ouverture de fichier.
+- **Rafraîchissement automatique de la liste (BL-009)** : la liste se met à jour toutes les 30 secondes quand le navigateur est actif, l'onglet visible et la vidéo en pause.
+- **Dossiers home multiples (BL-023)** : support de plusieurs racines de navigation avec gestion complète en base (`home_roots`) et interface de sélection.
+
 - **Configurable initial sweep for new videos**: add a global `initial_sweep_seconds` player setting plus per-folder overrides. Brand-new videos can now start at a configured offset (for example 10 minutes in), while videos with saved progress still resume from their actual saved position.
 - **Playback metadata endpoint**: add `/api/media-info` backed by `ffprobe` so Hoard can inspect container, codecs, bitrate, frame rate, and audio properties before deciding how to play a file.
 - **Optional PWA install shell**: Hoard now ships a web app manifest, a minimal service worker, and standalone-shell polish so supported browsers can install it as an app without changing the online-only NAS playback model.

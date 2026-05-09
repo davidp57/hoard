@@ -85,6 +85,57 @@ class TestQuickFolders:
         assert entry["is_quick_folder"] is False
 
 
+# ── /api/home-roots ────────────────────────────────────────────────────────────
+
+
+class TestHomeRoots:
+    def test_empty_initially(self):
+        resp = client.get("/api/home-roots")
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+    def test_add_and_list(self, subdir_with_video):
+        resp = client.post("/api/home-roots", json={"name": "Séries", "path": subdir_with_video})
+        assert resp.status_code == 200
+        data = client.get("/api/home-roots").json()
+        assert len(data) == 1
+        assert data[0]["name"] == "Séries"
+        assert data[0]["path"] == subdir_with_video
+        assert "id" in data[0]
+
+    def test_add_nonexistent_rejected(self):
+        resp = client.post("/api/home-roots", json={"name": "Ghost", "path": "ghost_dir"})
+        assert resp.status_code == 404
+
+    def test_add_file_rejected(self, video_file):
+        resp = client.post("/api/home-roots", json={"name": "Video", "path": video_file})
+        assert resp.status_code == 404
+
+    def test_add_empty_name_rejected(self, subdir_with_video):
+        resp = client.post("/api/home-roots", json={"name": "", "path": subdir_with_video})
+        assert resp.status_code == 400
+
+    def test_add_duplicate_rejected(self, subdir_with_video):
+        client.post("/api/home-roots", json={"name": "A", "path": subdir_with_video})
+        resp = client.post("/api/home-roots", json={"name": "B", "path": subdir_with_video})
+        assert resp.status_code == 409
+
+    def test_remove(self, subdir_with_video):
+        client.post("/api/home-roots", json={"name": "Séries", "path": subdir_with_video})
+        root_id = client.get("/api/home-roots").json()[0]["id"]
+        resp = client.delete(f"/api/home-roots/{root_id}")
+        assert resp.status_code == 200
+        assert client.get("/api/home-roots").json() == []
+
+    def test_remove_nonexistent(self):
+        resp = client.delete("/api/home-roots/9999")
+        assert resp.status_code == 404
+
+    def test_path_traversal_blocked(self):
+        resp = client.post("/api/home-roots", json={"name": "Escape", "path": "../../../etc"})
+        assert resp.status_code == 403
+
+
 # ── /api/files ────────────────────────────────────────────────────────────────
 
 
@@ -1501,3 +1552,132 @@ class TestCookiesToNetscape:
         # Values containing '=' should be preserved (partition only splits on first =)
         result = _cookies_to_netscape("token=abc=def", "example.com")
         assert "token\tabc=def" in result
+
+
+# ── /api/search ──────────────────────────────────────────────────────────────
+
+
+class TestSearch:
+    def test_empty_query_rejected(self):
+        resp = client.get("/api/search?q=")
+        assert resp.status_code == 400
+
+    def test_no_query_param_rejected(self):
+        resp = client.get("/api/search")
+        assert resp.status_code == 422  # FastAPI validation
+
+    def test_search_finds_file(self):
+        from tests.conftest import MEDIA_DIR
+
+        (MEDIA_DIR / "holiday_2024.mp4").write_bytes(b"\x00" * 8)
+        (MEDIA_DIR / "work_report.mp4").write_bytes(b"\x00" * 8)
+        resp = client.get("/api/search?q=holiday")
+        assert resp.status_code == 200
+        data = resp.json()
+        names = [e["name"] for e in data["entries"]]
+        assert "holiday_2024.mp4" in names
+        assert "work_report.mp4" not in names
+
+    def test_search_case_insensitive(self):
+        from tests.conftest import MEDIA_DIR
+
+        (MEDIA_DIR / "MyMovie.mp4").write_bytes(b"\x00" * 8)
+        resp = client.get("/api/search?q=mymovie")
+        assert resp.status_code == 200
+        names = [e["name"] for e in resp.json()["entries"]]
+        assert "MyMovie.mp4" in names
+
+    def test_search_recursive(self):
+        from tests.conftest import MEDIA_DIR
+
+        subdir = MEDIA_DIR / "shows"
+        subdir.mkdir()
+        (subdir / "episode01.mp4").write_bytes(b"\x00" * 8)
+        resp = client.get("/api/search?q=episode")
+        assert resp.status_code == 200
+        names = [e["name"] for e in resp.json()["entries"]]
+        assert "episode01.mp4" in names
+
+    def test_search_path_traversal_blocked(self):
+        resp = client.get("/api/search?q=test&path=../../../etc")
+        assert resp.status_code == 403
+
+
+class TestFileTags:
+    def test_get_tags_empty(self):
+        from tests.conftest import MEDIA_DIR
+
+        f = MEDIA_DIR / "tagged.mp4"
+        f.write_bytes(b"\x00" * 8)
+        resp = client.get("/api/tags?path=tagged.mp4")
+        assert resp.status_code == 200
+        assert resp.json() == {"tags": []}
+
+    def test_add_tag(self):
+        from tests.conftest import MEDIA_DIR
+
+        (MEDIA_DIR / "tagged.mp4").write_bytes(b"\x00" * 8)
+        resp = client.post("/api/tags?path=tagged.mp4", json={"tag": "Excellent"})
+        assert resp.status_code == 200
+        assert resp.json()["ok"] is True
+        # Tag is lowercased and returned
+        tags_resp = client.get("/api/tags?path=tagged.mp4")
+        assert "excellent" in tags_resp.json()["tags"]
+
+    def test_add_empty_tag_rejected(self):
+        from tests.conftest import MEDIA_DIR
+
+        (MEDIA_DIR / "tagged.mp4").write_bytes(b"\x00" * 8)
+        resp = client.post("/api/tags?path=tagged.mp4", json={"tag": "  "})
+        assert resp.status_code == 400
+
+    def test_add_duplicate_tag_idempotent(self):
+        from tests.conftest import MEDIA_DIR
+
+        (MEDIA_DIR / "tagged.mp4").write_bytes(b"\x00" * 8)
+        client.post("/api/tags?path=tagged.mp4", json={"tag": "fav"})
+        client.post("/api/tags?path=tagged.mp4", json={"tag": "fav"})
+        tags = client.get("/api/tags?path=tagged.mp4").json()["tags"]
+        assert tags.count("fav") == 1
+
+    def test_remove_tag(self):
+        from tests.conftest import MEDIA_DIR
+
+        (MEDIA_DIR / "tagged.mp4").write_bytes(b"\x00" * 8)
+        client.post("/api/tags?path=tagged.mp4", json={"tag": "toremove"})
+        resp = client.delete("/api/tags?path=tagged.mp4&tag=toremove")
+        assert resp.status_code == 200
+        tags = client.get("/api/tags?path=tagged.mp4").json()["tags"]
+        assert "toremove" not in tags
+
+    def test_all_tags(self):
+        from tests.conftest import MEDIA_DIR
+
+        (MEDIA_DIR / "a.mp4").write_bytes(b"\x00" * 8)
+        (MEDIA_DIR / "b.mp4").write_bytes(b"\x00" * 8)
+        client.post("/api/tags?path=a.mp4", json={"tag": "alpha"})
+        client.post("/api/tags?path=b.mp4", json={"tag": "beta"})
+        resp = client.get("/api/all-tags")
+        assert resp.status_code == 200
+        tags = resp.json()["tags"]
+        assert "alpha" in tags
+        assert "beta" in tags
+
+    def test_tags_included_in_files_list(self):
+        from tests.conftest import MEDIA_DIR
+
+        (MEDIA_DIR / "c.mp4").write_bytes(b"\x00" * 8)
+        client.post("/api/tags?path=c.mp4", json={"tag": "mytag"})
+        resp = client.get("/api/files")
+        assert resp.status_code == 200
+        entry = next((e for e in resp.json()["entries"] if e["name"] == "c.mp4"), None)
+        assert entry is not None
+        assert "mytag" in entry["tags"]
+
+    def test_path_traversal_blocked_get(self):
+        resp = client.get("/api/tags?path=../../../etc/passwd")
+        assert resp.status_code == 403
+
+    def test_path_traversal_blocked_post(self):
+        resp = client.post("/api/tags?path=../../../etc/passwd", json={"tag": "x"})
+        assert resp.status_code == 403

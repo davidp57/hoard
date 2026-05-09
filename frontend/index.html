@@ -166,6 +166,42 @@
   }
   #refresh-indicator.active { opacity: 1; animation: pulse 1s ease-in-out infinite; }
   @keyframes pulse { 0%,100%{opacity:0.3} 50%{opacity:1} }
+  #search-input {
+    flex: 1;
+    min-width: 0;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--text);
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    padding: 4px 8px;
+    outline: none;
+  }
+  #search-input:focus { border-color: rgba(232,255,71,0.4); }
+  #search-input::placeholder { color: var(--text-dim); }
+
+  /* ── Home screen (multi-root picker) ── */
+  .home-screen {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 12px;
+    padding: 20px 12px;
+  }
+  .root-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 12px 14px;
+    cursor: pointer;
+    text-align: center;
+    transition: border-color 0.15s, background 0.15s;
+    user-select: none;
+  }
+  .root-card:hover { border-color: var(--accent); background: var(--surface3); }
+  .root-card .rc-icon { font-size: 32px; margin-bottom: 8px; line-height: 1; }
+  .root-card .rc-name { font-size: 13px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .root-card .rc-path { font-size: 10px; color: var(--text-dim); margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   #filelist {
     flex: 1;
@@ -325,6 +361,16 @@
     text-overflow: ellipsis;
   }
   #now-playing-name { color: var(--accent); }
+  #media-meta {
+    font-size: 10px;
+    color: var(--text-dim);
+    font-family: 'DM Mono', monospace;
+    margin-top: -8px;
+    margin-bottom: 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   #initial-sweep-btn {
     flex-shrink: 0;
     padding: 4px 7px;
@@ -668,6 +714,48 @@
   .entry.qf:hover { border-color: var(--accent); }
   .qf-divider { height: 1px; background: var(--border); margin: 8px 8px; }
   .action-btn.pinned { color: var(--accent); border-color: rgba(232,255,71,0.4); }
+  .tag-badge {
+    display: inline-block;
+    background: rgba(232,255,71,0.12);
+    color: var(--accent);
+    border: 1px solid rgba(232,255,71,0.3);
+    border-radius: 10px;
+    padding: 1px 7px;
+    font-size: 10px;
+    margin-right: 3px;
+    cursor: default;
+  }
+  .tag-filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 6px 8px 4px;
+    border-bottom: 1px solid var(--border);
+  }
+  .tag-filter-bar:empty { display: none; }
+  .tag-filter-chip {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 2px 10px;
+    font-size: 11px;
+    cursor: pointer;
+    color: var(--text-mid);
+  }
+  .tag-filter-chip.active { border-color: var(--accent); color: var(--accent); background: rgba(232,255,71,0.08); }
+  #tag-modal { display:none; position:fixed; inset:0; z-index:3100; background:rgba(0,0,0,0.55); align-items:center; justify-content:center; }
+  #tag-modal.open { display:flex; }
+  #tag-modal .modal-box { background:var(--surface); border-radius:10px; padding:20px; min-width:300px; max-width:400px; width:90%; }
+  .tag-list { display:flex; flex-wrap:wrap; gap:6px; margin:12px 0; min-height:24px; }
+  .tag-item { background:rgba(232,255,71,0.1); border:1px solid rgba(232,255,71,0.3); border-radius:12px; padding:3px 10px; font-size:12px; color:var(--accent); display:flex; align-items:center; gap:5px; }
+  .tag-remove { cursor:pointer; opacity:0.6; font-size:13px; }
+  .tag-remove:hover { opacity:1; }
+  #tag-input-row { display:flex; gap:6px; margin-top:10px; }
+  #tag-input { flex:1; background:var(--surface2); border:1px solid var(--border); color:var(--text); border-radius:5px; padding:6px 10px; font-size:13px; }
+  #tag-input:focus { outline:none; border-color:var(--accent); }
+  #tag-suggestions { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
+  .tag-sugg { background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:1px 8px; font-size:11px; cursor:pointer; color:var(--text-dim); }
+  .tag-sugg:hover { border-color:var(--accent); color:var(--accent); }
 
   /* scrollbar */
   ::-webkit-scrollbar { width: 6px; }
@@ -882,6 +970,16 @@
       </div>
     </div>
 
+    <!-- Home roots -->
+    <div>
+      <div class="s-section-title">🏠 Racines de navigation</div>
+      <div class="s-row" style="flex-direction:column;align-items:flex-start;gap:8px">
+        <div class="s-desc">Configurez plusieurs points d&apos;entrée. Le bouton ⌂ affichera un écran d&apos;accueil pour choisir la racine active.</div>
+        <div id="s-home-roots-list" style="width:100%;display:flex;flex-direction:column;gap:5px"></div>
+        <button class="s-btn" onclick="openRootPicker()">Ajouter une racine…</button>
+      </div>
+    </div>
+
     <!-- Downloads -->
     <div>
       <div class="s-section-title">📥 Téléchargements</div>
@@ -1034,7 +1132,9 @@
       <button class="sort-btn" id="sort-dir-btn" onclick="toggleSortDir()" title="Inverser l'ordre">&#x2193;</button>
       <div id="refresh-indicator" title="Mise à jour en cours…"></div>
       <button class="sort-btn" onclick="openMkdirModal()" title="Nouveau dossier" style="margin-left:4px">&#x2795;</button>
+      <input id="search-input" type="search" placeholder="🔍 Rechercher…" oninput="onSearchInput(this.value)" autocomplete="off">
     </div>
+    <div id="tag-filter-bar" class="tag-filter-bar"></div>
     <div id="filelist">
       <div style="color:var(--text-dim);font-size:13px;padding:20px;text-align:center">Chargement…</div>
     </div>
@@ -1057,6 +1157,7 @@
           <div id="now-playing-label">— <span id="now-playing-name"></span></div>
           <button id="initial-sweep-btn" class="action-btn" onclick="saveCurrentPositionAsInitialSweep()" title="Enregistrer la position actuelle comme départ du dossier" style="display:none">⏱ Départ dossier</button>
         </div>
+        <div id="media-meta"></div>
         <div id="seekbar-wrap" id="seekbar">
           <div id="seekbar-fill"></div>
           <div id="cut-seekbar-fill"></div>
@@ -1075,6 +1176,7 @@
             <span style="font-size:16px;cursor:pointer" onclick="toggleMute()">🔊</span>
             <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="1" oninput="setVolume(this.value)">
           </div>          <button class="ctrl-btn" id="fullscreen-btn" onclick="toggleFullscreen()" title="Plein écran (F)">&#x26F6;</button>
+          <button class="ctrl-btn" id="speed-btn" onclick="cycleSpeed()" title="Vitesse de lecture">1×</button>
           <button class="ctrl-btn" id="fit-btn" onclick="toggleVideoFit()" title="Fit / Fill">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="3" y="5" width="18" height="14" rx="1"/>
@@ -1130,6 +1232,7 @@
     <h3>Déplacer vers…</h3>
     <div id="modal-filename"></div>
     <div id="modal-folders"></div>
+    <button id="modal-browse-btn" onclick="openDestPickerFromMoveModal()" style="width:100%;margin-top:4px;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px;border-radius:6px;cursor:pointer;font-family:inherit;font-size:12px">📂 Parcourir…</button>
     <button id="modal-cancel" onclick="closeModal()">Annuler</button>
   </div>
 </dialog>
@@ -1137,7 +1240,7 @@
 <!-- Browse modal -->
 <div id="browse-overlay" onclick="closeBrowseModal(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center">
   <div id="browse-modal" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:480px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;gap:10px">
-    <div style="font-size:15px;font-weight:700;color:var(--accent)">Choisir le dossier de départ</div>
+    <div id="browse-modal-title" style="font-size:15px;font-weight:700;color:var(--accent)">Choisir le dossier de départ</div>
     <div style="display:flex;gap:6px">
       <input id="browse-path-input" type="text" placeholder="Ex: C:\\Users ou //serveur/partage" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:7px 10px;outline:none" onkeydown="if(event.key==='Enter')browseGoToInput()">
       <button onclick="browseGoToInput()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:7px 12px;border-radius:6px;cursor:pointer;font-family:inherit;white-space:nowrap">&#x2192; Aller</button>
@@ -1146,8 +1249,38 @@
     <div id="browse-crumb" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim);word-break:break-all;min-height:16px"></div>
     <div id="browse-list" style="overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:4px;min-height:120px;max-height:50vh"></div>
     <div style="display:flex;gap:8px;margin-top:4px">
-      <button onclick="confirmBrowseSelect()" style="flex:1;background:var(--accent);color:#000;border:none;padding:10px;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">⌂ Définir comme départ</button>
+      <button id="browse-confirm-btn" onclick="confirmBrowseSelect()" style="flex:1;background:var(--accent);color:#000;border:none;padding:10px;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">⌂ Définir comme départ</button>
       <button onclick="closeBrowseModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:10px 16px;border-radius:8px;cursor:pointer;font-family:inherit">Annuler</button>
+    </div>
+  </div>
+</div>
+
+<!-- Destination picker modal (free move) -->
+<div id="dest-picker-overlay" onclick="closeDestPicker(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:480px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;gap:10px">
+    <div id="dest-picker-title" style="font-size:15px;font-weight:700;color:var(--accent)">Déplacer vers…</div>
+    <div id="dest-picker-crumb" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim);word-break:break-all;min-height:16px"></div>
+    <div id="dest-picker-list" style="overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:4px;min-height:120px;max-height:50vh"></div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button onclick="confirmDestPicker()" style="flex:1;background:var(--accent);color:#000;border:none;padding:10px;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">↗ Déplacer ici</button>
+      <button onclick="closeDestPicker()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:10px 16px;border-radius:8px;cursor:pointer;font-family:inherit">Annuler</button>
+    </div>
+  </div>
+</div>
+
+<!-- Tag modal -->
+<div id="tag-modal" onclick="closeTagModal(event)">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div style="font-size:15px;font-weight:700;color:var(--accent);margin-bottom:4px">🏷 Tags</div>
+    <div id="tag-modal-filename" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim);word-break:break-all;margin-bottom:4px"></div>
+    <div class="tag-list" id="tag-list"></div>
+    <div id="tag-input-row">
+      <input id="tag-input" type="text" placeholder="Nouveau tag…" onkeydown="if(event.key==='Enter')addTag()">
+      <button class="action-btn" onclick="addTag()">+ Ajouter</button>
+    </div>
+    <div id="tag-suggestions"></div>
+    <div style="margin-top:14px;text-align:right">
+      <button class="action-btn" onclick="closeTagModal()">Fermer</button>
     </div>
   </div>
 </div>
@@ -1241,6 +1374,13 @@
 const API = '';  // same origin
 let currentPath = '';
 let homeFolder = '';
+let homeRoots = [];
+let showingHomeScreen = false;
+let searchDebounceTimer = null;
+let searchQuery = '';
+let activeTagFilter = null;  // tag string or null = no filter
+let allKnownTags = [];       // populated from /api/all-tags
+let _tagModalPath = null;    // path of file being tagged
 let sortBy = 'date';
 let sortDir = 'desc';
 let currentFile = null;
@@ -1531,6 +1671,7 @@ function privacyClose() {
   currentInitialSweepState = null;
   document.getElementById('video-container').classList.remove('active');
   document.getElementById('player-empty').style.display = '';
+  updateMediaMeta(null);
   closeMobilePlayer();
   refreshInitialSweepAction();
 }
@@ -1549,7 +1690,11 @@ document.addEventListener('visibilitychange', () => {
 });
 
 function navigateHome() {
-  navigate(homeFolder);
+  if (homeRoots.length > 0) {
+    renderHomeScreen();
+  } else {
+    navigate(homeFolder);
+  }
 }
 
 function setSortBy(by) {
@@ -1589,13 +1734,103 @@ function sortedList(list) {
 
 function updateHomeBtnState() {
   const btn = document.getElementById('home-btn');
-  if (btn) btn.classList.toggle('is-home', currentPath === homeFolder);
+  if (btn) {
+    const atHome = homeRoots.length > 0 ? showingHomeScreen : currentPath === homeFolder;
+    btn.classList.toggle('is-home', atHome);
+  }
+}
+
+// ── Home roots ──────────────────────────────────────────────────────────────
+async function loadHomeRoots() {
+  const resp = await fetch(`${API}/api/home-roots`).catch(() => null);
+  if (!resp || !resp.ok) return;
+  homeRoots = await resp.json();
+}
+
+function renderHomeScreen() {
+  showingHomeScreen = true;
+  currentPath = '';
+  const bc = document.getElementById('breadcrumb');
+  bc.innerHTML = '<span onclick="navigateHome()" style="cursor:default">🏠 Accueil</span>';
+  const el = document.getElementById('filelist');
+  if (homeRoots.length === 0) {
+    el.innerHTML = '<div style="color:var(--text-dim);font-size:13px;padding:24px;text-align:center">Aucune racine configurée. Ajoutez des racines dans les Paramètres ⚙️.</div>';
+    updateHomeBtnState();
+    return;
+  }
+  const cards = homeRoots.map(r => `
+    <div class="root-card" onclick="navigate(${JSON.stringify(r.path)})">
+      <div class="rc-icon">📁</div>
+      <div class="rc-name">${esc(r.name)}</div>
+      <div class="rc-path">${esc(r.path || '/')}</div>
+    </div>
+  `).join('');
+  el.innerHTML = `<div class="home-screen">${cards}</div>`;
+  updateHomeBtnState();
+}
+
+function updateSettingsHomeRoots() {
+  const list = document.getElementById('s-home-roots-list');
+  if (!list) return;
+  if (homeRoots.length === 0) {
+    list.innerHTML = '<div style="font-size:12px;color:var(--text-dim);font-style:italic">Aucune racine configurée.</div>';
+    return;
+  }
+  list.innerHTML = homeRoots.map(r => `
+    <div style="display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:7px 10px">
+      <span style="font-size:14px">📁</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:600;color:var(--text)">${esc(r.name)}</div>
+        <div style="font-size:10px;color:var(--text-dim);font-family:'DM Mono',monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.path || '/')}</div>
+      </div>
+      <button onclick="removeHomeRoot(${r.id})" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:14px;padding:2px 4px;flex-shrink:0" title="Supprimer">✕</button>
+    </div>
+  `).join('');
+}
+
+async function removeHomeRoot(id) {
+  const resp = await fetch(`${API}/api/home-roots/${id}`, { method: 'DELETE' }).catch(() => null);
+  if (!resp || !resp.ok) { showToast('Erreur lors de la suppression'); return; }
+  await loadHomeRoots();
+  updateSettingsHomeRoots();
+  showToast('Racine supprimée');
+}
+
+function openRootPicker() {
+  const defaultName = currentPath ? currentPath.split('/').filter(Boolean).pop() || 'Racine' : 'Racine';
+  const name = window.prompt('Nom de la racine :', defaultName);
+  if (name === null) return; // cancelled
+  const trimmedName = name.trim();
+  if (!trimmedName) { showToast('Le nom ne peut pas être vide'); return; }
+  const path = currentPath || '';
+  addHomeRoot(trimmedName, path);
+}
+
+async function addHomeRoot(name, path) {
+  const resp = await fetch(`${API}/api/home-roots`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, path }),
+  }).catch(() => null);
+  if (!resp) { showToast('Erreur réseau'); return; }
+  if (resp.status === 409) { showToast('Cette racine existe déjà'); return; }
+  if (resp.status === 404) { showToast('Dossier introuvable'); return; }
+  if (!resp.ok) { showToast('Erreur lors de l\'ajout'); return; }
+  await loadHomeRoots();
+  updateSettingsHomeRoots();
+  showToast(`✅ Racine « ${name} » ajoutée`);
 }
 
 // ── Browse modal (choose home folder) ──────────────────────────────────────
 let browsePath = '';
+let browseCallback = null; // if set, called with (relativePath) instead of navigating
 
 async function openBrowseModal() {
+  browseCallback = null;
+  const title = document.getElementById('browse-modal-title');
+  const btn = document.getElementById('browse-confirm-btn');
+  if (title) title.textContent = 'Choisir le dossier de départ';
+  if (btn) btn.textContent = '⌂ Définir comme départ';
   // Start from current server MEDIA_ROOT
   const settings = await fetch(`${API}/api/settings`).then(r => r.json());
   browsePath = settings.media_root || '';
@@ -1604,8 +1839,96 @@ async function openBrowseModal() {
   await loadBrowseDir(browsePath);
 }
 
+async function openDestinationPicker(filename) {
+  // Opens the browse modal in "pick destination" mode for file move
+  const title = document.getElementById('browse-modal-title');
+  const btn = document.getElementById('browse-confirm-btn');
+  if (title) title.textContent = `Déplacer « ${filename} » vers…`;
+  if (btn) btn.textContent = '↗ Déplacer ici';
+  browseCallback = async (destPath) => {
+    await moveFileToPath(currentFile.path, destPath);
+  };
+  // Start from the active home root or current folder
+  const startPath = homeRoots.length > 0 ? homeRoots[0].path : (currentPath || '');
+  browsePath = startPath;
+  document.getElementById('browse-overlay').style.display = 'flex';
+  await loadBrowseDir(browsePath);
+}
+
+let _destPickerPath = '';
+let _destPickerFile = null;
+
+async function openDestPickerForFile(filePath, fileName) {
+  _destPickerFile = filePath;
+  document.getElementById('dest-picker-title').textContent = `Déplacer « ${fileName} » vers…`;
+  document.getElementById('dest-picker-overlay').style.display = 'flex';
+  await _loadDestPickerDir('');
+}
+
+function closeDestPicker(e) {
+  if (e && e.target !== document.getElementById('dest-picker-overlay')) return;
+  _destPickerFile = null;
+  document.getElementById('dest-picker-overlay').style.display = 'none';
+}
+
+async function _loadDestPickerDir(relPath) {
+  _destPickerPath = relPath;
+  const r = await fetch(`${API}/api/files?path=${encodeURIComponent(relPath)}`).then(r => r.json()).catch(() => null);
+  if (!r) { showToast('Erreur'); return; }
+  // Crumb
+  const crumb = document.getElementById('dest-picker-crumb');
+  const parts = relPath ? relPath.split('/').filter(Boolean) : [];
+  let crumbHtml = `<span onclick="_loadDestPickerDir('')" style="cursor:pointer;color:var(--accent)">🏠 Racine</span>`;
+  let acc = '';
+  for (const p of parts) {
+    acc = acc ? acc + '/' + p : p;
+    const captured = acc;
+    crumbHtml += ` / <span onclick="_loadDestPickerDir('${esc(captured)}')" style="cursor:pointer;color:var(--accent)">${esc(p)}</span>`;
+  }
+  crumb.innerHTML = crumbHtml;
+  // List dirs only
+  const list = document.getElementById('dest-picker-list');
+  const dirs = r.entries.filter(e => e.is_dir);
+  if (!dirs.length) {
+    list.innerHTML = `<div style="color:var(--text-dim);font-size:12px;padding:8px">Aucun sous-dossier</div>`;
+    return;
+  }
+  list.innerHTML = dirs.map(d => `
+    <div onclick="_loadDestPickerDir('${esc(d.path)}')" style="display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:13px" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+      📁 ${esc(d.name)}
+    </div>
+  `).join('');
+}
+
+async function confirmDestPicker() {
+  if (!_destPickerFile) return;
+  document.getElementById('dest-picker-overlay').style.display = 'none';
+  await moveFileToPath(_destPickerFile, _destPickerPath);
+  _destPickerFile = null;
+}
+
+async function moveFileToPath(srcPath, destFolderRel) {
+  // Build destination: destFolderRel/filename
+  const fileName = srcPath.split('/').pop();
+  const destPath = destFolderRel ? `${destFolderRel}/${fileName}` : fileName;
+  const r = await fetch(`${API}/api/files/move?path=${encodeURIComponent(srcPath)}`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ destination: destPath }),
+  });
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({}));
+    showToast('Erreur : ' + (err.detail || r.status));
+    return;
+  }
+  showToast(`↗ Déplacé vers ${destFolderRel || 'racine'}`);
+  dirCache.delete(currentPath);
+  navigate(currentPath);
+}
+
 function closeBrowseModal(e) {
   if (e && e.target !== document.getElementById('browse-overlay')) return;
+  browseCallback = null;
   document.getElementById('browse-overlay').style.display = 'none';
 }
 
@@ -1644,6 +1967,13 @@ function browseGoToInput() {
 }
 
 async function confirmBrowseSelect() {
+  if (browseCallback) {
+    const cb = browseCallback;
+    browseCallback = null;
+    document.getElementById('browse-overlay').style.display = 'none';
+    await cb(browsePath);
+    return;
+  }
   const resp = await fetch(`${API}/api/settings`, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -1714,9 +2044,17 @@ async function init() {
     document.getElementById('volume-slider').value = v;
   }
   await loadQuickFolders();
+  await loadHomeRoots();
   updateSortUI();
   // Pick up any download jobs still running in the backend (survives page reload)
   _initDlQueue();
+  // Auto-refresh: re-fetch the current folder every 30 s (stale-while-revalidate,
+  // no flicker). Skipped when the home screen or a video is active.
+  setInterval(() => {
+    if (!showingHomeScreen && !document.hidden && video.paused) {
+      navigate(currentPath);
+    }
+  }, 30_000);
 
   // 2. Handle bookmarklet redirect: #download?url=...&cookies=...&videoSrc=...&title=...
   if (location.hash.startsWith('#download?')) {
@@ -1742,6 +2080,8 @@ async function init() {
 
   if (cfg.pin_set) {
     showPinScreen();
+  } else if (homeRoots.length > 0) {
+    renderHomeScreen();
   } else {
     navigate(homeFolder);
   }
@@ -1790,7 +2130,11 @@ async function submitPin() {
   });
   if (resp.ok) {
     hidePinScreen();
-    navigate(homeFolder);
+    if (homeRoots.length > 0) {
+      renderHomeScreen();
+    } else {
+      navigate(homeFolder);
+    }
     // If bookmarklet set a pending download URL, open the modal now
     if (window._pendingDownloadUrl) {
       const url = window._pendingDownloadUrl;
@@ -1890,6 +2234,7 @@ function openSettings() {
   document.getElementById('s-download-folder').value   = cfg.download_folder;
   document.getElementById('s-cookies-path').value      = cfg.download_cookies_path;
   document.getElementById('s-transcode-enabled').checked = cfg.transcode_enabled;
+  updateSettingsHomeRoots();
   _updateBookmarkletLink();
   _refreshPinStatusUI();
   document.getElementById('settings-page').classList.add('open');
@@ -2255,8 +2600,131 @@ async function _initDlQueue() {
   setInterval(_pollDlQueue, 8000);
 }
 
+// ── Search ─────────────────────────────────────────────────────────────────
+function onSearchInput(value) {
+  clearTimeout(searchDebounceTimer);
+  searchQuery = value.trim();
+  if (!searchQuery) { navigate(currentPath); return; }
+  searchDebounceTimer = setTimeout(runSearch, 350);
+}
+
+async function runSearch() {
+  if (!searchQuery) return;
+  const indicator = document.getElementById('refresh-indicator');
+  if (indicator) indicator.classList.add('active');
+  try {
+    const r = await fetch(`${API}/api/search?q=${encodeURIComponent(searchQuery)}&path=${encodeURIComponent(currentPath)}`);
+    if (!r.ok) return;
+    const data = await r.json();
+    showingHomeScreen = false;
+    entries = data.entries;
+    renderFiles(entries);
+    document.getElementById('breadcrumb').textContent = `🔍 "${searchQuery}"`;
+  } finally {
+    if (indicator) indicator.classList.remove('active');
+  }
+}
+
+// ── Tag management ────────────────────────────────────────────────────────────
+async function loadAllTags() {
+  try {
+    const r = await fetch(`${API}/api/all-tags`);
+    if (r.ok) { const d = await r.json(); allKnownTags = d.tags; }
+  } catch (_) { /* ignore */ }
+}
+
+async function openTagModal(filePath, fileName) {
+  _tagModalPath = filePath;
+  document.getElementById('tag-modal-filename').textContent = fileName;
+  await _refreshTagModal();
+  await loadAllTags();
+  _renderTagSuggestions();
+  document.getElementById('tag-modal').classList.add('open');
+  document.getElementById('tag-input').value = '';
+  document.getElementById('tag-input').focus();
+}
+
+function closeTagModal(e) {
+  if (e && e.target !== document.getElementById('tag-modal')) return;
+  document.getElementById('tag-modal').classList.remove('open');
+  _tagModalPath = null;
+}
+
+async function _refreshTagModal() {
+  if (!_tagModalPath) return;
+  const r = await fetch(`${API}/api/tags?path=${encodeURIComponent(_tagModalPath)}`);
+  if (!r.ok) return;
+  const d = await r.json();
+  const list = document.getElementById('tag-list');
+  list.innerHTML = d.tags.length
+    ? d.tags.map(t => `<span class="tag-item">${esc(t)}<span class="tag-remove" onclick="removeTag('${esc(t)}')">✕</span></span>`).join('')
+    : `<span style="color:var(--text-dim);font-size:12px">Aucun tag</span>`;
+  // Also update the entry in memory
+  const entry = entries.find(en => en.path === _tagModalPath);
+  if (entry) { entry.tags = d.tags; renderFiles(entries); }
+  _renderTagFilterBar();
+}
+
+function _renderTagSuggestions() {
+  const input = document.getElementById('tag-input').value.trim().toLowerCase();
+  const existing = Array.from(document.querySelectorAll('#tag-list .tag-item')).map(s => s.childNodes[0].textContent);
+  const suggs = allKnownTags.filter(t => !existing.includes(t) && (!input || t.includes(input)));
+  document.getElementById('tag-suggestions').innerHTML = suggs.slice(0, 12)
+    .map(t => `<span class="tag-sugg" onclick="applyTagSugg('${esc(t)}')">${esc(t)}</span>`).join('');
+}
+
+async function addTag() {
+  const input = document.getElementById('tag-input');
+  const tag = input.value.trim().toLowerCase();
+  if (!tag || !_tagModalPath) return;
+  const r = await fetch(`${API}/api/tags?path=${encodeURIComponent(_tagModalPath)}`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({tag})
+  });
+  if (!r.ok) { alert('Erreur lors de l\'ajout du tag'); return; }
+  input.value = '';
+  await _refreshTagModal();
+  await loadAllTags();
+  _renderTagSuggestions();
+}
+
+async function removeTag(tag) {
+  if (!_tagModalPath) return;
+  await fetch(`${API}/api/tags?path=${encodeURIComponent(_tagModalPath)}&tag=${encodeURIComponent(tag)}`, { method: 'DELETE' });
+  await _refreshTagModal();
+  await loadAllTags();
+  _renderTagSuggestions();
+}
+
+function applyTagSugg(tag) {
+  document.getElementById('tag-input').value = tag;
+  addTag();
+}
+
+// ── Tag filter bar ────────────────────────────────────────────────────────────
+function _renderTagFilterBar() {
+  const allTags = [...new Set(entries.flatMap(e => e.tags || []))].sort();
+  const bar = document.getElementById('tag-filter-bar');
+  if (!bar) return;
+  bar.innerHTML = allTags.map(t =>
+    `<span class="tag-filter-chip ${activeTagFilter === t ? 'active' : ''}" onclick="toggleTagFilter('${esc(t)}')">${esc(t)}</span>`
+  ).join('');
+}
+
+function toggleTagFilter(tag) {
+  activeTagFilter = activeTagFilter === tag ? null : tag;
+  _renderTagFilterBar();
+  renderFiles(entries);
+}
+
 // ── Navigation ────────────────────────────────────────────────────────────────
 async function navigate(path) {
+  showingHomeScreen = false;
+  searchQuery = '';
+  activeTagFilter = null;
+  const si = document.getElementById('search-input');
+  if (si) si.value = '';
+  const bar = document.getElementById('tag-filter-bar');
+  if (bar) bar.innerHTML = '';
   // Stop any playing video when changing folder
   if (currentFile) {
     video.pause();
@@ -2265,6 +2733,7 @@ async function navigate(path) {
     document.getElementById('player-empty').style.display = '';
     if (saveInterval) { clearInterval(saveInterval); saveInterval = null; }
     currentFile = null;
+    updateMediaMeta(null);
     document.getElementById('cut-in-btn').style.display = 'none';
     document.getElementById('cut-out-btn').style.display = 'none';
     document.getElementById('cut-btn').style.display = 'none';
@@ -2280,6 +2749,7 @@ async function navigate(path) {
     entries = cached.entries;
     renderBreadcrumb(cached.breadcrumb);
     renderFiles(cached.entries);
+    _renderTagFilterBar();
     // If data is fresh enough, skip background refresh entirely
     if (Date.now() - cached.ts < DIR_CACHE_TTL) return;
   }
@@ -2315,11 +2785,12 @@ async function navigate(path) {
   entries = data.entries;
   renderBreadcrumb(data.breadcrumb);
   renderFiles(data.entries);
+  _renderTagFilterBar();
 }
 
 function renderBreadcrumb(crumbs) {
   const bc = document.getElementById('breadcrumb');
-  const homeLabel = homeFolder ? homeFolder.split('/').pop() + ' \u2302' : '~';
+  const homeLabel = homeRoots.length > 0 ? '🏠' : (homeFolder ? homeFolder.split('/').pop() + ' \u2302' : '~');
   let html = `<span onclick="navigateHome()">${homeLabel}</span>`;
   for (const c of crumbs) {
     html += `<span class="sep">/</span><span onclick="navigate('${esc(c.path)}')">${esc(c.name)}</span>`;
@@ -2341,9 +2812,11 @@ function renderEntry(e, i) {
 
   const stateClass = e.is_video ? getStateClass(e.progress) : (e.folder_state === 'seen' ? 'seen' : (e.folder_state === 'inprogress' ? 'inprogress' : ''));
   const pinBtn = e.is_dir ? `<button class="action-btn ${e.is_quick_folder ? 'pinned' : ''}" onclick="togglePin('${esc(e.path)}', ${e.is_quick_folder})" title="${e.is_quick_folder ? 'Retirer' : 'Accès rapide'}">📌</button>` : '';
+  const tagsHtml = (e.tags && e.tags.length) ? e.tags.map(t => `<span class="tag-badge">${esc(t)}</span>`).join('') : '';
   const actionsHtml = e.is_video || e.is_dir ? `
     <div class="entry-actions" onclick="event.stopPropagation()">
       ${pinBtn}
+      <button class="action-btn" onclick="openTagModal('${esc(e.path)}', '${esc(e.name)}')">🏷</button>
       <button class="action-btn" onclick="openMoveModal('${esc(e.path)}', '${esc(e.name)}')">↗</button>
       <button class="action-btn danger" onclick="confirmDelete('${esc(e.path)}', '${esc(e.name)}')">🗑</button>
     </div>
@@ -2361,6 +2834,7 @@ function renderEntry(e, i) {
         <div class="entry-meta">
           <span>${meta}</span>
           ${progressHtml}
+          <div style="margin-top:3px">${tagsHtml}</div>
         </div>
       </div>
       ${actionsHtml}
@@ -2370,12 +2844,13 @@ function renderEntry(e, i) {
 
 function renderFiles(list) {
   const el = document.getElementById('filelist');
-  if (!list.length) {
-    el.innerHTML = `<div style="color:var(--text-dim);font-size:13px;padding:20px;text-align:center">Dossier vide</div>`;
+  const filtered = activeTagFilter ? list.filter(e => e.tags && e.tags.includes(activeTagFilter)) : list;
+  if (!filtered.length) {
+    el.innerHTML = `<div style="color:var(--text-dim);font-size:13px;padding:20px;text-align:center">${activeTagFilter ? 'Aucun fichier avec ce tag' : 'Dossier vide'}</div>`;
     return;
   }
 
-  const { pinned, rest } = sortedList(list);
+  const { pinned, rest } = sortedList(filtered);
 
   let html = '';
   if (pinned.length) {
@@ -2473,6 +2948,8 @@ async function playVideo(idx) {
     showToast('Lecture native non confirmée — transcodage…');
   }
   video.src = playbackChoice.src;
+  resetSpeed();
+  updateMediaMeta(mediaInfo);
 
   // Auto-save every 5s
   if (saveInterval) clearInterval(saveInterval);
@@ -2608,6 +3085,43 @@ function toggleVideoFit() {
   showToast(isFill ? '\u26f6\ufe0e Fill' : '\u26f6\ufe0e Fit');
   const btn = document.getElementById('fit-btn');
   if (btn) btn.style.color = isFill ? 'var(--accent)' : '';
+}
+
+const PLAYBACK_SPEEDS = [0.5, 1, 1.5, 2];
+let speedIdx = 1; // default 1×
+function cycleSpeed() {
+  speedIdx = (speedIdx + 1) % PLAYBACK_SPEEDS.length;
+  const spd = PLAYBACK_SPEEDS[speedIdx];
+  video.playbackRate = spd;
+  const label = spd === 1 ? '1×' : spd + '×';
+  const btn = document.getElementById('speed-btn');
+  if (btn) { btn.textContent = label; btn.style.color = spd !== 1 ? 'var(--accent)' : ''; }
+  showToast('⏱ ' + label);
+}
+function resetSpeed() {
+  speedIdx = 1;
+  video.playbackRate = 1;
+  const btn = document.getElementById('speed-btn');
+  if (btn) { btn.textContent = '1×'; btn.style.color = ''; }
+}
+
+function updateMediaMeta(mediaInfo) {
+  const el = document.getElementById('media-meta');
+  if (!el) return;
+  if (!mediaInfo || !mediaInfo.video) { el.textContent = ''; return; }
+  const v = mediaInfo.video;
+  const parts = [];
+  if (v.width && v.height) parts.push(`${v.width}×${v.height}`);
+  if (v.codec) parts.push(v.codec.toUpperCase());
+  if (v.framerate) parts.push(`${Math.round(v.framerate)} fps`);
+  if (mediaInfo.duration) {
+    const s = Math.round(mediaInfo.duration);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    parts.push(h > 0 ? `${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}` : `${m}:${String(sec).padStart(2,'0')}`);
+  }
+  el.textContent = parts.join(' · ');
 }
 
 function getBrightness() {
@@ -2774,6 +3288,14 @@ function openMoveModal(path, name) {
     container.innerHTML = `<div style="color:var(--text-dim);font-size:12px;padding:8px 0;line-height:1.5">Aucun dossier rapide.<br>Clique sur 📌 dans la liste pour en épingler un.</div>`;
   }
   document.getElementById('move-dialog').showModal();
+}
+
+function openDestPickerFromMoveModal() {
+  const filePath = pendingMovePath;
+  const fileName = filePath ? filePath.split('/').pop() : '';
+  document.getElementById('move-dialog').close();
+  pendingMovePath = null;
+  openDestPickerForFile(filePath, fileName);
 }
 
 function closeModal(e) {
