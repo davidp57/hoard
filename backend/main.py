@@ -1431,6 +1431,7 @@ _SETTINGS_KEYS = {
     "initial_sweep_seconds",  # seconds int, default 0 = disabled
     "download_folder",  # relative path from MEDIA_ROOT, default 'Downloads'
     "download_cookies_path",  # absolute path to a Netscape cookies.txt file, optional
+    "transcode_enabled",  # '1' | '0', default '1'
 }
 
 _SETTINGS_DEFAULTS: dict[str, str] = {
@@ -1455,6 +1456,7 @@ _SETTINGS_DEFAULTS: dict[str, str] = {
     "initial_sweep_seconds": "0",
     "download_folder": "Downloads",
     "download_cookies_path": "",
+    "transcode_enabled": "1",
 }
 
 
@@ -1498,6 +1500,7 @@ class SettingsPayload(BaseModel):
     initial_sweep_seconds: int | None = Field(default=None, ge=0, le=7200)
     download_folder: str | None = None
     download_cookies_path: str | None = None
+    transcode_enabled: bool | None = None
 
 
 @app.get("/api/settings")
@@ -1559,6 +1562,7 @@ def update_settings(body: SettingsPayload):
             ("gesture_volume", body.gesture_volume),
             ("gesture_brightness", body.gesture_brightness),
             ("gesture_doubletap", body.gesture_doubletap),
+            ("transcode_enabled", body.transcode_enabled),
         ]
         for key, val in _bools:
             if val is not None:

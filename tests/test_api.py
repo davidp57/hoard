@@ -540,6 +540,27 @@ class TestSettings:
         assert "doubletap_right_mid" not in data
         assert "doubletap_right_top" not in data
 
+    def test_transcode_enabled_default_is_true(self):
+        resp = client.get("/api/settings")
+        assert resp.status_code == 200
+        assert resp.json()["transcode_enabled"] == "1"
+
+    def test_transcode_enabled_can_be_disabled(self):
+        resp = client.post("/api/settings", json={"transcode_enabled": False})
+        assert resp.status_code == 200
+        assert resp.json()["ok"] is True
+
+        resp = client.get("/api/settings")
+        assert resp.json()["transcode_enabled"] == "0"
+
+    def test_transcode_enabled_can_be_re_enabled(self):
+        client.post("/api/settings", json={"transcode_enabled": False})
+        resp = client.post("/api/settings", json={"transcode_enabled": True})
+        assert resp.status_code == 200
+
+        resp = client.get("/api/settings")
+        assert resp.json()["transcode_enabled"] == "1"
+
 
 # ── /api/initial-sweep ───────────────────────────────────────────────────────
 

@@ -914,6 +914,10 @@
         <div><div class="s-label">Initial sweep par défaut</div><div class="s-desc">Pour une vidéo sans progression enregistrée : démarrer à N secondes. 0 = désactivé.</div></div>
         <div class="s-right"><input type="number" class="s-num" id="s-initial-sweep" min="0" max="7200" step="30"> <span style="font-size:12px;color:var(--text-dim)">s</span></div>
       </div>
+      <div class="s-row">
+        <div><div class="s-label">Transcodage activé</div><div class="s-desc">Désactiver pour toujours lire les fichiers directement (plus léger sur le NAS). Attention : peut échouer pour les formats non supportés nativement par le navigateur.</div></div>
+        <div class="s-right"><label class="toggle"><input type="checkbox" id="s-transcode-enabled"><div class="toggle-track"></div></label></div>
+      </div>
     </div>
 
     <!-- Touch gestures -->
@@ -1278,6 +1282,7 @@ let cfg = {
   initial_sweep_seconds: 0,
   download_folder: 'Downloads',
   download_cookies_path: '',
+  transcode_enabled: true,
 };
 
 function applyCfg(s) {
@@ -1310,6 +1315,7 @@ function applyCfg(s) {
   });
   cfg.download_folder            = s.download_folder        || 'Downloads';
   cfg.download_cookies_path      = s.download_cookies_path  || '';
+  cfg.transcode_enabled          = s.transcode_enabled !== '0' && s.transcode_enabled !== false;
   // propagate navigation prefs
   homeFolder = cfg.home_folder;
   sortBy     = cfg.sort_by;
@@ -1386,6 +1392,10 @@ function buildMediaCapabilitiesConfig(mediaInfo) {
 async function choosePlaybackSource(entry, mediaInfo) {
   const streamUrl = `${API}/api/stream?path=${encodeURIComponent(entry.path)}`;
   const transcodeUrl = `${API}/api/transcode?path=${encodeURIComponent(entry.path)}`;
+
+  if (!cfg.transcode_enabled) {
+    return { src: streamUrl, mode: 'stream', reason: 'transcode-disabled' };
+  }
 
   if (!mediaInfo) {
     return { src: streamUrl, mode: 'stream', reason: 'no-metadata' };
@@ -1879,6 +1889,7 @@ function openSettings() {
   document.getElementById('s-home-desc').textContent   = cfg.home_folder || '(racine)';
   document.getElementById('s-download-folder').value   = cfg.download_folder;
   document.getElementById('s-cookies-path').value      = cfg.download_cookies_path;
+  document.getElementById('s-transcode-enabled').checked = cfg.transcode_enabled;
   _updateBookmarkletLink();
   _refreshPinStatusUI();
   document.getElementById('settings-page').classList.add('open');
@@ -1921,6 +1932,7 @@ async function saveSettings() {
     seek_xlong:    parseInt(document.getElementById('s-seek-xlong').value,  10),
     download_folder:           (document.getElementById('s-download-folder').value || 'Downloads').trim(),
     download_cookies_path:     document.getElementById('s-cookies-path').value.trim(),
+    transcode_enabled:         document.getElementById('s-transcode-enabled').checked,
   };
   const resp = await fetch(`${API}/api/settings`, {
     method: 'POST',
