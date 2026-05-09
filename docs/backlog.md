@@ -35,13 +35,13 @@ Facteur de marge actuel : **0,40**.
 
 | ID | Titre | Prio | Est. | Créé | Démarré | Terminé |
 | --- | --- | --- | --- | --- | --- | --- |
-| BL-009 | Rafraîchissement auto de la liste de fichiers | P2 | 15 min | 2026-04-12 | | |
-| BL-010 | Sélecteur de vitesse de lecture (0,5×, 1×, 1,5×, 2×) | P2 | 10 min | 2026-04-12 | | |
-| BL-016 | Métadonnées vidéo dans l'UI (durée, résolution, codec) | P3 | 15 min | 2026-04-12 | | |
-| BL-012 | Recherche dans les noms de fichiers | P3 | 20 min | 2026-04-12 | | |
-| BL-023 | Liste de dossiers « home » (plusieurs racines de navigation) | P2 | 25 min | 2026-05-09 | | |
-| BL-005 | Sélecteur de destination libre (arborescence filesystem) | P1 | 30 min | 2026-04-12 | | |
-| BL-007 | Tags arbitraires sur les fichiers + filtrage | P1 | 35 min | 2026-04-12 | | |
+| BL-009 | Rafraîchissement auto de la liste de fichiers | P2 | 15 min | 2026-04-12 | 2026-05-09 | 2026-05-09 |
+| BL-010 | Sélecteur de vitesse de lecture (0,5×, 1×, 1,5×, 2×) | P2 | 10 min | 2026-04-12 | 2026-05-09 | 2026-05-09 |
+| BL-016 | Métadonnées vidéo dans l'UI (durée, résolution, codec) | P3 | 15 min | 2026-04-12 | 2026-05-09 | 2026-05-09 |
+| BL-012 | Recherche dans les noms de fichiers | P3 | 20 min | 2026-04-12 | 2026-05-09 | 2026-05-09 |
+| BL-023 | Liste de dossiers « home » (plusieurs racines de navigation) | P2 | 25 min | 2026-05-09 | 2026-05-09 | 2026-05-09 |
+| BL-005 | Sélecteur de destination libre (arborescence filesystem) | P1 | 30 min | 2026-04-12 | 2026-05-09 | 2026-05-09 |
+| BL-007 | Tags arbitraires sur les fichiers + filtrage | P1 | 35 min | 2026-04-12 | 2026-05-09 | 2026-05-09 |
 
 ### Lot 5 — Fonctionnalités avancées (~150 min : 135 min Copilot + 15 min gestion)
 
