@@ -23,12 +23,6 @@ Facteur de marge actuel : **0,40**.
 
 ## Lots actifs
 
-### Lot 2 — Gamepad (~85 min : 70 min Copilot + 15 min gestion) — dépend du Lot 1
-
-| ID | Titre | Prio | Est. | Créé | Démarré | Terminé |
-| --- | --- | --- | --- | --- | --- | --- |
-| BL-024 | Contrôle gamepad (manette, Steam Deck, iPhone + controller) | P2 | 70 min | 2026-05-09 | | |
-
 ### Lot 5 — Fonctionnalités avancées (~150 min : 135 min Copilot + 15 min gestion)
 
 > Dépendance interne : BL-015 dépend de BL-011 (la progression multi-utilisateur présuppose une couche d'authentification) — exécuter BL-011 en premier.
@@ -146,6 +140,8 @@ Facteur de marge actuel : **0,40**.
 > Lots terminés depuis plus de 3 jours → [backlog-archive.md](backlog-archive.md)
 
 ### Lot 4 — UI Browser & Player Extensions
+
+- **BL-024** — `created=2026-05-09`, `started=2026-05-09`, `completed=2026-05-09` — Support gamepad complet : Gamepad API, 4 couches L1/R1, contrôles lecteur, navigation navigateur, scrubbing analogique, HUD badge, overlay aide, toasts, haptique Chrome, section Paramètres Manette. Backend : clés `gamepad_enabled/deadzone/haptic/mapping` en SQLite.
 
 - **BL-023** — `created=2026-05-09`, `started=2026-05-09`, `completed=2026-05-09` — Liste de dossiers « home » multiples avec gestion backend (`home_roots`) et écran de sélection UI.
 - **BL-009** — `created=2026-04-12`, `started=2026-05-09`, `completed=2026-05-09` — Rafraîchissement auto de la liste toutes les 30 s (onglet visible + vidéo en pause + pas de recherche active).

@@ -1600,6 +1600,10 @@ _SETTINGS_KEYS = {
     "download_folder",  # relative path from MEDIA_ROOT, default 'Downloads'
     "download_cookies_path",  # absolute path to a Netscape cookies.txt file, optional
     "transcode_enabled",  # '1' | '0', default '1'
+    "gamepad_enabled",  # '1' | '0', default '1'
+    "gamepad_deadzone",  # float 0.0–0.5, default '0.20'
+    "gamepad_haptic",  # '1' | '0', default '1'
+    "gamepad_mapping",  # JSON string, default '{}' (use built-in defaults)
 }
 
 _SETTINGS_DEFAULTS: dict[str, str] = {
@@ -1625,6 +1629,10 @@ _SETTINGS_DEFAULTS: dict[str, str] = {
     "download_folder": "Downloads",
     "download_cookies_path": "",
     "transcode_enabled": "1",
+    "gamepad_enabled": "1",
+    "gamepad_deadzone": "0.20",
+    "gamepad_haptic": "1",
+    "gamepad_mapping": "{}",
 }
 
 
@@ -1669,6 +1677,10 @@ class SettingsPayload(BaseModel):
     download_folder: str | None = None
     download_cookies_path: str | None = None
     transcode_enabled: bool | None = None
+    gamepad_enabled: bool | None = None
+    gamepad_deadzone: float | None = Field(default=None, ge=0.0, le=0.5)
+    gamepad_haptic: bool | None = None
+    gamepad_mapping: str | None = None  # raw JSON string
 
 
 @app.get("/api/settings")
@@ -1719,6 +1731,8 @@ def update_settings(body: SettingsPayload):
             ("initial_sweep_seconds", body.initial_sweep_seconds),
             ("download_folder", body.download_folder),
             ("download_cookies_path", body.download_cookies_path),
+            ("gamepad_deadzone", body.gamepad_deadzone),
+            ("gamepad_mapping", body.gamepad_mapping),
         ]
         for key, val in _simple:
             if val is not None:
@@ -1731,6 +1745,8 @@ def update_settings(body: SettingsPayload):
             ("gesture_brightness", body.gesture_brightness),
             ("gesture_doubletap", body.gesture_doubletap),
             ("transcode_enabled", body.transcode_enabled),
+            ("gamepad_enabled", body.gamepad_enabled),
+            ("gamepad_haptic", body.gamepad_haptic),
         ]
         for key, val in _bools:
             if val is not None:
