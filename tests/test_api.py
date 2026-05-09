@@ -502,6 +502,44 @@ class TestSettings:
         resp = client.post("/api/settings", json={"initial_sweep_seconds": 7201})
         assert resp.status_code == 422
 
+    def test_seek_settings_defaults(self):
+        resp = client.get("/api/settings")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["seek_short"] == "10"
+        assert data["seek_medium"] == "30"
+        assert data["seek_long"] == "60"
+        assert data["seek_xlong"] == "120"
+
+    def test_seek_settings_can_be_updated(self):
+        resp = client.post(
+            "/api/settings",
+            json={
+                "seek_short": 5,
+                "seek_medium": 15,
+                "seek_long": 45,
+                "seek_xlong": 90,
+            },
+        )
+        assert resp.status_code == 200
+        assert resp.json()["ok"] is True
+
+        resp = client.get("/api/settings")
+        data = resp.json()
+        assert data["seek_short"] == "5"
+        assert data["seek_medium"] == "15"
+        assert data["seek_long"] == "45"
+        assert data["seek_xlong"] == "90"
+
+    def test_doubletap_settings_removed(self):
+        resp = client.get("/api/settings")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "doubletap_left" not in data
+        assert "doubletap_right_bottom" not in data
+        assert "doubletap_right_mid" not in data
+        assert "doubletap_right_top" not in data
+
 
 # ── /api/initial-sweep ───────────────────────────────────────────────────────
 
