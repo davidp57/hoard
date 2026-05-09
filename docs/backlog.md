@@ -10,12 +10,11 @@ Quand un sujet est livré, mettre à jour `CHANGELOG.md` et passer le ticket en 
 
 ## Calibration estimations
 
-Facteur de marge actuel : **1,00** (0%) — repris de Solde (voir notes).
+Facteur de marge actuel : **0,40**.
 
 | Lot | Estimé Copilot | Réel Copilot | Ratio | Estimé gestion | Réel gestion | Ajustement |
 | --- | --- | --- | --- | --- | --- | --- |
 
-> **Leçons importées de Solde** : après 3 lots calibrés (ratios 0,46 / 0,29 / 0,37), les estimations naïves Copilot sont systématiquement 2–3× trop élevées. Le facteur a été abaissé à 1,00. Règles à appliquer pour Hoard :
 > - Tickets de finition / tests simples → estimation de référence 3–5 min, pas 10–20 min.
 > - Avant d'estimer un ticket de « review fix », vérifier si le problème existe réellement.
 > - Pour les tickets d'implémentation technique pure, appliquer un facteur **0,60** par rapport à l'estimation initiale naïve.
@@ -24,33 +23,61 @@ Facteur de marge actuel : **1,00** (0%) — repris de Solde (voir notes).
 
 ## Lots actifs
 
-*Aucun lot actif pour le moment.*
+### Lot 1 — Player UX, Seek & Raccourcis clavier (~85 min : 70 min Copilot + 15 min gestion)
+
+> Dépendances internes : BL-026 dépend de BL-021 (valeurs seek unifiées) — exécuter dans l'ordre du tableau.
+
+| ID | Titre | Prio | Est. | Créé | Démarré | Terminé |
+| --- | --- | --- | --- | --- | --- | --- |
+| BL-025 | Changer l'icône « aspect » (même icône que plein écran) | P3 | 5 min | 2026-05-09 | | |
+| BL-021 | Seek multi-niveaux unifié + raccourcis clavier étendus + modaux en plein écran *(inclut BL-004)* | P2 | 40 min | 2026-05-09 | | |
+| BL-026 | Contrôles plein écran : affichage zone basse + toast seek systématique | P2 | 25 min | 2026-05-09 | | |
+
+### Lot 2 — Gamepad (~85 min : 70 min Copilot + 15 min gestion) — dépend du Lot 1
+
+| ID | Titre | Prio | Est. | Créé | Démarré | Terminé |
+| --- | --- | --- | --- | --- | --- | --- |
+| BL-024 | Contrôle gamepad (manette, Steam Deck, iPhone + controller) | P2 | 70 min | 2026-05-09 | | |
+
+### Lot 3 — Option Transcodage (~30 min : 15 min Copilot + 15 min gestion)
+
+| ID | Titre | Prio | Est. | Créé | Démarré | Terminé |
+| --- | --- | --- | --- | --- | --- | --- |
+| BL-022 | Option pour désactiver le transcodage (lecture native directe) | P1 | 15 min | 2026-05-09 | | |
+
+### Lot 4 — UI Browser & Player Extensions (~165 min : 150 min Copilot + 15 min gestion)
+
+> BL-004 fusionné dans BL-021 (Lot 1). Dépendance interne : BL-005 dépend de BL-023 (le sélecteur de destination doit connaître la racine active) — exécuter BL-023 en premier.
+
+| ID | Titre | Prio | Est. | Créé | Démarré | Terminé |
+| --- | --- | --- | --- | --- | --- | --- |
+| BL-009 | Rafraîchissement auto de la liste de fichiers | P2 | 15 min | 2026-04-12 | | |
+| BL-010 | Sélecteur de vitesse de lecture (0,5×, 1×, 1,5×, 2×) | P2 | 10 min | 2026-04-12 | | |
+| BL-016 | Métadonnées vidéo dans l'UI (durée, résolution, codec) | P3 | 15 min | 2026-04-12 | | |
+| BL-012 | Recherche dans les noms de fichiers | P3 | 20 min | 2026-04-12 | | |
+| BL-023 | Liste de dossiers « home » (plusieurs racines de navigation) | P2 | 25 min | 2026-05-09 | | |
+| BL-005 | Sélecteur de destination libre (arborescence filesystem) | P1 | 30 min | 2026-04-12 | | |
+| BL-007 | Tags arbitraires sur les fichiers + filtrage | P1 | 35 min | 2026-04-12 | | |
+
+### Lot 5 — Fonctionnalités avancées (~150 min : 135 min Copilot + 15 min gestion)
+
+> Dépendance interne : BL-015 dépend de BL-011 (la progression multi-utilisateur présuppose une couche d'authentification) — exécuter BL-011 en premier.
+
+| ID | Titre | Prio | Est. | Créé | Démarré | Terminé |
+| --- | --- | --- | --- | --- | --- | --- |
+| BL-002 | Tri dans la liste : taille + état de lecture | P2 | 10 min | 2026-04-12 | | |
+| BL-003 | Marquer manuellement vu / non vu | P2 | 10 min | 2026-04-12 | | |
+| BL-006 | Renommage de fichiers/dossiers depuis l'UI | P2 | 15 min | 2026-04-12 | | |
+| BL-008 | Sous-titres (`.srt` / `.ass` dans le même dossier) | P2 | 25 min | 2026-04-12 | | |
+| BL-013 | Thème clair (toggle) | P3 | 20 min | 2026-04-12 | | |
+| BL-011 | Authentification basique pour exposition hors LAN | P1 | 20 min | 2026-04-12 | | |
+| BL-015 | Progression de lecture multi-utilisateur *(dépend de BL-011)* | P2 | 35 min | 2026-04-12 | | |
 
 ---
 
 ### Hors lots
 
-| ID | Titre | Prio | Est. | Créé | Démarré | Terminé |
-| --- | --- | --- | --- | --- | --- | --- |
-| BL-023 | Liste de dossiers « home » (plusieurs racines de navigation) | P2 | — | 2026-05-09 | | |
-| BL-022 | Option pour désactiver le transcodage (lecture native directe) | P1 | — | 2026-05-09 | | |
-| BL-024 | Contrôle gamepad (manette, Steam Deck, iPhone + controller) | P2 | — | 2026-05-09 | | |
-| BL-025 | Changer l'icône « aspect » (même icône que plein écran) | P3 | — | 2026-05-09 | | |
-| BL-021 | Seek multi-niveaux unifié + raccourcis clavier étendus + modaux en plein écran | P2 | — | 2026-05-09 | | |
-| BL-005 | Sélecteur de destination libre (arborescence filesystem) | P1 | — | 2026-04-12 | | |
-| BL-007 | Tags arbitraires sur les fichiers + filtrage | P1 | — | 2026-04-12 | | |
-| BL-011 | Authentification basique pour exposition hors LAN | P1 | — | 2026-04-12 | | |
-| BL-002 | Tri dans la liste : taille + état de lecture | P2 | — | 2026-04-12 | | |
-| BL-003 | Marquer manuellement vu / non vu | P2 | — | 2026-04-12 | | |
-| BL-004 | Bouton plein écran + raccourci `F` | P2 | — | 2026-04-12 | | |
-| BL-006 | Renommage de fichiers/dossiers depuis l'UI | P2 | — | 2026-04-12 | | |
-| BL-008 | Sous-titres (`.srt` / `.ass` dans le même dossier) | P2 | — | 2026-04-12 | | |
-| BL-009 | Rafraîchissement auto de la liste de fichiers | P2 | — | 2026-04-12 | | |
-| BL-010 | Sélecteur de vitesse de lecture (0,5×, 1×, 1,5×, 2×) | P2 | — | 2026-04-12 | | |
-| BL-015 | Progression de lecture multi-utilisateur | P2 | — | 2026-04-12 | | |
-| BL-012 | Recherche dans les noms de fichiers | P3 | — | 2026-04-12 | | |
-| BL-013 | Thème clair (toggle) | P3 | — | 2026-04-12 | | |
-| BL-016 | Métadonnées vidéo dans l'UI (durée, résolution, codec) | P3 | — | 2026-04-12 | | |
+*Aucun ticket hors lot pour le moment.*
 
 ---
 
@@ -88,13 +115,14 @@ Facteur de marge actuel : **1,00** (0%) — repris de Solde (voir notes).
 - **Expected outcome**: allow a quick explicit action from the file list or context UI.
 - **Attention point**: define whether the action resets stored playback position or only the seen threshold state.
 
-### BL-004 — Proper Fullscreen Support
+### BL-004 — Proper Fullscreen Support *(fusionné dans BL-021)*
 
 - **Dates**: `created=2026-04-12`
 
 - **Why**: the current mobile overlay is useful but does not replace native fullscreen behavior in all cases.
 - **Expected outcome**: add a fullscreen button and `F` shortcut with clean fallback behavior.
 - **Attention point**: iPad and mobile browser limitations need explicit handling.
+- **Note**: absorbed into BL-021 (keyboard shortcuts lot). The native fullscreen behavior fix was already delivered by BL-020.
 
 ### BL-005 — Free-Move Destination Picker
 
@@ -275,11 +303,11 @@ Facteur de marge actuel : **1,00** (0%) — repris de Solde (voir notes).
 
 ---
 
-### BL-021 — Unified Multi-Level Seek And Extended Keyboard Shortcuts
+### BL-021 — Unified Multi-Level Seek, Extended Keyboard Shortcuts & Fullscreen Button *(absorbe BL-004)*
 
 - **Dates**: `created=2026-05-09`
 
-- **Why**: seek is currently hardcoded at 10s (keyboard) and configured separately for touch double-tap zones; there is no consistency between input methods, and keyboard shortcuts cover only basic playback while all other player actions (move, delete, cut, aspect ratio, markers, sweep, navigation) are mouse/touch-only.
+- **Why**: seek is currently hardcoded at 10s (keyboard) and configured separately for touch double-tap zones; there is no consistency between input methods, and keyboard shortcuts cover only basic playback while all other player actions (move, delete, cut, aspect ratio, markers, sweep, navigation) are mouse/touch-only. BL-004 (fullscreen button + `F` shortcut) is included here since `F` is already part of the keyboard handler and the fullscreen button belongs in the same controls bar refactor.
 - **Expected outcome**:
   1. **Unified 4-level seek** — one set of 4 configurable durations (`seek_short=10s`, `seek_medium=30s`, `seek_long=60s`, `seek_xlong=120s`) applied consistently to both keyboard and touch double-tap:
      - Keyboard: `←/→` (short), `Shift+←/→` (medium), `Ctrl+←/→` (long), `Alt+←/→` (x-long)
@@ -299,7 +327,8 @@ Facteur de marge actuel : **1,00** (0%) — repris de Solde (voir notes).
      - `S` → save current position as folder start offset
      - `PageDown` / `PageUp` → next / previous video in folder
      - `?` → show keyboard shortcut reference overlay
-  3. **Modals usable in native fullscreen** — convert move, cut, and delete confirmation overlays to `<dialog>.showModal()` so they appear above the native fullscreen element without exiting fullscreen.
+  3. **Fullscreen button in controls bar** *(from BL-004)* — add a dedicated fullscreen toggle button to the player controls bar; `F` shortcut already handled by the existing keydown handler (verify it is wired correctly after BL-020 fix).
+  4. **Modals usable in native fullscreen** — convert move, cut, and delete confirmation overlays to `<dialog>.showModal()` so they appear above the native fullscreen element without exiting fullscreen.
 - **Functional rules**:
   - Keyboard shortcuts that require an open video (`A`, `I`, `O`, `C`, `D`, `Delete`, `S`) are no-ops when `currentFile` is null.
   - `Delete` and `D` from the keyboard: after completion, auto-advance to the next video in folder if one exists.
@@ -319,6 +348,30 @@ Facteur de marge actuel : **1,00** (0%) — repris de Solde (voir notes).
 - **Expected outcome**: remplacer l'icône du bouton aspect ratio par une icône distincte qui évoque le recadrage ou le changement de ratio (ex. : deux flèches diagonales opposées avec un rectangle, ou une icône crop/fit).
 - **Scope**: `frontend/index.html` — uniquement l'icône SVG inline du bouton aspect, pas de changement fonctionnel.
 - **Attention point**: l'icône doit rester lisible à la taille utilisée dans la barre de contrôles (environ 20×20 px) et cohérente visuellement avec les autres icônes du player.
+
+### BL-026 — Contrôles Plein Écran : Affichage Zone Basse + Toast Seek Systématique
+
+- **Dates**: `created=2026-05-09`
+
+- **Why**: la barre de contrôles apparaît intempestivement en plein écran — sur les sauts clavier (←/→), le survol souris (`mousemove`), et, une fois BL-024 livré, lors du scrubbing analogique au stick. Par ailleurs, le toast de seek (déjà affiché sur double-tap) est le bon feedback visuel pour toutes les actions de navigation temporelle, mais il est absent pour les touches clavier, les boutons skip et le swipe horizontal.
+- **Expected outcome**:
+  1. **Toast seek systématique** — `showToast()` appelé pour *toutes* les sources de seek :
+     - Touches clavier ←/→ → ajouter le toast `◀◀ −Xs` / `+Xs ▶▶` (absent actuellement)
+     - Swipe horizontal → afficher un toast en fin de swipe (`touchend`) avec le delta réel
+     - Boutons skip (-30s, -10s, +10s, +30s) → ajouter le toast correspondant
+     - Double-tap gauche/droite → déjà OK ✅
+     - Gamepad D-pad et stick analogique (BL-024) → à intégrer lors de l'implémentation gamepad
+  2. **Zone tactile d'affichage de la barre** — la barre se révèle uniquement si le `touchstart` / `pointerdown` se produit dans les **10 % bas de l'écran** (toute la largeur). Les taps hors de cette zone ne la révèlent pas.
+  3. **Touche dédiée** — une seule touche clavier révèle/masque la barre (`H`). Les touches de seek, volume, espace et toutes les autres actions ne déclenchent plus `bumpFullscreenControlsIdle()`.
+  4. **Suppression du déclencheur `mousemove`** — supprimer l'appel à `bumpFullscreenControlsIdle(true)` sur `mousemove`, ou le conditionner au survol de la zone basse uniquement.
+  5. **Stick analogique** (anticipation BL-024) — le scrubbing analogique met à jour la seekbar frame par frame sans appeler `bumpFullscreenControlsIdle()`.
+- **Scope**: `frontend/index.html` — `skip()`, handler `keydown`, handlers `touchend` / `touchmove`, `mousemove`, `bumpFullscreenControlsIdle()`, boutons skip.
+- **Functional rules**:
+  - La barre reste visible tant que l'utilisateur interagit avec la zone basse ou les contrôles ; elle se masque après `FULLSCREEN_CONTROLS_IDLE_MS` (2 200 ms) d'inactivité.
+  - Le toast ne s'affiche que si une vidéo est ouverte.
+  - Pour le swipe horizontal, le toast de fin de swipe affiche le delta réel (pas une valeur fixe) ; un seul toast au `touchend`, pas un par frame.
+- **Attention point**: vérifier que les boutons de la barre restent cliquables après révélation (`pointer-events`), et que le hide-timer ne se réinitialise pas à chaque frame lors du scrubbing analogique.
+- **Acceptance signal**: en plein écran, les sauts clavier, le swipe, les boutons skip et le scrubbing analogique ne révèlent jamais la barre de contrôles ; seul un toucher en zone basse ou la touche `H` la révèle ; un toast indiquant le montant du seek est visible pour toutes ces sources.
 
 ### BL-020 — Native Fullscreen Broken On Touch-Capable Desktop Browsers
 
