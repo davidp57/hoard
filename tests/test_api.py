@@ -512,12 +512,15 @@ class TestSettings:
         assert data["seek_xlong"] == "120"
 
     def test_seek_settings_can_be_updated(self):
-        resp = client.post("/api/settings", json={
-            "seek_short": 5,
-            "seek_medium": 15,
-            "seek_long": 45,
-            "seek_xlong": 90,
-        })
+        resp = client.post(
+            "/api/settings",
+            json={
+                "seek_short": 5,
+                "seek_medium": 15,
+                "seek_long": 45,
+                "seek_xlong": 90,
+            },
+        )
         assert resp.status_code == 200
         assert resp.json()["ok"] is True
 
