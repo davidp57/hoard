@@ -691,13 +691,24 @@
   }
   #gp-hud.visible { opacity: 1; }
   #gp-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.82);
+    z-index: 9999;
+    display: none;
+    align-items: center;
+    justify-content: center;
+  }
+  #gp-overlay.open { display: flex; }
+  /* When moved inside the fullscreen element */
+  #gp-overlay.in-fullscreen { position: absolute; }
+  #gp-overlay-box {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 12px;
     display: flex;
-    align-items: center;
-    justify-content: center;
     flex-direction: column;
+    align-items: center;
     gap: 8px;
     padding: 24px;
     overflow-y: auto;
@@ -705,7 +716,6 @@
     max-width: 95vw;
     max-height: 85vh;
   }
-  #gp-overlay::backdrop { background: rgba(0,0,0,0.82); }
   #gp-overlay h2 {
     color: var(--accent);
     font-size: 15px;
@@ -1465,12 +1475,14 @@
 <!-- Gamepad layer HUD badge -->
 <div id="gp-hud"></div>
 
-<!-- Gamepad mapping overlay (dialog → top layer → visible en plein écran natif) -->
-<dialog id="gp-overlay" onclick="_gpOverlayBackdropClose(event)">
-  <h2>🎮 Manette — Actions</h2>
-  <div id="gp-overlay-body"></div>
-  <button onclick="closeGpOverlay()" style="margin-top:14px;background:var(--surface2);border:1px solid var(--border);color:var(--text-mid);font-size:13px;cursor:pointer;padding:8px 20px;border-radius:8px;font-family:inherit">Fermer</button>
-</dialog>
+<!-- Gamepad mapping overlay (div déplacé dans l'élément fullscreen pour visibilité native) -->
+<div id="gp-overlay" onclick="_gpOverlayBackdropClose(event)">
+  <div id="gp-overlay-box">
+    <h2>🎮 Manette — Actions</h2>
+    <div id="gp-overlay-body"></div>
+    <button onclick="closeGpOverlay()" style="margin-top:14px;background:var(--surface2);border:1px solid var(--border);color:var(--text-mid);font-size:13px;cursor:pointer;padding:8px 20px;border-radius:8px;font-family:inherit">Fermer</button>
+  </div>
+</div>
 
 <script>
 const API = '';  // same origin
@@ -3874,6 +3886,15 @@ function toggleFullscreen() {
 
 document.addEventListener('fullscreenchange', () => {
   syncFullscreenUI();
+  // Move gp-overlay into the fullscreen element so it stays visible in native fullscreen
+  const gpOverlay = document.getElementById('gp-overlay');
+  if (document.fullscreenElement) {
+    document.fullscreenElement.appendChild(gpOverlay);
+    gpOverlay.classList.add('in-fullscreen');
+  } else {
+    document.body.appendChild(gpOverlay);
+    gpOverlay.classList.remove('in-fullscreen');
+  }
 });
 
 // Mouse movement only reveals controls in the bottom 10% of the screen
@@ -4345,7 +4366,7 @@ function _gpHandleSettings(btnIdx, gp) {
 
 function _gpDispatch(btnIdx, l1, r1, gp) {
   // 1. Gamepad overlay open → only allow closing
-  if (document.getElementById('gp-overlay').open) {
+  if (document.getElementById('gp-overlay').classList.contains('open')) {
     if (btnIdx === 1 || btnIdx === 9) closeGpOverlay(); // B or Start
     return;
   }
@@ -4454,8 +4475,7 @@ document.addEventListener('visibilitychange', () => {
 
 // ── Gamepad mapping overlay ───────────────────────────────────────────────────
 function _gpOverlayBackdropClose(e) {
-  const dlg = document.getElementById('gp-overlay');
-  if (e.target === dlg) dlg.close();
+  if (e.target === document.getElementById('gp-overlay')) closeGpOverlay();
 }
 
 function openGpOverlay() {
@@ -4541,11 +4561,11 @@ function openGpOverlay() {
      <div class="gp-row"><span class="gp-btn-badge">LS-X</span><span class="gp-action">Scrubbing (seek)</span></div>
      <div class="gp-row"><span class="gp-btn-badge">RS-Y</span><span class="gp-action">Volume</span></div>`,
   ].join('');
-  document.getElementById('gp-overlay').showModal();
+  document.getElementById('gp-overlay').classList.add('open');
 }
 
 function closeGpOverlay() {
-  document.getElementById('gp-overlay').close();
+  document.getElementById('gp-overlay').classList.remove('open');
 }
 
 installStandaloneShellHooks();
