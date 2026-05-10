@@ -543,6 +543,7 @@
   }
   .modal-folder-btn:hover { border-color: var(--accent); color: var(--accent); }
   .modal-folder-btn.gp-cursor { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface2)); }
+  #cut-confirm-btn.gp-cursor { outline: 3px solid #fff; outline-offset: 3px; }
 
   #modal-cancel {
     margin-top: 8px;
@@ -1409,7 +1410,7 @@
     </div>
 
     <div style="display:flex;gap:8px;margin-top:4px">
-      <button onclick="confirmCut()" style="flex:1;background:var(--accent);color:#000;border:none;padding:10px;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">&#x2702; Couper</button>
+      <button id="cut-confirm-btn" onclick="confirmCut()" style="flex:1;background:var(--accent);color:#000;border:none;padding:10px;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">&#x2702; Couper</button>
       <button onclick="closeCutModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:10px 16px;border-radius:8px;cursor:pointer;font-family:inherit">Annuler</button>
     </div>
   </div>
@@ -3541,9 +3542,11 @@ function openCutModal() {
   }
   const dlg = document.getElementById('cut-dialog');
   dlg._gpIdx = 0;
+  dlg._gpPhase = 'folders';
   // Pre-select first folder button for gamepad navigation
   const firstBtn = container.querySelector('button.modal-folder-btn');
   if (firstBtn) firstBtn.classList.add('gp-cursor');
+  document.getElementById('cut-confirm-btn').classList.remove('gp-cursor');
   dlg.showModal();
 }
 
@@ -4380,40 +4383,63 @@ function _gpHandleDialog(dlg, btnIdx, gp) {
     }
   }
   if (dlg.id === 'cut-dialog') {
-    let _cutDlgIdx = dlg._gpIdx ?? 0;
+    if (btnIdx === 1) { closeCutModal(); return; } // B = always cancel
+
+    const phase = dlg._gpPhase ?? 'folders';
     const btns = [...dlg.querySelectorAll('#cut-folders button')];
-    if (btns.length) {
-      if (btnIdx === 12) { // D-pad up
-        _cutDlgIdx = Math.max(0, _cutDlgIdx - 1);
-        dlg._gpIdx = _cutDlgIdx;
-        btns.forEach((b, i) => b.classList.toggle('gp-cursor', i === _cutDlgIdx));
-        btns[_cutDlgIdx]?.scrollIntoView({ block: 'nearest' });
-        _gpVibrate(gp, 40);
-        return;
+    const confirmBtn = document.getElementById('cut-confirm-btn');
+
+    if (phase === 'folders') {
+      if (btns.length) {
+        let idx = dlg._gpIdx ?? 0;
+        if (btnIdx === 12) { // D↑
+          idx = Math.max(0, idx - 1);
+          dlg._gpIdx = idx;
+          btns.forEach((b, i) => b.classList.toggle('gp-cursor', i === idx));
+          btns[idx]?.scrollIntoView({ block: 'nearest' });
+          _gpVibrate(gp, 40);
+          return;
+        }
+        if (btnIdx === 13) { // D↓
+          idx = Math.min(btns.length - 1, idx + 1);
+          dlg._gpIdx = idx;
+          btns.forEach((b, i) => b.classList.toggle('gp-cursor', i === idx));
+          btns[idx]?.scrollIntoView({ block: 'nearest' });
+          _gpVibrate(gp, 40);
+          return;
+        }
+        if (btnIdx === 0) { // A = valider le dossier → passer au bouton de confirmation
+          btns[idx]?.click(); // selectCutDest() — met à jour #cut-dest-input
+          btns.forEach(b => b.classList.remove('gp-cursor'));
+          dlg._gpPhase = 'confirm';
+          if (confirmBtn) confirmBtn.classList.add('gp-cursor');
+          _gpVibrate(gp, 60);
+          return;
+        }
+      } else {
+        // Aucun dossier rapide : A confirme directement
+        if (btnIdx === 0) { confirmCut(); _gpVibrate(gp, 100); return; }
       }
-      if (btnIdx === 13) { // D-pad down
-        _cutDlgIdx = Math.min(btns.length - 1, _cutDlgIdx + 1);
-        dlg._gpIdx = _cutDlgIdx;
-        btns.forEach((b, i) => b.classList.toggle('gp-cursor', i === _cutDlgIdx));
-        btns[_cutDlgIdx]?.scrollIntoView({ block: 'nearest' });
-        _gpVibrate(gp, 40);
-        return;
-      }
-      if (btnIdx === 0) { // A = select folder + confirm immediately
-        btns[_cutDlgIdx]?.click(); // sets #cut-dest-input via selectCutDest()
+    }
+
+    if (phase === 'confirm') {
+      if (btnIdx === 0) { // A = valider la découpe
         confirmCut();
         _gpVibrate(gp, 100);
         return;
       }
+      if (btnIdx === 12 && btns.length) { // D↑ = retour à la liste des dossiers
+        if (confirmBtn) confirmBtn.classList.remove('gp-cursor');
+        dlg._gpPhase = 'folders';
+        const idx = dlg._gpIdx ?? 0;
+        btns.forEach((b, i) => b.classList.toggle('gp-cursor', i === idx));
+        _gpVibrate(gp, 40);
+        return;
+      }
     }
-    if (btnIdx === 3) { // Y = confirm with current destination (custom path)
-      confirmCut();
-      _gpVibrate(gp, 100);
-      return;
-    }
-    if (btnIdx === 1) { // B = cancel
-      closeCutModal();
-    }
+
+    // Y = raccourci pour confirmer à tout moment
+    if (btnIdx === 3) { confirmCut(); _gpVibrate(gp, 100); }
   }
 }
 
