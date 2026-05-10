@@ -4291,12 +4291,12 @@ function _gpPoll() {
     _gpPrevButtons[idx] = prev;
 
     // Analog sticks — axis assignment depends on gamepad_swap_sticks setting
-    // Normal : left X = seek, right Y = volume, left Y = browser nav
-    // Swapped: right X = seek, left Y = volume, right Y = browser nav
+    // Normal : left X = seek, right Y = volume
+    // Swapped: right X = seek, left Y = volume
+    // Browser navigation (left Y) is unaffected by the swap
     const _swap = cfg.gamepad_swap_sticks;
     const seekAxisIdx  = _swap ? 2 : 0;  // RX vs LX
     const volAxisIdx   = _swap ? 1 : 3;  // LY vs RY
-    const navAxisIdx   = _swap ? 3 : 1;  // RY vs LY
 
     // Seek stick X — scrubbing
     const lx = _gpDeadzone(gp.axes[seekAxisIdx] ?? 0);
@@ -4320,9 +4320,9 @@ function _gpPoll() {
       setVolume(Math.max(0, Math.min(1, video.volume - ry * 0.02)));
     }
 
-    // Nav stick Y — browser cursor navigation
+    // Nav stick Y — browser cursor navigation (always left stick Y, axes[1])
     if (!currentFile) {
-      const ly = _gpDeadzone(gp.axes[navAxisIdx] ?? 0);
+      const ly = _gpDeadzone(gp.axes[1] ?? 0);
       if (Math.abs(ly) > 0.5) {
         _gpNavAccum += ly;
         if (Math.abs(_gpNavAccum) >= 10) {
