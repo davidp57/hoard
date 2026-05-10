@@ -4399,13 +4399,14 @@ function _gpHandleDialog(dlg, btnIdx, gp) {
         _gpVibrate(gp, 40);
         return;
       }
-      if (btnIdx === 0) { // A = select folder
-        btns[_cutDlgIdx]?.click();
-        _gpVibrate(gp, 60);
+      if (btnIdx === 0) { // A = select folder + confirm immediately
+        btns[_cutDlgIdx]?.click(); // sets #cut-dest-input via selectCutDest()
+        confirmCut();
+        _gpVibrate(gp, 100);
         return;
       }
     }
-    if (btnIdx === 3) { // Y = confirm cut
+    if (btnIdx === 3) { // Y = confirm with current destination (custom path)
       confirmCut();
       _gpVibrate(gp, 100);
       return;
