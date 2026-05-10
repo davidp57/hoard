@@ -1658,6 +1658,7 @@ _SETTINGS_KEYS = {
     "gamepad_enabled",  # '1' | '0', default '1'
     "gamepad_deadzone",  # float 0.0–0.5, default '0.20'
     "gamepad_haptic",  # '1' | '0', default '1'
+    "gamepad_swap_sticks",  # '1' | '0', default '0' — swap left/right stick assignments
     "gamepad_mapping",  # JSON string, default '{}' (use built-in defaults)
 }
 
@@ -1687,6 +1688,7 @@ _SETTINGS_DEFAULTS: dict[str, str] = {
     "gamepad_enabled": "1",
     "gamepad_deadzone": "0.20",
     "gamepad_haptic": "1",
+    "gamepad_swap_sticks": "0",
     "gamepad_mapping": "{}",
 }
 
@@ -1735,6 +1737,7 @@ class SettingsPayload(BaseModel):
     gamepad_enabled: bool | None = None
     gamepad_deadzone: float | None = Field(default=None, ge=0.0, le=0.5)
     gamepad_haptic: bool | None = None
+    gamepad_swap_sticks: bool | None = None
     gamepad_mapping: str | None = None  # raw JSON string
 
 
@@ -1810,6 +1813,7 @@ def update_settings(body: SettingsPayload):
             ("transcode_enabled", body.transcode_enabled),
             ("gamepad_enabled", body.gamepad_enabled),
             ("gamepad_haptic", body.gamepad_haptic),
+            ("gamepad_swap_sticks", body.gamepad_swap_sticks),
         ]
         for key, val in _bools:
             if val is not None:
