@@ -64,6 +64,15 @@ Facteur de marge actuel : **0,40**.
 
 ---
 
+### Lot 7 — Architecture & Performance (~75 min : 60 min Copilot + 15 min gestion)
+
+| ID | Titre | Prio | Est. | Créé | Démarré | Terminé |
+| --- | --- | --- | --- | --- | --- | --- |
+| BL-042 | Transcoding hardware optionnel (VAAPI/NVENC) | P2 | 25 min | 2026-05-10 | | |
+| BL-041 | Découpage de main.py en modules | P3 | 35 min | 2026-05-10 | | |
+
+---
+
 ## Détails
 
 ### BL-002 — Sort Controls In The File List
@@ -288,3 +297,23 @@ Facteur de marge actuel : **0,40**.
 - **Why**: icon-only buttons have no `aria-label`; tabbing through the UI shows no focus indicator (CSS resets `outline`); `--text-dim: #666` on `--surface2: #1e1e21` is ~3:1 contrast ratio, below WCAG AA (4.5:1).
 - **Expected outcome**: add `aria-label` to all interactive elements that lack visible text (home, settings, refresh, play/pause, skip, fullscreen buttons etc.); add a `:focus-visible` outline rule in CSS; raise `--text-dim` to at least `#888` or equivalent passing contrast.
 - **Attention point**: aria-labels must be in French to match `lang="fr"` on the HTML element. Do not change visual design beyond contrast fix.
+
+---
+
+### BL-042 — Optional Hardware Transcoding (VAAPI / NVENC)
+
+- **Dates**: `created=2026-05-10`
+- **Origine**: revue architecturale 2026-05-10 — performance NAS.
+- **Why**: software H.265→H.264 transcoding is CPU-intensive and can saturate a NAS with a low-power CPU. Most modern NAS SoCs (Intel Celeron/Pentium via VAAPI, or a discrete GPU via NVENC) expose hardware video encoding that is orders of magnitude cheaper in CPU cycles.
+- **Expected outcome**: add an `FFMPEG_HW_ACCEL` env var (e.g. `vaapi`, `nvenc`, empty = software fallback). When set, inject the appropriate hardware encoder flags into the ffmpeg transcode command. Document how to expose `/dev/dri` in `docker-compose.yml` for Synology. If the device is unavailable at startup, log a warning and silently fall back to software encoding.
+- **Attention point**: hardware support varies by Synology model — VAAPI on Intel-based NAS, NVENC only if an external GPU is present. The option must be 100 % opt-in and never break the default software path.
+
+---
+
+### BL-041 — Split main.py Into Focused Modules
+
+- **Dates**: `created=2026-05-10`
+- **Origine**: revue architecturale 2026-05-10 — maintenabilité.
+- **Why**: `backend/main.py` has grown to ~2 000 lines. Navigation and code review are becoming impractical. The file mixes DB setup, streaming logic, yt-dlp queue management, and FastAPI route registration — concerns that can be separated without introducing a layered architecture.
+- **Expected outcome**: extract three sibling modules, keeping `main.py` as the FastAPI entry point (~600–800 lines): `backend/db.py` (init_db, get_db, inline migrations), `backend/stream.py` (streaming endpoint, ffmpeg/transcode pipeline), `backend/download.py` (yt-dlp queue, jobs dict, download endpoints). No behaviour change; all existing tests must pass without modification.
+- **Attention point**: shared globals (`MEDIA_ROOT`, `FFMPEG_BIN`, `FFPROBE_BIN`) must be imported consistently across modules to avoid circular imports. Resolve by defining them in a `backend/config.py` and importing from there.
