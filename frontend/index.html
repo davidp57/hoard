@@ -3530,7 +3530,12 @@ function openCutModal() {
   } else {
     container.innerHTML = `<div style="color:var(--text-dim);font-size:12px">Aucun dossier rapide — saisissez un chemin ci-dessous.</div>`;
   }
-  document.getElementById('cut-dialog').showModal();
+  const dlg = document.getElementById('cut-dialog');
+  dlg._gpIdx = 0;
+  // Pre-select first folder button for gamepad navigation
+  const firstBtn = container.querySelector('button.modal-folder-btn');
+  if (firstBtn) firstBtn.classList.add('gp-cursor');
+  dlg.showModal();
 }
 
 function selectCutDest(path) {
@@ -4029,7 +4034,7 @@ const GP_DEFAULT_MAPPING = {
     13: 'next_file',
     2: 'aspect_ratio',     // L1+X
     0: 'subtitles',        // L1+A (no-op without BL-008)
-    3: 'jump_0',           // L1+Y
+    3: 'cut_in',           // L1+Y
   },
   // R1 modifier layer (player)
   r1: {
@@ -4040,13 +4045,15 @@ const GP_DEFAULT_MAPPING = {
     0: 'move_quick_1',    // R1+A
     1: 'move_quick_2',    // R1+B
     2: 'move_quick_3',    // R1+X
+    3: 'cut_out',         // R1+Y
   },
   // L1+R1 modifier layer
   lr: {
     0: 'jump_0',
     1: 'delete_current',  // L1+R1+B
     2: 'move_current',    // L1+R1+X
-    3: 'jump_100',
+    3: 'open_cut',        // L1+R1+Y
+    13: 'jump_100',       // L1+R1+D↓
   },
 };
 
@@ -4173,6 +4180,15 @@ function _gpAction(action, gamepad) {
       if (_mvTarget) { openMoveModal(_mvTarget.path, _mvTarget.name); _gpVibrate(gamepad, 60); }
       break;
     }
+    case 'cut_in':
+      if (hasVideo) { setCutPoint('in'); _gpVibrate(gamepad, 60); }
+      break;
+    case 'cut_out':
+      if (hasVideo) { setCutPoint('out'); _gpVibrate(gamepad, 60); }
+      break;
+    case 'open_cut':
+      if (hasVideo) { openCutModal(); _gpVibrate(gamepad, 60); }
+      break;
     // Browser navigation
     case 'nav_up':
       _gpMoveCursor(-1);
@@ -4346,6 +4362,41 @@ function _gpHandleDialog(dlg, btnIdx, gp) {
       dlg.close();
     }
   }
+  if (dlg.id === 'cut-dialog') {
+    let _cutDlgIdx = dlg._gpIdx ?? 0;
+    const btns = [...dlg.querySelectorAll('#cut-folders button')];
+    if (btns.length) {
+      if (btnIdx === 12) { // D-pad up
+        _cutDlgIdx = Math.max(0, _cutDlgIdx - 1);
+        dlg._gpIdx = _cutDlgIdx;
+        btns.forEach((b, i) => b.classList.toggle('gp-cursor', i === _cutDlgIdx));
+        btns[_cutDlgIdx]?.scrollIntoView({ block: 'nearest' });
+        _gpVibrate(gp, 40);
+        return;
+      }
+      if (btnIdx === 13) { // D-pad down
+        _cutDlgIdx = Math.min(btns.length - 1, _cutDlgIdx + 1);
+        dlg._gpIdx = _cutDlgIdx;
+        btns.forEach((b, i) => b.classList.toggle('gp-cursor', i === _cutDlgIdx));
+        btns[_cutDlgIdx]?.scrollIntoView({ block: 'nearest' });
+        _gpVibrate(gp, 40);
+        return;
+      }
+      if (btnIdx === 0) { // A = select folder
+        btns[_cutDlgIdx]?.click();
+        _gpVibrate(gp, 60);
+        return;
+      }
+    }
+    if (btnIdx === 3) { // Y = confirm cut
+      confirmCut();
+      _gpVibrate(gp, 100);
+      return;
+    }
+    if (btnIdx === 1) { // B = cancel
+      closeCutModal();
+    }
+  }
 }
 
 function _gpHandleSettings(btnIdx, gp) {
@@ -4514,6 +4565,9 @@ function openGpOverlay() {
     move_quick_3: `Déplacer → ${esc(quickFolders[2]?.name ?? 'Dossier 3')}`,
     delete_current: 'Supprimer le fichier courant',
     move_current: 'Déplacer le fichier courant',
+    cut_in: 'Marquer point IN',
+    cut_out: 'Marquer point OUT',
+    open_cut: 'Ouvrir la fenêtre Découper',
     nav_up: 'Curseur ↑',
     nav_down: 'Curseur ↓',
     nav_enter: 'Ouvrir',
@@ -4555,6 +4609,12 @@ function openGpOverlay() {
     renderFixed('Dialogue de déplacement', [
       ['D↑ / D↓', 'Naviguer dans les dossiers'],
       ['A', 'Choisir le dossier sélectionné'],
+      ['B', 'Annuler'],
+    ]),
+    renderFixed('Dialogue Découper (IN/OUT)', [
+      ['D↑ / D↓', 'Naviguer dans les dossiers'],
+      ['A', 'Sélectionner le dossier destination'],
+      ['Y', 'Confirmer la découpe'],
       ['B', 'Annuler'],
     ]),
     `<div class="gp-layer-title">Analogique</div>
