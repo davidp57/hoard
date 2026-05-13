@@ -25,6 +25,20 @@ Facteur de marge actuel : **0,40**.
 
 ## Lots actifs
 
+### Lot 8 — Gamepad : correctifs post-recette (~80 min : 65 min Copilot + 15 min gestion)
+
+> Bugs identifiés lors des tests sur SteamDeck (Edge, Docker `develop`, port 8100).
+> BL-046 est un prérequis naturel de BL-045 (si on convertit move-dialog en div dans BL-046, la 2-phase de BL-045 s'appuie sur la nouvelle structure).
+
+| ID | Titre | Prio | Est. | Créé | Démarré | Terminé |
+| --- | --- | --- | --- | --- | --- | --- |
+| BL-046 | Gamepad — delete-dialog et move-dialog cassés en fullscreen | P1 | 25 min | 2026-05-13 | 2026-05-13 | 2026-05-13 |
+| BL-045 | Gamepad — move dialog : ajouter phase de confirmation (A/B) | P1 | 15 min | 2026-05-13 | 2026-05-13 | 2026-05-13 |
+| BL-044 | Gamepad — vidéo démarre en fond sonore après action dialog | P1 | 15 min | 2026-05-13 | 2026-05-13 | 2026-05-13 |
+| BL-043 | Gamepad — curseur remis à zéro après suppression/déplacement/split | P2 | 10 min | 2026-05-13 | 2026-05-13 | 2026-05-13 |
+
+---
+
 ### Lot 5 — Fonctionnalités avancées (~110 min : 95 min Copilot + 15 min gestion)
 
 > Dépendance interne : BL-015 dépend de BL-011 (progression multi-utilisateur présuppose une couche d'authentification) — BL-011 est dans le Lot 6 (sécurité) et doit être livré en premier.
@@ -74,6 +88,46 @@ Facteur de marge actuel : **0,40**.
 ---
 
 ## Détails
+
+### BL-046 — Gamepad : delete-dialog et move-dialog cassés en fullscreen
+
+- **Dates** : `created=2026-05-13`
+- **Contexte** : testé sur SteamDeck / Edge, Docker `develop` port 8100.
+- **Symptôme** : en mode plein écran natif, les dialogues de suppression et de déplacement s'affichent mais les boutons gamepad n'ont aucun effet (ni A pour confirmer, ni B pour annuler).
+- **Cause racine** : `#delete-dialog` et `#move-dialog` utilisent `<dialog>` + `showModal()`. Sur SteamDeck/Edge en fullscreen natif, les éléments `<dialog>` sont rendus dans le « top layer » du navigateur, mais n'y reçoivent pas les événements correctement — exactement le même bug que `#gp-overlay` (corrigé en convertissant la dialog en `<div>` et en la déplaçant dans `document.fullscreenElement` au `fullscreenchange`). De plus, `document.querySelector('dialog[open]')` peut retourner `null` si l'attribut `open` n'est pas positionné de la même façon sur un `<div>`.
+- **Correction proposée** : convertir `#delete-dialog` et `#move-dialog` de `<dialog>` en `<div>` overlay (même pattern que les autres modals `<div>` de l'app : `display:none` / `display:flex`, `position:fixed`, `z-index`). Adapter `confirmDelete()`, `openMoveModal()`, `closeModal()`. Déplacer les deux divs dans `document.fullscreenElement` lors du `fullscreenchange` (comme `#gp-overlay`). Adapter `_gpDispatch` pour détecter les divs ouverts au lieu de `dialog[open]`.
+- **Attention** : `<dialog>` offre le comportement `Escape` natif et le backdrop — il faudra les recréer explicitement pour la fermeture clavier et le clic backdrop.
+
+---
+
+### BL-045 — Gamepad : move dialog — ajouter phase de confirmation (A/B)
+
+- **Dates** : `created=2026-05-13`
+- **Contexte** : dépend de BL-046 (si move-dialog est converti en div dans BL-046, adapter en conséquence).
+- **Symptôme** : dans le move dialog, appuyer sur A avec le gamepad déclenche immédiatement le déplacement du fichier, sans étape de confirmation. Il n'y a pas de bouton « OK » ni « Annuler » dans le flux gamepad.
+- **Cause racine** : `_gpHandleDialog` pour `move-dialog` appelle directement `btns[_gpMoveDlgIdx]?.click()` → `moveToFolder()` sans 2ème phase. Contrairement au `cut-dialog` qui a un `_gpPhase` ('folders' → 'confirm').
+- **Correction proposée** : ajouter une machine à états à 2 phases dans `_gpHandleDialog` pour `move-dialog` (identique à `cut-dialog`) : phase `'folders'` — D↑/↓ navigue les dossiers, A → sélectionne le dossier et passe en phase `'confirm'` en focalisant le bouton Confirmer ; phase `'confirm'` — A exécute le déplacement, B revient en phase `'folders'`. B annule le dialog depuis n'importe quelle phase. Ajouter un bouton « Confirmer » (`id="move-confirm-btn"`) visible dans le HTML du modal, et lui appliquer la classe `.gp-cursor` quand il est focalisé.
+
+---
+
+### BL-044 — Gamepad : vidéo démarre en fond sonore après action dialog
+
+- **Dates** : `created=2026-05-13`
+- **Symptôme** : parfois, après avoir confirmé/annulé un dialogue (suppression, déplacement) via le gamepad, une vidéo se met à jouer en arrière-plan — l'audio est audible alors que l'UI affiche la liste et qu'aucune vidéo n'est ouverte par l'utilisateur.
+- **Cause racine** : race condition async. Quand A confirme la suppression, `dlg.close()` s'exécute de façon synchrone, mais `await navigate(currentPath)` est asynchrone. Pendant la fenêtre async (avant que `renderFiles()` remette `_gpCursorIdx = -1`), `_gpCursorIdx` pointe encore un fichier valide et `currentFile = null`. Si A est re-pressé dans cette fenêtre (micro-rebond de bouton, ou l'utilisateur appuie rapidement), `_gpDispatch` ne voit plus de dialog ouvert → chemin browser nav → `nav_enter` → `_gpActivateCursor()` → `playVideo()`. La vidéo démarre mais le player ne s'affiche pas si la navigation a déjà effacé `currentFile`.
+- **Correction proposée** : ajouter un flag `_gpActionCooldown` (timestamp) positionné juste avant tout appel à `navigate()` après une action dialog. Dans `_gpDispatch`, si `Date.now() < _gpActionCooldown`, ignorer tous les inputs sauf les modificateurs. Durée de cooldown : 600 ms (suffisant pour couvrir un `navigate()` normal). Alternative plus simple : réinitialiser `_gpCursorIdx = -1` immédiatement lors du lancement d'une action qui va rafraîchir la liste (avant l'`await`).
+
+---
+
+### BL-043 — Gamepad : curseur remis à zéro après suppression/déplacement/split
+
+- **Dates** : `created=2026-05-13`
+- **Symptôme** : après avoir supprimé, déplacé ou découpé un fichier via le gamepad, le curseur de navigation revient au début de la liste (`_gpCursorIdx = -1`). L'utilisateur doit re-parcourir toute la liste depuis le début pour atteindre le fichier suivant.
+- **Comportement attendu** : après l'action, le curseur reste à l'index N (qui pointe maintenant sur le fichier qui était à N+1 avant la suppression, ou reste sur N si N < nouvelle longueur, ou sur le dernier élément sinon).
+- **Cause racine** : `renderFiles()` (ligne ~3039) appelle toujours `_gpCursorIdx = -1`. Toutes les actions fichier appellent `navigate(currentPath)` → `renderFiles()`. Il n'existe aucun mécanisme pour persister ou restaurer le curseur entre deux rendus.
+- **Correction proposée** : avant l'appel à `navigate()` dans les actions delete, move et split (cut), sauvegarder `_gpCursorIdx` dans une variable module `_gpPendingRestoreIdx`. Dans `renderFiles()`, après avoir calculé `_gpRenderedList`, si `_gpPendingRestoreIdx >= 0`, restaurer `_gpCursorIdx = Math.min(_gpPendingRestoreIdx, _gpRenderedList.length - 1)` et appeler `_gpMoveCursor(0)` pour mettre à jour le highlight DOM, puis réinitialiser `_gpPendingRestoreIdx = -1`.
+
+---
 
 ### BL-002 — Sort Controls In The File List
 

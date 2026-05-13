@@ -543,7 +543,8 @@
   }
   .modal-folder-btn:hover { border-color: var(--accent); color: var(--accent); }
   .modal-folder-btn.gp-cursor { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface2)); }
-  #cut-confirm-btn.gp-cursor { outline: 3px solid #fff; outline-offset: 3px; }
+  .modal-folder-btn.selected { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 18%, var(--surface2)); }
+  #cut-confirm-btn.gp-cursor, #move-confirm-btn.gp-cursor { outline: 3px solid #fff; outline-offset: 3px; }
 
   #modal-cancel {
     margin-top: 8px;
@@ -1336,15 +1337,18 @@
 </div>
 
 <!-- Move modal -->
-<dialog id="move-dialog">
+<div id="move-dialog" onclick="if(event.target===this)closeModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center">
   <div id="modal">
     <h3>Déplacer vers…</h3>
     <div id="modal-filename"></div>
     <div id="modal-folders"></div>
     <button id="modal-browse-btn" onclick="openDestPickerFromMoveModal()" style="width:100%;margin-top:4px;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px;border-radius:6px;cursor:pointer;font-family:inherit;font-size:12px">📂 Parcourir…</button>
-    <button id="modal-cancel" onclick="closeModal()">Annuler</button>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button id="move-confirm-btn" onclick="confirmMoveModal()" disabled style="flex:1;background:var(--accent);color:#000;border:none;padding:10px;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit;opacity:0.4">↗ Déplacer</button>
+      <button id="modal-cancel" onclick="closeModal()" style="margin-top:0">Annuler</button>
+    </div>
   </div>
-</dialog>
+</div>
 
 <!-- Browse modal -->
 <div id="browse-overlay" onclick="closeBrowseModal(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center">
@@ -1395,7 +1399,7 @@
 </div>
 
 <!-- Cut modal -->
-<dialog id="cut-dialog" onclick="_dialogBackdropClose(event, 'cut-dialog')">
+<div id="cut-dialog" onclick="if(event.target===this)closeCutModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center">
   <div id="cut-modal" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:400px;max-width:95vw;display:flex;flex-direction:column;gap:14px">
     <div style="font-size:15px;font-weight:700;color:var(--accent)">&#x2702; Couper</div>
     <div id="cut-filename" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim);word-break:break-all"></div>
@@ -1414,7 +1418,7 @@
       <button onclick="closeCutModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:10px 16px;border-radius:8px;cursor:pointer;font-family:inherit">Annuler</button>
     </div>
   </div>
-</dialog>
+</div>
 
 <!-- Jobs panel -->
 <div id="jobs-panel"></div>
@@ -1434,16 +1438,16 @@
 </div>
 
 <!-- Delete confirmation dialog -->
-<dialog id="delete-dialog">
+<div id="delete-dialog" onclick="if(event.target===this)closeDeleteDialog()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:340px;max-width:90vw;display:flex;flex-direction:column;gap:14px">
     <div style="font-size:15px;font-weight:700;color:#e55">Supprimer ?</div>
     <div id="delete-dialog-filename" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim);word-break:break-all"></div>
     <div style="display:flex;gap:8px;margin-top:4px">
       <button id="delete-dialog-confirm" style="flex:1;background:#c44;color:#fff;border:none;padding:10px;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">Supprimer</button>
-      <button onclick="document.getElementById('delete-dialog').close()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:10px 16px;border-radius:8px;cursor:pointer;font-family:inherit">Annuler</button>
+      <button onclick="closeDeleteDialog()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:10px 16px;border-radius:8px;cursor:pointer;font-family:inherit">Annuler</button>
     </div>
   </div>
-</dialog>
+</div>
 
 <!-- Keyboard shortcuts dialog -->
 <dialog id="shortcuts-dialog" onclick="_dialogBackdropClose(event, 'shortcuts-dialog')">
@@ -3030,13 +3034,20 @@ function renderFiles(list) {
   const filtered = activeTagFilter ? list.filter(e => e.tags && e.tags.includes(activeTagFilter)) : list;
   if (!filtered.length) {
     el.innerHTML = `<div style="color:var(--text-dim);font-size:13px;padding:20px;text-align:center">${activeTagFilter ? 'Aucun fichier avec ce tag' : 'Dossier vide'}</div>`;
-    _gpRenderedList = []; _gpCursorIdx = -1;
+    _gpRenderedList = []; _gpCursorIdx = -1; _gpPendingRestoreIdx = -1;
     return;
   }
 
   const { pinned, rest } = sortedList(filtered);
   _gpRenderedList = [...pinned, ...rest];
-  _gpCursorIdx = -1;
+
+  // BL-043: restore cursor position after a file action (delete/move/cut)
+  if (_gpPendingRestoreIdx >= 0) {
+    _gpCursorIdx = Math.min(_gpPendingRestoreIdx, _gpRenderedList.length - 1);
+    _gpPendingRestoreIdx = -1;
+  } else {
+    _gpCursorIdx = -1;
+  }
 
   let html = '';
   if (pinned.length) {
@@ -3046,6 +3057,13 @@ function renderFiles(list) {
   }
   html += rest.map((e) => renderEntry(e, list.indexOf(e))).join('');
   el.innerHTML = html;
+
+  // Re-apply cursor highlight after DOM rebuild
+  if (_gpCursorIdx >= 0) {
+    const items = document.querySelectorAll('#filelist .entry');
+    items.forEach((item, i) => item.classList.toggle('gp-cursor', i === _gpCursorIdx));
+    items[_gpCursorIdx]?.scrollIntoView({ block: 'nearest' });
+  }
 }
 
 function getVideoIcon(p) {
@@ -3465,34 +3483,56 @@ async function togglePin(path, isPinned) {
 
 function openMoveModal(path, name) {
   pendingMovePath = path;
+  pendingMoveSelectedDest = null;
+  pendingMoveSelectedDestName = null;
   document.getElementById('modal-filename').textContent = name;
   const container = document.getElementById('modal-folders');
   if (quickFolders.length) {
     container.innerHTML = quickFolders.map(qf => `
-      <button class="modal-folder-btn" onclick="moveToFolder('${esc(qf.path)}', '${esc(qf.name)}')">&#128193; ${esc(qf.name)}</button>
+      <button class="modal-folder-btn" onclick="selectMoveDest('${esc(qf.path)}', '${esc(qf.name)}', this)">&#128193; ${esc(qf.name)}</button>
     `).join('');
   } else {
     container.innerHTML = `<div style="color:var(--text-dim);font-size:12px;padding:8px 0;line-height:1.5">Aucun dossier rapide.<br>Clique sur 📌 dans la liste pour en épingler un.</div>`;
   }
+  // Reset confirm button
+  const confirmBtn = document.getElementById('move-confirm-btn');
+  if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.style.opacity = '0.4'; }
   _gpMoveDlgIdx = 0;
   // Pre-select first folder button for gamepad navigation
   const firstBtn = container.querySelector('button.modal-folder-btn');
   if (firstBtn) firstBtn.classList.add('gp-cursor');
-  document.getElementById('move-dialog').showModal();
+  const dlg = document.getElementById('move-dialog');
+  dlg._gpPhase = 'folders';
+  dlg.style.display = 'flex';
 }
 
 function openDestPickerFromMoveModal() {
   const filePath = pendingMovePath;
   const fileName = filePath ? filePath.split('/').pop() : '';
-  document.getElementById('move-dialog').close();
-  pendingMovePath = null;
+  closeModal();
   openDestPickerForFile(filePath, fileName);
 }
 
-function closeModal(e) {
-  if (e && e.type === 'click') return; // backdrop close handled separately
-  document.getElementById('move-dialog').close();
+function closeModal() {
+  document.getElementById('move-dialog').style.display = 'none';
   pendingMovePath = null;
+  pendingMoveSelectedDest = null;
+  pendingMoveSelectedDestName = null;
+}
+
+function selectMoveDest(destPath, destName, btnEl) {
+  pendingMoveSelectedDest = destPath;
+  pendingMoveSelectedDestName = destName;
+  // Highlight selected button
+  document.querySelectorAll('#modal-folders .modal-folder-btn').forEach(b => b.classList.remove('selected'));
+  if (btnEl) btnEl.classList.add('selected');
+  const confirmBtn = document.getElementById('move-confirm-btn');
+  if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.style.opacity = '1'; }
+}
+
+function confirmMoveModal() {
+  if (!pendingMoveSelectedDest) return;
+  moveToFolder(pendingMoveSelectedDest, pendingMoveSelectedDestName);
 }
 
 function releaseVideoIfCurrent(path) {
@@ -3547,7 +3587,7 @@ function openCutModal() {
   const firstBtn = container.querySelector('button.modal-folder-btn');
   if (firstBtn) firstBtn.classList.add('gp-cursor');
   document.getElementById('cut-confirm-btn').classList.remove('gp-cursor');
-  dlg.showModal();
+  dlg.style.display = 'flex';
 }
 
 function selectCutDest(path) {
@@ -3609,7 +3649,7 @@ function clearCutPoints() {
 }
 
 function closeCutModal(e) {
-  document.getElementById('cut-dialog').close();
+  document.getElementById('cut-dialog').style.display = 'none';
 }
 
 async function confirmCut() {
@@ -3617,7 +3657,7 @@ async function confirmCut() {
   if (!dest) { showToast('Choisissez un dossier destination'); return; }
   if (cutIn === null || cutOut === null || cutOut <= cutIn) { showToast('OUT doit être après IN'); return; }
   if (!currentFile) return;
-  document.getElementById('cut-dialog').close();
+  document.getElementById('cut-dialog').style.display = 'none';
   const resp = await fetch(`${API}/api/files/cut?path=${encodeURIComponent(currentFile.path)}`, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -3685,8 +3725,7 @@ async function moveToFolder(destPath, destName) {
   const sourcePath = pendingMovePath;
   const fromPath = currentPath;
   releaseVideoIfCurrent(sourcePath);
-  document.getElementById('modal-overlay').classList.remove('open');
-  pendingMovePath = null;
+  closeModal();
   const resp = await fetch(`${API}/api/files/move?path=${encodeURIComponent(sourcePath)}`, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -3702,15 +3741,25 @@ async function moveToFolder(destPath, destName) {
   trackJob(job_id, fromPath);
 }
 
+let _deleteResolve = null;
+
+function closeDeleteDialog() {
+  document.getElementById('delete-dialog').style.display = 'none';
+  document.getElementById('delete-dialog-confirm').onclick = null;
+  if (_deleteResolve) { const r = _deleteResolve; _deleteResolve = null; r(); }
+}
+
 async function confirmDelete(path, name) {
   const dlg = document.getElementById('delete-dialog');
   document.getElementById('delete-dialog-filename').textContent = name;
-  dlg.showModal();
+  dlg.style.display = 'flex';
   return new Promise(resolve => {
+    _deleteResolve = resolve;
     const btn = document.getElementById('delete-dialog-confirm');
     btn.onclick = async () => {
       btn.onclick = null;
-      dlg.close();
+      _deleteResolve = null;
+      dlg.style.display = 'none';
       releaseVideoIfCurrent(path);
       const doDelete = () => fetch(`${API}/api/files?path=${encodeURIComponent(path)}`, { method: 'DELETE' });
       const resp = await retryOn423(doDelete);
@@ -3724,7 +3773,6 @@ async function confirmDelete(path, name) {
       await navigate(currentPath);
       resolve();
     };
-    dlg.addEventListener('close', () => { btn.onclick = null; resolve(); }, { once: true });
   });
 }
 
@@ -3905,12 +3953,21 @@ document.addEventListener('fullscreenchange', () => {
   syncFullscreenUI();
   // Move gp-overlay into the fullscreen element so it stays visible in native fullscreen
   const gpOverlay = document.getElementById('gp-overlay');
+  const deleteDlg = document.getElementById('delete-dialog');
+  const moveDlg = document.getElementById('move-dialog');
+  const cutDlg = document.getElementById('cut-dialog');
   if (document.fullscreenElement) {
     document.fullscreenElement.appendChild(gpOverlay);
     gpOverlay.classList.add('in-fullscreen');
+    document.fullscreenElement.appendChild(deleteDlg);
+    document.fullscreenElement.appendChild(moveDlg);
+    document.fullscreenElement.appendChild(cutDlg);
   } else {
     document.body.appendChild(gpOverlay);
     gpOverlay.classList.remove('in-fullscreen');
+    document.body.appendChild(deleteDlg);
+    document.body.appendChild(moveDlg);
+    document.body.appendChild(cutDlg);
   }
 });
 
@@ -3926,6 +3983,11 @@ fullscreenControls.addEventListener('pointerdown', () => {
 
 // Keyboard shortcuts
 document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    if (document.getElementById('delete-dialog')?.style.display === 'flex') { closeDeleteDialog(); return; }
+    if (document.getElementById('move-dialog')?.style.display === 'flex') { closeModal(); return; }
+    if (document.getElementById('cut-dialog')?.style.display === 'flex') { closeCutModal(); return; }
+  }
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
   // Volume controls always bump fullscreen controls
   if (isInFullscreen() && ['Space', 'ArrowUp', 'ArrowDown', 'KeyF'].includes(e.code)) {
@@ -3976,15 +4038,6 @@ function _dialogBackdropClose(event, dialogId) {
   const dlg = document.getElementById(dialogId);
   if (event.target === dlg) dlg.close();
 }
-
-// Move modal — Escape key automatically closes via native <dialog> behavior
-// The handler below ensures pendingMovePath is cleared on any close
-document.getElementById('move-dialog').addEventListener('close', () => { pendingMovePath = null; });
-document.getElementById('move-dialog').addEventListener('click', e => {
-  if (e.target === document.getElementById('move-dialog')) {
-    document.getElementById('move-dialog').close();
-  }
-});
 
 // ── Folder navigation ─────────────────────────────────────────────────────────
 function _videoFilesInFolder() {
@@ -4235,6 +4288,7 @@ async function _gpToggleWatched() {
 // ── Gamepad cursor (browser navigation) ──────────────────────────────────────
 let _gpCursorIdx = -1;
 let _gpRenderedList = [];  // mirrors DOM order: [...pinned, ...rest] after each renderFiles()
+let _gpPendingRestoreIdx = -1;  // BL-043: cursor index to restore after file action + navigate()
 
 function _gpMoveCursor(delta) {
   if (!_gpRenderedList.length) return;
@@ -4342,45 +4396,91 @@ function _gpPoll() {
 }
 
 // ── Gamepad context handlers ──────────────────────────────────────────────────
-let _gpMoveDlgIdx = 0;  // cursor for move-dialog folder list
+let _gpMoveDlgIdx = 0;   // folder cursor index in move-dialog
+let pendingMoveSelectedDest = null;
+let pendingMoveSelectedDestName = null;
+
+// BL-046: detect open modals regardless of whether they are <dialog> or <div> overlays
+function _gpOpenModal() {
+  const del = document.getElementById('delete-dialog');
+  if (del?.style.display === 'flex') return del;
+  const mov = document.getElementById('move-dialog');
+  if (mov?.style.display === 'flex') return mov;
+  const cut = document.getElementById('cut-dialog');
+  if (cut?.style.display === 'flex') return cut;
+  return document.querySelector('dialog[open]');
+}
 
 function _gpHandleDialog(dlg, btnIdx, gp) {
   if (dlg.id === 'delete-dialog') {
     if (btnIdx === 0) { // A = confirm delete
+      // BL-043: save cursor; BL-044: reset immediately to prevent phantom play
+      _gpPendingRestoreIdx = _gpCursorIdx;
+      _gpCursorIdx = -1;
       document.getElementById('delete-dialog-confirm').click();
       _gpVibrate(gp, 100);
     } else if (btnIdx === 1) { // B = cancel
-      dlg.close();
+      closeDeleteDialog();
     }
     return;
   }
   if (dlg.id === 'move-dialog') {
+    if (btnIdx === 1) { closeModal(); return; } // B = always cancel
+
+    const phase = dlg._gpPhase ?? 'folders';
     const btns = [...dlg.querySelectorAll('button.modal-folder-btn')];
-    if (btns.length) {
-      // D-pad up/down navigate folder list
-      if (btnIdx === 12) { // D-pad up
-        _gpMoveDlgIdx = Math.max(0, _gpMoveDlgIdx - 1);
+    const confirmBtn = document.getElementById('move-confirm-btn');
+
+    if (phase === 'folders') {
+      if (btns.length) {
+        if (btnIdx === 12) { // D↑
+          _gpMoveDlgIdx = Math.max(0, _gpMoveDlgIdx - 1);
+          btns.forEach((b, i) => b.classList.toggle('gp-cursor', i === _gpMoveDlgIdx));
+          btns[_gpMoveDlgIdx]?.scrollIntoView({ block: 'nearest' });
+          _gpVibrate(gp, 40);
+          return;
+        }
+        if (btnIdx === 13) { // D↓
+          _gpMoveDlgIdx = Math.min(btns.length - 1, _gpMoveDlgIdx + 1);
+          btns.forEach((b, i) => b.classList.toggle('gp-cursor', i === _gpMoveDlgIdx));
+          btns[_gpMoveDlgIdx]?.scrollIntoView({ block: 'nearest' });
+          _gpVibrate(gp, 40);
+          return;
+        }
+        if (btnIdx === 0) { // A = select folder → move to confirm phase
+          btns[_gpMoveDlgIdx]?.click(); // calls selectMoveDest()
+          btns.forEach(b => b.classList.remove('gp-cursor'));
+          dlg._gpPhase = 'confirm';
+          if (confirmBtn) confirmBtn.classList.add('gp-cursor');
+          _gpVibrate(gp, 60);
+          return;
+        }
+      }
+      return;
+    }
+
+    if (phase === 'confirm') {
+      if (btnIdx === 0) { // A = confirm move
+        // BL-043/044: save cursor position and reset immediately
+        _gpPendingRestoreIdx = _gpCursorIdx;
+        _gpCursorIdx = -1;
+        if (confirmBtn) confirmBtn.classList.remove('gp-cursor');
+        confirmMoveModal();
+        _gpVibrate(gp, 100);
+        return;
+      }
+      if (btnIdx === 12 && btns.length) { // D↑ = back to folder selection
+        if (confirmBtn) { confirmBtn.classList.remove('gp-cursor'); confirmBtn.disabled = true; confirmBtn.style.opacity = '0.4'; }
+        btns.forEach(b => b.classList.remove('selected'));
+        pendingMoveSelectedDest = null;
+        pendingMoveSelectedDestName = null;
+        dlg._gpPhase = 'folders';
         btns.forEach((b, i) => b.classList.toggle('gp-cursor', i === _gpMoveDlgIdx));
-        btns[_gpMoveDlgIdx]?.scrollIntoView({ block: 'nearest' });
         _gpVibrate(gp, 40);
         return;
       }
-      if (btnIdx === 13) { // D-pad down
-        _gpMoveDlgIdx = Math.min(btns.length - 1, _gpMoveDlgIdx + 1);
-        btns.forEach((b, i) => b.classList.toggle('gp-cursor', i === _gpMoveDlgIdx));
-        btns[_gpMoveDlgIdx]?.scrollIntoView({ block: 'nearest' });
-        _gpVibrate(gp, 40);
-        return;
-      }
-      if (btnIdx === 0) { // A = click selected folder
-        btns[_gpMoveDlgIdx]?.click();
-        _gpVibrate(gp, 60);
-        return;
-      }
     }
-    if (btnIdx === 1) { // B = cancel
-      dlg.close();
-    }
+    return;
   }
   if (dlg.id === 'cut-dialog') {
     if (btnIdx === 1) { closeCutModal(); return; } // B = always cancel
@@ -4418,12 +4518,16 @@ function _gpHandleDialog(dlg, btnIdx, gp) {
         }
       } else {
         // Aucun dossier rapide : A confirme directement
-        if (btnIdx === 0) { confirmCut(); _gpVibrate(gp, 100); return; }
+        if (btnIdx === 0) {
+          _gpPendingRestoreIdx = _gpCursorIdx; _gpCursorIdx = -1; // BL-043/044
+          confirmCut(); _gpVibrate(gp, 100); return;
+        }
       }
     }
 
     if (phase === 'confirm') {
       if (btnIdx === 0) { // A = valider la découpe
+        _gpPendingRestoreIdx = _gpCursorIdx; _gpCursorIdx = -1; // BL-043/044
         confirmCut();
         _gpVibrate(gp, 100);
         return;
@@ -4439,7 +4543,10 @@ function _gpHandleDialog(dlg, btnIdx, gp) {
     }
 
     // Y = raccourci pour confirmer à tout moment
-    if (btnIdx === 3) { confirmCut(); _gpVibrate(gp, 100); }
+    if (btnIdx === 3) {
+      _gpPendingRestoreIdx = _gpCursorIdx; _gpCursorIdx = -1; // BL-043/044
+      confirmCut(); _gpVibrate(gp, 100);
+    }
   }
 }
 
@@ -4466,8 +4573,8 @@ function _gpDispatch(btnIdx, l1, r1, gp) {
     return;
   }
 
-  // 2. Any <dialog> open → route to dialog handler
-  const openDialog = document.querySelector('dialog[open]');
+  // 2. Any modal/dialog open → route to dialog handler (BL-046: includes div-based overlays)
+  const openDialog = _gpOpenModal();
   if (openDialog) {
     _gpHandleDialog(openDialog, btnIdx, gp);
     return;
