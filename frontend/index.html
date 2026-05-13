@@ -1399,7 +1399,7 @@
 </div>
 
 <!-- Cut modal -->
-<dialog id="cut-dialog" onclick="_dialogBackdropClose(event, 'cut-dialog')">
+<div id="cut-dialog" onclick="if(event.target===this)closeCutModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center">
   <div id="cut-modal" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:400px;max-width:95vw;display:flex;flex-direction:column;gap:14px">
     <div style="font-size:15px;font-weight:700;color:var(--accent)">&#x2702; Couper</div>
     <div id="cut-filename" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim);word-break:break-all"></div>
@@ -1418,7 +1418,7 @@
       <button onclick="closeCutModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:10px 16px;border-radius:8px;cursor:pointer;font-family:inherit">Annuler</button>
     </div>
   </div>
-</dialog>
+</div>
 
 <!-- Jobs panel -->
 <div id="jobs-panel"></div>
@@ -3498,7 +3498,6 @@ function openMoveModal(path, name) {
   const confirmBtn = document.getElementById('move-confirm-btn');
   if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.style.opacity = '0.4'; }
   _gpMoveDlgIdx = 0;
-  _gpMoveDlgPhase = 'folders';
   // Pre-select first folder button for gamepad navigation
   const firstBtn = container.querySelector('button.modal-folder-btn');
   if (firstBtn) firstBtn.classList.add('gp-cursor');
@@ -3588,7 +3587,7 @@ function openCutModal() {
   const firstBtn = container.querySelector('button.modal-folder-btn');
   if (firstBtn) firstBtn.classList.add('gp-cursor');
   document.getElementById('cut-confirm-btn').classList.remove('gp-cursor');
-  dlg.showModal();
+  dlg.style.display = 'flex';
 }
 
 function selectCutDest(path) {
@@ -3650,7 +3649,7 @@ function clearCutPoints() {
 }
 
 function closeCutModal(e) {
-  document.getElementById('cut-dialog').close();
+  document.getElementById('cut-dialog').style.display = 'none';
 }
 
 async function confirmCut() {
@@ -3658,7 +3657,7 @@ async function confirmCut() {
   if (!dest) { showToast('Choisissez un dossier destination'); return; }
   if (cutIn === null || cutOut === null || cutOut <= cutIn) { showToast('OUT doit être après IN'); return; }
   if (!currentFile) return;
-  document.getElementById('cut-dialog').close();
+  document.getElementById('cut-dialog').style.display = 'none';
   const resp = await fetch(`${API}/api/files/cut?path=${encodeURIComponent(currentFile.path)}`, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -3746,6 +3745,7 @@ let _deleteResolve = null;
 
 function closeDeleteDialog() {
   document.getElementById('delete-dialog').style.display = 'none';
+  document.getElementById('delete-dialog-confirm').onclick = null;
   if (_deleteResolve) { const r = _deleteResolve; _deleteResolve = null; r(); }
 }
 
@@ -3955,16 +3955,19 @@ document.addEventListener('fullscreenchange', () => {
   const gpOverlay = document.getElementById('gp-overlay');
   const deleteDlg = document.getElementById('delete-dialog');
   const moveDlg = document.getElementById('move-dialog');
+  const cutDlg = document.getElementById('cut-dialog');
   if (document.fullscreenElement) {
     document.fullscreenElement.appendChild(gpOverlay);
     gpOverlay.classList.add('in-fullscreen');
     document.fullscreenElement.appendChild(deleteDlg);
     document.fullscreenElement.appendChild(moveDlg);
+    document.fullscreenElement.appendChild(cutDlg);
   } else {
     document.body.appendChild(gpOverlay);
     gpOverlay.classList.remove('in-fullscreen');
     document.body.appendChild(deleteDlg);
     document.body.appendChild(moveDlg);
+    document.body.appendChild(cutDlg);
   }
 });
 
@@ -3980,6 +3983,11 @@ fullscreenControls.addEventListener('pointerdown', () => {
 
 // Keyboard shortcuts
 document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    if (document.getElementById('delete-dialog')?.style.display === 'flex') { closeDeleteDialog(); return; }
+    if (document.getElementById('move-dialog')?.style.display === 'flex') { closeModal(); return; }
+    if (document.getElementById('cut-dialog')?.style.display === 'flex') { closeCutModal(); return; }
+  }
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
   // Volume controls always bump fullscreen controls
   if (isInFullscreen() && ['Space', 'ArrowUp', 'ArrowDown', 'KeyF'].includes(e.code)) {
@@ -4389,16 +4397,17 @@ function _gpPoll() {
 
 // ── Gamepad context handlers ──────────────────────────────────────────────────
 let _gpMoveDlgIdx = 0;   // folder cursor index in move-dialog
-let _gpMoveDlgPhase = 'folders';  // 'folders' | 'confirm' (BL-045)
 let pendingMoveSelectedDest = null;
 let pendingMoveSelectedDestName = null;
 
 // BL-046: detect open modals regardless of whether they are <dialog> or <div> overlays
 function _gpOpenModal() {
   const del = document.getElementById('delete-dialog');
-  if (del.style.display === 'flex') return del;
+  if (del?.style.display === 'flex') return del;
   const mov = document.getElementById('move-dialog');
-  if (mov.style.display === 'flex') return mov;
+  if (mov?.style.display === 'flex') return mov;
+  const cut = document.getElementById('cut-dialog');
+  if (cut?.style.display === 'flex') return cut;
   return document.querySelector('dialog[open]');
 }
 
@@ -4461,7 +4470,10 @@ function _gpHandleDialog(dlg, btnIdx, gp) {
         return;
       }
       if (btnIdx === 12 && btns.length) { // D↑ = back to folder selection
-        if (confirmBtn) confirmBtn.classList.remove('gp-cursor');
+        if (confirmBtn) { confirmBtn.classList.remove('gp-cursor'); confirmBtn.disabled = true; confirmBtn.style.opacity = '0.4'; }
+        btns.forEach(b => b.classList.remove('selected'));
+        pendingMoveSelectedDest = null;
+        pendingMoveSelectedDestName = null;
         dlg._gpPhase = 'folders';
         btns.forEach((b, i) => b.classList.toggle('gp-cursor', i === _gpMoveDlgIdx));
         _gpVibrate(gp, 40);
