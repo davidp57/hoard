@@ -3954,7 +3954,14 @@ function toggleFullscreen() {
     syncFullscreenUI();
   } else {
     videoContainer.requestFullscreen().catch(err => {
-      if (err.name !== 'NotAllowedError') console.warn('requestFullscreen failed:', err);
+      if (err.name === 'NotAllowedError') {
+        // Browser requires a direct user gesture (e.g. Firefox + gamepad polling).
+        // Fall back to CSS faux-fullscreen so the gamepad Y button still works.
+        videoContainer.classList.add('faux-fullscreen');
+        syncFullscreenUI();
+      } else {
+        console.warn('requestFullscreen failed:', err);
+      }
     });
   }
 }
