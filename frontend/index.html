@@ -443,23 +443,65 @@
     pointer-events: none;
   }
 
-  /* Mini time overlay (visible when controls are hidden in fullscreen) */
+  /* Mini progress overlay (visible in fullscreen) */
   #mini-time {
     display: none;
     position: absolute;
     top: 10px;
     right: 14px;
-    font-family: 'DM Mono', monospace;
-    font-size: 11px;
-    color: rgba(255,255,255,0.7);
-    background: rgba(0,0,0,0.45);
-    padding: 3px 7px;
-    border-radius: 6px;
+    background: rgba(0,0,0,0.55);
+    padding: 6px 10px 8px;
+    border-radius: 8px;
     pointer-events: none;
     z-index: 10;
+    min-width: 140px;
   }
   #video-container.faux-fullscreen #mini-time,
   #video-container:fullscreen #mini-time { display: block; }
+  #mini-remaining {
+    font-family: 'DM Mono', monospace;
+    font-size: 15px;
+    color: rgba(255,255,255,0.92);
+    text-align: right;
+    margin-bottom: 5px;
+    letter-spacing: 0.02em;
+  }
+  #mini-progress-wrap {
+    position: relative;
+    height: 8px;
+    margin-top: 2px;
+  }
+  #mini-bar-full {
+    position: absolute;
+    top: 2px;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  #mini-bar-fill {
+    height: 100%;
+    background: var(--accent);
+    width: 0%;
+  }
+  #mini-bar-zoom-track {
+    position: absolute;
+    top: 0;
+    left: 0%;
+    width: 10%;
+    height: 8px;
+    background: rgba(255,255,255,0.25);
+    border-radius: 3px;
+    overflow: hidden;
+    z-index: 1;
+  }
+  #mini-bar-zoom-fill {
+    height: 100%;
+    background: var(--accent);
+    width: 0%;
+  }
 
   #ctrl-row {
     display: flex;
@@ -1304,7 +1346,13 @@
         <span id="vol-osd-pct">100%</span>
       </div>
       <video id="video" preload="metadata"></video>
-      <div id="mini-time">0:00 / 0:00</div>
+      <div id="mini-time">
+        <div id="mini-remaining">-0:00</div>
+        <div id="mini-progress-wrap">
+          <div id="mini-bar-full"><div id="mini-bar-fill"></div></div>
+          <div id="mini-bar-zoom-track"><div id="mini-bar-zoom-fill"></div></div>
+        </div>
+      </div>
       <div id="controls">
         <div id="now-playing">
           <div id="now-playing-label">— <span id="now-playing-name"></span></div>
@@ -2980,6 +3028,7 @@ async function navigate(path) {
     renderBreadcrumb(cached.breadcrumb);
     renderFiles(cached.entries);
     _renderTagFilterBar();
+    await _autoPlayNextFullscreen(path);
     // If data is fresh enough, skip background refresh entirely
     if (Date.now() - cached.ts < DIR_CACHE_TTL) return;
   }
@@ -3016,6 +3065,7 @@ async function navigate(path) {
   renderBreadcrumb(data.breadcrumb);
   renderFiles(data.entries);
   _renderTagFilterBar();
+  await _autoPlayNextFullscreen(path);
 }
 
 function renderBreadcrumb(crumbs) {
@@ -3124,6 +3174,35 @@ function getStateClass(p) {
 // ── Player ────────────────────────────────────────────────────────────────────
 const video = document.getElementById('video');
 
+// After a delete/move/cut in fullscreen, auto-play the next video and re-enter fullscreen
+async function _autoPlayNextFullscreen(navigatePath) {
+  if (!_fsReenterFullscreen) return;
+  if (_fsReenterFullscreenPath !== navigatePath) {
+    _fsReenterFullscreen = false; _fsReenterFullscreenPath = null;
+    return;
+  }
+  _fsReenterFullscreen = false; _fsReenterFullscreenPath = null;
+  if (!_gpRenderedList.length) return;
+  const start = _gpCursorIdx >= 0 ? _gpCursorIdx : 0;
+  let target = -1;
+  for (let i = start; i < _gpRenderedList.length; i++) {
+    if (_gpRenderedList[i].is_video) { target = i; break; }
+  }
+  if (target < 0) {
+    for (let i = start - 1; i >= 0; i--) {
+      if (_gpRenderedList[i].is_video) { target = i; break; }
+    }
+  }
+  if (target < 0) return;
+  const entry = _gpRenderedList[target];
+  const idx = entries.findIndex(e => e.path === entry.path);
+  if (idx < 0) return;
+  await playVideo(idx);
+  videoContainer.classList.add('faux-fullscreen');
+  syncFullscreenUI();
+}
+
+
 async function playVideo(idx) {
   const entry = entries[idx];
   if (!entry || !entry.is_video) return;
@@ -3228,6 +3307,7 @@ function setVolume(v) {
   video.volume = v;
   video.muted = false;
   localStorage.setItem('volume', v);
+  document.getElementById('volume-slider').value = v;
   if (currentFile) showVolumeOSD();
 }
 
@@ -3328,7 +3408,11 @@ video.addEventListener('timeupdate', () => {
   seekbarThumb.style.left = pct + '%';
   const timeStr = `${formatTime(video.currentTime)} / ${formatTime(video.duration)}`;
   document.getElementById('time-display').textContent = timeStr;
-  document.getElementById('mini-time').textContent = timeStr;
+  document.getElementById('mini-remaining').textContent = '-' + formatTime(video.duration - video.currentTime);
+  document.getElementById('mini-bar-fill').style.width = pct + '%';
+  const zoomStart = Math.min(Math.floor(pct / 10) * 10, 90);
+  document.getElementById('mini-bar-zoom-track').style.left = zoomStart + '%';
+  document.getElementById('mini-bar-zoom-fill').style.width = ((pct - zoomStart) / 10 * 100) + '%';
 });
 
 video.addEventListener('play', () => { document.getElementById('playpause-btn').textContent = '⏸'; });
@@ -3715,6 +3799,7 @@ async function confirmCut() {
   if (cutIn === null || cutOut === null || cutOut <= cutIn) { showToast('OUT doit être après IN'); return; }
   if (!currentFile) return;
   document.getElementById('cut-dialog').style.display = 'none';
+  if (isInFullscreen()) { _fsReenterFullscreen = true; _fsReenterFullscreenPath = currentPath; }
   // Restore cursor to same index after re-render (works for gamepad, keyboard, click)
   const _cutIdx = _gpRenderedList.findIndex(e => e.path === currentFile.path);
   if (_cutIdx >= 0) _gpPendingRestoreIdx = _cutIdx;
@@ -3785,6 +3870,9 @@ async function moveToFolder(destPath, destName) {
   if (!pendingMovePath) return;
   const sourcePath = pendingMovePath;
   const fromPath = currentPath;
+  if (currentFile && currentFile.path === sourcePath && isInFullscreen()) {
+    _fsReenterFullscreen = true; _fsReenterFullscreenPath = fromPath;
+  }
   releaseVideoIfCurrent(sourcePath);
   closeModal();
   const resp = await fetch(`${API}/api/files/move?path=${encodeURIComponent(sourcePath)}`, {
@@ -3824,6 +3912,9 @@ async function confirmDelete(path, name) {
       btn.onclick = null;
       _deleteResolve = null;
       dlg.style.display = 'none';
+      if (currentFile && currentFile.path === path && isInFullscreen()) {
+        _fsReenterFullscreen = true; _fsReenterFullscreenPath = currentPath;
+      }
       releaseVideoIfCurrent(path);
       const doDelete = () => fetch(`${API}/api/files?path=${encodeURIComponent(path)}`, { method: 'DELETE' });
       const resp = await retryOn423(doDelete);
@@ -4070,15 +4161,11 @@ document.addEventListener('keydown', e => {
   if (e.code === 'Space') { e.preventDefault(); togglePlay(); return; }
   if (e.code === 'KeyF') { toggleFullscreen(); return; }
   if (e.code === 'ArrowUp') {
-    video.volume = Math.min(1, video.volume + 0.1);
-    document.getElementById('volume-slider').value = video.volume;
-    if (currentFile) showVolumeOSD();
+    setVolume(Math.min(1, video.volume + 0.1));
     return;
   }
   if (e.code === 'ArrowDown') {
-    video.volume = Math.max(0, video.volume - 0.1);
-    document.getElementById('volume-slider').value = video.volume;
-    if (currentFile) showVolumeOSD();
+    setVolume(Math.max(0, video.volume - 0.1));
     return;
   }
   // Seek keys — 4 levels via modifier
@@ -4365,6 +4452,8 @@ async function _gpToggleWatched() {
 let _gpCursorIdx = -1;
 let _gpRenderedList = [];  // mirrors DOM order: [...pinned, ...rest] after each renderFiles()
 let _gpPendingRestoreIdx = -1;  // BL-043: cursor index to restore after file action + navigate()
+let _fsReenterFullscreen = false;     // auto-play next file in fullscreen after delete/move/cut
+let _fsReenterFullscreenPath = null;  // folder path where auto-play should trigger
 
 function _gpMoveCursor(delta) {
   if (!_gpRenderedList.length) return;

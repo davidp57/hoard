@@ -9,8 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Indicateur de volume (OSD)** : une barre de volume s'affiche en bas à droite du player quand le volume est modifié (touches ↑/↓, manette D-pad, swipe vertical tactile). Elle indique l'icône 🔇/🔉/🔊, un niveau visuel et le pourcentage, puis disparaît automatiquement après 2,5 secondes. Remplace les toasts éphémères volume gamepad et swipe tactile.
+- **Indicateur de progression en plein écran** : le mini-affichage de position (coin haut droit) remplace le texte `XX / YY` par : temps restant en plus grand, barre de progression globale (fine), et une barre zoomée (×2) qui matérialise le segment de 10 % courant au bon emplacement de la barre globale.
+- **Lecture automatique du fichier suivant en plein écran** : après une suppression, un déplacement ou un découpage du fichier en cours de lecture en mode plein écran, le fichier suivant dans la liste est chargé et lancé automatiquement, et le mode plein écran est réactivé.
 
 ### Fixed
+- **Volume — curseur non mis à jour via gamepad/swipe** : `setVolume()` ne synchronisait pas le slider `#volume-slider` ; seul le clavier le faisait manuellement. Le slider est maintenant mis à jour dans `setVolume()` pour tous les modes de déclenchement.
 - **Gamepad — plein écran impossible avec Y sous Firefox (PC)** : `requestFullscreen()` requiert un user gesture direct ; le polling gamepad via `requestAnimationFrame` n'en est pas un dans Firefox, provoquant un `NotAllowedError` silencieux. Quand `NotAllowedError` est levé, la fonction bascule désormais automatiquement sur le faux-fullscreen CSS, rendant le bouton Y symétrique (entrée et sortie) sur tous les navigateurs.
 - **Gamepad — dialogues en plein écran (BL-046)** : les dialogues de suppression et de déplacement (`#delete-dialog`, `#move-dialog`) ne répondaient pas aux boutons gamepad en mode plein écran natif sur SteamDeck/Edge. Ils sont désormais convertis en `<div>` overlay (`position:fixed`, `z-index:100`) et déplacés dans `document.fullscreenElement` lors du `fullscreenchange`, identiquement à l'overlay d'aide gamepad. La détection dans `_gpDispatch` utilise une nouvelle fonction `_gpOpenModal()` qui inspecte les deux types de modals (div + `<dialog>`).
 - **Gamepad — vidéo fantôme en arrière-plan (BL-044)** : après avoir confirmé une action (suppression, déplacement, découpe), une pression rapide sur A pouvait déclencher la lecture d'une vidéo en fond sonore. Résolu en réinitialisant immédiatement `_gpCursorIdx = -1` lors du dispatch de l'action de confirmation, avant que `navigate()` ne termine.
@@ -18,8 +21,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **Gamepad — move dialog : confirmation en 2 étapes (BL-045)** : le dialogue de déplacement affiche maintenant un bouton « ↗ Déplacer » (désactivé jusqu'à sélection d'un dossier). Les boutons de dossier rapide *sélectionnent* la destination (sans déplacer immédiatement) ; D↑/D↓ navigue dans la liste, A valide le dossier sélectionné et bascule vers le bouton de confirmation, A confirme le déplacement, B annule à tout moment. Identique au flux du dialogue de découpe (`cut-dialog`).
-
-### Added
 - **Racine de navigation par défaut (BL-040)** : chaque home root peut être désignée comme racine par défaut (colonne `is_default` en base, endpoint `POST /api/home-roots/{id}/set-default`). L'app navigue directement vers la racine par défaut au démarrage et après validation du PIN, sans passer par l'écran de sélection. Un indicateur visuel (🏠, bordure accent, badge « défaut ») et un bouton « ⌂ » permettent de changer la racine par défaut depuis les Paramètres.
 - **Contrôles manette étendus** :
   - `L1+R1+B` → supprimer le fichier courant (lecteur ou curseur browser)
