@@ -3658,7 +3658,11 @@ async function confirmCut() {
   if (cutIn === null || cutOut === null || cutOut <= cutIn) { showToast('OUT doit être après IN'); return; }
   if (!currentFile) return;
   document.getElementById('cut-dialog').style.display = 'none';
-  const resp = await fetch(`${API}/api/files/cut?path=${encodeURIComponent(currentFile.path)}`, {
+  // Restore cursor to same index after re-render (works for gamepad, keyboard, click)
+  const _cutIdx = _gpRenderedList.findIndex(e => e.path === currentFile.path);
+  if (_cutIdx >= 0) _gpPendingRestoreIdx = _cutIdx;
+  const resp = await fetch(`${API}/api/files/cut?path=${encodeURIComponent(currentFile.path)}`,
+ {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({ start: cutIn, end: cutOut, destination: dest })
@@ -3738,6 +3742,9 @@ async function moveToFolder(destPath, destName) {
   }
   const { job_id } = await resp.json();
   showToast(`Déplacement vers \u00ab\u00a0${destName}\u00a0\u00bb en cours…`);
+  // Restore cursor to same index after re-render (works for gamepad, keyboard, click)
+  const _movIdx = _gpRenderedList.findIndex(e => e.path === sourcePath);
+  if (_movIdx >= 0) _gpPendingRestoreIdx = _movIdx;
   trackJob(job_id, fromPath);
 }
 
@@ -3769,6 +3776,9 @@ async function confirmDelete(path, name) {
       } else {
         showToast('Supprimé');
       }
+      // Restore cursor to same index after re-render (works for gamepad, keyboard, click)
+      const _delIdx = _gpRenderedList.findIndex(e => e.path === path);
+      if (_delIdx >= 0) _gpPendingRestoreIdx = _delIdx;
       dirCache.delete(currentPath);
       await navigate(currentPath);
       resolve();
@@ -4414,8 +4424,7 @@ function _gpOpenModal() {
 function _gpHandleDialog(dlg, btnIdx, gp) {
   if (dlg.id === 'delete-dialog') {
     if (btnIdx === 0) { // A = confirm delete
-      // BL-043: save cursor; BL-044: reset immediately to prevent phantom play
-      _gpPendingRestoreIdx = _gpCursorIdx;
+      // BL-044: reset cursor immediately to prevent phantom play
       _gpCursorIdx = -1;
       document.getElementById('delete-dialog-confirm').click();
       _gpVibrate(gp, 100);
@@ -4461,8 +4470,7 @@ function _gpHandleDialog(dlg, btnIdx, gp) {
 
     if (phase === 'confirm') {
       if (btnIdx === 0) { // A = confirm move
-        // BL-043/044: save cursor position and reset immediately
-        _gpPendingRestoreIdx = _gpCursorIdx;
+        // BL-044: reset cursor immediately to prevent phantom play
         _gpCursorIdx = -1;
         if (confirmBtn) confirmBtn.classList.remove('gp-cursor');
         confirmMoveModal();
@@ -4519,7 +4527,7 @@ function _gpHandleDialog(dlg, btnIdx, gp) {
       } else {
         // Aucun dossier rapide : A confirme directement
         if (btnIdx === 0) {
-          _gpPendingRestoreIdx = _gpCursorIdx; _gpCursorIdx = -1; // BL-043/044
+          _gpCursorIdx = -1; // BL-044
           confirmCut(); _gpVibrate(gp, 100); return;
         }
       }
@@ -4527,7 +4535,7 @@ function _gpHandleDialog(dlg, btnIdx, gp) {
 
     if (phase === 'confirm') {
       if (btnIdx === 0) { // A = valider la découpe
-        _gpPendingRestoreIdx = _gpCursorIdx; _gpCursorIdx = -1; // BL-043/044
+        _gpCursorIdx = -1; // BL-044
         confirmCut();
         _gpVibrate(gp, 100);
         return;
@@ -4544,7 +4552,7 @@ function _gpHandleDialog(dlg, btnIdx, gp) {
 
     // Y = raccourci pour confirmer à tout moment
     if (btnIdx === 3) {
-      _gpPendingRestoreIdx = _gpCursorIdx; _gpCursorIdx = -1; // BL-043/044
+      _gpCursorIdx = -1; // BL-044
       confirmCut(); _gpVibrate(gp, 100);
     }
   }
