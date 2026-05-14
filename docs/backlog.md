@@ -97,9 +97,9 @@ Facteur de marge actuel : **0,40**.
 | --- | --- | --- | --- | --- | --- | --- |
 | BL-047 | Segments — table DB + endpoints CRUD | P1 | 20 min | 2026-05-14 | 2026-05-14 | 2026-05-14 |
 | BL-048 | Segments — export backend (individuel + fusionné) | P1 | 25 min | 2026-05-14 | 2026-05-14 | 2026-05-14 |
-| BL-049 | Segments — UI seekbar + liste chips (frontend) | P1 | 35 min | 2026-05-14 | | |
-| BL-050 | Segments — modal export + gamepad (frontend) | P1 | 20 min | 2026-05-14 | | |
-| BL-051 | Segments — tests + nettoyage ancien cut | P2 | 15 min | 2026-05-14 | | |
+| BL-049 | Segments — UI seekbar + liste chips (frontend) | P1 | 35 min | 2026-05-14 | 2026-05-27 | 2026-05-27 |
+| BL-050 | Segments — modal export + gamepad (frontend) | P1 | 20 min | 2026-05-14 | 2026-05-27 | 2026-05-27 |
+| BL-051 | Segments — tests + nettoyage ancien cut | P2 | 15 min | 2026-05-14 | 2026-05-27 | 2026-05-27 |
 
 ---
 
