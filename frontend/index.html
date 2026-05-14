@@ -3711,6 +3711,12 @@ async function loadSegments(path) {
 
 function setPendingIn() {
   if (!video.duration) return;
+  if (_pendingIn !== null) {
+    _pendingIn = null;
+    updateSegmentUI();
+    showToast('⬧ Point IN annulé');
+    return;
+  }
   _pendingIn = video.currentTime;
   updateSegmentUI();
   showToast(`⬧ IN : ${formatTime(_pendingIn)}`);
