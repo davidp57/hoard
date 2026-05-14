@@ -23,6 +23,7 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 - **Modaux compatibles plein écran** : les fenêtres Déplacer, Découper, Supprimer et l'aide clavier restent visibles au-dessus du plein écran natif du navigateur.
 - **Contrôles plein écran discrets** : le mouvement de la souris ne révèle les contrôles qu'en bas de l'écran (10 %), pour ne pas déranger pendant la lecture.
 - **Option désactiver le transcodage** : nouveau réglage dans Paramètres → Player. Quand il est désactivé, Hoard envoie toujours le flux original sans transcodage — utile si votre NAS est lent ou si votre navigateur lit nativement le format.
+- **Zoom barre de progression en plein écran** : la taille de la fenêtre de zoom sur la barre de progression (visible en plein écran) est maintenant réglable dans Paramètres → 🎬 Player (« Zoom barre plein écran »). Valeur par défaut : 20 %, de 5 % à 50 %.
 
 ---
 

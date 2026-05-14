@@ -373,11 +373,13 @@ def _run_export_segments(
             out_name = f"{source.stem} [{n} segment{'s' if n > 1 else ''}]{source.suffix}"
             output = dest_dir / out_name
             total_duration = sum(s["seg_out"] - s["seg_in"] for s in segments)
+            # Escape single quotes in path for FFmpeg concat demuxer format
+            escaped_source = str(source).replace("'", "\\'")
             with tempfile.NamedTemporaryFile(
                 mode="w", suffix=".txt", delete=False, encoding="utf-8"
             ) as f:
                 for seg in segments:
-                    f.write(f"file '{str(source)}'\n")
+                    f.write(f"file '{escaped_source}'\n")
                     f.write(f"inpoint {seg['seg_in']}\n")
                     f.write(f"outpoint {seg['seg_out']}\n")
                 filelist_path = f.name
@@ -473,6 +475,7 @@ def _run_move(job_id: str, source: Path, destination: Path) -> None:
     new_rel = to_rel(final_dest)
     with get_db() as conn:
         conn.execute("UPDATE progress SET path = ? WHERE path = ?", (new_rel, old_rel))
+        conn.execute("UPDATE segments SET path = ? WHERE path = ?", (new_rel, old_rel))
         conn.commit()
     job["status"] = "done"
     job["progress"] = 100
@@ -1329,10 +1332,11 @@ def delete_file(path: str):
             target.unlink()
     except PermissionError:
         raise HTTPException(status_code=423, detail="File is locked by another process") from None
-    # Clean progress entry
+    # Clean progress and segments entries
     rel = to_rel(target)
     with get_db() as conn:
         conn.execute("DELETE FROM progress WHERE path = ?", (rel,))
+        conn.execute("DELETE FROM segments WHERE path = ?", (rel,))
         conn.commit()
     return {"ok": True}
 
@@ -1412,11 +1416,11 @@ def cut_video(path: str, body: CutRequest):
 
 @app.get("/api/segments")
 def list_segments(path: str):
-    safe_path(path)  # validate + guard path traversal
+    rel = to_rel(safe_path(path))
     with get_db() as conn:
         rows = conn.execute(
             "SELECT id, seg_in, seg_out FROM segments WHERE path = ? ORDER BY id ASC",
-            (path,),
+            (rel,),
         ).fetchall()
     return [{"id": r["id"], "seg_in": r["seg_in"], "seg_out": r["seg_out"]} for r in rows]
 
@@ -1425,11 +1429,11 @@ def list_segments(path: str):
 def create_segment(path: str, body: SegmentCreate):
     if body.seg_out <= body.seg_in:
         raise HTTPException(status_code=400, detail="seg_out must be after seg_in")
-    safe_path(path)  # validate + guard path traversal
+    rel = to_rel(safe_path(path))
     with get_db() as conn:
         cur = conn.execute(
             "INSERT INTO segments (path, seg_in, seg_out) VALUES (?, ?, ?)",
-            (path, body.seg_in, body.seg_out),
+            (rel, body.seg_in, body.seg_out),
         )
         conn.commit()
     return {"id": cur.lastrowid}
@@ -1455,10 +1459,11 @@ def export_segments(path: str, body: ExportSegmentsRequest):
     dest_dir = safe_path(body.destination)
     if not dest_dir.is_dir():
         raise HTTPException(status_code=404, detail="Destination folder not found")
+    rel_path = to_rel(source)
     with get_db() as conn:
         rows = conn.execute(
             "SELECT id, seg_in, seg_out FROM segments WHERE path = ? ORDER BY id ASC",
-            (path,),
+            (rel_path,),
         ).fetchall()
     segments = [{"seg_in": r["seg_in"], "seg_out": r["seg_out"]} for r in rows]
     if not segments:

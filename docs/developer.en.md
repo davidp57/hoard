@@ -81,6 +81,10 @@ def safe_path(rel: str) -> Path:
 | POST | `/api/files/move?path=` | Move to `{destination}` (relative path) |
 | POST | `/api/files/mkdir` | Create a folder `{path}` |
 | POST | `/api/files/cut` | Cut video via ffmpeg `{path, start, end, output}` |
+| GET | `/api/segments?path=` | List segments for a file (ordered by creation) |
+| POST | `/api/segments?path=` | Add a segment `{seg_in, seg_out}` → `{id}` |
+| DELETE | `/api/segments/{id}` | Delete a segment by id |
+| POST | `/api/files/export-segments?path=` | Export segments `{mode, destination, keep_original}` — starts a background job |
 | GET | `/api/jobs` | Status of ongoing background jobs (ffmpeg cuts, downloads) |
 | GET | `/api/quick-folders` | List pinned folders |
 | POST | `/api/quick-folders` | Pin a folder `{path}` |
@@ -137,6 +141,14 @@ CREATE TABLE initial_sweep_folders (
     seconds INTEGER NOT NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE segments (
+    id      INTEGER PRIMARY KEY AUTOINCREMENT,
+    path    TEXT NOT NULL,
+    seg_in  REAL NOT NULL,
+    seg_out REAL NOT NULL
+);
+-- index: idx_segments_path ON segments(path)
 ```
 
 ### Initial Sweep

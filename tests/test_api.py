@@ -700,6 +700,27 @@ class TestSettings:
         resp = client.post("/api/settings", json={"gamepad_mapping": "{not valid json}"})
         assert resp.status_code == 422
 
+    def test_fs_progress_zoom_default(self):
+        resp = client.get("/api/settings")
+        assert resp.status_code == 200
+        assert resp.json()["fs_progress_zoom"] == "20"
+
+    def test_fs_progress_zoom_can_be_updated(self):
+        resp = client.post("/api/settings", json={"fs_progress_zoom": 30})
+        assert resp.status_code == 200
+        assert resp.json()["ok"] is True
+
+        resp = client.get("/api/settings")
+        assert resp.json()["fs_progress_zoom"] == "30"
+
+    def test_fs_progress_zoom_rejects_too_small(self):
+        resp = client.post("/api/settings", json={"fs_progress_zoom": 4})
+        assert resp.status_code == 422
+
+    def test_fs_progress_zoom_rejects_too_large(self):
+        resp = client.post("/api/settings", json={"fs_progress_zoom": 51})
+        assert resp.status_code == 422
+
 
 # ── /api/initial-sweep ───────────────────────────────────────────────────────
 
