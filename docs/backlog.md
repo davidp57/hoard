@@ -87,6 +87,22 @@ Facteur de marge actuel : **0,40**.
 
 ---
 
+### Lot 9 — Multi-segments : sélection multi-zones et export (~130 min : 115 min Copilot + 15 min gestion)
+
+> Remplace le système IN/OUT → découper par une sélection multi-segments persistée en base.
+> L'utilisateur place autant de paires IN/OUT qu'il veut, puis exporte en N fichiers séparés ou en un seul fichier fusionné (concat lossless FFmpeg).
+> Dépendances internes : BL-049, BL-050 et BL-051 dépendent de BL-047 et BL-048.
+
+| ID | Titre | Prio | Est. | Créé | Démarré | Terminé |
+| --- | --- | --- | --- | --- | --- | --- |
+| BL-047 | Segments — table DB + endpoints CRUD | P1 | 20 min | 2026-05-14 | 2026-05-14 | 2026-05-14 |
+| BL-048 | Segments — export backend (individuel + fusionné) | P1 | 25 min | 2026-05-14 | 2026-05-14 | 2026-05-14 |
+| BL-049 | Segments — UI seekbar + liste chips (frontend) | P1 | 35 min | 2026-05-14 | | |
+| BL-050 | Segments — modal export + gamepad (frontend) | P1 | 20 min | 2026-05-14 | | |
+| BL-051 | Segments — tests + nettoyage ancien cut | P2 | 15 min | 2026-05-14 | | |
+
+---
+
 ## Détails
 
 ### BL-046 — Gamepad : delete-dialog et move-dialog cassés en fullscreen
@@ -371,3 +387,119 @@ Facteur de marge actuel : **0,40**.
 - **Why**: `backend/main.py` has grown to ~2 000 lines. Navigation and code review are becoming impractical. The file mixes DB setup, streaming logic, yt-dlp queue management, and FastAPI route registration — concerns that can be separated without introducing a layered architecture.
 - **Expected outcome**: extract three sibling modules, keeping `main.py` as the FastAPI entry point (~600–800 lines): `backend/db.py` (init_db, get_db, inline migrations), `backend/stream.py` (streaming endpoint, ffmpeg/transcode pipeline), `backend/download.py` (yt-dlp queue, jobs dict, download endpoints). No behaviour change; all existing tests must pass without modification.
 - **Attention point**: shared globals (`MEDIA_ROOT`, `FFMPEG_BIN`, `FFPROBE_BIN`) must be imported consistently across modules to avoid circular imports. Resolve by defining them in a `backend/config.py` and importing from there.
+
+---
+
+### BL-047 — Segments : table DB + endpoints CRUD
+
+- **Dates** : `created=2026-05-14`
+- **Contexte** : socle du Lot 9. Remplace les colonnes `cut_in`/`cut_out` de `progress` par une table dédiée.
+- **Schéma** :
+  ```sql
+  CREATE TABLE IF NOT EXISTS segments (
+      id       INTEGER PRIMARY KEY AUTOINCREMENT,
+      path     TEXT NOT NULL,
+      seg_in   REAL NOT NULL,
+      seg_out  REAL NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_segments_path ON segments(path);
+  ```
+  Les colonnes `cut_in`/`cut_out` restent dans `progress` (rétrocompatibilité) mais ne sont plus écrites par le nouveau flow.
+- **Endpoints** :
+  - `GET  /api/segments?path=<file>` → liste `[{id, seg_in, seg_out}]` ordonnés par `id ASC`
+  - `POST /api/segments?path=<file>` body `{seg_in, seg_out}` → `{id}` (valide `seg_out > seg_in`)
+  - `DELETE /api/segments/{id}` → supprime le segment par `id` (404 si inconnu)
+- **Modèle Pydantic** : `SegmentCreate(seg_in: float, seg_out: float)`
+- **Attention** : `safe_path()` sur le paramètre `path`. Valider `seg_out > seg_in` (400 sinon).
+
+---
+
+### BL-048 — Segments : export backend (individuel + fusionné)
+
+- **Dates** : `created=2026-05-14`
+- **Contexte** : dépend de BL-047. Fournit l'endpoint d'export et deux stratégies FFmpeg.
+- **Endpoint** : `POST /api/files/export-segments?path=<file>`
+  - Body : `{mode: "individual"|"merged", destination: str, keep_original: bool = false}`
+  - Récupère la liste des segments depuis la table `segments` pour ce `path` (erreur 400 si aucun segment)
+  - Lance un job async → retourne `{job_id}`
+- **Mode `individual`** : N jobs FFmpeg successifs (dans le même thread), un par segment :
+  ```
+  ffmpeg -ss <in> -t <dur> -i input -c copy "nom [seg1].ext"
+  ```
+  Nommage : `{stem} [seg{N}]{ext}` (N basé sur la position dans la liste).
+- **Mode `merged`** *(défaut)* : un seul FFmpeg avec le concat demuxer (lossless, codec copy) :
+  ```
+  # filelist.txt
+  file 'input.mp4'
+  inpoint 10.5
+  outpoint 30.2
+  file 'input.mp4'
+  inpoint 45.0
+  outpoint 90.0
+  ```
+  ```
+  ffmpeg -f concat -safe 0 -i filelist.txt -c copy "nom [1-N segments].ext"
+  ```
+  Nommage : `{stem} [{N} segments]{ext}`.
+- **Post-export** : déplace **les deux fichiers** vers `destination` — le fichier exporté (ou les N fichiers en mode individual) ET le fichier source original. C'est le comportement par défaut (`keep_original=false`). Si `keep_original=true`, seul(s) le(s) fichier(s) exporté(s) sont déplacés, l'original reste en place.
+- **Tracking progression** : même pattern que `_run_cut` (stderr `time=` regex, job `status`/`progress`).
+- **Attention** : le concat demuxer requiert que tous les segments soient du même codec. Ajouter un warning dans le toast si le mode merged est demandé sur un fichier transcodé.
+- **Garder** : l'endpoint `/api/files/cut` en place (pas supprimé) mais marqué comme déprécié dans le code.
+
+---
+
+### BL-049 — Segments : UI seekbar + liste chips (frontend)
+
+- **Dates** : `created=2026-05-14`
+- **Contexte** : dépend de BL-047. Remplace entièrement le flow `cutIn`/`cutOut` dans le frontend.
+- **État global** :
+  ```js
+  let _pendingIn = null;         // IN posé, attend un OUT
+  let _segments  = [];           // [{id, seg_in, seg_out}, …] chargés depuis DB ou ajoutés localement
+  ```
+- **Flux** :
+  1. `I` → `setPendingIn()` : pose `_pendingIn = video.currentTime`, affiche marqueur bleu sur seekbar, toast « IN marqué »
+  2. `O` → `addSegment()` : POST `/api/segments`, ajoute `{id, seg_in:_pendingIn, seg_out:currentTime}` à `_segments`, remet `_pendingIn = null`, met à jour la seekbar et la liste chips, toast « Segment N ajouté »
+  3. `×` sur une chip → `deleteSegment(id)` : DELETE `/api/segments/{id}`, retire de `_segments`, met à jour l'UI
+  4. Cliquer sur une chip → seek à `seg_in`
+- **Seekbar** : fills colorés par segment (palette cyclique : accent / orange / vert / violet…). Pendant qu'un IN est posé sans OUT, zone hachurée animée entre `_pendingIn` et la tête de lecture courante.
+- **Liste chips** : `<div id="segments-list">` juste sous `#seekbar-wrap`, visible uniquement si `_segments.length > 0`. Chips : `[0:10 → 1:30] ×` — format compact `formatTime()`.
+- **Bouton exporter** : `<button id="segments-export-btn">` dans la barre de contrôle (remplace `#cut-btn`). Label : « Exporter (N) ✂ ». `display:none` si `_segments.length == 0`.
+- **Chargement** : `loadSegments(path)` appelé dans `playVideo()` → GET `/api/segments?path=…` → peuple `_segments` et rafraîchit l'UI.
+- **Raccourcis** : `I` = IN, `O` = OUT/créer segment, `Backspace` (déjà en place pour delete) non utilisé ici → garder `D` pour deleteLastSegment.
+- **Retirer** : variables `cutIn`, `cutOut`, fonctions `setCutPoint`, `clearCutPoints`, `updateCutUI`, boutons `#cut-in-btn`, `#cut-out-btn`, `#cut-clear-btn`, `#cut-btn`, HTML `#cut-seekbar-fill`, `.cut-seekbar-marker`, dialog `#cut-dialog`.
+
+---
+
+### BL-050 — Segments : modal export + gamepad (frontend)
+
+- **Dates** : `created=2026-05-14`
+- **Contexte** : dépend de BL-048 et BL-049. Modal d'export remplaçant `#cut-dialog`.
+- **HTML** : `<div id="export-dialog">` overlay (même pattern que les autres modals div).
+  - Toggle `individual` / `merged` *(merged sélectionné par défaut)*
+  - Checkbox `Conserver l'original` (défaut : décoché — déplace l'original ET les fichiers exportés vers destination)
+  - Liste de dossiers rapides (même que cut-dialog)
+  - Input destination libre
+  - Bouton `Exporter`
+- **Fonctions** : `openExportModal()`, `closeExportModal()`, `confirmExport()` → POST `/api/files/export-segments`.
+- **Gamepad** : navigation dans les dossiers rapides + sélection mode + confirmation (même pattern 2-phases que move-dialog/cut-dialog).
+- **Toast** : « ✂ Export N segments en cours… » / « ✂ Export fusionné en cours… »
+- **Raccourci** : `E` ou `C` pour ouvrir le modal (remplace l'ancien `C`).
+
+---
+
+### BL-051 — Segments : tests + nettoyage ancien cut
+
+- **Dates** : `created=2026-05-14`
+- **Contexte** : finalise le Lot 9. À faire en dernier.
+- **Tests à ajouter** (`tests/test_api.py`) :
+  - `test_segments_crud` : POST → GET → DELETE, vérifier la liste avant/après
+  - `test_segment_invalid_range` : `seg_out <= seg_in` → 400
+  - `test_export_segments_no_segments` : appel sans segments → 400
+  - `test_export_individual_returns_job_id` (monkeypatch ffmpeg)
+  - `test_export_merged_returns_job_id` (monkeypatch ffmpeg)
+  - `test_export_dest_not_found` → 404
+- **Nettoyage** :
+  - Supprimer les tests `TestCut` obsolètes ou les adapter si `/api/files/cut` est gardé déprécié
+  - Ajouter `ADD COLUMN` migration dans `init_db()` pour la table `segments` si elle n'existe pas (rétrocompat bases existantes)
+  - Vérifier que `ruff check` + `ruff format` passent à zéro warning

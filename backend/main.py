@@ -157,6 +157,15 @@ def init_db():
                 PRIMARY KEY (path, tag)
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS segments (
+                id      INTEGER PRIMARY KEY AUTOINCREMENT,
+                path    TEXT NOT NULL,
+                seg_in  REAL NOT NULL,
+                seg_out REAL NOT NULL
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_segments_path ON segments(path)")
         conn.commit()
 
 
@@ -210,6 +219,17 @@ class CutRequest(BaseModel):
     start: float  # seconds
     end: float  # seconds
     destination: str  # relative path from MEDIA_ROOT
+
+
+class SegmentCreate(BaseModel):
+    seg_in: float
+    seg_out: float
+
+
+class ExportSegmentsRequest(BaseModel):
+    mode: str = "merged"  # "individual" | "merged"
+    destination: str  # relative path from MEDIA_ROOT
+    keep_original: bool = False
 
 
 class DownloadRequest(BaseModel):
@@ -298,6 +318,139 @@ def _run_cut(
         job["error"] = str(e)
 
 
+def _run_export_segments(
+    job_id: str,
+    source: Path,
+    segments: list[dict],
+    mode: str,
+    dest_dir: Path,
+    keep_original: bool,
+) -> None:
+    job = _jobs[job_id]
+    job["status"] = "running"
+    try:
+        if mode == "individual":
+            for i, seg in enumerate(segments, start=1):
+                out_name = f"{source.stem} [seg{i}]{source.suffix}"
+                output = dest_dir / out_name
+                duration = seg["seg_out"] - seg["seg_in"]
+                cmd = [
+                    FFMPEG_BIN,
+                    "-y",
+                    "-ss",
+                    str(seg["seg_in"]),
+                    "-i",
+                    str(source),
+                    "-t",
+                    str(duration),
+                    "-c",
+                    "copy",
+                    "-avoid_negative_ts",
+                    "make_zero",
+                    str(output),
+                ]
+                proc = subprocess.Popen(
+                    cmd,
+                    stderr=subprocess.PIPE,
+                    stdout=subprocess.DEVNULL,
+                    universal_newlines=True,
+                    errors="replace",
+                )
+                for line in proc.stderr:  # type: ignore[union-attr]
+                    m = re.search(r"time=(\d+):(\d+):(\d+\.?\d*)", line)
+                    if m:
+                        elapsed = int(m.group(1)) * 3600 + int(m.group(2)) * 60 + float(m.group(3))
+                        seg_pct = min(99, int(elapsed / duration * 100)) if duration > 0 else 99
+                        job["progress"] = int(((i - 1) + seg_pct / 100) / len(segments) * 100)
+                proc.wait()
+                if proc.returncode != 0:
+                    job["status"] = "error"
+                    job["error"] = f"FFmpeg exited with code {proc.returncode} on segment {i}"
+                    return
+        else:
+            # Merged mode: FFmpeg concat demuxer (lossless, same codec assumed)
+            n = len(segments)
+            out_name = f"{source.stem} [{n} segment{'s' if n > 1 else ''}]{source.suffix}"
+            output = dest_dir / out_name
+            total_duration = sum(s["seg_out"] - s["seg_in"] for s in segments)
+            # Escape single quotes in path for FFmpeg concat demuxer format
+            escaped_source = str(source).replace("'", "\\'")
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".txt", delete=False, encoding="utf-8"
+            ) as f:
+                for seg in segments:
+                    f.write(f"file '{escaped_source}'\n")
+                    f.write(f"inpoint {seg['seg_in']}\n")
+                    f.write(f"outpoint {seg['seg_out']}\n")
+                filelist_path = f.name
+            try:
+                cmd = [
+                    FFMPEG_BIN,
+                    "-y",
+                    "-f",
+                    "concat",
+                    "-safe",
+                    "0",
+                    "-i",
+                    filelist_path,
+                    "-c",
+                    "copy",
+                    str(output),
+                ]
+                proc = subprocess.Popen(
+                    cmd,
+                    stderr=subprocess.PIPE,
+                    stdout=subprocess.DEVNULL,
+                    universal_newlines=True,
+                    errors="replace",
+                )
+                for line in proc.stderr:  # type: ignore[union-attr]
+                    m = re.search(r"time=(\d+):(\d+):(\d+\.?\d*)", line)
+                    if m:
+                        elapsed = int(m.group(1)) * 3600 + int(m.group(2)) * 60 + float(m.group(3))
+                        job["progress"] = (
+                            min(99, int(elapsed / total_duration * 100))
+                            if total_duration > 0
+                            else 99
+                        )
+                proc.wait()
+            finally:
+                Path(filelist_path).unlink(missing_ok=True)
+            if proc.returncode != 0:
+                job["status"] = "error"
+                job["error"] = f"FFmpeg concat exited with code {proc.returncode}"
+                return
+
+        # Post-export: move original to dest_dir (unless keep_original or same dir)
+        rel_path = to_rel(source)
+        if not keep_original and dest_dir.resolve() != source.parent.resolve():
+            dest_source = dest_dir / source.name
+            try:
+                shutil.move(str(source), str(dest_source))
+                new_rel = to_rel(dest_source)
+                with get_db() as conn:
+                    conn.execute("UPDATE progress SET path = ? WHERE path = ?", (new_rel, rel_path))
+                    conn.execute("UPDATE segments SET path = ? WHERE path = ?", (new_rel, rel_path))
+                    conn.commit()
+                rel_path = new_rel
+            except Exception as e:
+                job["move_error"] = str(e)
+
+        # Clear segments for this file after successful export
+        with get_db() as conn:
+            conn.execute("DELETE FROM segments WHERE path = ?", (rel_path,))
+            conn.commit()
+
+        job["status"] = "done"
+        job["progress"] = 100
+    except FileNotFoundError:
+        job["status"] = "error"
+        job["error"] = "FFmpeg introuvable — installez-le (winget install ffmpeg)"
+    except Exception as e:
+        job["status"] = "error"
+        job["error"] = str(e)
+
+
 def _run_move(job_id: str, source: Path, destination: Path) -> None:
     job = _jobs[job_id]
     job["status"] = "running"
@@ -322,6 +475,7 @@ def _run_move(job_id: str, source: Path, destination: Path) -> None:
     new_rel = to_rel(final_dest)
     with get_db() as conn:
         conn.execute("UPDATE progress SET path = ? WHERE path = ?", (new_rel, old_rel))
+        conn.execute("UPDATE segments SET path = ? WHERE path = ?", (new_rel, old_rel))
         conn.commit()
     job["status"] = "done"
     job["progress"] = 100
@@ -1178,10 +1332,11 @@ def delete_file(path: str):
             target.unlink()
     except PermissionError:
         raise HTTPException(status_code=423, detail="File is locked by another process") from None
-    # Clean progress entry
+    # Clean progress and segments entries
     rel = to_rel(target)
     with get_db() as conn:
         conn.execute("DELETE FROM progress WHERE path = ?", (rel,))
+        conn.execute("DELETE FROM segments WHERE path = ?", (rel,))
         conn.commit()
     return {"ok": True}
 
@@ -1251,6 +1406,82 @@ def cut_video(path: str, body: CutRequest):
     threading.Thread(
         target=_run_cut,
         args=(job_id, source, output, body.start, body.end, dest_dir),
+        daemon=True,
+    ).start()
+    return {"job_id": job_id}
+
+
+# ── Segments ──────────────────────────────────────────────────────────────────
+
+
+@app.get("/api/segments")
+def list_segments(path: str):
+    rel = to_rel(safe_path(path))
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT id, seg_in, seg_out FROM segments WHERE path = ? ORDER BY id ASC",
+            (rel,),
+        ).fetchall()
+    return [{"id": r["id"], "seg_in": r["seg_in"], "seg_out": r["seg_out"]} for r in rows]
+
+
+@app.post("/api/segments")
+def create_segment(path: str, body: SegmentCreate):
+    if body.seg_out <= body.seg_in:
+        raise HTTPException(status_code=400, detail="seg_out must be after seg_in")
+    rel = to_rel(safe_path(path))
+    with get_db() as conn:
+        cur = conn.execute(
+            "INSERT INTO segments (path, seg_in, seg_out) VALUES (?, ?, ?)",
+            (rel, body.seg_in, body.seg_out),
+        )
+        conn.commit()
+    return {"id": cur.lastrowid}
+
+
+@app.delete("/api/segments/{seg_id}")
+def delete_segment(seg_id: int):
+    with get_db() as conn:
+        n = conn.execute("DELETE FROM segments WHERE id = ?", (seg_id,)).rowcount
+        conn.commit()
+    if n == 0:
+        raise HTTPException(status_code=404, detail="Segment not found")
+    return {"ok": True}
+
+
+@app.post("/api/files/export-segments")
+def export_segments(path: str, body: ExportSegmentsRequest):
+    source = safe_path(path)
+    if not source.exists() or not is_video(source):
+        raise HTTPException(status_code=404, detail="Video not found")
+    if body.mode not in ("individual", "merged"):
+        raise HTTPException(status_code=400, detail="mode must be 'individual' or 'merged'")
+    dest_dir = safe_path(body.destination)
+    if not dest_dir.is_dir():
+        raise HTTPException(status_code=404, detail="Destination folder not found")
+    rel_path = to_rel(source)
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT id, seg_in, seg_out FROM segments WHERE path = ? ORDER BY id ASC",
+            (rel_path,),
+        ).fetchall()
+    segments = [{"seg_in": r["seg_in"], "seg_out": r["seg_out"]} for r in rows]
+    if not segments:
+        raise HTTPException(status_code=400, detail="No segments defined for this file")
+    n = len(segments)
+    label = f"{n} segment{'s' if n > 1 else ''}" if body.mode == "merged" else f"seg1…{n}"
+    job_id = str(uuid.uuid4())
+    _jobs[job_id] = {
+        "id": job_id,
+        "source_name": source.name,
+        "output_name": label,
+        "status": "pending",
+        "progress": 0,
+        "error": None,
+    }
+    threading.Thread(
+        target=_run_export_segments,
+        args=(job_id, source, segments, body.mode, dest_dir, body.keep_original),
         daemon=True,
     ).start()
     return {"job_id": job_id}
@@ -1660,6 +1891,7 @@ _SETTINGS_KEYS = {
     "gamepad_haptic",  # '1' | '0', default '1'
     "gamepad_swap_sticks",  # '1' | '0', default '0' — swap left/right stick assignments
     "gamepad_mapping",  # JSON string, default '{}' (use built-in defaults)
+    "fs_progress_zoom",  # int 5-50, zoom window % for fullscreen progress bar, default 20
 }
 
 _SETTINGS_DEFAULTS: dict[str, str] = {
@@ -1690,6 +1922,7 @@ _SETTINGS_DEFAULTS: dict[str, str] = {
     "gamepad_haptic": "1",
     "gamepad_swap_sticks": "0",
     "gamepad_mapping": "{}",
+    "fs_progress_zoom": "20",
 }
 
 
@@ -1739,6 +1972,7 @@ class SettingsPayload(BaseModel):
     gamepad_haptic: bool | None = None
     gamepad_swap_sticks: bool | None = None
     gamepad_mapping: str | None = None  # raw JSON string
+    fs_progress_zoom: int | None = Field(default=None, ge=5, le=50)
 
 
 @app.get("/api/settings")
@@ -1799,6 +2033,7 @@ def update_settings(body: SettingsPayload):
             ("download_cookies_path", body.download_cookies_path),
             ("gamepad_deadzone", body.gamepad_deadzone),
             ("gamepad_mapping", body.gamepad_mapping),
+            ("fs_progress_zoom", body.fs_progress_zoom),
         ]
         for key, val in _simple:
             if val is not None:

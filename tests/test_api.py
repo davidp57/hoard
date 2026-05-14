@@ -700,6 +700,27 @@ class TestSettings:
         resp = client.post("/api/settings", json={"gamepad_mapping": "{not valid json}"})
         assert resp.status_code == 422
 
+    def test_fs_progress_zoom_default(self):
+        resp = client.get("/api/settings")
+        assert resp.status_code == 200
+        assert resp.json()["fs_progress_zoom"] == "20"
+
+    def test_fs_progress_zoom_can_be_updated(self):
+        resp = client.post("/api/settings", json={"fs_progress_zoom": 30})
+        assert resp.status_code == 200
+        assert resp.json()["ok"] is True
+
+        resp = client.get("/api/settings")
+        assert resp.json()["fs_progress_zoom"] == "30"
+
+    def test_fs_progress_zoom_rejects_too_small(self):
+        resp = client.post("/api/settings", json={"fs_progress_zoom": 4})
+        assert resp.status_code == 422
+
+    def test_fs_progress_zoom_rejects_too_large(self):
+        resp = client.post("/api/settings", json={"fs_progress_zoom": 51})
+        assert resp.status_code == 422
+
 
 # ── /api/initial-sweep ───────────────────────────────────────────────────────
 
@@ -881,6 +902,148 @@ class TestCut:
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
         assert len(resp.json()) >= 1
+
+
+# ── /api/segments ─────────────────────────────────────────────────────────────
+
+
+class TestSegments:
+    def _noop_thread(self, monkeypatch):
+        import threading as _threading
+
+        monkeypatch.setattr(
+            _threading,
+            "Thread",
+            lambda target, args, daemon: type("T", (), {"start": lambda self: None})(),
+        )
+
+    def test_empty_initially(self, video_file):
+        resp = client.get(f"/api/segments?path={video_file}")
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+    def test_create_and_list(self, video_file):
+        resp = client.post(
+            f"/api/segments?path={video_file}",
+            json={"seg_in": 5.0, "seg_out": 15.0},
+        )
+        assert resp.status_code == 200
+        seg_id = resp.json()["id"]
+        assert isinstance(seg_id, int)
+
+        resp = client.get(f"/api/segments?path={video_file}")
+        assert resp.status_code == 200
+        segs = resp.json()
+        assert len(segs) == 1
+        assert segs[0]["id"] == seg_id
+        assert segs[0]["seg_in"] == 5.0
+        assert segs[0]["seg_out"] == 15.0
+
+    def test_multiple_segments_ordered(self, video_file):
+        client.post(f"/api/segments?path={video_file}", json={"seg_in": 30.0, "seg_out": 40.0})
+        client.post(f"/api/segments?path={video_file}", json={"seg_in": 10.0, "seg_out": 20.0})
+        resp = client.get(f"/api/segments?path={video_file}")
+        segs = resp.json()
+        assert len(segs) >= 2
+        # Ordered by insertion (id ASC)
+        ids = [s["id"] for s in segs]
+        assert ids == sorted(ids)
+
+    def test_delete_segment(self, video_file):
+        r = client.post(f"/api/segments?path={video_file}", json={"seg_in": 1.0, "seg_out": 2.0})
+        seg_id = r.json()["id"]
+        resp = client.delete(f"/api/segments/{seg_id}")
+        assert resp.status_code == 200
+        assert resp.json() == {"ok": True}
+
+        segs = client.get(f"/api/segments?path={video_file}").json()
+        assert all(s["id"] != seg_id for s in segs)
+
+    def test_delete_nonexistent_segment(self):
+        resp = client.delete("/api/segments/999999")
+        assert resp.status_code == 404
+
+    def test_invalid_range_rejected(self, video_file):
+        resp = client.post(
+            f"/api/segments?path={video_file}",
+            json={"seg_in": 20.0, "seg_out": 10.0},
+        )
+        assert resp.status_code == 400
+
+    def test_equal_range_rejected(self, video_file):
+        resp = client.post(
+            f"/api/segments?path={video_file}",
+            json={"seg_in": 10.0, "seg_out": 10.0},
+        )
+        assert resp.status_code == 400
+
+    def test_export_no_segments_rejected(self, video_file):
+        (MEDIA_ROOT / "dest").mkdir(exist_ok=True)
+        resp = client.post(
+            f"/api/files/export-segments?path={video_file}",
+            json={"mode": "merged", "destination": "dest"},
+        )
+        assert resp.status_code == 400
+
+    def test_export_dest_not_found(self, video_file):
+        client.post(f"/api/segments?path={video_file}", json={"seg_in": 0.0, "seg_out": 5.0})
+        resp = client.post(
+            f"/api/files/export-segments?path={video_file}",
+            json={"mode": "merged", "destination": "no_such_dir"},
+        )
+        assert resp.status_code == 404
+
+    def test_export_source_not_found(self):
+        (MEDIA_ROOT / "dest").mkdir(exist_ok=True)
+        resp = client.post(
+            "/api/files/export-segments?path=ghost.mp4",
+            json={"mode": "merged", "destination": "dest"},
+        )
+        assert resp.status_code == 404
+
+    def test_export_invalid_mode(self, video_file):
+        client.post(f"/api/segments?path={video_file}", json={"seg_in": 0.0, "seg_out": 5.0})
+        (MEDIA_ROOT / "dest").mkdir(exist_ok=True)
+        resp = client.post(
+            f"/api/files/export-segments?path={video_file}",
+            json={"mode": "badmode", "destination": "dest"},
+        )
+        assert resp.status_code == 400
+
+    def test_export_individual_returns_job_id(self, video_file, monkeypatch):
+        self._noop_thread(monkeypatch)
+        client.post(f"/api/segments?path={video_file}", json={"seg_in": 0.0, "seg_out": 5.0})
+        client.post(f"/api/segments?path={video_file}", json={"seg_in": 10.0, "seg_out": 15.0})
+        (MEDIA_ROOT / "dest").mkdir(exist_ok=True)
+        resp = client.post(
+            f"/api/files/export-segments?path={video_file}",
+            json={"mode": "individual", "destination": "dest"},
+        )
+        assert resp.status_code == 200
+        assert "job_id" in resp.json()
+
+    def test_export_merged_returns_job_id(self, video_file, monkeypatch):
+        self._noop_thread(monkeypatch)
+        client.post(f"/api/segments?path={video_file}", json={"seg_in": 0.0, "seg_out": 5.0})
+        client.post(f"/api/segments?path={video_file}", json={"seg_in": 10.0, "seg_out": 15.0})
+        (MEDIA_ROOT / "dest").mkdir(exist_ok=True)
+        resp = client.post(
+            f"/api/files/export-segments?path={video_file}",
+            json={"mode": "merged", "destination": "dest"},
+        )
+        assert resp.status_code == 200
+        assert "job_id" in resp.json()
+
+    def test_path_traversal_rejected(self):
+        resp = client.get("/api/segments?path=../../etc/passwd")
+        assert resp.status_code in (400, 403)
+
+    def test_segments_isolated_per_path(self, video_file, tmp_path):
+        other = "other_video.mp4"
+        (MEDIA_ROOT / other).touch()
+        client.post(f"/api/segments?path={video_file}", json={"seg_in": 0.0, "seg_out": 5.0})
+        resp = client.get(f"/api/segments?path={other}")
+        assert resp.json() == []
 
 
 # ── /api/download ─────────────────────────────────────────────────────────────
