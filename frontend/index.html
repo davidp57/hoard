@@ -586,7 +586,7 @@
   .modal-folder-btn:hover { border-color: var(--accent); color: var(--accent); }
   .modal-folder-btn.gp-cursor { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface2)); }
   .modal-folder-btn.selected { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 18%, var(--surface2)); }
-  #cut-confirm-btn.gp-cursor, #move-confirm-btn.gp-cursor { outline: 3px solid #fff; outline-offset: 3px; }
+  #cut-confirm-btn.gp-cursor, #move-confirm-btn.gp-cursor, #export-confirm-btn.gp-cursor { outline: 3px solid #fff; outline-offset: 3px; }
 
   #modal-cancel {
     margin-top: 8px;
@@ -3402,15 +3402,15 @@ video.addEventListener('timeupdate', () => {
   zoomTrack.style.left = zoomStart + '%';
   document.getElementById('mini-bar-zoom-fill').style.width = ((pct - zoomStart) / z * 100) + '%';
   // Update pending-IN fill
-  if (_pendingIn !== null) {
-    const pendingEl = document.getElementById('pending-in-fill');
+  const pendingEl = document.getElementById('pending-in-fill');
+  if (_pendingIn !== null && video.currentTime > _pendingIn && video.duration) {
     const cur = video.currentTime;
     const dur = video.duration;
-    if (cur > _pendingIn) {
-      pendingEl.style.left = (_pendingIn / dur * 100).toFixed(3) + '%';
-      pendingEl.style.width = ((cur - _pendingIn) / dur * 100).toFixed(3) + '%';
-      pendingEl.style.display = 'block';
-    }
+    pendingEl.style.left = (_pendingIn / dur * 100).toFixed(3) + '%';
+    pendingEl.style.width = ((cur - _pendingIn) / dur * 100).toFixed(3) + '%';
+    pendingEl.style.display = 'block';
+  } else {
+    pendingEl.style.display = 'none';
   }
 });
 
@@ -3698,9 +3698,14 @@ const _SEG_COLORS = ['#e8884a', '#4ae888', '#4a88e8', '#e84ae8', '#e8e84a', '#4a
 let _exportMode = 'merged';
 
 async function loadSegments(path) {
-  const data = await fetch(`${API}/api/segments?path=${encodeURIComponent(path)}`)
-    .then(r => r.json()).catch(() => []);
-  _segments = data;
+  try {
+    const resp = await fetch(`${API}/api/segments?path=${encodeURIComponent(path)}`);
+    if (!resp.ok) throw new Error(resp.status);
+    const data = await resp.json();
+    _segments = Array.isArray(data) ? data : [];
+  } catch (_) {
+    _segments = [];
+  }
   updateSegmentUI();
 }
 
@@ -3849,7 +3854,7 @@ async function confirmExport() {
   _pendingIn = null;
   _segments = [];
   updateSegmentUI();
-  trackJob(job_id, keepOriginal ? currentPath : null);
+  trackJob(job_id, currentPath);
 }
 
 // ── Jobs ──────────────────────────────────────────────────────────────────────
