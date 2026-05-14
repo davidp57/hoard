@@ -675,6 +675,44 @@
   }
   #toast.show { transform: translateX(-50%) translateY(0); }
 
+  /* ── Volume OSD ── */
+  #vol-osd {
+    position: absolute;
+    bottom: 80px;
+    right: 20px;
+    background: rgba(0,0,0,0.65);
+    border-radius: 10px;
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.25s;
+    z-index: 50;
+  }
+  #vol-osd.visible { opacity: 1; }
+  #vol-osd-bar-track {
+    width: 130px;
+    height: 6px;
+    background: rgba(255,255,255,0.25);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  #vol-osd-bar-fill {
+    height: 100%;
+    background: #fff;
+    border-radius: 3px;
+    transition: width 0.1s;
+  }
+  #vol-osd-pct {
+    font-size: 13px;
+    color: #fff;
+    font-family: 'DM Mono', monospace;
+    min-width: 36px;
+    text-align: right;
+  }
+
   /* ── Gamepad HUD ── */
   #gp-hud {
     position: fixed;
@@ -1260,6 +1298,11 @@
 
     <div id="video-container">
       <div id="toast"></div>
+      <div id="vol-osd">
+        <span id="vol-osd-icon">🔊</span>
+        <div id="vol-osd-bar-track"><div id="vol-osd-bar-fill" style="width:100%"></div></div>
+        <span id="vol-osd-pct">100%</span>
+      </div>
       <video id="video" preload="metadata"></video>
       <div id="mini-time">0:00 / 0:00</div>
       <div id="controls">
@@ -3185,6 +3228,20 @@ function setVolume(v) {
   video.volume = v;
   video.muted = false;
   localStorage.setItem('volume', v);
+  if (currentFile) showVolumeOSD();
+}
+
+let _volOsdTimer = null;
+function showVolumeOSD() {
+  const vol = video.muted ? 0 : video.volume;
+  const icon = vol === 0 ? '🔇' : vol < 0.5 ? '🔉' : '🔊';
+  document.getElementById('vol-osd-icon').textContent = icon;
+  document.getElementById('vol-osd-bar-fill').style.width = (vol * 100) + '%';
+  document.getElementById('vol-osd-pct').textContent = Math.round(vol * 100) + '%';
+  const osd = document.getElementById('vol-osd');
+  osd.classList.add('visible');
+  clearTimeout(_volOsdTimer);
+  _volOsdTimer = setTimeout(() => osd.classList.remove('visible'), 2500);
 }
 
 function toggleMute() {
@@ -3366,7 +3423,7 @@ video.addEventListener('touchmove', e => {
       // Right edge: volume
       video.volume = Math.max(0, Math.min(1, touchStartVol - dy / 200));
       document.getElementById('volume-slider').value = video.volume;
-      showToast(`🔊 ${Math.round(video.volume * 100)}%`);
+      showVolumeOSD();
     } else if (xPct < edgePct && cfg.gesture_brightness) {
       // Left edge: brightness
       setBrightness(touchStartBrightness - dy / 200);
@@ -4015,11 +4072,13 @@ document.addEventListener('keydown', e => {
   if (e.code === 'ArrowUp') {
     video.volume = Math.min(1, video.volume + 0.1);
     document.getElementById('volume-slider').value = video.volume;
+    if (currentFile) showVolumeOSD();
     return;
   }
   if (e.code === 'ArrowDown') {
     video.volume = Math.max(0, video.volume - 0.1);
     document.getElementById('volume-slider').value = video.volume;
+    if (currentFile) showVolumeOSD();
     return;
   }
   // Seek keys — 4 levels via modifier
@@ -4201,10 +4260,10 @@ function _gpAction(action, gamepad) {
       if (hasVideo) { skip(cfg.seek_xlong); _gpVibrate(gamepad, 80); }
       break;
     case 'volume_up':
-      if (hasVideo) { setVolume(Math.min(1, video.volume + 0.10)); showToast('🔊 +10%'); }
+      if (hasVideo) { setVolume(Math.min(1, video.volume + 0.10)); }
       break;
     case 'volume_down':
-      if (hasVideo) { setVolume(Math.max(0, video.volume - 0.10)); showToast('🔉 −10%'); }
+      if (hasVideo) { setVolume(Math.max(0, video.volume - 0.10)); }
       break;
     case 'prev_file':
       prevVideoInFolder();

@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Indicateur de volume (OSD)** : une barre de volume s'affiche en bas à droite du player quand le volume est modifié (touches ↑/↓, manette D-pad, swipe vertical tactile). Elle indique l'icône 🔇/🔉/🔊, un niveau visuel et le pourcentage, puis disparaît automatiquement après 2,5 secondes. Remplace les toasts éphémères volume gamepad et swipe tactile.
+
 ### Fixed
 - **Gamepad — plein écran impossible avec Y sous Firefox (PC)** : `requestFullscreen()` requiert un user gesture direct ; le polling gamepad via `requestAnimationFrame` n'en est pas un dans Firefox, provoquant un `NotAllowedError` silencieux. Quand `NotAllowedError` est levé, la fonction bascule désormais automatiquement sur le faux-fullscreen CSS, rendant le bouton Y symétrique (entrée et sortie) sur tous les navigateurs.
 - **Gamepad — dialogues en plein écran (BL-046)** : les dialogues de suppression et de déplacement (`#delete-dialog`, `#move-dialog`) ne répondaient pas aux boutons gamepad en mode plein écran natif sur SteamDeck/Edge. Ils sont désormais convertis en `<div>` overlay (`position:fixed`, `z-index:100`) et déplacés dans `document.fullscreenElement` lors du `fullscreenchange`, identiquement à l'overlay d'aide gamepad. La détection dans `_gpDispatch` utilise une nouvelle fonction `_gpOpenModal()` qui inspecte les deux types de modals (div + `<dialog>`).
