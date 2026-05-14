@@ -468,12 +468,12 @@
   }
   #mini-progress-wrap {
     position: relative;
-    height: 8px;
+    height: 14px;
     margin-top: 2px;
   }
   #mini-bar-full {
     position: absolute;
-    top: 2px;
+    top: 5px;
     left: 0;
     right: 0;
     height: 4px;
@@ -490,8 +490,8 @@
     position: absolute;
     top: 0;
     left: 0%;
-    width: 10%;
-    height: 8px;
+    width: 20%;
+    height: 14px;
     background: rgba(255,255,255,0.25);
     border-radius: 3px;
     overflow: hidden;
@@ -1173,6 +1173,10 @@
         <div class="s-right"><input type="number" class="s-num" id="s-watched-threshold" min="75" max="99" step="1"> <span style="font-size:12px;color:var(--text-dim)">%</span></div>
       </div>
       <div class="s-row">
+        <div><div class="s-label">Zoom barre plein écran</div><div class="s-desc">Taille de la fenêtre de zoom sur la barre de progression en plein écran</div></div>
+        <div class="s-right"><input type="number" class="s-num" id="s-fs-progress-zoom" min="5" max="50" step="5"> <span style="font-size:12px;color:var(--text-dim)">%</span></div>
+      </div>
+      <div class="s-row">
         <div><div class="s-label">Initial sweep par défaut</div><div class="s-desc">Pour une vidéo sans progression enregistrée : démarrer à N secondes. 0 = désactivé.</div></div>
         <div class="s-right"><input type="number" class="s-num" id="s-initial-sweep" min="0" max="7200" step="30"> <span style="font-size:12px;color:var(--text-dim)">s</span></div>
       </div>
@@ -1643,6 +1647,7 @@ let cfg = {
   gamepad_haptic: true,
   gamepad_swap_sticks: false,
   gamepad_mapping: {},
+  fs_progress_zoom: 20,
 };
 
 function applyCfg(s) {
@@ -1681,6 +1686,7 @@ function applyCfg(s) {
   cfg.gamepad_haptic             = s.gamepad_haptic !== '0' && s.gamepad_haptic !== false;
   cfg.gamepad_swap_sticks        = s.gamepad_swap_sticks === '1' || s.gamepad_swap_sticks === true;
   try { cfg.gamepad_mapping = JSON.parse(s.gamepad_mapping || '{}'); } catch { cfg.gamepad_mapping = {}; }
+  cfg.fs_progress_zoom = parseInt(s.fs_progress_zoom ?? 20, 10);
   // propagate navigation prefs
   homeFolder = cfg.home_folder;
   sortBy     = cfg.sort_by;
@@ -2484,6 +2490,7 @@ function _refreshPinStatusUI() {
 function openSettings() {
   document.getElementById('s-privacy-timeout').value    = cfg.privacy_timeout;
   document.getElementById('s-watched-threshold').value  = cfg.watched_threshold;
+  document.getElementById('s-fs-progress-zoom').value   = cfg.fs_progress_zoom;
   document.getElementById('s-initial-sweep').value      = cfg.initial_sweep_seconds;
   document.getElementById('s-sort-by').value            = cfg.sort_by;
   document.getElementById('s-sort-dir').value           = cfg.sort_dir;
@@ -2532,6 +2539,7 @@ async function saveSettings() {
   const payload = {
     privacy_timeout:           parseInt(document.getElementById('s-privacy-timeout').value, 10),
     watched_threshold:         parseInt(document.getElementById('s-watched-threshold').value, 10),
+    fs_progress_zoom:          parseInt(document.getElementById('s-fs-progress-zoom').value, 10),
     initial_sweep_seconds:     parseInt(document.getElementById('s-initial-sweep').value, 10),
     home_folder:               cfg.home_folder,
     sort_by:                   document.getElementById('s-sort-by').value,
@@ -3410,9 +3418,12 @@ video.addEventListener('timeupdate', () => {
   document.getElementById('time-display').textContent = timeStr;
   document.getElementById('mini-remaining').textContent = '-' + formatTime(video.duration - video.currentTime);
   document.getElementById('mini-bar-fill').style.width = pct + '%';
-  const zoomStart = Math.min(Math.floor(pct / 10) * 10, 90);
-  document.getElementById('mini-bar-zoom-track').style.left = zoomStart + '%';
-  document.getElementById('mini-bar-zoom-fill').style.width = ((pct - zoomStart) / 10 * 100) + '%';
+  const z = cfg.fs_progress_zoom || 20;
+  const zoomStart = Math.min(Math.floor(pct / z) * z, 100 - z);
+  const zoomTrack = document.getElementById('mini-bar-zoom-track');
+  zoomTrack.style.width = z + '%';
+  zoomTrack.style.left = zoomStart + '%';
+  document.getElementById('mini-bar-zoom-fill').style.width = ((pct - zoomStart) / z * 100) + '%';
 });
 
 video.addEventListener('play', () => { document.getElementById('playpause-btn').textContent = '⏸'; });
