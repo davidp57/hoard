@@ -3285,7 +3285,9 @@ async function playVideo(idx) {
   if (saveInterval) clearInterval(saveInterval);
   saveInterval = setInterval(saveProgress, 5000);
 
-  // Re-render list to show active
+  // Re-render list to show active — preserve gamepad cursor on the current video (BL-052)
+  const gpIdx = _gpRenderedList.findIndex(e => e.path === entry.path);
+  if (gpIdx >= 0) _gpPendingRestoreIdx = gpIdx;
   renderFiles(entries);
 }
 
