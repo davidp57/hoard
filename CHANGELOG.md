@@ -46,8 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **UX « Ajouter une racine »** : le bouton n'utilise plus `currentPath` silencieusement. Il ouvre désormais la modale de navigation pour choisir le dossier, puis demande un nom (pré-rempli avec le nom du dossier sélectionné).
 - **Bouton « ⌂ Dossier de départ »** dans les Paramètres : quand des home roots existent, il ouvre le sélecteur de dossier pour *ajouter* une nouvelle racine (au lieu de modifier `MEDIA_ROOT` directement). Le comportement historique (changer `MEDIA_ROOT`) est conservé si aucune home root n'est configurée.
 - **`navigateHome` (bouton 🏠)** : navigue vers la racine par défaut si l'utilisateur n'y est pas déjà ; appuyer une seconde fois depuis la racine par défaut affiche l'écran de sélection multi-racines.
-
- Les tags sont stockés en base SQLite (`file_tags`), affichés comme badges dans la liste, et un filtre par tag apparaît dynamiquement dans la barre de tri.
+- **Tags de fichiers** : les tags sont stockés en base SQLite (`file_tags`), affichés comme badges dans la liste, et un filtre par tag apparaît dynamiquement dans la barre de tri.
 - **Sélecteur de destination libre (BL-005)** : bouton « 📂 Parcourir… » dans la fenêtre de déplacement permettant de choisir n'importe quel dossier de l'arborescence comme destination.
 - **Recherche dans les noms de fichiers (BL-012)** : champ de recherche dans la barre de tri ; la recherche est récursive dans le dossier courant via le nouvel endpoint `GET /api/search`.
 - **Métadonnées vidéo dans l'UI (BL-016)** : codec, résolution, durée et bitrate affichés sous le titre du fichier en cours de lecture via `GET /api/media-info`.
@@ -56,9 +55,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Dossiers home multiples (BL-023)** : support de plusieurs racines de navigation avec gestion complète en base (`home_roots`) et interface de sélection.
 - **Support manette / gamepad (BL-024)** : intégration de la Gamepad API avec boucle `requestAnimationFrame`, système 4 couches (base / L1 / R1 / L1+R1), contrôles complets du lecteur (lecture, seek, volume, plein écran, vu/non vu, déplacement rapide), navigation dans le navigateur de fichiers au gamepad, scrubbing analogique stick gauche, volume analogique stick droit, badge HUD de couche active, overlay aide (Start button), toasts de connexion/déconnexion, retour haptique Chrome, et section « 🎮 Manette » dans les Paramètres (activation, deadzone, haptique). Paramètres `gamepad_enabled`, `gamepad_deadzone`, `gamepad_haptic`, `gamepad_mapping` ajoutés au backend SQLite.
 
-- **Configurable initial sweep for new videos**: add a global `initial_sweep_seconds` player setting plus per-folder overrides. Brand-new videos can now start at a configured offset (for example 10 minutes in), while videos with saved progress still resume from their actual saved position.
-- **Playback metadata endpoint**: add `/api/media-info` backed by `ffprobe` so Hoard can inspect container, codecs, bitrate, frame rate, and audio properties before deciding how to play a file.
-- **Optional PWA install shell**: Hoard now ships a web app manifest, a minimal service worker, and standalone-shell polish so supported browsers can install it as an app without changing the online-only NAS playback model.
+- **Sweep initial configurable (BL-017)** : nouveau paramètre global `initial_sweep_seconds` + surcharge par dossier. Les vidéos jamais ouvertes démarrent à l'offset configuré (ex. 10 minutes) ; les vidéos avec progression sauvegardée reprennent normalement à leur position mémorisée.
+- **Endpoint métadonnées lecture (BL-019)** : ajout de `/api/media-info` basé sur `ffprobe` pour inspecter le conteneur, les codecs, le bitrate, la fréquence d'images et les propriétés audio avant de décider du mode de lecture.
+- **Shell PWA optionnel (BL-014)** : Hoard embarque désormais un manifeste web app, un service worker minimal et des ajustements standalone pour permettre l'installation comme application sur les navigateurs compatibles (iPad, laptop Windows), sans modifier le modèle de lecture en ligne depuis le NAS.
 - **4 niveaux de seek unifiés (BL-021)**: les raccourcis clavier, le double-tap et les boutons skip utilisent désormais 4 durées configurables (`seek_short`, `seek_medium`, `seek_long`, `seek_xlong`) au lieu des anciennes valeurs `doubletap_*` séparées.
 - **Nouveaux raccourcis clavier (BL-021)**: navigation vidéo suivante/précédente (PageDown/PageUp), muet (M), cycle aspect ratio (A), marquer points IN/OUT (I/O), ouvrir découpe (C), ouvrir déplacement (D), supprimer (Suppr), sauvegarder position initiale (S), aide raccourcis (?).
 - **Icône aspect ratio distincte (BL-025)**: le bouton Fit/Fill affiche désormais une icône SVG de cadre au lieu du symbole ⛶ qui ressemblait au bouton plein écran.
@@ -68,15 +67,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Option pour désactiver le transcodage (BL-022)**: nouveau paramètre `transcode_enabled` (défaut : activé). Quand il est désactivé, le player utilise toujours `/api/stream` sans appeler `/api/transcode`, ce qui réduit la charge CPU du NAS pour les formats supportés nativement.
 
 ### Fixed
-- **Probe playback no longer transcodes too early**: formats such as HEVC-in-MP4 now keep the optimistic native `/api/stream` path even when `canPlayType()` or `MediaCapabilities` stay conservative, and only fall back to `/api/transcode` on explicit `fallback` formats or real playback failure.
-- **Fullscreen controls no longer toggle from the whole video area**: the hide/show action is again limited to the intended bottom-centre zone near the controls instead of reacting to clicks across the fullscreen container.
-- **Single taps on the side zones no longer trigger centre actions**: left and right fullscreen gesture areas now stay inert on single taps instead of accidentally toggling controls or play/pause.
-- **Native fullscreen now works on touch-capable desktop browsers (BL-020)**: the `navigator.maxTouchPoints > 0` branch was removed from `toggleFullscreen()`. Devices such as the SteamDeck that have a touchscreen but also support `requestFullscreen()` now correctly use native fullscreen instead of the CSS faux-fullscreen overlay. iPad/Safari continues to use faux-fullscreen because `document.fullscreenEnabled` is already `false` there.
+- **Sonde lecture — pas de transcodage prématuré (BL-019)** : les formats comme HEVC-in-MP4 conservent désormais le chemin natif `/api/stream` même quand `canPlayType()` ou `MediaCapabilities` restent conservateurs. Le repli vers `/api/transcode` n'est déclenché que sur les formats explicitement marqués `fallback` ou lors d'un vrai échec de lecture.
+- **Contrôles plein écran — zone de déclenchement restreinte (BL-018)** : afficher/masquer les contrôles est à nouveau limité à la zone basse centrale près des boutons, et non à l'ensemble du conteneur plein écran.
+- **Tap simple sur les zones latérales — plus d'action centrale (BL-018)** : les zones de seek gauche et droite en plein écran ignorent désormais les taps simples et ne déclenchent plus le basculement lecture/pause ni les contrôles.
+- **Plein écran natif sur les postes tactiles (BL-020)** : la branche `navigator.maxTouchPoints > 0` a été supprimée de `toggleFullscreen()`. Les appareils comme le SteamDeck (tactile + `requestFullscreen()` supporté) utilisent désormais le vrai plein écran natif. iPad/Safari continue d'utiliser le faux-fullscreen CSS car `document.fullscreenEnabled` y est déjà `false`.
 
 ### Changed
-- **Fullscreen controls now auto-hide**: entering fullscreen now hides player controls by default. On desktop they reappear on mouse movement or keyboard interaction; on touch devices they can be brought back with the existing bottom-centre controls gesture.
-- **Smarter native playback selection**: the player now probes native browser support with `canPlayType()` and `MediaCapabilities` when metadata is available, and only falls back to `/api/transcode` when support is not confirmed or playback is rejected.
-- **Folder initial sweep UI simplified**: the player now uses a single compact action to save the current playback position as the default start for the current folder, instead of a permanent inline editor.
+- **Masquage automatique des contrôles plein écran (BL-018)** : à l'entrée en plein écran, les contrôles se masquent automatiquement. Sur desktop ils réapparaissent sur mouvement souris ou interaction clavier ; sur écran tactile via le geste basse-centrale existant.
+- **Sélection intelligente du mode de lecture (BL-019)** : le player sonde le support natif via `canPlayType()` et `MediaCapabilities` quand les métadonnées sont disponibles, et ne bascule vers `/api/transcode` que si le support n'est pas confirmé ou en cas d'échec réel.
+- **Interface sweep initial simplifiée (BL-017)** : le player utilise désormais une action compacte unique pour enregistrer la position actuelle comme point de départ par défaut du dossier, à la place d'un éditeur inline permanent.
 
 ## [2.0.0] - 2026-04-06
 
