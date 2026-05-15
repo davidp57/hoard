@@ -40,6 +40,23 @@ Facteur de marge actuel : **0,40**.
 
 ---
 
+### Lot 10 — Lecteurs alternatifs : images, archives, PDF, audio (~240 min : 225 min Copilot + 15 min gestion)
+
+> Extension de Hoard aux médias non-vidéo. Le `#player-panel` accueille 4 sous-panels (vidéo, images, PDF, audio).
+> PDF.js bundlé localement dans `frontend/pdfjs/`. Archives .cbz (ZIP stdlib) + .cbr (rarfile + unrar dans Dockerfile).
+> Dépendances internes : BL-054 et BL-055 dépendent de BL-053. BL-056 et BL-057 dépendent de BL-053. BL-058 dépend de tout.
+
+| ID | Titre | Prio | Est. | Créé | Démarré | Terminé |
+| --- | --- | --- | --- | --- | --- | --- |
+| BL-053 | Lecteurs — backend socle (media_type, /api/file, archives, CBR) | P1 | 40 min | 2026-05-15 | | |
+| BL-054 | Lecteurs — visionneuse images (dossier + standalone, zoom modes) | P1 | 45 min | 2026-05-15 | | |
+| BL-055 | Lecteurs — archives (.zip / .cbz / .cbr) | P1 | 30 min | 2026-05-15 | | |
+| BL-056 | Lecteurs — lecteur PDF (PDF.js, keyboard/gamepad, progress) | P1 | 60 min | 2026-05-15 | | |
+| BL-057 | Lecteurs — lecteur audio (native, UI dédiée) | P2 | 20 min | 2026-05-15 | | |
+| BL-058 | Lecteurs — tests + intégration | P2 | 30 min | 2026-05-15 | | |
+
+---
+
 ### Lot 5 — Fonctionnalités avancées (~110 min : 95 min Copilot + 15 min gestion)
 
 > Dépendance interne : BL-015 dépend de BL-011 (progression multi-utilisateur présuppose une couche d'authentification) — BL-011 est dans le Lot 6 (sécurité) et doit être livré en premier.
@@ -514,3 +531,103 @@ Facteur de marge actuel : **0,40**.
 - **Fichiers modifiés** :
   - `frontend/index.html` — fin de `playVideo()` : ajout de `_gpPendingRestoreIdx = gpIdx` avant `renderFiles(entries)`
 - **Fix** : avant le `renderFiles(entries)` final de `playVideo`, rechercher `entry.path` dans `_gpRenderedList` et stocker l'index dans `_gpPendingRestoreIdx`. Ainsi, `renderFiles` restaure le curseur sur la vidéo en cours de lecture.
+
+---
+
+### BL-053 — Lecteurs : backend socle
+
+- **Dates** : `created=2026-05-15`
+- **Contexte** : pose les bases côté backend pour tous les types de médias non-vidéo.
+- **Travail** :
+  - Ajouter `IMAGE_EXTENSIONS`, `AUDIO_EXTENSIONS`, `PDF_EXTENSIONS = {".pdf"}`, `ARCHIVE_EXTENSIONS = {".zip", ".cbz", ".cbr"}`
+  - Ajouter `is_image()`, `is_audio()`, `is_pdf()`, `is_archive()` (même pattern que `is_video()`)
+  - `/api/files` : ajouter champ `media_type: "video"|"image"|"audio"|"pdf"|"archive"|"other"` (remplace les potentiels bools individuels). Retourner `progress` pour TOUS les types (pas seulement vidéo).
+  - `/api/stream` → renommer en `/api/file` : retirer le guard `is_video()`, laisser `mimetypes.guess_type` déterminer le Content-Type. Conserver le support Range (utile pour images et audio). Mettre à jour le frontend en même temps.
+  - Nouveaux endpoints archives :
+    - `GET /api/archive/list?path=` → liste ordonnée des noms d’images dans le ZIP/CBZ/CBR (filtrée sur extensions image)
+    - `GET /api/archive/image?path=&index=N` → sert l’image N depuis l’archive (réponse bytes + Content-Type)
+  - `rarfile` dans `backend/requirements.txt`
+  - `unrar-free` dans `Dockerfile` (apt-get install)
+  - Garder `is_video()` pour la rétro-compatibilité interne mais ne plus l'exposer dans l'API
+
+---
+
+### BL-054 — Lecteurs : visionneuse images
+
+- **Dates** : `created=2026-05-15`
+- **Contexte** : affichage et navigation des images (fichiers isolés ou parcours d’un dossier image-only).
+- **Dépend de** : BL-053
+- **Travail** :
+  - Nouveau panel `#image-viewer` dans `#player-panel` (masqué par défaut, visible quand `media_type === "image"`)
+  - Contenu : `<img id="viewer-img">` + barre de nav (« < N / Total > ») + bouton zoom-mode
+  - Deux modes d’affichage (toggle via `W` ou bouton) :
+    - **page-width** : `img { width: 100%; height: auto; }` + scroll vertical libre
+    - **full-page** : `img { max-width: 100%; max-height: 100vh; object-fit: contain; }` (pas de scroll)
+  - Parcours d’un dossier : depuis `entries`, filtrer `media_type === "image"`, naviguer en prev/next
+  - Ouvrir un fichier image isolé : charger via `/api/file?path=`
+  - Progress : `position = index_courant`, `duration = total_images`, sauvegarde à chaque changement de page
+  - Keyboard : `←`/`→` prev/next, `↑`/`↓` scroll (mode page-width), `W` toggle mode, `Home`/`End` 1re/dernière, `F` fullscreen, `Esc` fermer
+  - Gamepad : D-←/D-→ prev/next, D-↑/D-↓ scroll, L1+D-←/→ ±10 pages, Y fullscreen, B fermer, X toggle mode
+  - Icône dans liste fichiers : `📸` pour `media_type === "image"`
+
+---
+
+### BL-055 — Lecteurs : archives (.zip / .cbz / .cbr)
+
+- **Dates** : `created=2026-05-15`
+- **Dépend de** : BL-053, BL-054
+- **Travail** :
+  - Frontend : ouvrir une archive (clic/gamepad A) appelle `GET /api/archive/list?path=` pour obtenir le nombre total d'images, puis charge `/api/archive/image?path=&index=N` dans `#viewer-img`
+  - Réutiliser entièrement le panel `#image-viewer` de BL-054 — seule la source des images change
+  - `media_type === "archive"` dans `renderFiles` → icône `📦`
+  - Distinguer le type dans le state courant (`currentMediaType`) pour que les endpoints corrects soient appelés
+  - Backend : `rarfile` pour .cbr — gérer l'absence de `unrar` avec un message d'erreur clair (404 + message)
+
+---
+
+### BL-056 — Lecteurs : lecteur PDF (PDF.js)
+
+- **Dates** : `created=2026-05-15`
+- **Dépend de** : BL-053
+- **Travail** :
+  - Télécharger les fichiers `pdf.min.js` + `pdf.worker.min.js` depuis mozilla.github.io/pdf.js/releases (version 4.x) dans `frontend/pdfjs/`. FastAPI sert déjà `frontend/` comme StaticFiles → accessibles via `/pdfjs/`.
+  - Nouveau panel `#pdf-viewer` : `<canvas id="pdf-canvas">` + barre nav (page N/Total) + indicateur de zoom
+  - Charger le PDF via `GET /api/file?path=` (ArrayBuffer), initialiser `pdfjsLib.getDocument()`
+  - Rendu page par page sur le canvas avec le zoom courant
+  - Deux modes de fit (toggle `W`) : **fit-width** (zoom = container_width / page_width) et **fit-page** (zoom = min(w-ratio, h-ratio))
+  - Zoom manuel : `+`/`-` (incréments 10%), clampe entre 0.5× et 4×
+  - Progress : `position = page_courante`, `duration = total_pages`, sauvegarde à chaque changement
+  - Keyboard : `←`/`→`/`PageUp`/`PageDown` prev/next, `↑`/`↓` scroll, `W` toggle fit, `+`/`-` zoom, `Home`/`End`, `F` fullscreen, `Esc` fermer
+  - Gamepad : D-←/D-→ prev/next, D-↑/D-↓ scroll, L1+D-←/→ ±10 pages, Y fullscreen, B fermer, X toggle fit
+  - Icône dans liste : `📄` pour `media_type === "pdf"`
+
+---
+
+### BL-057 — Lecteurs : lecteur audio
+
+- **Dates** : `created=2026-05-15`
+- **Dépend de** : BL-053
+- **Travail** :
+  - Réutiliser le tag `<video>` existant (les navigateurs acceptent les fichiers audio sur `<video>`) : minimal code
+  - Quand `media_type === "audio"` : masquer `#video-container`, afficher un `#audio-player` dédié : artwork placeholder (icone musicale), nom du fichier, barre de progression réutilisée
+  - Keyboard + gamepad identiques à la vidéo (Space, ←/→, ↑/↓ volume, D-pad), les actions qui n’ont pas de sens (fullscreen, segment IN/OUT) sont ignorées
+  - Progress : time-based, identique à la vidéo (position/duration en secondes)
+  - Extensions : `.mp3`, `.flac`, `.ogg`, `.m4a`, `.aac`, `.wav`, `.opus`
+  - Icône dans liste : `🎵` pour `media_type === "audio"`
+
+---
+
+### BL-058 — Lecteurs : tests + intégration
+
+- **Dates** : `created=2026-05-15`
+- **Dépend de** : BL-053, BL-054, BL-055, BL-056, BL-057
+- **Travail** :
+  - Tests API (`tests/test_api.py`) :
+    - `test_files_media_type` : vérifier que `/api/files` retourne le bon `media_type` pour chaque extension
+    - `test_file_endpoint_image` : `/api/file?path=image.jpg` → 200 + Content-Type image/*
+    - `test_file_endpoint_pdf` : `/api/file?path=doc.pdf` → 200 + Content-Type application/pdf
+    - `test_archive_list_cbz` : `GET /api/archive/list?path=archive.cbz` → liste d'images
+    - `test_archive_image` : `GET /api/archive/image?path=archive.cbz&index=0` → bytes + Content-Type
+    - `test_archive_list_cbr` : idem pour CBR (skip si unrar absent)
+    - `test_progress_non_video` : sauvegarder/lire progress pour un fichier image
+  - Vérifier `ruff check` + `ruff format` à zéro warning

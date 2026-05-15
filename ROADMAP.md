@@ -67,6 +67,13 @@
 
 - [x] **Gamepad support** (BL-024): Gamepad API, 4-layer button system (base / L1 / R1 / L1+R1), full player controls (play/pause, seek multi-level, volume, fullscreen, watched toggle, aspect ratio, quick-folder moves), file browser cursor navigation, analog left-stick scrubbing, analog right-stick volume, layer HUD badge, dynamic button-map overlay (Start), connection/disconnection toasts, haptic feedback (Chrome), configurable deadzone and on/off toggle in Settings
 
+## v1.7 — Alternative Media Readers *(planned)*
+
+- [ ] **Image viewer** (BL-053+054): browse folders of images with keyboard/gamepad, two display modes (page-width / full-page)
+- [ ] **Archive reader** (BL-055): open `.zip`, `.cbz`, `.cbr` comic archives directly in the image viewer
+- [ ] **PDF reader** (BL-056): PDF.js-powered reader with page navigation, zoom, keyboard/gamepad control, and saved progress
+- [ ] **Audio player** (BL-057): native audio playback for `.mp3`, `.flac`, `.ogg`, `.m4a`, `.aac`, `.wav`, `.opus` using existing player infrastructure
+
 ---
 
 > Items within each milestone are roughly ordered by priority.
