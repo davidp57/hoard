@@ -802,11 +802,11 @@
     flex-direction: column;
     align-items: center;
     gap: 8px;
-    padding: 24px;
+    padding: 20px 20px 16px;
     overflow-y: auto;
-    width: 480px;
-    max-width: 95vw;
-    max-height: 85vh;
+    width: 620px;
+    max-width: 98vw;
+    max-height: 90vh;
   }
   #gp-overlay h2 {
     color: var(--accent);
@@ -814,35 +814,19 @@
     margin: 0 0 4px 0;
     letter-spacing: .06em;
   }
-  .gp-layer-title {
-    color: var(--text-dim);
-    font-size: 11px;
-    font-family: 'DM Mono', monospace;
-    text-transform: uppercase;
-    letter-spacing: .08em;
-    margin: 10px 0 4px;
+  /* Tab bar for controller layers */
+  .gp-tab-bar { display:flex; gap:4px; flex-wrap:wrap; width:100%; margin-bottom:4px; }
+  .gp-tab {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text-dim); border-radius: 6px; padding: 4px 12px;
+    font-size: 11px; cursor: pointer; font-family: inherit;
   }
-  .gp-row {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-    font-size: 12px;
-    width: 100%;
-    max-width: 420px;
-  }
-  .gp-btn-badge {
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 5px;
-    padding: 2px 7px;
-    font-family: 'DM Mono', monospace;
-    font-size: 11px;
-    min-width: 38px;
-    text-align: center;
-    flex-shrink: 0;
-    color: var(--text);
-  }
-  .gp-action { color: var(--text-mid); flex: 1; }
+  .gp-tab:hover { color: var(--text); border-color: var(--accent); }
+  .gp-tab.active { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 700; }
+  #gp-ctrl-container { width: 100%; }
+  /* Analogue footer */
+  .gp-analog-row { font-size: 10px; color: var(--text-dim); display:flex; gap:12px; justify-content:center; margin-top:6px; }
+  .gp-analog-row span { background:var(--surface2); border:1px solid var(--border); border-radius:4px; padding:2px 8px; }
 
   /* ── Mobile ── */
   @media (max-width: 700px) {
@@ -1846,6 +1830,14 @@
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">Suppr</td><td style="padding:4px 8px">Supprimer le fichier en cours</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">S</td><td style="padding:4px 8px">Sauvegarder position initiale du dossier</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">?</td><td style="padding:4px 8px">Afficher / masquer cette aide</td></tr>
+      </tbody>
+    </table>
+    <div style="font-size:11px;font-weight:700;color:var(--text-dim);margin-top:6px;text-transform:uppercase;letter-spacing:.05em">Dans les dialogues (suppression, déplacement, découpage)</div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <tbody>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">↑ / ↓</td><td style="padding:4px 8px">Naviguer entre les options</td></tr>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">Entrée</td><td style="padding:4px 8px">Valider / confirmer</td></tr>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">Échap</td><td style="padding:4px 8px">Annuler / fermer</td></tr>
       </tbody>
     </table>
   </div>
@@ -4812,6 +4804,22 @@ document.addEventListener('keydown', e => {
       closePdfViewer(); return;
     }
   }
+  // Keyboard navigation for open dialogs (mirrors gamepad: ↑↓ = navigate, Enter = confirm, Escape already handled above)
+  {
+    const kbDlg = _gpOpenModal();
+    if (kbDlg) {
+      if (kbDlg.id === 'shortcuts-dialog') {
+        if (e.key === '?') { kbDlg.close(); return; }
+        return; // Swallow all other keys while shortcuts help is open
+      }
+      if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+        if (e.code === 'ArrowUp')   { e.preventDefault(); _gpHandleDialog(kbDlg, 12, null); return; }
+        if (e.code === 'ArrowDown') { e.preventDefault(); _gpHandleDialog(kbDlg, 13, null); return; }
+        if (e.code === 'Enter')     { e.preventDefault(); _gpHandleDialog(kbDlg, 0, null);  return; }
+      }
+      return; // Swallow all other keys while a dialog is open
+    }
+  }
   // Image viewer navigation
   if (currentViewerMode === 'image') {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
@@ -4869,7 +4877,7 @@ document.addEventListener('keydown', e => {
   if (e.code === 'KeyS') { saveCurrentPositionAsInitialSweep(); return; }
   if (e.code === 'PageDown') { nextVideoInFolder(); return; }
   if (e.code === 'PageUp')   { prevVideoInFolder(); return; }
-  if (e.code === 'Slash' && e.shiftKey) { openShortcutsDialog(); return; }
+  if (e.key === '?') { openShortcutsDialog(); return; }
 });
 
 // ── Dialog helpers ────────────────────────────────────────────────────────────
@@ -4901,7 +4909,9 @@ function prevVideoInFolder() {
 }
 
 function openShortcutsDialog() {
-  document.getElementById('shortcuts-dialog').showModal();
+  const dlg = document.getElementById('shortcuts-dialog');
+  if (dlg.open) { dlg.close(); return; }
+  dlg.showModal();
 }
 
 // ── Gamepad engine ────────────────────────────────────────────────────────────
@@ -4918,7 +4928,7 @@ const GP_DEFAULT_MAPPING = {
     2: 'toggle_watched',   // X
     3: 'fullscreen',       // Y
     8: 'open_settings',    // Select
-    9: 'open_overlay',     // Start
+    9: 'open_overlay',      // Start
     12: 'seek_back_medium', // D-pad Up  (volume up / base: seek back medium)
     13: 'seek_fwd_medium',  // D-pad Down
     14: 'seek_back_medium', // D-pad Left
@@ -4968,6 +4978,7 @@ let _gpConnected = {};          // index -> true
 let _gpPrevButtons = {};        // index -> bool[]
 let _gpNavAccum = 0;            // accumulator for left-stick Y cursor navigation
 const _GP_SCRUB_THROTTLE_MS = 100;
+let _gpOverlayRerenderFn = null; // set while overlay open: (lb: bool, rb: bool) => void
 let _gpLastScrubTime = 0;
 
 function _gpDeadzone(v) {
@@ -5004,6 +5015,9 @@ function _gpAction(action, gamepad) {
       break;
     case 'open_overlay':
       openGpOverlay();
+      break;
+    case 'open_shortcuts':
+      openShortcutsDialog();
       break;
     case 'seek_back_medium':
       if (hasVideo) { skip(-cfg.seek_medium); _gpVibrate(gamepad, 40); }
@@ -5155,6 +5169,7 @@ function _gpPoll() {
   if (!cfg.gamepad_enabled) { _gpStopPolling(); return; }
 
   const gamepads = navigator.getGamepads();
+  let _ovLb = false, _ovRb = false; // cumulative LB/RB across all gamepads for overlay
   for (const gp of gamepads) {
     if (!gp) continue;
     const idx = gp.index;
@@ -5169,6 +5184,8 @@ function _gpPoll() {
     // Detect modifier buttons (L1=4, R1=5)
     const l1 = cur[4];
     const r1 = cur[5];
+    _ovLb = _ovLb || l1;
+    _ovRb = _ovRb || r1;
 
     // Update HUD
     const hud = document.getElementById('gp-hud');
@@ -5232,6 +5249,7 @@ function _gpPoll() {
     }
   }
 
+  if (_gpOverlayRerenderFn) _gpOverlayRerenderFn(_ovLb, _ovRb);
   _gpPollId = requestAnimationFrame(_gpPoll);
 }
 
@@ -5252,6 +5270,10 @@ function _gpOpenModal() {
 }
 
 function _gpHandleDialog(dlg, btnIdx, gp) {
+  if (dlg.id === 'shortcuts-dialog') {
+    if (btnIdx === 1 || btnIdx === 9) { dlg.close(); return; } // B or Start = close
+    return;
+  }
   if (dlg.id === 'delete-dialog') {
     if (btnIdx === 0) { // A = confirm delete
       // BL-044: reset cursor immediately to prevent phantom play
@@ -5518,20 +5540,103 @@ function _gpOverlayBackdropClose(e) {
   if (e.target === document.getElementById('gp-overlay')) closeGpOverlay();
 }
 
+// Generates an Xbox-style controller SVG with callout labels for the given button→action map.
+// lbAct / rbAct: true when the LB / RB shift key is physically held.
+function _gpRenderCtrl(map, AL, lbAct = false, rbAct = false) {
+  const lbl = idx => {
+    const k = map[idx];
+    if (!k) return '';
+    const t = AL[k] ?? k;
+    return t.length > 20 ? t.slice(0, 19) + '\u2026' : t;
+  };
+  const circ = (cx, cy, r, fill, sym, sf = '#fff') =>
+    `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${fill}" stroke="#3a3a4a" stroke-width="1.5"/>` +
+    `<text x="${cx}" y="${cy}" font-size="${r > 11 ? 9 : 7}" fill="${sf}" text-anchor="middle" dominant-baseline="middle" font-weight="700">${esc(sym)}</text>`;
+  const wire = (bx, by, lx, ly, txt, side) => {
+    if (!txt) return '';
+    const anchor = side === 'L' ? 'end' : 'start';
+    const tx = side === 'L' ? lx - 3 : lx + 3;
+    return `<line x1="${bx}" y1="${by}" x2="${lx}" y2="${ly}" stroke="#4a4a5e" stroke-width="0.8"/>` +
+           `<text x="${tx}" y="${ly}" font-size="9" fill="#b8b8cc" text-anchor="${anchor}" dominant-baseline="middle">${esc(txt)}</text>`;
+  };
+  // Bumper rendering: "resting" has an amber outline to hint it's a shift key;
+  // "pressed" flips to bright gold fill + inset (y+2, height-2) to simulate a pressed button.
+  const bumper = (x, act, label) => {
+    const fill   = act ? '#c0960a' : '#16140a';
+    const stroke = act ? '#ffd600' : '#9a7a00';
+    const sw     = act ? 2.5       : 1.5;
+    const y      = act ? 22        : 20;
+    const h      = act ? 9         : 13;
+    const tf     = act ? '#000'    : '#9a7a00';
+    return `<rect x="${x}" y="${y}" width="52" height="${h}" rx="5" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>` +
+           `<text x="${x + 26}" y="${y + h / 2}" font-size="8" fill="${tf}" text-anchor="middle" dominant-baseline="middle" pointer-events="none">${label}</text>`;
+  };
+  return `<svg viewBox="0 0 540 222" width="100%" style="display:block">
+    <!-- Controller body (Xbox-style silhouette) -->
+    <path d="M 185,47 C 150,40 112,68 106,104 C 100,136 108,168 122,190
+             C 135,208 157,216 180,206 C 198,198 212,186 215,178
+             L 325,178 C 328,186 342,198 360,206
+             C 383,216 405,208 418,190
+             C 432,168 440,136 434,104 C 428,68 390,40 355,47
+             C 334,22 306,12 270,12 C 234,12 206,22 185,47 Z"
+      fill="#15152a" stroke="#44445a" stroke-width="2"/>
+    <!-- LB / RB bumpers (shift keys — highlighted when physically held) -->
+    ${bumper(118, lbAct, 'LB')}
+    ${bumper(370, rbAct, 'RB')}
+    <!-- Left stick -->
+    <circle cx="190" cy="124" r="21" fill="#20203c" stroke="#555" stroke-width="1.5"/>
+    <circle cx="190" cy="124" r="13" fill="#181830" stroke="#444" stroke-width="1"/>
+    <!-- Right stick -->
+    <circle cx="318" cy="153" r="21" fill="#20203c" stroke="#555" stroke-width="1.5"/>
+    <circle cx="318" cy="153" r="13" fill="#181830" stroke="#444" stroke-width="1"/>
+    <!-- D-pad -->
+    <rect x="124" y="147" width="16" height="36" rx="3" fill="#2a2a44" stroke="#444"/>
+    <rect x="108" y="158" width="46" height="14" rx="3" fill="#2a2a44" stroke="#444"/>
+    <text x="132" y="151" font-size="9" fill="#666" text-anchor="middle" dominant-baseline="middle">▲</text>
+    <text x="132" y="179" font-size="9" fill="#666" text-anchor="middle" dominant-baseline="middle">▼</text>
+    <text x="113" y="165" font-size="9" fill="#666" text-anchor="middle" dominant-baseline="middle">◀</text>
+    <text x="151" y="165" font-size="9" fill="#666" text-anchor="middle" dominant-baseline="middle">▶</text>
+    <!-- View / Menu small buttons -->
+    ${circ(220, 114, 10, '#22223c', '\u229e', '#777')}
+    ${circ(300, 114, 10, '#22223c', '\u2261', '#777')}
+    <!-- Xbox guide (decorative) -->
+    <circle cx="260" cy="106" r="15" fill="#0e0e20" stroke="#444" stroke-width="2"/>
+    <circle cx="260" cy="106" r="9" fill="#161628" stroke="#333"/>
+    <!-- Face buttons -->
+    ${circ(357, 145, 14, '#1a4820', 'A')}
+    ${circ(382, 121, 14, '#4a1c1c', 'B')}
+    ${circ(332, 121, 14, '#1c1c4a', 'X')}
+    ${circ(357, 97,  14, '#4a3c00', 'Y', '#ffd600')}
+    <!-- Callouts — Left (text at x=102, anchor=end) -->
+    ${wire(118, 26, 102, 26,  lbl(4),  'L')}
+    ${wire(210, 114, 102, 76,  lbl(8),  'L')}
+    ${wire(132, 147, 102, 112, lbl(12), 'L')}
+    ${wire(108, 165, 102, 130, lbl(14), 'L')}
+    ${wire(132, 183, 102, 148, lbl(13), 'L')}
+    ${wire(154, 165, 102, 166, lbl(15), 'L')}
+    <!-- Callouts — Right (text at x=438, anchor=start) -->
+    ${wire(422, 26,  438, 26,  lbl(5), 'R')}
+    ${wire(310, 114, 438, 76,  lbl(9), 'R')}
+    ${wire(371, 97,  438, 97,  lbl(3), 'R')}
+    ${wire(346, 121, 438, 114, lbl(2), 'R')}
+    ${wire(396, 121, 438, 131, lbl(1), 'R')}
+    ${wire(371, 145, 438, 148, lbl(0), 'R')}
+  </svg>`;
+}
 function openGpOverlay() {
   const body = document.getElementById('gp-overlay-body');
-  const LABEL = {
-    0: 'A', 1: 'B', 2: 'X', 3: 'Y',
-    8: 'Select', 9: 'Start',
-    12: 'D↑', 13: 'D↓', 14: 'D←', 15: 'D→',
-  };
-  const ACTION_LABEL = {
+  const browserMap = { 12: 'nav_up', 13: 'nav_down', 14: 'nav_up', 15: 'nav_down',
+                       0: 'nav_enter', 1: 'nav_back', 8: 'open_settings', 9: 'open_overlay' };
+  let ctx = 'player';
+  let prevLb = null, prevRb = null;
+  const AL = {
     play_pause: 'Lecture / Pause',
     close_player: 'Fermer le lecteur',
     toggle_watched: 'Marquer vu / non vu',
     fullscreen: 'Plein écran',
     open_settings: 'Paramètres',
-    open_overlay: 'Cette aide',
+    open_overlay: 'Overlay manette',
+    open_shortcuts: 'Aide raccourcis clavier',
     seek_back_medium: `Reculer ${cfg.seek_medium}s`,
     seek_fwd_medium: `Avancer ${cfg.seek_medium}s`,
     seek_back_long: `Reculer ${cfg.seek_long}s`,
@@ -5562,58 +5667,61 @@ function openGpOverlay() {
     nav_enter: 'Ouvrir',
     nav_back: 'Dossier parent',
   };
-  const renderLayer = (title, mapObj) => {
-    const rows = Object.entries(mapObj).map(([bi, act]) => {
-      const btn = LABEL[+bi] ?? `Btn ${bi}`;
-      const lbl = ACTION_LABEL[act] ?? act;
-      return `<div class="gp-row"><span class="gp-btn-badge">${btn}</span><span class="gp-action">${lbl}</span></div>`;
-    }).join('');
-    return `<div class="gp-layer-title">${title}</div>${rows}`;
+
+  const resolveMap = (lb, rb) => {
+    if (ctx === 'browser') return browserMap;
+    const base = { ...GP_DEFAULT_MAPPING.base, ...GP_DEFAULT_MAPPING.player_base };
+    if (lb && rb) return { ...base, ...GP_DEFAULT_MAPPING.lr };
+    if (lb)       return { ...base, ...GP_DEFAULT_MAPPING.l1 };
+    if (rb)       return { ...base, ...GP_DEFAULT_MAPPING.r1 };
+    return base;
   };
-  const renderFixed = (title, rows) => {
-    const html = rows.map(([btn, lbl]) =>
-      `<div class="gp-row"><span class="gp-btn-badge">${btn}</span><span class="gp-action">${lbl}</span></div>`
+
+  const renderSvg = (lb, rb) => {
+    const c = document.getElementById('gp-ctrl-container');
+    if (c) c.innerHTML = _gpRenderCtrl(resolveMap(lb, rb), AL,
+      lb && ctx === 'player', rb && ctx === 'player');
+  };
+
+  const rebuildBody = () => {
+    const ctxTabs = ['player', 'browser'].map(k =>
+      `<button class="gp-tab${k === ctx ? ' active' : ''}" data-ctx="${k}">${k === 'player' ? '🎮 Joueur' : '📁 Browser'}</button>`
     ).join('');
-    return `<div class="gp-layer-title">${title}</div>${html}`;
+    const hint = ctx === 'player'
+      ? `<div style="font-size:10px;color:var(--text-dim);text-align:center;margin-bottom:2px">Maintenez <b style="color:#ffd600">LB</b> / <b style="color:#ffd600">RB</b> sur la manette pour voir les raccourcis de chaque couche</div>`
+      : '';
+    const analog = ctx === 'player'
+      ? `<div class="gp-analog-row"><span>LS-X → seek</span><span>RS-Y → volume</span></div>`
+      : '';
+    body.innerHTML = `<div class="gp-tab-bar">${ctxTabs}</div>${hint}<div id="gp-ctrl-container"></div>${analog}`;
+    prevLb = null; prevRb = null;
+    renderSvg(false, false);
   };
-  body.innerHTML = [
-    renderLayer('Base (joueur)', { ...GP_DEFAULT_MAPPING.player_base, ...GP_DEFAULT_MAPPING.base }),
-    renderLayer('L1 (joueur)', GP_DEFAULT_MAPPING.l1),
-    renderLayer('R1 (joueur)', GP_DEFAULT_MAPPING.r1),
-    renderLayer('L1 + R1', GP_DEFAULT_MAPPING.lr),
-    renderFixed('Browser (sans lecteur)', [
-      ['D↑ / D↓', 'Curseur ↑ / ↓'],
-      ['A', 'Ouvrir'],
-      ['B', 'Dossier parent'],
-      ['Start', 'Paramètres'],
-    ]),
-    renderFixed('Paramètres ouverts', [
-      ['D↑ / D↓', 'Défiler ↑ / ↓'],
-      ['B / Start', 'Fermer les paramètres'],
-    ]),
-    renderFixed('Dialogue de suppression', [
-      ['A', 'Confirmer la suppression'],
-      ['B', 'Annuler'],
-    ]),
-    renderFixed('Dialogue de déplacement', [
-      ['D↑ / D↓', 'Naviguer dans les dossiers'],
-      ['A', 'Choisir le dossier sélectionné'],
-      ['B', 'Annuler'],
-    ]),
-    renderFixed('Dialogue Export segments', [
-      ['D↑ / D↓', 'Naviguer dans les dossiers'],
-      ['A', 'Sélectionner le dossier destination'],
-      ['Y', 'Confirmer l\'export'],
-      ['B', 'Annuler'],
-    ]),
-    `<div class="gp-layer-title">Analogique</div>
-     <div class="gp-row"><span class="gp-btn-badge">LS-X</span><span class="gp-action">Scrubbing (seek)</span></div>
-     <div class="gp-row"><span class="gp-btn-badge">RS-Y</span><span class="gp-action">Volume</span></div>`,
-  ].join('');
+
+  rebuildBody();
+
+  const handler = e => {
+    const tab = e.target.closest('[data-ctx]');
+    if (!tab) return;
+    ctx = tab.dataset.ctx;
+    rebuildBody();
+  };
+  if (body._gpTabHandler) body.removeEventListener('click', body._gpTabHandler);
+  body._gpTabHandler = handler;
+  body.addEventListener('click', handler);
+
+  // Live update: re-render SVG when LB/RB physical state changes
+  _gpOverlayRerenderFn = (lb, rb) => {
+    if (lb === prevLb && rb === prevRb) return;
+    prevLb = lb; prevRb = rb;
+    renderSvg(lb, rb);
+  };
+
   document.getElementById('gp-overlay').classList.add('open');
 }
 
 function closeGpOverlay() {
+  _gpOverlayRerenderFn = null;
   document.getElementById('gp-overlay').classList.remove('open');
 }
 

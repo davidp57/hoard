@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Navigation clavier dans les dialogues** : dans les dialogues (suppression, déplacement, export), les flèches ↑/↓ naviguent entre les options, Entrée valide et Échap annule — sans la souris.
+- **Aide raccourcis clavier (`?`)** : la touche `?` ouvre/ferme un panneau listant tous les raccourcis clavier et la navigation dans les dialogues.
+- **Diagramme manette Xbox dans l'overlay gamepad** : l'overlay manette affiche un SVG de la manette Xbox avec les actions annotées par des lignes de callout. Maintenir **LB** ou **RB** sur la manette physique fait s'afficher le bouton enfoncé (couleur or) et met à jour les callouts en temps réel pour montrer les actions de la couche correspondante (L1, R1 ou L1+R1). Deux onglets contexte permettent de basculer entre la vue Joueur et Browser.
 - **Visionneuse d'images (BL-054)** : les images (JPG, PNG, GIF, WEBP, BMP, TIFF, AVIF) s'ouvrent dans un viewer intégré au panneau player. Navigation précédent/suivant (touches ← / →, boutons), bascule mode « plein écran » / « largeur ajustée ». La progression (index/total) est sauvegardée en base.
 - **Lecteur d'archives BD/manga (BL-055)** : les fichiers `.cbz`, `.zip` et `.cbr` s'ouvrent comme des visionneuses page à page. La liste des images est extraite côté serveur (`/api/archive/list`) ; chaque page est servie à la demande (`/api/archive/image?index=N`). CBR nécessite `rarfile` + `unrar-free`.
 - **Lecteur PDF (BL-056)** : les fichiers `.pdf` sont rendus via PDF.js v4 (ES module, inclus dans `frontend/pdfjs/`). Navigation page par page (← / →), zoom (+/−), mode ajustement largeur / taille originale. La page courante est sauvegardée en base.
