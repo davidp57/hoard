@@ -1062,6 +1062,197 @@
     transition: opacity 0.15s;
   }
   #settings-save-btn:hover { opacity: 0.85; }
+
+  /* ── Image viewer ── */
+  #image-viewer {
+    flex: 1;
+    display: none;
+    flex-direction: column;
+    background: #000;
+    overflow: hidden;
+  }
+  #image-viewer.active { display: flex; }
+  #image-nav-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  #image-nav-bar button {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text-mid); font-size: 13px; cursor: pointer;
+    padding: 5px 10px; border-radius: 6px; font-family: inherit;
+  }
+  #image-nav-bar button:hover { border-color: var(--accent); color: var(--accent); }
+  #image-counter {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--text-dim);
+    flex: 1;
+    text-align: center;
+  }
+  #image-title {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--text-mid);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 180px;
+  }
+  #image-scroll-area {
+    flex: 1;
+    overflow: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #111;
+  }
+  #image-el {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    display: block;
+    user-select: none;
+  }
+  #image-viewer.fit-width #image-el {
+    max-width: 100%;
+    max-height: none;
+    width: 100%;
+  }
+  #image-viewer.full-page #image-el {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+  }
+
+  /* ── Audio player ── */
+  #audio-player {
+    flex: 1;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #000;
+    padding: 32px 24px;
+    gap: 20px;
+  }
+  #audio-player.active { display: flex; }
+  #audio-icon { font-size: 64px; }
+  #audio-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    text-align: center;
+    max-width: 320px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-family: 'DM Mono', monospace;
+  }
+  #audio-seekbar-wrap {
+    position: relative;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    cursor: pointer;
+    width: 100%;
+    max-width: 400px;
+    touch-action: none;
+  }
+  #audio-seekbar-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 3px;
+    pointer-events: none;
+    width: 0%;
+  }
+  #audio-time {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  #audio-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  #audio-controls button {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text-mid); font-size: 18px; cursor: pointer;
+    padding: 8px 14px; border-radius: 8px; font-family: inherit;
+    transition: all 0.15s;
+  }
+  #audio-controls button:hover { border-color: var(--accent); color: var(--accent); }
+  #audio-playpause-btn { font-size: 22px !important; padding: 10px 18px !important; }
+  #audio-close-bar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  #audio-close-bar button {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text-mid); font-size: 12px; cursor: pointer;
+    padding: 5px 10px; border-radius: 6px; font-family: inherit;
+  }
+  #audio-close-bar button:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ── PDF viewer ── */
+  #pdf-viewer {
+    flex: 1;
+    display: none;
+    flex-direction: column;
+    background: #000;
+    overflow: hidden;
+  }
+  #pdf-viewer.active { display: flex; }
+  #pdf-nav-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  #pdf-nav-bar button {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text-mid); font-size: 13px; cursor: pointer;
+    padding: 5px 10px; border-radius: 6px; font-family: inherit;
+  }
+  #pdf-nav-bar button:hover { border-color: var(--accent); color: var(--accent); }
+  #pdf-counter {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--text-dim);
+    flex: 1;
+    text-align: center;
+  }
+  #pdf-title {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--text-mid);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 180px;
+  }
+  #pdf-scroll-area {
+    flex: 1;
+    overflow: auto;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    background: #555;
+    padding: 8px;
+  }
+  #pdf-canvas {
+    display: block;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.5);
+  }
 </style>
 </head>
 <body>
@@ -1400,6 +1591,57 @@
         </div>
       </div>
     </div>
+
+    <!-- Image viewer -->
+    <div id="image-viewer">
+      <div id="image-nav-bar">
+        <button onclick="imageNav(-1)" title="Image précédente (←)">&#x25C0;</button>
+        <div id="image-counter">— / —</div>
+        <button onclick="imageNav(1)" title="Image suivante (→)">&#x25B6;</button>
+        <button onclick="toggleImageMode()" id="image-fit-btn" title="Changer le mode d'affichage">&#x25A3;</button>
+        <div id="image-title"></div>
+        <button onclick="closeImageViewer()" title="Fermer">&#x2715;</button>
+      </div>
+      <div id="image-scroll-area">
+        <img id="image-el" src="" alt="">
+      </div>
+    </div>
+
+    <!-- Audio player -->
+    <div id="audio-player">
+      <div id="audio-icon">🎵</div>
+      <div id="audio-title"></div>
+      <div id="audio-seekbar-wrap" onclick="audioSeekClick(event)">
+        <div id="audio-seekbar-fill"></div>
+      </div>
+      <div id="audio-time">0:00 / 0:00</div>
+      <div id="audio-controls">
+        <button onclick="skip(-cfg.seek_short)" data-seek="seek_short" data-dir="back" title="-10s">◀◀</button>
+        <button id="audio-playpause-btn" onclick="togglePlay()">▶</button>
+        <button onclick="skip(cfg.seek_short)" data-seek="seek_short" data-dir="fwd" title="+10s">▶▶</button>
+      </div>
+      <div id="audio-close-bar">
+        <button onclick="closeAudioPlayer()">&#x2715; Fermer</button>
+      </div>
+    </div>
+
+    <!-- PDF viewer -->
+    <div id="pdf-viewer">
+      <div id="pdf-nav-bar">
+        <button onclick="pdfNav(-1)" title="Page précédente (←)">&#x25C0;</button>
+        <div id="pdf-counter">— / —</div>
+        <button onclick="pdfNav(1)" title="Page suivante (→)">&#x25B6;</button>
+        <button onclick="pdfZoom(-0.2)" title="Zoom −">−</button>
+        <button onclick="pdfZoom(0.2)" title="Zoom +">+</button>
+        <button onclick="togglePdfFit()" id="pdf-fit-btn" title="Ajuster la largeur">&#x25A3;</button>
+        <div id="pdf-title"></div>
+        <button onclick="closePdfViewer()" title="Fermer">&#x2715;</button>
+      </div>
+      <div id="pdf-scroll-area">
+        <canvas id="pdf-canvas"></canvas>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -1632,6 +1874,20 @@ const SINGLE_TAP_CENTER_MIN_X = 0.35;
 const SINGLE_TAP_CENTER_MAX_X = 0.65;
 const SINGLE_TAP_CONTROLS_MIN_Y = 0.72;
 
+// ── Media viewer state ────────────────────────────────────────────────────────
+let currentViewerMode = null;  // 'video'|'image'|'audio'|'pdf'|null
+let _imageCurrentIdx = 0;
+let _imageIsArchive = false;
+let _imageArchivePath = null;
+let _imageArchiveImages = [];
+let _imageFitMode = 'full-page';  // 'full-page'|'fit-width'
+let _pdfDoc = null;
+let _pdfPage = 1;
+let _pdfTotalPages = 0;
+let _pdfZoom = 1.0;
+let _pdfFitMode = 'fit-width';  // 'fit-width'|'original'
+let _pdfRendering = false;
+
 // ── Settings cache (loaded from backend on init) ─────────────────────────────
 let cfg = {
   pin_set: false,
@@ -1685,7 +1941,7 @@ function applyCfg(s) {
   cfg.seek_xlong                = parseInt(s.seek_xlong   ?? 120, 10);
   cfg.initial_sweep_seconds     = parseInt(s.initial_sweep_seconds    ?? 0, 10);
   // Sync skip button tooltips with configured seek durations
-  const skipBtns = document.querySelectorAll('#ctrl-row .ctrl-btn[data-seek]');
+  const skipBtns = document.querySelectorAll('[data-seek][data-dir]');
   skipBtns.forEach(btn => {
     const key = btn.dataset.seek;
     const val = cfg[key];
@@ -1775,7 +2031,7 @@ function buildMediaCapabilitiesConfig(mediaInfo) {
 }
 
 async function choosePlaybackSource(entry, mediaInfo) {
-  const streamUrl = `${API}/api/stream?path=${encodeURIComponent(entry.path)}`;
+  const streamUrl = `${API}/api/file?path=${encodeURIComponent(entry.path)}`;
   const transcodeUrl = `${API}/api/transcode?path=${encodeURIComponent(entry.path)}`;
 
   if (!cfg.transcode_enabled) {
@@ -3096,21 +3352,38 @@ function renderBreadcrumb(crumbs) {
   updateHomeBtnState();
 }
 
+function getMediaIcon(e) {
+  if (e.is_dir) {
+    return e.folder_state === 'seen' ? '✅' : (e.folder_state === 'inprogress' ? '📂' : '📁');
+  }
+  const mt = e.media_type || 'other';
+  if (mt === 'video') return getVideoIcon(e.progress);
+  if (mt === 'image') return '📸';
+  if (mt === 'archive') return '📦';
+  if (mt === 'audio') return '🎵';
+  if (mt === 'pdf') return '📄';
+  return '📝';
+}
+
 function renderEntry(e, i) {
-  const dirIcon = e.folder_state === 'seen' ? '✅' : (e.folder_state === 'inprogress' ? '📂' : '📁');
-  const icon = e.is_dir ? dirIcon : (e.is_video ? getVideoIcon(e.progress) : '📄');
+  const icon = getMediaIcon(e);
   const meta = e.is_dir ? '' : formatSize(e.size);
-  const progressHtml = e.is_video && e.progress && e.progress.duration > 0 ? `
+  const mt = e.media_type || 'other';
+  const hasProgress = !e.is_dir && mt !== 'other' && e.progress && e.progress.duration > 0;
+  const timeLabel = (mt === 'video' || mt === 'audio')
+    ? `${formatTime(e.progress.position)} / ${formatTime(e.progress.duration)}`
+    : `p.\u00a0${Math.round(e.progress.position)} / ${e.progress.duration}`;
+  const progressHtml = hasProgress ? `
     <div class="progress-bar-wrap">
       <div class="progress-bar-fill" style="width:${e.progress.percent}%"></div>
     </div>
-    <div style="margin-top:2px">${e.progress.percent > 0 ? e.progress.percent + '% · ' + formatTime(e.progress.position) + ' / ' + formatTime(e.progress.duration) : ''}</div>
+    <div style="margin-top:2px">${e.progress.percent > 0 ? e.progress.percent + '% \u00b7 ' + timeLabel : ''}</div>
   ` : '';
 
-  const stateClass = e.is_video ? getStateClass(e.progress) : (e.folder_state === 'seen' ? 'seen' : (e.folder_state === 'inprogress' ? 'inprogress' : ''));
+  const stateClass = !e.is_dir && mt !== 'other' ? getStateClass(e.progress) : (e.folder_state === 'seen' ? 'seen' : (e.folder_state === 'inprogress' ? 'inprogress' : ''));
   const pinBtn = e.is_dir ? `<button class="action-btn ${e.is_quick_folder ? 'pinned' : ''}" onclick="togglePin(${jsStr(e.path)}, ${e.is_quick_folder})" title="${e.is_quick_folder ? 'Retirer' : 'Accès rapide'}">📌</button>` : '';
   const tagsHtml = (e.tags && e.tags.length) ? e.tags.map(t => `<span class="tag-badge">${esc(t)}</span>`).join('') : '';
-  const actionsHtml = e.is_video || e.is_dir ? `
+  const actionsHtml = mt !== 'other' || e.is_dir ? `
     <div class="entry-actions" onclick="event.stopPropagation()">
       ${pinBtn}
       <button class="action-btn" onclick="openTagModal(${jsStr(e.path)}, ${jsStr(e.name)})">🏷</button>
@@ -3120,7 +3393,9 @@ function renderEntry(e, i) {
   ` : '';
 
   const activeClass = currentFile && currentFile.path === e.path ? 'active' : '';
-  const clickHandler = e.is_dir ? 'navigate(' + jsStr(e.path) + ')' : (e.is_video ? 'playVideo(' + i + ')' : '');
+  const clickHandler = e.is_dir
+    ? 'navigate(' + jsStr(e.path) + ')'
+    : (mt !== 'other' ? 'openMedia(' + i + ')' : '');
   const qfClass = e.is_quick_folder ? 'qf' : '';
 
   return `
@@ -3217,6 +3492,269 @@ async function _autoPlayNextFullscreen(navigatePath) {
   await playVideo(idx);
   videoContainer.classList.add('faux-fullscreen');
   syncFullscreenUI();
+}
+
+
+// ── Media dispatcher ──────────────────────────────────────────────────────────
+
+function openMedia(idx) {
+  const entry = entries[idx];
+  if (!entry || entry.is_dir) return;
+  const mt = entry.media_type || 'other';
+  if (mt === 'video') { playVideo(idx); return; }
+  if (mt === 'image') { openImage(idx); return; }
+  if (mt === 'archive') { openArchive(idx); return; }
+  if (mt === 'audio') { playAudio(idx); return; }
+  if (mt === 'pdf') { openPdf(idx); return; }
+}
+
+// ── Image viewer ──────────────────────────────────────────────────────────────
+
+function _showOnlyPanel(id) {
+  document.getElementById('player-empty').style.display = 'none';
+  document.getElementById('video-container').classList.remove('active');
+  document.getElementById('image-viewer').classList.remove('active');
+  document.getElementById('audio-player').classList.remove('active');
+  document.getElementById('pdf-viewer').classList.remove('active');
+  if (id) document.getElementById(id).classList.add('active');
+}
+
+function openImage(idx) {
+  const entry = entries[idx];
+  if (!entry) return;
+  currentFile = entry;
+  _imageIsArchive = false;
+  _imageCurrentIdx = idx;
+  currentViewerMode = 'image';
+
+  // Mobile: show player panel
+  document.getElementById('player-panel').classList.add('mobile-active');
+  _showOnlyPanel('image-viewer');
+
+  const iv = document.getElementById('image-viewer');
+  iv.classList.remove('fit-width', 'full-page');
+  iv.classList.add(_imageFitMode);
+
+  const fileEntries = entries.filter(e => !e.is_dir && (e.media_type === 'image'));
+  const posInImages = fileEntries.findIndex(e => e.path === entry.path);
+  document.getElementById('image-counter').textContent = `${posInImages + 1} / ${fileEntries.length}`;
+  document.getElementById('image-title').textContent = entry.name;
+  document.getElementById('image-el').src = `${API}/api/file?path=${encodeURIComponent(entry.path)}`;
+
+  saveProgress(entry.path, posInImages + 1, fileEntries.length);
+}
+
+function openArchive(idx) {
+  const entry = entries[idx];
+  if (!entry) return;
+  currentFile = entry;
+  _imageIsArchive = true;
+  _imageArchivePath = entry.path;
+  _imageCurrentIdx = 0;
+  currentViewerMode = 'image';
+
+  document.getElementById('player-panel').classList.add('mobile-active');
+  _showOnlyPanel('image-viewer');
+
+  const iv = document.getElementById('image-viewer');
+  iv.classList.remove('fit-width', 'full-page');
+  iv.classList.add(_imageFitMode);
+
+  fetch(`${API}/api/archive/list?path=${encodeURIComponent(entry.path)}`)
+    .then(r => {
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    })
+    .then(data => {
+      _imageArchiveImages = data.images || [];
+      document.getElementById('image-title').textContent = entry.name;
+      _loadArchiveImage(0);
+    })
+    .catch(() => {
+      showToast('Erreur lecture archive');
+      closeImageViewer();
+    });
+}
+
+function _loadArchiveImage(idx) {
+  if (!_imageArchiveImages.length) return;
+  _imageCurrentIdx = idx;
+  document.getElementById('image-counter').textContent = `${idx + 1} / ${_imageArchiveImages.length}`;
+  document.getElementById('image-el').src =
+    `${API}/api/archive/image?path=${encodeURIComponent(_imageArchivePath)}&index=${idx}`;
+  saveProgress(_imageArchivePath, idx + 1, _imageArchiveImages.length);
+}
+
+function imageNav(delta) {
+  if (_imageIsArchive) {
+    const next = _imageCurrentIdx + delta;
+    if (next >= 0 && next < _imageArchiveImages.length) _loadArchiveImage(next);
+    return;
+  }
+  const imageEntries = entries.filter(e => !e.is_dir && e.media_type === 'image');
+  const cur = imageEntries.findIndex(e => e.path === currentFile.path);
+  const next = cur + delta;
+  if (next >= 0 && next < imageEntries.length) {
+    const globalIdx = entries.indexOf(imageEntries[next]);
+    openImage(globalIdx);
+  }
+}
+
+function toggleImageMode() {
+  _imageFitMode = _imageFitMode === 'full-page' ? 'fit-width' : 'full-page';
+  const iv = document.getElementById('image-viewer');
+  iv.classList.remove('fit-width', 'full-page');
+  iv.classList.add(_imageFitMode);
+}
+
+function closeImageViewer() {
+  currentViewerMode = null;
+  document.getElementById('image-viewer').classList.remove('active');
+  document.getElementById('player-panel').classList.remove('mobile-active');
+  document.getElementById('player-empty').style.display = '';
+}
+
+// ── Audio player ──────────────────────────────────────────────────────────────
+
+function playAudio(idx) {
+  const entry = entries[idx];
+  if (!entry) return;
+  currentFile = entry;
+  currentViewerMode = 'audio';
+
+  document.getElementById('player-panel').classList.add('mobile-active');
+  _showOnlyPanel('audio-player');
+
+  document.getElementById('audio-title').textContent = entry.name;
+  const video = document.getElementById('video');
+  video.src = `${API}/api/file?path=${encodeURIComponent(entry.path)}`;
+  if (entry.progress && entry.progress.position > 0) {
+    video.addEventListener('loadedmetadata', function _seek() {
+      video.currentTime = entry.progress.position;
+      video.removeEventListener('loadedmetadata', _seek);
+    });
+  }
+  video.play();
+}
+
+function closeAudioPlayer() {
+  const video = document.getElementById('video');
+  video.pause();
+  video.src = '';
+  currentFile = null;
+  currentViewerMode = null;
+  document.getElementById('audio-player').classList.remove('active');
+  document.getElementById('player-panel').classList.remove('mobile-active');
+  document.getElementById('player-empty').style.display = '';
+}
+
+function audioSeekClick(ev) {
+  const video = document.getElementById('video');
+  if (!video.duration) return;
+  const rect = document.getElementById('audio-seekbar-wrap').getBoundingClientRect();
+  const pct = Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width));
+  video.currentTime = pct * video.duration;
+}
+
+function updateAudioUI() {
+  const video = document.getElementById('video');
+  if (!video.duration) return;
+  const pct = (video.currentTime / video.duration) * 100;
+  document.getElementById('audio-seekbar-fill').style.width = `${pct}%`;
+  document.getElementById('audio-time').textContent =
+    `${formatTime(video.currentTime)} / ${formatTime(video.duration)}`;
+  const btn = document.getElementById('audio-playpause-btn');
+  if (btn) btn.textContent = video.paused ? '▶' : '⏸';
+}
+
+// ── PDF viewer ────────────────────────────────────────────────────────────────
+
+async function openPdf(idx) {
+  const entry = entries[idx];
+  if (!entry) return;
+  currentFile = entry;
+  currentViewerMode = 'pdf';
+
+  document.getElementById('player-panel').classList.add('mobile-active');
+  _showOnlyPanel('pdf-viewer');
+
+  document.getElementById('pdf-title').textContent = entry.name;
+  document.getElementById('pdf-counter').textContent = '…';
+
+  if (!window.pdfjsLib) {
+    try {
+      const lib = await import('/pdfjs/pdf.min.js');
+      lib.GlobalWorkerOptions.workerSrc = '/pdfjs/pdf.worker.min.js';
+      window.pdfjsLib = lib;
+    } catch {
+      document.getElementById('pdf-counter').textContent = 'PDF.js non disponible';
+      return;
+    }
+  }
+
+  try {
+    _pdfDoc = await pdfjsLib.getDocument(
+      `${API}/api/file?path=${encodeURIComponent(entry.path)}`
+    ).promise;
+    _pdfTotalPages = _pdfDoc.numPages;
+    _pdfPage = (entry.progress && entry.progress.position > 0)
+      ? Math.round(entry.progress.position) : 1;
+    if (_pdfPage > _pdfTotalPages) _pdfPage = 1;
+    await _renderPdfPage();
+    saveProgress(entry.path, _pdfPage, _pdfTotalPages);
+  } catch (e) {
+    document.getElementById('pdf-counter').textContent = 'Erreur';
+  }
+}
+
+async function _renderPdfPage() {
+  if (!_pdfDoc || _pdfRendering) return;
+  _pdfRendering = true;
+  document.getElementById('pdf-counter').textContent = `${_pdfPage} / ${_pdfTotalPages}`;
+  try {
+    const page = await _pdfDoc.getPage(_pdfPage);
+    const scrollArea = document.getElementById('pdf-scroll-area');
+    let vp;
+    if (_pdfFitMode === 'fit-width') {
+      const targetW = scrollArea.clientWidth - 16;
+      const baseVp = page.getViewport({ scale: 1 });
+      vp = page.getViewport({ scale: (targetW / baseVp.width) * _pdfZoom });
+    } else {
+      vp = page.getViewport({ scale: _pdfZoom });
+    }
+    const canvas = document.getElementById('pdf-canvas');
+    canvas.width = vp.width;
+    canvas.height = vp.height;
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+  } finally {
+    _pdfRendering = false;
+  }
+}
+
+async function pdfNav(delta) {
+  const next = _pdfPage + delta;
+  if (next < 1 || next > _pdfTotalPages) return;
+  _pdfPage = next;
+  await _renderPdfPage();
+  saveProgress(currentFile.path, _pdfPage, _pdfTotalPages);
+}
+
+async function pdfZoom(delta) {
+  _pdfZoom = Math.max(0.4, Math.min(4, _pdfZoom + delta));
+  await _renderPdfPage();
+}
+
+async function togglePdfFit() {
+  _pdfFitMode = _pdfFitMode === 'fit-width' ? 'original' : 'fit-width';
+  await _renderPdfPage();
+}
+
+function closePdfViewer() {
+  _pdfDoc = null;
+  currentViewerMode = null;
+  document.getElementById('pdf-viewer').classList.remove('active');
+  document.getElementById('player-panel').classList.remove('mobile-active');
+  document.getElementById('player-empty').style.display = '';
 }
 
 
@@ -3331,24 +3869,33 @@ function toggleMute() {
   video.muted = !video.muted;
 }
 
-async function saveProgress() {
-  if (!currentFile || !video.duration) return;
+async function saveProgress(pathOverride, posOverride, durOverride) {
+  // Called with explicit args from image/pdf/archive viewers; otherwise uses video state
+  let file, pos, dur;
+  if (pathOverride !== undefined) {
+    file = { path: pathOverride };
+    pos = posOverride;
+    dur = durOverride;
+  } else {
+    if (!currentFile || !video.duration) return;
+    file = currentFile;
+    pos = video.currentTime;
+    dur = video.duration;
+  }
   // Snapshot locals before any await — currentFile may be nulled by navigate() while we await
-  const file = currentFile;
-  const pos = video.currentTime;
-  const dur = video.duration;
-  await fetch(`${API}/api/progress?path=${encodeURIComponent(file.path)}`, {
+  const filePath = file.path;
+  await fetch(`${API}/api/progress?path=${encodeURIComponent(filePath)}`, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({ position: pos, duration: dur })
   });
   // Refresh entry progress in list
-  const idx = entries.findIndex(e => e.path === file.path);
+  const idx = entries.findIndex(e => e.path === filePath);
   if (idx >= 0) {
     entries[idx].progress = {
       position: pos,
       duration: dur,
-      percent: Math.round(pos / dur * 100 * 10) / 10
+      percent: dur > 0 ? Math.round(pos / dur * 100 * 10) / 10 : 0
     };
     renderFiles(entries);
   }
@@ -3389,6 +3936,7 @@ seekbarWrap.addEventListener('pointerup', e => {
 });
 
 video.addEventListener('timeupdate', () => {
+  if (currentViewerMode === 'audio') { updateAudioUI(); return; }
   if (isSeeking || !video.duration) return;
   const pct = video.currentTime / video.duration * 100;
   seekbarFill.style.width = pct + '%';
@@ -3416,8 +3964,14 @@ video.addEventListener('timeupdate', () => {
   }
 });
 
-video.addEventListener('play', () => { document.getElementById('playpause-btn').textContent = '⏸'; });
-video.addEventListener('pause', () => { document.getElementById('playpause-btn').textContent = '▶'; });
+video.addEventListener('play', () => {
+  document.getElementById('playpause-btn').textContent = '⏸';
+  if (currentViewerMode === 'audio') updateAudioUI();
+});
+video.addEventListener('pause', () => {
+  document.getElementById('playpause-btn').textContent = '▶';
+  if (currentViewerMode === 'audio') updateAudioUI();
+});
 video.addEventListener('ended', saveProgress);
 
 // Touch gestures on video
@@ -4198,6 +4752,25 @@ document.addEventListener('keydown', e => {
     if (document.getElementById('delete-dialog')?.style.display === 'flex') { closeDeleteDialog(); return; }
     if (document.getElementById('move-dialog')?.style.display === 'flex') { closeModal(); return; }
     if (document.getElementById('export-dialog')?.style.display === 'flex') { closeExportModal(); return; }
+    if (currentViewerMode === 'image') { closeImageViewer(); return; }
+    if (currentViewerMode === 'audio') { closeAudioPlayer(); return; }
+    if (currentViewerMode === 'pdf') { closePdfViewer(); return; }
+  }
+  // Image viewer navigation
+  if (currentViewerMode === 'image') {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (e.code === 'ArrowLeft')  { imageNav(-1); return; }
+    if (e.code === 'ArrowRight') { imageNav(1);  return; }
+    return;
+  }
+  // PDF viewer navigation
+  if (currentViewerMode === 'pdf') {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (e.code === 'ArrowLeft' || e.code === 'ArrowUp')    { pdfNav(-1); return; }
+    if (e.code === 'ArrowRight' || e.code === 'ArrowDown') { pdfNav(1);  return; }
+    if (e.code === 'Equal' || e.code === 'NumpadAdd')      { pdfZoom(0.2);  return; }
+    if (e.code === 'Minus' || e.code === 'NumpadSubtract') { pdfZoom(-0.2); return; }
+    return;
   }
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
   // Volume controls always bump fullscreen controls
@@ -4512,10 +5085,10 @@ function _gpMoveCursor(delta) {
 function _gpActivateCursor() {
   if (_gpCursorIdx < 0 || _gpCursorIdx >= _gpRenderedList.length) return;
   const entry = _gpRenderedList[_gpCursorIdx];
-  if (entry.is_video) {
-    playVideo(entries.indexOf(entry));
-  } else {
+  if (entry.is_dir) {
     navigate(entry.path);
+  } else {
+    openMedia(entries.indexOf(entry));
   }
 }
 
@@ -4989,6 +5562,12 @@ function closeGpOverlay() {
 installStandaloneShellHooks();
 registerServiceWorker();
 init();
+</script>
+<script type="module">
+// Load PDF.js v4 as ES module and expose globally
+import * as pdfjsLib from '/pdfjs/pdf.min.js';
+pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdfjs/pdf.worker.min.js';
+window.pdfjsLib = pdfjsLib;
 </script>
 </body>
 </html>

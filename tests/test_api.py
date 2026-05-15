@@ -1949,3 +1949,179 @@ class TestFileTags:
     def test_path_traversal_blocked_post(self):
         resp = client.post("/api/tags?path=../../../etc/passwd", json={"tag": "x"})
         assert resp.status_code == 403
+
+
+# ── /api/file ─────────────────────────────────────────────────────────────────
+
+
+class TestFileEndpoint:
+    def test_serve_image_returns_200(self):
+        img = MEDIA_ROOT / "photo.jpg"
+        img.write_bytes(b"\xff\xd8\xff\xe0" + b"\x00" * 100)
+        resp = client.get("/api/file?path=photo.jpg")
+        assert resp.status_code == 200
+        assert "image" in resp.headers["content-type"]
+
+    def test_serve_video_via_file_returns_200(self):
+        vid = MEDIA_ROOT / "clip.mp4"
+        vid.write_bytes(b"\x00" * 200)
+        resp = client.get("/api/file?path=clip.mp4")
+        assert resp.status_code == 200
+
+    def test_file_range_returns_206(self):
+        f = MEDIA_ROOT / "data.bin"
+        f.write_bytes(b"A" * 500)
+        resp = client.get("/api/file?path=data.bin", headers={"Range": "bytes=0-99"})
+        assert resp.status_code == 206
+        assert resp.headers["content-range"].startswith("bytes 0-99/")
+        assert len(resp.content) == 100
+
+    def test_file_not_found(self):
+        resp = client.get("/api/file?path=ghost.jpg")
+        assert resp.status_code == 404
+
+    def test_file_path_traversal_blocked(self):
+        resp = client.get("/api/file?path=../../etc/passwd")
+        assert resp.status_code == 403
+
+    def test_file_multi_range_rejected(self):
+        f = MEDIA_ROOT / "multi.bin"
+        f.write_bytes(b"B" * 500)
+        resp = client.get("/api/file?path=multi.bin", headers={"Range": "bytes=0-9,20-29"})
+        assert resp.status_code == 416
+
+
+# ── /api/files list — media_type field ────────────────────────────────────────
+
+
+class TestMediaType:
+    def test_video_has_media_type_video(self, video_file):
+        resp = client.get("/api/files?path=")
+        assert resp.status_code == 200
+        entries = resp.json()["entries"]
+        vids = [e for e in entries if e["name"] == "sample.mp4"]
+        assert vids, "video entry not found"
+        assert vids[0]["media_type"] == "video"
+
+    def test_image_has_media_type_image(self):
+        img = MEDIA_ROOT / "cover.jpg"
+        img.write_bytes(b"\xff\xd8\xff\xe0" + b"\x00" * 50)
+        resp = client.get("/api/files?path=")
+        entries = resp.json()["entries"]
+        imgs = [e for e in entries if e["name"] == "cover.jpg"]
+        assert imgs, "image entry not found"
+        assert imgs[0]["media_type"] == "image"
+        assert "progress" in imgs[0]
+
+    def test_audio_has_media_type_audio(self):
+        mp3 = MEDIA_ROOT / "track.mp3"
+        mp3.write_bytes(b"\xff\xfb" + b"\x00" * 100)
+        resp = client.get("/api/files?path=")
+        entries = resp.json()["entries"]
+        audios = [e for e in entries if e["name"] == "track.mp3"]
+        assert audios, "audio entry not found"
+        assert audios[0]["media_type"] == "audio"
+
+    def test_pdf_has_media_type_pdf(self):
+        pdf = MEDIA_ROOT / "doc.pdf"
+        pdf.write_bytes(b"%PDF-1.4\n" + b"\x00" * 50)
+        resp = client.get("/api/files?path=")
+        entries = resp.json()["entries"]
+        pdfs = [e for e in entries if e["name"] == "doc.pdf"]
+        assert pdfs, "pdf entry not found"
+        assert pdfs[0]["media_type"] == "pdf"
+
+    def test_unknown_file_has_media_type_other_and_no_progress(self):
+        txt = MEDIA_ROOT / "notes.txt"
+        txt.write_text("hello")
+        resp = client.get("/api/files?path=")
+        entries = resp.json()["entries"]
+        txts = [e for e in entries if e["name"] == "notes.txt"]
+        assert txts, "txt entry not found"
+        assert txts[0]["media_type"] == "other"
+        assert "progress" not in txts[0]
+
+
+# ── /api/archive ───────────────────────────────────────────────────────────────
+
+
+class TestArchive:
+    def _make_cbz(self, path, image_names):
+        import zipfile as zf
+
+        with zf.ZipFile(path, "w") as z:
+            for name in image_names:
+                z.writestr(name, b"\xff\xd8\xff\xe0" + b"\x00" * 50)
+
+    def test_archive_list_cbz(self):
+        cbz = MEDIA_ROOT / "comic.cbz"
+        self._make_cbz(cbz, ["page1.jpg", "page2.jpg", "page3.jpg"])
+        resp = client.get("/api/archive/list?path=comic.cbz")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["count"] == 3
+        assert "page1.jpg" in data["images"]
+
+    def test_archive_list_zip(self):
+        zp = MEDIA_ROOT / "images.zip"
+        self._make_cbz(zp, ["a.png", "b.png"])
+        resp = client.get("/api/archive/list?path=images.zip")
+        assert resp.status_code == 200
+        assert resp.json()["count"] == 2
+
+    def test_archive_image_returns_bytes(self):
+        cbz = MEDIA_ROOT / "pages.cbz"
+        self._make_cbz(cbz, ["img0.jpg", "img1.jpg"])
+        resp = client.get("/api/archive/image?path=pages.cbz&index=0")
+        assert resp.status_code == 200
+        assert "image" in resp.headers["content-type"]
+
+    def test_archive_image_index_out_of_range(self):
+        cbz = MEDIA_ROOT / "single.cbz"
+        self._make_cbz(cbz, ["only.jpg"])
+        resp = client.get("/api/archive/image?path=single.cbz&index=5")
+        assert resp.status_code == 404
+
+    def test_archive_list_not_found(self):
+        resp = client.get("/api/archive/list?path=ghost.cbz")
+        assert resp.status_code == 404
+
+    def test_archive_unsupported_format(self):
+        bad = MEDIA_ROOT / "file.tar"
+        bad.write_bytes(b"x" * 10)
+        resp = client.get("/api/archive/list?path=file.tar")
+        assert resp.status_code == 415
+
+    def test_archive_path_traversal_blocked(self):
+        resp = client.get("/api/archive/list?path=../../etc/passwd")
+        assert resp.status_code == 403
+
+    def test_archive_image_path_traversal_blocked(self):
+        resp = client.get("/api/archive/image?path=../../etc/passwd&index=0")
+        assert resp.status_code == 403
+
+
+# ── Progress for non-video media ───────────────────────────────────────────────
+
+
+class TestProgressNonVideo:
+    def test_save_and_read_progress_for_image(self):
+        img = MEDIA_ROOT / "scene.jpg"
+        img.write_bytes(b"\xff\xd8\xff\xe0" + b"\x00" * 50)
+        resp = client.post("/api/progress?path=scene.jpg", json={"position": 2, "duration": 10})
+        assert resp.status_code == 200
+        resp = client.get("/api/progress?path=scene.jpg")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["position"] == 2
+        assert data["duration"] == 10
+        assert data["percent"] == 20.0
+
+    def test_save_and_read_progress_for_pdf(self):
+        pdf = MEDIA_ROOT / "manual.pdf"
+        pdf.write_bytes(b"%PDF-1.4\n" + b"\x00" * 50)
+        resp = client.post("/api/progress?path=manual.pdf", json={"position": 5, "duration": 20})
+        assert resp.status_code == 200
+        data = client.get("/api/progress?path=manual.pdf").json()
+        assert data["position"] == 5
+        assert data["duration"] == 20

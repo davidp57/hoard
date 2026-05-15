@@ -2,7 +2,7 @@
 
 ## Overview
 
-Hoard is a web-based video file browser. It lets you navigate a network drive (NAS), play videos directly in the browser, and remember where you left off.
+Hoard is a web-based media file browser. It lets you navigate a network drive (NAS), play videos, view images and comic archives, listen to audio files and read PDFs directly in the browser, and remember where you left off.
 
 ---
 
@@ -56,6 +56,49 @@ The move modal offers two modes:
 
 - **Pinned folders**: one-tap move to a predefined folder.
 - **📂 Browse…**: opens a destination picker that browses the full folder tree so you can choose any destination.
+
+---
+
+## Alternative Media Viewers
+
+In addition to videos, Hoard can open several other file types directly in the interface.
+
+### Images
+
+JPG, PNG, GIF, WEBP, BMP, TIFF, and AVIF files open in an integrated image viewer.
+
+- **← / →** (keyboard or buttons): previous / next image in the folder
+- **▣ button**: toggle between fit-width and full-page display
+- **✕**: close the viewer
+
+### Comic/manga archives (.cbz, .zip, .cbr)
+
+Image archives open as a page-by-page viewer.
+
+- Navigation identical to the image viewer (← / →)
+- Current page is saved so you can resume where you left off
+- `.cbr` requires `unrar-free` to be installed on the server
+
+### PDF
+
+PDF files are rendered directly in the browser via PDF.js.
+
+- **← / →**: previous / next page
+- **− / +**: zoom out / zoom in
+- **▣ button**: toggle between fit-width and original size
+- Current page is saved
+
+### Audio (.mp3, .flac, .ogg, .m4a, .aac, .wav, .opus)
+
+Audio files open in a minimal player.
+
+- Clickable progress bar
+- ◀◀ / ▶ / ▶▶ buttons (seek ±10 s, play/pause)
+- Position is saved
+
+### Watch Progress
+
+The **watched / in-progress / unwatched** status works for all media types, not just videos. The percentage is computed the same way (position / duration for video and audio; page / total for PDF and archives).
 
 ---
 
