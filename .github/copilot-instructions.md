@@ -1,5 +1,17 @@
 # Hoard — Copilot Instructions
 
+## Language rules
+
+- **Code and comments**: English only.
+- **Communication with the user**: French only.
+- **Documentation**:
+  - User-facing docs (`user-guide`, `installation`, `getting-started`): **French + English** (paired files `*.fr.md` / `*.en.md`).
+  - Developer / technical docs: **English**.
+  - `CHANGELOG.md`, backlog, release notes: **French**.
+- Update relevant docs in the **same commit** as the code change.
+
+---
+
 ## Project Overview
 
 **Hoard** 🐦 is a self-hosted media browser and video player for a Synology NAS.
@@ -28,10 +40,18 @@ Core features: filesystem browser (raw, no metadata library), watch progress tra
 
 ### Documentation
 
-- **Documentation MUST be kept up to date** with every code change.
-- **Bilingual**: All documentation files must be written in **both English and French**, as separate files under `docs/` (e.g. `user-guide.en.md` / `user-guide.fr.md`).
-- Code-level comments are in **English only**.
-- Update relevant docs in the SAME commit as the code change.
+Documentation must be kept up to date with every code change. Update in the **same commit** as the code.
+
+| Document | Language | Location | Trigger |
+|---|---|---|---|
+| User docs (user-guide, installation, getting-started) | **FR + EN** | `docs/*.en.md` / `docs/*.fr.md` | Feature added or modified |
+| Developer / technical docs | **EN** | `docs/developer.en.md` | Architecture or API changed |
+| `CHANGELOG.md` | **FR** | root | Every PR merged into `develop` |
+| `docs/changelog-user.fr.md` | **FR** | `docs/` | Every user-visible feature or fix |
+| `docs/backlog.md` | **FR** | `docs/` | Ticket created, progressed, or completed |
+| `ROADMAP.md` | **EN** | root | Lot completed, planned, or reprioritised |
+
+`docs/changelog-user.fr.md` is the end-user changelog (no jargon, plain French). Keep it in sync with `CHANGELOG.md` for every version.
 
 ### Architecture Rules
 
@@ -105,7 +125,12 @@ When the user asks to commit, follow these steps **in order** before creating th
    - `python -m pytest tests/`
 3. **Documentation** — update relevant `docs/*.en.md` and `docs/*.fr.md` files if the change affects user-facing behavior or architecture.
 4. **CHANGELOG** — add an entry under `## [Unreleased]` in `CHANGELOG.md` describing the change.
-5. **Commit** — stage all modified files (code + tests + docs + CHANGELOG) and commit in one clean commit with a descriptive Conventional Commits message.
+5. **Commit** — stage all modified files (code + tests + docs + CHANGELOG) and commit in one clean commit following **Conventional Commits** with scope:
+   - `feat(player): add 4-level seek keyboard shortcuts`
+   - `fix(api): correct path traversal guard on move endpoint`
+   - `chore(deps): upgrade uvicorn to 0.34`
+   - `docs(user-guide): document touch gesture zones`
+   - `test(api): add seek settings defaults test`
 
 ### PR preparation workflow
 
@@ -179,188 +204,79 @@ docker compose -f docker-compose.dev.yml up  # Dev with hot-reload
 | DB columns        | snake_case        | `updated_at`              |
 | Test files        | `test_` prefix    | `test_api.py`             |
 
+---
 
-## Development Principles
+## Git workflow
 
-### TDD — Test-Driven Development
+This project follows **Git Flow**:
 
-- **Always write tests BEFORE implementation code.**
-- Workflow: Red → Green → Refactor.
-  1. Write a failing test that defines the expected behavior.
-  2. Write the minimum code to make the test pass.
-  3. Refactor while keeping tests green.
-- Every new feature, bugfix, or behavior change MUST start with a test.
-- Test files mirror source structure: `budgie/services/budget_engine.py` → `tests/test_services/test_budget_engine.py`.
-- Use fixtures and factories for test data (see `tests/conftest.py`) — avoid hardcoding.
-- Aim for high coverage on business logic (services, importers, categorization). API routes tested via `httpx.AsyncClient`.
+- `main` — production-ready releases only
+- `develop` — integration branch, always deployable
+- `feature/*` — new features branched from `develop`
+- `fix/*` — bug fixes branched from `develop`
+- `hotfix/*` — urgent fixes branched from `main`
+- `release/*` — release preparation branched from `develop`
 
-### Code Quality
+Never commit directly to `main` or `develop`.
 
-- **Code language**: All code (variables, functions, classes, comments, docstrings, commit messages) MUST be in **English**.
-- **Type hints**: All Python functions must have complete type annotations. `mypy` must pass with zero errors.
-- **Linting**: `ruff` is the single tool for linting AND formatting Python code. Zero warnings policy.
-- **VS Code integration**: The project is configured so that ruff, mypy, Pylance, ESLint and Vue language tools report errors/warnings directly in VS Code. Fix all reported issues before considering code complete.
-- **Docstrings**: Use Google-style docstrings for all public functions, classes, and modules.
-- **No magic numbers**: Use constants or enums. Monetary amounts are always in **integer centimes** (e.g., `1050` = 10.50€).
-
-### Documentation
-
-- **Documentation MUST be kept up to date** with every code change.
-- **Bilingual**: All documentation files must be written in **both English and French**, in separate files under `docs/en/` and `docs/fr/`.
-- Code-level documentation (docstrings, inline comments) is in **English only**.
-- Update relevant docs in the SAME commit/PR as the code change.
-
-### Architecture Rules
-
-- **Backend**:
-  - Layered architecture: `api/` (routes) → `services/` (business logic) → `models/` (ORM) / `schemas/` (Pydantic).
-  - Routes must be thin — delegate logic to services.
-  - All database operations go through SQLAlchemy async sessions.
-  - Use Pydantic schemas for ALL request/response validation.
-  - Configuration via `pydantic-settings` loading from `.env`.
-
-- **Frontend**:
-  - Use Vue 3 Composition API with `<script setup lang="ts">` syntax.
-  - State management via Pinia stores.
-  - API calls centralized in `src/api/` module using axios.
-  - Components should be small, single-responsibility.
-  - Use DaisyUI component classes — avoid custom CSS when a DaisyUI component exists.
-  - **After every change to a `.vue` file, run `npx vue-tsc --noEmit -p tsconfig.app.json` (frontend equivalent of `mypy`) before considering the task done.** This catches template errors, broken bindings, and type mismatches that Vite only reports at runtime. Always use `-p tsconfig.app.json` to ensure all strict options (e.g. `noUncheckedIndexedAccess`) are applied — matching exactly what the CI runs.
-
-- **Database**:
-  - Monetary values are **integer centimes** (never floats).
-  - Use Alembic for ALL schema changes — never modify the DB manually.
-  - Unique constraints for deduplication (e.g., `import_hash` on transactions).
-
-### Project Structure
+### Branch naming
 
 ```
-budgie/
-├── .github/
-│   └── copilot-instructions.md   # This file
-├── pyproject.toml
-├── Dockerfile
-├── docker-compose.yml
-├── .env.example
-├── alembic.ini
-├── alembic/
-│   └── versions/
-├── budgie/                        # Backend Python package
-│   ├── __init__.py
-│   ├── config.py                  # Pydantic Settings
-│   ├── database.py                # SQLAlchemy engine & session
-│   ├── main.py                    # FastAPI app
-│   ├── models/                    # SQLAlchemy ORM models
-│   ├── schemas/                   # Pydantic request/response schemas
-│   ├── api/                       # FastAPI routers
-│   ├── services/                  # Business logic
-│   └── importers/                 # Bank file parsers
-├── frontend/                      # Vue.js 3 SPA
-│   ├── package.json
-│   ├── vite.config.ts
-│   ├── tailwind.config.js
-│   └── src/
-│       ├── api/                   # HTTP client
-│       ├── components/            # Reusable Vue components
-│       ├── views/                 # Page-level components
-│       ├── stores/                # Pinia stores
-│       └── router/                # Vue Router
-├── tests/                         # Backend tests
-│   ├── conftest.py
-│   ├── test_api/
-│   ├── test_services/
-│   └── test_importers/
-├── docs/                          # Documentation (EN + FR)
-│   ├── en/
-│   │   ├── user-guide.md
-│   │   └── developer-guide.md
-│   └── fr/
-│       ├── user-guide.md
-│       └── developer-guide.md
-└── data/                          # Runtime data (gitignored)
+feature/short-description
+fix/short-description
+hotfix/short-description
+release/x.y.z
 ```
 
-### Commit workflow
+### Multi-PC workflow
 
-When the user asks to commit, follow these steps **in order** before creating the commit:
+Before starting any work on a branch:
 
-1. **Tests** — verify existing tests still pass; add or update tests for all new/changed behavior.
-2. **Quality checks** — run all checks and fix all issues before proceeding:
-   - Backend: `poetry run ruff check .`, `poetry run ruff format --check .`, `poetry run mypy budgie/`, `poetry run pytest`
-   - Frontend: `cd frontend && npx vue-tsc --noEmit -p tsconfig.app.json`, `cd frontend && npx vue-tsc --noEmit` (CI-exact, no `-p`), `npx eslint src/`, `npx vitest run`
-3. **Documentation** — verify and update all relevant docs:
-   - `docs/en/` and `docs/fr/` user/developer guides — update if the change affects user-facing behavior or architecture.
-   - Docstrings — update if public API signatures or behavior changed.
-4. **Commit** — stage all modified files (code + tests + docs) and commit in one clean commit with a descriptive message.
-
-### PR preparation workflow
-
-When the user asks to prepare a PR, follow these steps in order:
-
-1. **Tests** — verify existing tests still pass; add or complete tests for all new/changed behavior.
-2. **Documentation** — verify and update all relevant docs (user guides EN + FR, README, docstrings).
-3. **Quality checks** — run all backend and frontend checks; fix all issues before proceeding.
-4. **Temporary PR description** — create a temporary markdown file (e.g. `.github/pull_request_description.md`) to help the user fill in the PR on GitHub. This file must **not** be committed.
-   - The PR description **must be written in English**.
-   - Keep it **concise**: one short summary paragraph + a bullet list of key changes. No lengthy prose.
-5. **Commit** — commit all the above changes (tests, docs) in one clean commit. Do **not** commit the PR description file.
-
-### Release workflow
-
-When the user asks to do a release, follow these steps in order:
-
-1. **Propose a version number** — suggest a semver version based on the changes since the last release (patch / minor / major), and ask the user to confirm before proceeding.
-2. **Write release notes** — draft concise, user-focused release notes **in both English and French**.
-   - Structure: short intro sentence + bullet list of notable changes. No technical jargon.
-   - Present them to the user for confirmation before continuing.
-3. **Bump version** — update `version` in `pyproject.toml` to the confirmed value.
-4. **Update README** — update any version-specific info if needed.
-5. **Quality checks** — run all backend and frontend checks; fix all issues before proceeding.
-6. **Commit** — one clean commit: `release: vX.Y.Z`.
-7. **Tag** — create an annotated git tag `vX.Y.Z`.
-8. **Push** — ask the user before pushing the commit and tag to GitHub.
-
-### Commands
-
-> **Version policy**: Never change the version number in `pyproject.toml` or anywhere else unless the user has confirmed it.
-
-```bash
-# Backend
-poetry install                          # Install dependencies
-poetry run pytest                       # Run tests
-poetry run pytest --cov=budgie          # Run tests with coverage
-poetry run ruff check .                 # Lint
-poetry run ruff format .                # Format
-poetry run mypy budgie/                 # Type checking
-poetry run uvicorn budgie.main:app --reload  # Dev server
-
-# Frontend
-cd frontend
-npm install                             # Install dependencies
-npm run dev                             # Vite dev server
-npm run build                           # Production build
-npx vitest run                          # Tests
-npx eslint src/                         # ESLint
-npx vue-tsc --noEmit -p tsconfig.app.json  # TypeScript check (matches CI exactly)
-
-# Docker
-docker compose up --build               # Build & run
-docker compose up -d                    # Run detached
+```powershell
+git pull --rebase
 ```
 
-### Naming Conventions
+This avoids non-fast-forward push rejections. If a push is rejected, always use `git pull --rebase` (not `git merge`) before retrying.
 
-| Element            | Convention        | Example                          |
-|-------------------|-------------------|----------------------------------|
-| Python files      | snake_case        | `budget_engine.py`               |
-| Python classes    | PascalCase        | `BudgetAllocation`               |
-| Python functions  | snake_case        | `get_month_budget()`             |
-| Python constants  | UPPER_SNAKE_CASE  | `MAX_IMPORT_SIZE`                |
-| Private helpers   | `_` prefix        | `_parse_amount()`               |
-| Vue components    | PascalCase        | `EnvelopeCard.vue`               |
-| Vue composables   | camelCase, `use`  | `useBudget.ts`                   |
-| TypeScript files  | camelCase         | `apiClient.ts`                   |
-| API endpoints     | kebab-case        | `/api/category-groups`           |
-| DB tables         | snake_case plural | `budget_allocations`             |
-| DB columns        | snake_case        | `auto_category_id`               |
-| Test files        | `test_` prefix    | `test_budget_engine.py`          |
+---
+
+## Per-change checklist
+
+After every change (feature, fix, refactor), before committing:
+
+1. Add or update tests for changed behavior.
+2. Run the full quality gate (`ruff check .`, `ruff format --check .`, `pytest`).
+3. Zero errors in VS Code (ruff, Pylance).
+4. Update `CHANGELOG.md` (in **French**, under `## [Unreleased]`).
+5. If user-visible: update `docs/changelog-user.fr.md`.
+6. Update `docs/backlog.md` if the change closes or advances a ticket.
+7. Update relevant user docs (EN + FR) or developer docs (EN).
+8. **Bump the patch version** in `pyproject.toml` (e.g. `1.2.3` → `1.2.4`).
+
+---
+
+## Project planning
+
+### Backlog
+
+`docs/backlog.md` is the single source of truth for all tracked work items. Written in **French**.
+
+Work items are grouped into **lots**. Each lot has:
+- A ticket table: `ID | Titre | Prio | Est. | Créé | Démarré | Terminé`
+- A Copilot time estimate displayed in the lot header.
+
+**Estimation rules:**
+- Per ticket: estimate raw implementation time, multiply by the current margin factor (tracked in `docs/backlog.md` under `## Calibration estimations`), round to nearest 5 min.
+- Per lot header: sum of ticket estimates + 15 min user project management.
+- Track actuals in `.dev/timing.md` during implementation; report at end of lot.
+- After each completed lot, compare estimated vs. actual. If the ratio differs from the current factor by more than 20%, adjust and inform the user. Log in the `## Calibration estimations` section of `docs/backlog.md`.
+
+Completed lots older than 3 days → move to `docs/backlog-archive.md`.
+
+### Roadmap
+
+`ROADMAP.md` tracks the delivery plan. Every lot with an agreed target version appears there:
+- Functional lots: one subsection per feature with detail.
+- Technical lots: one-line summary.
+
+Update after completing a lot, planning new lots, or changing priorities.

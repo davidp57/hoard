@@ -160,6 +160,8 @@ environment:
 
 The application will be available at `https://NAS_IP:8000`.
 
+This also enables PWA installability on real devices: service workers and standalone install prompts require HTTPS (or `localhost` during local development).
+
 ### Using Portainer
 
 In the Portainer UI, create a stack from `docker-compose.yml` content and adjust environment variables to match your setup.

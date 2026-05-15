@@ -15,7 +15,11 @@ The interface is split into two areas:
 
 ### File Browser
 
-The browser displays the contents of a folder. A **breadcrumb** at the top lets you navigate up. The **🏠** button returns to the root.
+The browser displays the contents of a folder. A **breadcrumb** at the top lets you navigate up. The **🏠** button returns to the home screen.
+
+### Home Screen and Home Roots
+
+If no home roots are configured, the browser opens directly at `MEDIA_ROOT`. If home roots are defined (via **Settings → Home roots**), pressing **🏠** shows a selection screen listing each named home root. Click one to navigate directly to it.
 
 Each file or folder is shown with:
 
@@ -25,15 +29,33 @@ Each file or folder is shown with:
   - Yellow background + progress bar + percentage → **in progress**
   - Green background → **watched** (≥ 90 % viewed)
 
-### File Actions
+### Search
 
-Hovering over a file (or long-pressing on mobile) reveals action buttons:
+A **🔍** field is available in the sort bar. The search is case-insensitive and recursive within the current folder. Results replace the list; clearing the field (or pressing ✕) returns to normal browsing.
 
-| Action | Description |
+### Tags and Tag Filtering
+
+Any file or folder can carry **free-form text tags** (e.g. `excellent`, `to-finish`). Tags are stored in SQLite and displayed as coloured badges in the list.
+
+| Action | How |
+|--------|-----|
+| Add / remove a tag | Click the **🏷** button next to the entry |
+| Filter the list by a tag | Click a badge in the **tag filter bar** below the sort bar |
+| Clear the filter | Click the same badge again, or navigate to another folder |
+
+The tag filter bar appears automatically as soon as a folder contains at least one tagged file.
 |--------|-------------|
 | **▶ Play** | Opens the video in the player |
-| **📁 Move** | Opens the quick-move modal (pinned folders) |
+| **🏷 Tags** | Opens the tag management modal |
+| **📁 Move** | Opens the move modal (pinned folders + free-pick browser) |
 | **🗑 Delete** | Deletes the file after confirmation |
+
+### Moving to Any Folder
+
+The move modal offers two modes:
+
+- **Pinned folders**: one-tap move to a predefined folder.
+- **📂 Browse…**: opens a destination picker that browses the full folder tree so you can choose any destination.
 
 ---
 
@@ -44,20 +66,53 @@ Hovering over a file (or long-pressing on mobile) reveals action buttons:
 | Element | Role |
 |---------|------|
 | **Progress bar** | Shows and controls position in the video |
-| **⏮ / ⏭** | Seek back / forward 30 seconds |
-| **◀◀ / ▶▶** | Seek back / forward 10 seconds |
+| **⏮ / ⏭** | Seek back / forward — medium (30 s default, configurable) |
+| **◀◀ / ▶▶** | Seek back / forward — short (10 s default, configurable) |
 | **▶ / ⏸** | Play / Pause |
 | **🔊** | Mute/unmute |
 | **Volume** | Volume slider |
+| **🐢 / 🐇** | Speed cycle: 0.5× → 1× → 1.5× → 2× (reset on each file open) |
 | **⛶** | Fullscreen |
+
+When you enter fullscreen, Hoard hides the controls automatically to maximize the video area.
+
+- On desktop, move the mouse or use keyboard shortcuts to bring the controls back temporarily.
+- On touch devices, only the existing bottom-centre tap zone near the controls should show or hide them.
+
+### Video Metadata
+
+When a file is playing, the codec, resolution, duration, and bitrate are shown below the filename (fetched from the server via `ffprobe`).
 
 ### Auto-resume
 
 Position is saved automatically every 5 seconds. When you re-open a file, playback resumes from where you stopped.
 
+### Smarter Native Playback Detection
+
+Before falling back to server-side transcoding, Hoard now checks whether the current browser is likely able to play the original file natively.
+
+- MP4/H.264/AAC remains the safest native baseline.
+- For more variable formats such as HEVC, AV1, or WebM, Hoard probes browser support first when metadata is available.
+- If native playback is not confirmed, Hoard switches to the transcoded stream automatically.
+
+### Initial Sweep For New Videos
+
+You can configure an **initial sweep** offset for videos that have **no saved progress yet**.
+
+- A **global default** is available in **Settings → Player**.
+- While playing a video, a single **folder start** action can save the **current playback position** as the default start for that folder.
+- `0` means disabled.
+- A folder override takes precedence over the global default.
+
+This rule only applies to brand-new videos. Once a file has saved progress, Hoard always resumes from the real saved position instead.
+
 ### IN/OUT Markers (trim)
 
 The `[IN` and `OUT]` buttons define a restricted playback zone (without modifying the file). The ✂ button triggers a physical file cut via ffmpeg.
+
+### Auto-refresh File List
+
+The file list refreshes automatically every 30 seconds when the tab is visible, the video is paused, and no search is active. This makes new files appear without a manual page reload.
 
 ---
 
@@ -69,17 +124,17 @@ Gestures work directly on the video image.
 
 | Area | Action |
 |------|--------|
-| Centre (upper area) | Play / Pause |
-| Centre (bottom strip) | Show / hide controls |
+| Narrow centre band (upper area) | Play / Pause |
+| Narrow bottom-centre strip | Show / hide controls in fullscreen |
 
 ### Double Tap
 
 | Area | Action |
 |------|--------|
 | Left edge (< 20 % width) | Seek back 30 s |
-| Right edge — bottom third | Seek forward 30 s |
-| Right edge — middle third | Seek forward 60 s |
-| Right edge — top third | Seek forward 90 s |
+| Right edge — bottom third | Seek forward — medium (30 s default) |
+| Right edge — middle third | Seek forward — long (60 s default) |
+| Right edge — top third | Seek forward — extra-long (120 s default) |
 | Centre | Fullscreen |
 
 ### Triple Tap
@@ -104,12 +159,76 @@ Progressive seek through the video. **Speed depends on the vertical position of 
 | Key | Action |
 |-----|--------|
 | `Space` | Play / Pause |
-| `←` | Seek back 10 s |
-| `→` | Seek forward 10 s |
-| `↑` | Volume + 10 % |
-| `↓` | Volume − 10 % |
+| `← / →` | Short seek (10 s default) |
+| `Shift + ← / →` | Medium seek (30 s default) |
+| `Ctrl + ← / →` | Long seek (60 s default) |
+| `Alt + ← / →` | Extra-long seek (120 s default) |
+| `↑ / ↓` | Volume +/− 10 % |
 | `F` | Fullscreen |
-| `M` | Mute |
+| `M` | Mute / Unmute |
+| `A` | Cycle aspect ratio (Fit / Fill / …) |
+| `PageDown / PageUp` | Next / previous video |
+| `I / O` | Set IN / OUT marker |
+| `C` | Open Trim window |
+| `D` | Open Move window |
+| `Delete` | Delete current file |
+| `S` | Save folder start position |
+| `?` | Show / hide keyboard help |
+
+---
+
+## Gamepad / Controller Support
+
+Hoard supports game controllers via the browser's **Gamepad API** (Xbox, PlayStation DualSense, Switch Pro, Steam Deck, iPhone with a Bluetooth controller, etc.).
+
+### Connecting
+
+- Plug in or pair the controller, then press any button while Hoard is open.
+- A « 🎮 Controller connected » toast confirms detection.
+- **Steam Deck / Firefox**: Firefox only fires `gamepadconnected` after a button press. A toast « Press a button to activate the controller » appears if the device is detected but not yet active.
+
+### Actions — Video Player
+
+| Button | Base | + L1 | + R1 | + L1+R1 |
+|--------|------|------|------|---------|
+| **A** | Play / Pause | Subtitles | Move → Folder 1 | Jump to 0% |
+| **B** | Close player | — | Move → Folder 2 | — |
+| **X** | Toggle watched | Aspect ratio | Move → Folder 3 | Jump to 50% |
+| **Y** | Fullscreen | Jump to 0% | — | Jump to 100% |
+| **D-pad ←/→** | Seek medium | Seek long | Seek extra-long | — |
+| **D-pad ↑/↓** | Volume ±10% | Prev/next file | Jump to 25%/75% | — |
+| **Select** | Open Settings | — | — | — |
+| **Start** | Show button map | — | — | — |
+| **Left stick X** | Analog scrubbing | — | — | — |
+| **Right stick Y** | Analog volume | — | — | — |
+
+### Actions — File Browser (no video open)
+
+| Button | Action |
+|--------|--------|
+| **D-pad ↑/↓** | Move cursor in the list |
+| **Left stick Y** | Move cursor (analog) |
+| **A** | Open the selected file or folder |
+| **B** | Go up one level |
+| **Start** | Open Settings |
+
+### Modifier Layers (L1 / R1)
+
+Hold **L1** or **R1** to access extra command layers. Holding both (L1+R1) activates a fourth layer. A small **corner badge** (e.g. « 🎮 L1 ») shows the active layer.
+
+### Button Map Overlay
+
+Press **Start** (or the « Show button map » button in Settings) to display an overlay listing all actions per layer, dynamically updated with your configured seek durations.
+
+### Controller Settings
+
+In **Settings → 🎮 Controller**:
+
+| Setting | Description |
+|---------|-------------|
+| **Controller enabled** | Enable / disable gamepad detection entirely |
+| **Haptic feedback** | Short vibration on play/pause, seek, watched toggle (Chrome only) |
+| **Dead zone** | Stick detection threshold (default 20%). Increase if sticks drift. |
 
 ---
 
@@ -160,6 +279,10 @@ All downloads are tracked in a central queue accessible from the **📥** button
 
 | Setting | Description |
 |---------|-------------|
+| **Seek durations** | Four configurable levels in **Settings → Player**: short (default 10 s), medium (30 s), long (60 s), extra-long (120 s). Used by skip buttons, keyboard shortcuts, and double-taps. |
+| **Enable transcoding** | When disabled, Hoard always serves the original stream (`/api/stream`) without calling the transcoder. Useful if your NAS is slow or your browser can play the format natively. |
+| **Default initial sweep** | Start brand-new videos at N seconds instead of 0. Applies only when the file has no saved progress yet. `0` disables it globally. |
+| **Home roots** | Named root folders shown on the home screen. Add or remove them in **Settings → Home roots**. |
 | **Download folder** | Target folder, relative to `MEDIA_ROOT` (default: `Downloads`). Created automatically if it does not exist. |
 | **Cookies file path** | Absolute path to a Netscape `cookies.txt` file. Useful for sites that require authentication. |
 
@@ -175,3 +298,9 @@ The bookmarklet forwards `document.cookie` from the source page. Note that **Htt
 |-------------|------|
 | > 700 px | Split view: list on the left, player on the right |
 | ≤ 700 px | Full-screen list, player as overlay |
+
+## Install As An App
+
+On browsers that support web app install prompts, Hoard can now be installed as a standalone app instead of staying in a regular tab. On iPad and iPhone, use the browser's **Add to Home Screen** action to get the same standalone launch behavior.
+
+The install shell only caches the app shell assets needed to reopen the interface faster. Hoard still expects a live connection to your NAS for API calls, browsing, and video playback.

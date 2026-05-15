@@ -16,7 +16,9 @@ COPY frontend/ ./frontend/
 COPY entrypoint.sh ./entrypoint.sh
 
 # Ensure the data volume is writable by the app user
-RUN mkdir -p /data && chown appuser:appuser /data && chmod +x /app/entrypoint.sh
+# Fix potential Windows CRLF line endings in entrypoint.sh
+RUN sed -i 's/\r//' /app/entrypoint.sh && \
+    mkdir -p /data && chown appuser:appuser /data && chmod +x /app/entrypoint.sh
 
 USER appuser
 

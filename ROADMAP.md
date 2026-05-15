@@ -32,25 +32,38 @@
 - [x] HTTPS support: native via `SSL_CERTFILE` / `SSL_KEYFILE` env vars (no reverse proxy needed)
 - [x] SSRF protection on `/api/download` (rejects `file://`, localhost, RFC-1918)
 
-## v1.2 — Quality & Sort *(next)*
+## v1.2 — Player & Sort *(done)*
 
-- [ ] **Sort controls** in file list: by name (asc/desc), date modified, size, watch status
-- [ ] **Fullscreen button** on player + `F` shortcut
-- [ ] **Playback speed** selector (0.5×, 1×, 1.5×, 2×)
-- [ ] Mark file as watched / unwatched manually (right-click / long-press)
+- [x] **Unified multi-level seek** (BL-021): 4 configurable seek durations (short/medium/long/x-long) shared by keyboard shortcuts, touch double-tap zones, and player buttons; extended keyboard shortcut set (M, A, I, O, C, D, Delete, S, PageDown/PageUp, ?); move/cut/delete modals usable in native fullscreen via `<dialog>.showModal()`
+- [ ] **Sort controls** in file list: by name (asc/desc), date modified, size, watch status (BL-002)
+- [x] **Fullscreen button** on player + `F` shortcut (BL-021)
+- [x] **Playback speed** selector (0.5×, 1×, 1.5×, 2×) (BL-010)
+- [ ] Mark file as watched / unwatched manually (right-click / long-press) (BL-003)
 
-## v1.3 — Navigation & Tags
+## v1.3 — Navigation & Tags *(done)*
 
-- [ ] **Free-move**: destination picker that browses the filesystem (folder tree)
-- [ ] **Rename** file/folder inline
-- [ ] **Arbitrary tags** on files (e.g. "excellent", "à finir") — stored in SQLite, shown as badges in the list
-- [ ] Filter list by tag
+- [x] **Multiple home roots**: configure named root folders so the home screen lists several roots (BL-023)
+- [x] **Free-move**: destination picker that browses the filesystem (folder tree) (BL-005)
+- [x] **Arbitrary tags** on files (e.g. "excellent", "à finir") — stored in SQLite, shown as badges in the list (BL-007)
+- [x] **Filter list by tag** — tag filter bar appears dynamically in the sort bar (BL-007)
+- [x] **Search across filenames** — recursive search field in the sort bar, scoped to the current folder (BL-012)
+- [ ] **Rename** file/folder inline (BL-006)
 
 ## v1.4 — Media & Subtitles
 
-- [ ] **Subtitle support**: auto-detect `.srt` / `.ass` files in the same folder and offer them as text tracks
-- [ ] **Auto-refresh** file list (poll or SSE) to detect new downloads without reloading
-- [ ] Display video metadata on hover / detail pane (duration, resolution, codec) via `ffprobe`
+- [ ] **Subtitle support**: auto-detect `.srt` / `.ass` files in the same folder and offer them as text tracks (BL-008)
+- [x] **Auto-refresh** file list every 30 s when the tab is active and video is paused (BL-009)
+- [x] Display video metadata under the player title (duration, resolution, codec, bitrate) via `ffprobe` (BL-016)
+
+## v2.1 — Multi-Segments & Gamepad Polish *(done)*
+
+- [x] **Multi-segment export** (BL-047–051): replace single IN/OUT cut with multi-segment system; segments stored in SQLite; export individual or merged via FFmpeg lossless concat; full keyboard and gamepad support (`I`/`O`/`E`, `L1+Y`/`R1+Y`/`L1+R1+Y`)
+- [x] **Auto-play next in fullscreen**: after delete/move/cut of the current file in fullscreen, the next file starts automatically and fullscreen is restored
+- [x] **Volume OSD**: on-screen volume bar with icon, level, and percentage; auto-hides after 2.5 s
+- [x] **Fullscreen progress indicator**: zoomed progress bar overlay in native fullscreen (time remaining, global bar, zoomed segment)
+- [x] **Gamepad fullscreen dialogs** (BL-046): delete and move dialogs visible and navigable in native fullscreen on SteamDeck/Edge
+- [x] **Gamepad cursor preservation** (BL-043/052): cursor no longer resets after file actions or auto-play next
+- [x] **Default home root** (BL-040): designate a root as the startup destination; navigate there directly without the root-picker screen
 
 ## v2.0 — Platform
 
@@ -59,6 +72,17 @@
 - [ ] **PWA** manifest + service-worker: installable on iPad / Windows laptop
 - [ ] **Search** across all filenames in MEDIA_ROOT
 - [ ] **Multi-user** watch progress (per-user SQLite rows)
+
+## v1.5 — Gamepad / Controller Support *(done)*
+
+- [x] **Gamepad support** (BL-024): Gamepad API, 4-layer button system (base / L1 / R1 / L1+R1), full player controls (play/pause, seek multi-level, volume, fullscreen, watched toggle, aspect ratio, quick-folder moves), file browser cursor navigation, analog left-stick scrubbing, analog right-stick volume, layer HUD badge, dynamic button-map overlay (Start), connection/disconnection toasts, haptic feedback (Chrome), configurable deadzone and on/off toggle in Settings
+
+## v1.7 — Alternative Media Readers *(planned)*
+
+- [ ] **Image viewer** (BL-053+054): browse folders of images with keyboard/gamepad, two display modes (page-width / full-page)
+- [ ] **Archive reader** (BL-055): open `.zip`, `.cbz`, `.cbr` comic archives directly in the image viewer
+- [ ] **PDF reader** (BL-056): PDF.js-powered reader with page navigation, zoom, keyboard/gamepad control, and saved progress
+- [ ] **Audio player** (BL-057): native audio playback for `.mp3`, `.flac`, `.ogg`, `.m4a`, `.aac`, `.wav`, `.opus` using existing player infrastructure
 
 ---
 

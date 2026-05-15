@@ -22,6 +22,9 @@ env/
 /data/
 /dev-media/
 
+# Session data (local only, not committed)
+.dev/
+
 # Docker
 .dockerignore
 

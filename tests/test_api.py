@@ -1,5 +1,6 @@
 """Unit tests for MediaBrowser API endpoints."""
 
+import json
 import sys
 import threading
 from unittest.mock import MagicMock
@@ -8,9 +9,28 @@ import pytest
 from starlette.testclient import TestClient  # bundled with fastapi
 
 # Env vars are already set by conftest.py before this import
+import backend.main as main_mod
 from backend.main import MEDIA_ROOT, app
 
 client = TestClient(app)
+
+
+# ── Frontend shell ────────────────────────────────────────────────────────────
+
+
+class TestFrontendShell:
+    def test_manifest_is_served(self):
+        resp = client.get("/manifest.webmanifest")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["name"] == "Hoard"
+        assert data["display"] == "standalone"
+
+    def test_service_worker_is_served(self):
+        resp = client.get("/service-worker.js")
+        assert resp.status_code == 200
+        assert "self.addEventListener" in resp.text
+        assert "CACHE_NAME" in resp.text
 
 
 # ── /api/quick-folders ──────────────────────────────────────────────────────────────────
@@ -63,6 +83,100 @@ class TestQuickFolders:
         entries = client.get("/api/files").json()["entries"]
         entry = next(e for e in entries if e["name"] == "series")
         assert entry["is_quick_folder"] is False
+
+
+# ── /api/home-roots ────────────────────────────────────────────────────────────
+
+
+class TestHomeRoots:
+    def test_empty_initially(self):
+        resp = client.get("/api/home-roots")
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+    def test_add_and_list(self, subdir_with_video):
+        resp = client.post("/api/home-roots", json={"name": "Séries", "path": subdir_with_video})
+        assert resp.status_code == 200
+        data = client.get("/api/home-roots").json()
+        assert len(data) == 1
+        assert data[0]["name"] == "Séries"
+        assert data[0]["path"] == subdir_with_video
+        assert "id" in data[0]
+
+    def test_add_nonexistent_rejected(self):
+        resp = client.post("/api/home-roots", json={"name": "Ghost", "path": "ghost_dir"})
+        assert resp.status_code == 404
+
+    def test_add_file_rejected(self, video_file):
+        resp = client.post("/api/home-roots", json={"name": "Video", "path": video_file})
+        assert resp.status_code == 404
+
+    def test_add_empty_name_rejected(self, subdir_with_video):
+        resp = client.post("/api/home-roots", json={"name": "", "path": subdir_with_video})
+        assert resp.status_code == 400
+
+    def test_add_whitespace_name_rejected(self, subdir_with_video):
+        resp = client.post("/api/home-roots", json={"name": "   ", "path": subdir_with_video})
+        assert resp.status_code == 400
+
+    def test_add_duplicate_rejected(self, subdir_with_video):
+        client.post("/api/home-roots", json={"name": "A", "path": subdir_with_video})
+        resp = client.post("/api/home-roots", json={"name": "B", "path": subdir_with_video})
+        assert resp.status_code == 409
+
+    def test_remove(self, subdir_with_video):
+        client.post("/api/home-roots", json={"name": "Séries", "path": subdir_with_video})
+        root_id = client.get("/api/home-roots").json()[0]["id"]
+        resp = client.delete(f"/api/home-roots/{root_id}")
+        assert resp.status_code == 200
+        assert client.get("/api/home-roots").json() == []
+
+    def test_remove_nonexistent(self):
+        resp = client.delete("/api/home-roots/9999")
+        assert resp.status_code == 404
+
+    def test_path_traversal_blocked(self):
+        resp = client.post("/api/home-roots", json={"name": "Escape", "path": "../../../etc"})
+        assert resp.status_code == 403
+
+    def test_first_root_is_default(self, subdir_with_video):
+        client.post("/api/home-roots", json={"name": "First", "path": subdir_with_video})
+        data = client.get("/api/home-roots").json()
+        assert data[0]["is_default"] is True
+
+    def test_second_root_not_default(self, subdir_with_video, subdir_without_video):
+        client.post("/api/home-roots", json={"name": "First", "path": subdir_with_video})
+        client.post("/api/home-roots", json={"name": "Second", "path": subdir_without_video})
+        data = client.get("/api/home-roots").json()
+        defaults = [r for r in data if r["is_default"]]
+        assert len(defaults) == 1
+        assert defaults[0]["name"] == "First"
+
+    def test_set_default(self, subdir_with_video, subdir_without_video):
+        client.post("/api/home-roots", json={"name": "First", "path": subdir_with_video})
+        client.post("/api/home-roots", json={"name": "Second", "path": subdir_without_video})
+        data = client.get("/api/home-roots").json()
+        second_id = next(r["id"] for r in data if r["name"] == "Second")
+        resp = client.post(f"/api/home-roots/{second_id}/set-default")
+        assert resp.status_code == 200
+        data = client.get("/api/home-roots").json()
+        assert next(r for r in data if r["name"] == "Second")["is_default"] is True
+        assert next(r for r in data if r["name"] == "First")["is_default"] is False
+
+    def test_set_default_nonexistent(self):
+        resp = client.post("/api/home-roots/9999/set-default")
+        assert resp.status_code == 404
+
+    def test_delete_default_promotes_next(self, subdir_with_video, subdir_without_video):
+        client.post("/api/home-roots", json={"name": "First", "path": subdir_with_video})
+        client.post("/api/home-roots", json={"name": "Second", "path": subdir_without_video})
+        data = client.get("/api/home-roots").json()
+        first_id = next(r["id"] for r in data if r["name"] == "First")
+        client.delete(f"/api/home-roots/{first_id}")
+        data = client.get("/api/home-roots").json()
+        assert len(data) == 1
+        assert data[0]["is_default"] is True
+        assert data[0]["name"] == "Second"
 
 
 # ── /api/files ────────────────────────────────────────────────────────────────
@@ -163,6 +277,7 @@ class TestProgress:
         assert data["position"] == 0
         assert data["duration"] == 0
         assert data["percent"] == 0
+        assert data["has_saved_progress"] is False
 
     def test_save_and_read(self, video_file):
         # Save
@@ -179,6 +294,7 @@ class TestProgress:
         assert data["position"] == 120.5
         assert data["duration"] == 600.0
         assert data["percent"] == pytest.approx(20.1, abs=0.1)
+        assert data["has_saved_progress"] is True
 
     def test_update_overwrites(self, video_file):
         client.post(f"/api/progress?path={video_file}", json={"position": 10, "duration": 100})
@@ -300,6 +416,117 @@ class TestStream:
         assert resp.status_code == 403
 
 
+class TestMediaInfo:
+    def test_media_info_returns_baseline_strategy_for_mp4_h264_aac(self, video_file, monkeypatch):
+        ffprobe_payload = {
+            "streams": [
+                {
+                    "codec_type": "video",
+                    "codec_name": "h264",
+                    "codec_tag_string": "avc1",
+                    "width": 1920,
+                    "height": 1080,
+                    "bit_rate": "1500000",
+                    "r_frame_rate": "30000/1001",
+                    "bits_per_raw_sample": "8",
+                },
+                {
+                    "codec_type": "audio",
+                    "codec_name": "aac",
+                    "codec_tag_string": "mp4a",
+                    "channels": 2,
+                    "sample_rate": "48000",
+                    "bit_rate": "128000",
+                },
+            ],
+            "format": {
+                "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+                "bit_rate": "1628000",
+                "duration": "60.0",
+            },
+        }
+
+        monkeypatch.setattr(main_mod, "FFPROBE_BIN", "ffprobe")
+        monkeypatch.setattr(
+            main_mod.subprocess,
+            "run",
+            lambda *args, **kwargs: MagicMock(stdout=json.dumps(ffprobe_payload)),
+        )
+
+        resp = client.get(f"/api/media-info?path={video_file}")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["path"] == video_file
+        assert data["mime_type"] == "video/mp4"
+        assert data["strategy"] == "baseline"
+        assert data["content_type"] == 'video/mp4; codecs="avc1, mp4a.40.2"'
+        assert data["video"]["codec"] == "h264"
+        assert data["video"]["content_type"] == 'video/mp4; codecs="avc1"'
+        assert data["audio"]["codec"] == "aac"
+        assert data["audio"]["content_type"] == 'audio/mp4; codecs="mp4a.40.2"'
+
+    def test_media_info_returns_probe_strategy_for_mp4_hevc(self, video_file, monkeypatch):
+        ffprobe_payload = {
+            "streams": [
+                {
+                    "codec_type": "video",
+                    "codec_name": "hevc",
+                    "codec_tag_string": "hvc1",
+                    "width": 3840,
+                    "height": 2160,
+                    "bit_rate": "9000000",
+                    "avg_frame_rate": "24/1",
+                    "bits_per_raw_sample": "10",
+                },
+                {
+                    "codec_type": "audio",
+                    "codec_name": "aac",
+                    "codec_tag_string": "mp4a",
+                    "channels": 6,
+                    "sample_rate": "48000",
+                    "bit_rate": "384000",
+                },
+            ],
+            "format": {
+                "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+                "bit_rate": "9384000",
+                "duration": "120.0",
+            },
+        }
+
+        monkeypatch.setattr(main_mod, "FFPROBE_BIN", "ffprobe")
+        monkeypatch.setattr(
+            main_mod.subprocess,
+            "run",
+            lambda *args, **kwargs: MagicMock(stdout=json.dumps(ffprobe_payload)),
+        )
+
+        resp = client.get(f"/api/media-info?path={video_file}")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["strategy"] == "probe"
+        assert data["content_type"] == 'video/mp4; codecs="hvc1, mp4a.40.2"'
+        assert data["video"]["codec"] == "hevc"
+        assert data["video"]["bit_depth"] == 10
+
+    def test_media_info_returns_503_without_ffprobe(self, video_file, monkeypatch):
+        monkeypatch.setattr(main_mod, "FFPROBE_BIN", "")
+
+        resp = client.get(f"/api/media-info?path={video_file}")
+
+        assert resp.status_code == 503
+
+    def test_media_info_not_found(self):
+        resp = client.get("/api/media-info?path=ghost.mp4")
+        assert resp.status_code == 404
+
+    def test_media_info_path_traversal_blocked(self):
+        resp = client.get("/api/media-info?path=../../etc/passwd")
+        assert resp.status_code == 403
+
+
 # ── /api/browse ───────────────────────────────────────────────────────────────
 
 
@@ -338,6 +565,11 @@ class TestSettings:
         assert resp.status_code == 200
         assert "media_root" in resp.json()
 
+    def test_get_settings_returns_default_initial_sweep_seconds(self):
+        resp = client.get("/api/settings")
+        assert resp.status_code == 200
+        assert resp.json()["initial_sweep_seconds"] == "0"
+
     def test_update_media_root(self, tmp_path):
         new_root = tmp_path / "new_media"
         new_root.mkdir()
@@ -350,6 +582,237 @@ class TestSettings:
     def test_update_media_root_not_found(self):
         resp = client.post("/api/settings", json={"media_root": "/does/not/exist"})
         assert resp.status_code == 404
+
+    def test_update_initial_sweep_seconds(self):
+        resp = client.post("/api/settings", json={"initial_sweep_seconds": 600})
+        assert resp.status_code == 200
+        assert resp.json()["ok"] is True
+
+        resp = client.get("/api/settings")
+        assert resp.status_code == 200
+        assert resp.json()["initial_sweep_seconds"] == "600"
+
+    def test_update_initial_sweep_seconds_rejects_large_value(self):
+        resp = client.post("/api/settings", json={"initial_sweep_seconds": 7201})
+        assert resp.status_code == 422
+
+    def test_seek_settings_defaults(self):
+        resp = client.get("/api/settings")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["seek_short"] == "10"
+        assert data["seek_medium"] == "30"
+        assert data["seek_long"] == "60"
+        assert data["seek_xlong"] == "120"
+
+    def test_seek_settings_can_be_updated(self):
+        resp = client.post(
+            "/api/settings",
+            json={
+                "seek_short": 5,
+                "seek_medium": 15,
+                "seek_long": 45,
+                "seek_xlong": 90,
+            },
+        )
+        assert resp.status_code == 200
+        assert resp.json()["ok"] is True
+
+        resp = client.get("/api/settings")
+        data = resp.json()
+        assert data["seek_short"] == "5"
+        assert data["seek_medium"] == "15"
+        assert data["seek_long"] == "45"
+        assert data["seek_xlong"] == "90"
+
+    def test_doubletap_settings_removed(self):
+        resp = client.get("/api/settings")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "doubletap_left" not in data
+        assert "doubletap_right_bottom" not in data
+        assert "doubletap_right_mid" not in data
+        assert "doubletap_right_top" not in data
+
+    def test_transcode_enabled_default_is_true(self):
+        resp = client.get("/api/settings")
+        assert resp.status_code == 200
+        assert resp.json()["transcode_enabled"] == "1"
+
+    def test_transcode_enabled_can_be_disabled(self):
+        resp = client.post("/api/settings", json={"transcode_enabled": False})
+        assert resp.status_code == 200
+        assert resp.json()["ok"] is True
+
+        resp = client.get("/api/settings")
+        assert resp.json()["transcode_enabled"] == "0"
+
+    def test_transcode_enabled_can_be_re_enabled(self):
+        client.post("/api/settings", json={"transcode_enabled": False})
+        resp = client.post("/api/settings", json={"transcode_enabled": True})
+        assert resp.status_code == 200
+
+        resp = client.get("/api/settings")
+        assert resp.json()["transcode_enabled"] == "1"
+
+    def test_gamepad_enabled_default_is_true(self):
+        resp = client.get("/api/settings")
+        assert resp.status_code == 200
+        assert resp.json()["gamepad_enabled"] == "1"
+
+    def test_gamepad_enabled_can_be_toggled(self):
+        resp = client.post("/api/settings", json={"gamepad_enabled": False})
+        assert resp.status_code == 200
+        resp = client.get("/api/settings")
+        assert resp.json()["gamepad_enabled"] == "0"
+        client.post("/api/settings", json={"gamepad_enabled": True})
+
+    def test_gamepad_haptic_default_is_true(self):
+        resp = client.get("/api/settings")
+        assert resp.json()["gamepad_haptic"] == "1"
+
+    def test_gamepad_deadzone_default(self):
+        resp = client.get("/api/settings")
+        assert resp.json()["gamepad_deadzone"] == "0.20"
+
+    def test_gamepad_deadzone_can_be_set(self):
+        resp = client.post("/api/settings", json={"gamepad_deadzone": 0.30})
+        assert resp.status_code == 200
+        resp = client.get("/api/settings")
+        assert resp.json()["gamepad_deadzone"] == "0.3"
+
+    def test_gamepad_deadzone_clamped(self):
+        resp = client.post("/api/settings", json={"gamepad_deadzone": 0.99})
+        assert resp.status_code == 422
+
+    def test_gamepad_mapping_default(self):
+        resp = client.get("/api/settings")
+        assert resp.json()["gamepad_mapping"] == "{}"
+
+    def test_gamepad_mapping_can_be_set(self):
+        mapping = '{"0":"play_pause","1":"close_player"}'
+        resp = client.post("/api/settings", json={"gamepad_mapping": mapping})
+        assert resp.status_code == 200
+        resp = client.get("/api/settings")
+        assert resp.json()["gamepad_mapping"] == mapping
+
+    def test_gamepad_mapping_invalid_json_rejected(self):
+        resp = client.post("/api/settings", json={"gamepad_mapping": "{not valid json}"})
+        assert resp.status_code == 422
+
+    def test_fs_progress_zoom_default(self):
+        resp = client.get("/api/settings")
+        assert resp.status_code == 200
+        assert resp.json()["fs_progress_zoom"] == "20"
+
+    def test_fs_progress_zoom_can_be_updated(self):
+        resp = client.post("/api/settings", json={"fs_progress_zoom": 30})
+        assert resp.status_code == 200
+        assert resp.json()["ok"] is True
+
+        resp = client.get("/api/settings")
+        assert resp.json()["fs_progress_zoom"] == "30"
+
+    def test_fs_progress_zoom_rejects_too_small(self):
+        resp = client.post("/api/settings", json={"fs_progress_zoom": 4})
+        assert resp.status_code == 422
+
+    def test_fs_progress_zoom_rejects_too_large(self):
+        resp = client.post("/api/settings", json={"fs_progress_zoom": 51})
+        assert resp.status_code == 422
+
+
+# ── /api/initial-sweep ───────────────────────────────────────────────────────
+
+
+class TestInitialSweep:
+    def test_get_initial_sweep_uses_global_default(self, subdir_with_video):
+        client.post("/api/settings", json={"initial_sweep_seconds": 600})
+
+        resp = client.get("/api/initial-sweep?path=series")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data == {
+            "path": "series",
+            "default_seconds": 600,
+            "override_seconds": None,
+            "effective_seconds": 600,
+            "source": "default",
+        }
+
+    def test_post_override_and_read_back(self, subdir_with_video):
+        client.post("/api/settings", json={"initial_sweep_seconds": 600})
+
+        resp = client.post("/api/initial-sweep", json={"path": "series", "seconds": 120})
+        assert resp.status_code == 200
+        assert resp.json()["ok"] is True
+
+        resp = client.get("/api/initial-sweep?path=series")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data == {
+            "path": "series",
+            "default_seconds": 600,
+            "override_seconds": 120,
+            "effective_seconds": 120,
+            "source": "override",
+        }
+
+    def test_override_zero_disables_folder_even_with_global_default(self, subdir_with_video):
+        client.post("/api/settings", json={"initial_sweep_seconds": 600})
+        client.post("/api/initial-sweep", json={"path": "series", "seconds": 0})
+
+        resp = client.get("/api/initial-sweep?path=series")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data == {
+            "path": "series",
+            "default_seconds": 600,
+            "override_seconds": 0,
+            "effective_seconds": 0,
+            "source": "override",
+        }
+
+    def test_delete_override_reverts_to_global_default(self, subdir_with_video):
+        client.post("/api/settings", json={"initial_sweep_seconds": 600})
+        client.post("/api/initial-sweep", json={"path": "series", "seconds": 90})
+
+        resp = client.delete("/api/initial-sweep?path=series")
+        assert resp.status_code == 200
+        assert resp.json()["ok"] is True
+
+        resp = client.get("/api/initial-sweep?path=series")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data == {
+            "path": "series",
+            "default_seconds": 600,
+            "override_seconds": None,
+            "effective_seconds": 600,
+            "source": "default",
+        }
+
+    def test_override_rejects_file_path(self, video_file):
+        resp = client.post("/api/initial-sweep", json={"path": video_file, "seconds": 90})
+        assert resp.status_code == 404
+
+    def test_override_rejects_large_value(self, subdir_with_video):
+        resp = client.post("/api/initial-sweep", json={"path": "series", "seconds": 7201})
+        assert resp.status_code == 422
+
+    def test_get_initial_sweep_rejects_path_traversal(self):
+        resp = client.get("/api/initial-sweep?path=../../etc")
+        assert resp.status_code == 403
+
+    def test_delete_override_for_nonexistent_folder_succeeds(self):
+        # Clearing a stale override (folder deleted/renamed on disk) must not 404
+        resp = client.delete("/api/initial-sweep?path=no_such_folder")
+        assert resp.status_code == 200
+        assert resp.json()["ok"] is True
+
+    def test_delete_override_still_rejects_path_traversal(self):
+        resp = client.delete("/api/initial-sweep?path=../../etc")
+        assert resp.status_code == 403
 
 
 # ── /api/files/mkdir ──────────────────────────────────────────────────────────
@@ -439,6 +902,148 @@ class TestCut:
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
         assert len(resp.json()) >= 1
+
+
+# ── /api/segments ─────────────────────────────────────────────────────────────
+
+
+class TestSegments:
+    def _noop_thread(self, monkeypatch):
+        import threading as _threading
+
+        monkeypatch.setattr(
+            _threading,
+            "Thread",
+            lambda target, args, daemon: type("T", (), {"start": lambda self: None})(),
+        )
+
+    def test_empty_initially(self, video_file):
+        resp = client.get(f"/api/segments?path={video_file}")
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+    def test_create_and_list(self, video_file):
+        resp = client.post(
+            f"/api/segments?path={video_file}",
+            json={"seg_in": 5.0, "seg_out": 15.0},
+        )
+        assert resp.status_code == 200
+        seg_id = resp.json()["id"]
+        assert isinstance(seg_id, int)
+
+        resp = client.get(f"/api/segments?path={video_file}")
+        assert resp.status_code == 200
+        segs = resp.json()
+        assert len(segs) == 1
+        assert segs[0]["id"] == seg_id
+        assert segs[0]["seg_in"] == 5.0
+        assert segs[0]["seg_out"] == 15.0
+
+    def test_multiple_segments_ordered(self, video_file):
+        client.post(f"/api/segments?path={video_file}", json={"seg_in": 30.0, "seg_out": 40.0})
+        client.post(f"/api/segments?path={video_file}", json={"seg_in": 10.0, "seg_out": 20.0})
+        resp = client.get(f"/api/segments?path={video_file}")
+        segs = resp.json()
+        assert len(segs) >= 2
+        # Ordered by insertion (id ASC)
+        ids = [s["id"] for s in segs]
+        assert ids == sorted(ids)
+
+    def test_delete_segment(self, video_file):
+        r = client.post(f"/api/segments?path={video_file}", json={"seg_in": 1.0, "seg_out": 2.0})
+        seg_id = r.json()["id"]
+        resp = client.delete(f"/api/segments/{seg_id}")
+        assert resp.status_code == 200
+        assert resp.json() == {"ok": True}
+
+        segs = client.get(f"/api/segments?path={video_file}").json()
+        assert all(s["id"] != seg_id for s in segs)
+
+    def test_delete_nonexistent_segment(self):
+        resp = client.delete("/api/segments/999999")
+        assert resp.status_code == 404
+
+    def test_invalid_range_rejected(self, video_file):
+        resp = client.post(
+            f"/api/segments?path={video_file}",
+            json={"seg_in": 20.0, "seg_out": 10.0},
+        )
+        assert resp.status_code == 400
+
+    def test_equal_range_rejected(self, video_file):
+        resp = client.post(
+            f"/api/segments?path={video_file}",
+            json={"seg_in": 10.0, "seg_out": 10.0},
+        )
+        assert resp.status_code == 400
+
+    def test_export_no_segments_rejected(self, video_file):
+        (MEDIA_ROOT / "dest").mkdir(exist_ok=True)
+        resp = client.post(
+            f"/api/files/export-segments?path={video_file}",
+            json={"mode": "merged", "destination": "dest"},
+        )
+        assert resp.status_code == 400
+
+    def test_export_dest_not_found(self, video_file):
+        client.post(f"/api/segments?path={video_file}", json={"seg_in": 0.0, "seg_out": 5.0})
+        resp = client.post(
+            f"/api/files/export-segments?path={video_file}",
+            json={"mode": "merged", "destination": "no_such_dir"},
+        )
+        assert resp.status_code == 404
+
+    def test_export_source_not_found(self):
+        (MEDIA_ROOT / "dest").mkdir(exist_ok=True)
+        resp = client.post(
+            "/api/files/export-segments?path=ghost.mp4",
+            json={"mode": "merged", "destination": "dest"},
+        )
+        assert resp.status_code == 404
+
+    def test_export_invalid_mode(self, video_file):
+        client.post(f"/api/segments?path={video_file}", json={"seg_in": 0.0, "seg_out": 5.0})
+        (MEDIA_ROOT / "dest").mkdir(exist_ok=True)
+        resp = client.post(
+            f"/api/files/export-segments?path={video_file}",
+            json={"mode": "badmode", "destination": "dest"},
+        )
+        assert resp.status_code == 400
+
+    def test_export_individual_returns_job_id(self, video_file, monkeypatch):
+        self._noop_thread(monkeypatch)
+        client.post(f"/api/segments?path={video_file}", json={"seg_in": 0.0, "seg_out": 5.0})
+        client.post(f"/api/segments?path={video_file}", json={"seg_in": 10.0, "seg_out": 15.0})
+        (MEDIA_ROOT / "dest").mkdir(exist_ok=True)
+        resp = client.post(
+            f"/api/files/export-segments?path={video_file}",
+            json={"mode": "individual", "destination": "dest"},
+        )
+        assert resp.status_code == 200
+        assert "job_id" in resp.json()
+
+    def test_export_merged_returns_job_id(self, video_file, monkeypatch):
+        self._noop_thread(monkeypatch)
+        client.post(f"/api/segments?path={video_file}", json={"seg_in": 0.0, "seg_out": 5.0})
+        client.post(f"/api/segments?path={video_file}", json={"seg_in": 10.0, "seg_out": 15.0})
+        (MEDIA_ROOT / "dest").mkdir(exist_ok=True)
+        resp = client.post(
+            f"/api/files/export-segments?path={video_file}",
+            json={"mode": "merged", "destination": "dest"},
+        )
+        assert resp.status_code == 200
+        assert "job_id" in resp.json()
+
+    def test_path_traversal_rejected(self):
+        resp = client.get("/api/segments?path=../../etc/passwd")
+        assert resp.status_code in (400, 403)
+
+    def test_segments_isolated_per_path(self, video_file, tmp_path):
+        other = "other_video.mp4"
+        (MEDIA_ROOT / other).touch()
+        client.post(f"/api/segments?path={video_file}", json={"seg_in": 0.0, "seg_out": 5.0})
+        resp = client.get(f"/api/segments?path={other}")
+        assert resp.json() == []
 
 
 # ── /api/download ─────────────────────────────────────────────────────────────
@@ -1198,3 +1803,149 @@ class TestCookiesToNetscape:
         # Values containing '=' should be preserved (partition only splits on first =)
         result = _cookies_to_netscape("token=abc=def", "example.com")
         assert "token\tabc=def" in result
+
+
+# ── /api/search ──────────────────────────────────────────────────────────────
+
+
+class TestSearch:
+    def test_empty_query_rejected(self):
+        resp = client.get("/api/search?q=")
+        assert resp.status_code == 400
+
+    def test_no_query_param_rejected(self):
+        resp = client.get("/api/search")
+        assert resp.status_code == 422  # FastAPI validation
+
+    def test_search_finds_file(self):
+        from tests.conftest import MEDIA_DIR
+
+        (MEDIA_DIR / "holiday_2024.mp4").write_bytes(b"\x00" * 8)
+        (MEDIA_DIR / "work_report.mp4").write_bytes(b"\x00" * 8)
+        resp = client.get("/api/search?q=holiday")
+        assert resp.status_code == 200
+        data = resp.json()
+        names = [e["name"] for e in data["entries"]]
+        assert "holiday_2024.mp4" in names
+        assert "work_report.mp4" not in names
+
+    def test_search_case_insensitive(self):
+        from tests.conftest import MEDIA_DIR
+
+        (MEDIA_DIR / "MyMovie.mp4").write_bytes(b"\x00" * 8)
+        resp = client.get("/api/search?q=mymovie")
+        assert resp.status_code == 200
+        names = [e["name"] for e in resp.json()["entries"]]
+        assert "MyMovie.mp4" in names
+
+    def test_search_recursive(self):
+        from tests.conftest import MEDIA_DIR
+
+        subdir = MEDIA_DIR / "shows"
+        subdir.mkdir()
+        (subdir / "episode01.mp4").write_bytes(b"\x00" * 8)
+        resp = client.get("/api/search?q=episode")
+        assert resp.status_code == 200
+        names = [e["name"] for e in resp.json()["entries"]]
+        assert "episode01.mp4" in names
+
+    def test_search_path_traversal_blocked(self):
+        resp = client.get("/api/search?q=test&path=../../../etc")
+        assert resp.status_code == 403
+
+    def test_search_scoped_to_subfolder(self):
+        from tests.conftest import MEDIA_DIR
+
+        subdir = MEDIA_DIR / "shows"
+        subdir.mkdir(exist_ok=True)
+        (subdir / "episode_sub.mp4").write_bytes(b"\x00" * 8)
+        (MEDIA_DIR / "episode_root.mp4").write_bytes(b"\x00" * 8)
+        resp = client.get("/api/search?q=episode&path=shows")
+        assert resp.status_code == 200
+        names = [e["name"] for e in resp.json()["entries"]]
+        assert "episode_sub.mp4" in names
+        assert "episode_root.mp4" not in names
+
+    def test_search_nonexistent_path_returns_404(self):
+        resp = client.get("/api/search?q=test&path=nonexistent_folder_xyz")
+        assert resp.status_code == 404
+
+
+class TestFileTags:
+    def test_get_tags_empty(self):
+        from tests.conftest import MEDIA_DIR
+
+        f = MEDIA_DIR / "tagged.mp4"
+        f.write_bytes(b"\x00" * 8)
+        resp = client.get("/api/tags?path=tagged.mp4")
+        assert resp.status_code == 200
+        assert resp.json() == {"tags": []}
+
+    def test_add_tag(self):
+        from tests.conftest import MEDIA_DIR
+
+        (MEDIA_DIR / "tagged.mp4").write_bytes(b"\x00" * 8)
+        resp = client.post("/api/tags?path=tagged.mp4", json={"tag": "Excellent"})
+        assert resp.status_code == 200
+        assert resp.json()["ok"] is True
+        # Tag is lowercased and returned
+        tags_resp = client.get("/api/tags?path=tagged.mp4")
+        assert "excellent" in tags_resp.json()["tags"]
+
+    def test_add_empty_tag_rejected(self):
+        from tests.conftest import MEDIA_DIR
+
+        (MEDIA_DIR / "tagged.mp4").write_bytes(b"\x00" * 8)
+        resp = client.post("/api/tags?path=tagged.mp4", json={"tag": "  "})
+        assert resp.status_code == 400
+
+    def test_add_duplicate_tag_idempotent(self):
+        from tests.conftest import MEDIA_DIR
+
+        (MEDIA_DIR / "tagged.mp4").write_bytes(b"\x00" * 8)
+        client.post("/api/tags?path=tagged.mp4", json={"tag": "fav"})
+        client.post("/api/tags?path=tagged.mp4", json={"tag": "fav"})
+        tags = client.get("/api/tags?path=tagged.mp4").json()["tags"]
+        assert tags.count("fav") == 1
+
+    def test_remove_tag(self):
+        from tests.conftest import MEDIA_DIR
+
+        (MEDIA_DIR / "tagged.mp4").write_bytes(b"\x00" * 8)
+        client.post("/api/tags?path=tagged.mp4", json={"tag": "toremove"})
+        resp = client.delete("/api/tags?path=tagged.mp4&tag=toremove")
+        assert resp.status_code == 200
+        tags = client.get("/api/tags?path=tagged.mp4").json()["tags"]
+        assert "toremove" not in tags
+
+    def test_all_tags(self):
+        from tests.conftest import MEDIA_DIR
+
+        (MEDIA_DIR / "a.mp4").write_bytes(b"\x00" * 8)
+        (MEDIA_DIR / "b.mp4").write_bytes(b"\x00" * 8)
+        client.post("/api/tags?path=a.mp4", json={"tag": "alpha"})
+        client.post("/api/tags?path=b.mp4", json={"tag": "beta"})
+        resp = client.get("/api/all-tags")
+        assert resp.status_code == 200
+        tags = resp.json()["tags"]
+        assert "alpha" in tags
+        assert "beta" in tags
+
+    def test_tags_included_in_files_list(self):
+        from tests.conftest import MEDIA_DIR
+
+        (MEDIA_DIR / "c.mp4").write_bytes(b"\x00" * 8)
+        client.post("/api/tags?path=c.mp4", json={"tag": "mytag"})
+        resp = client.get("/api/files")
+        assert resp.status_code == 200
+        entry = next((e for e in resp.json()["entries"] if e["name"] == "c.mp4"), None)
+        assert entry is not None
+        assert "mytag" in entry["tags"]
+
+    def test_path_traversal_blocked_get(self):
+        resp = client.get("/api/tags?path=../../../etc/passwd")
+        assert resp.status_code == 403
+
+    def test_path_traversal_blocked_post(self):
+        resp = client.post("/api/tags?path=../../../etc/passwd", json={"tag": "x"})
+        assert resp.status_code == 403

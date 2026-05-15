@@ -15,7 +15,11 @@ L'interface est divisée en deux zones :
 
 ### Navigateur de fichiers
 
-Le navigateur affiche le contenu d'un dossier. Un **fil d'Ariane** en haut permet de remonter dans l'arborescence. Le bouton **🏠** ramène à la racine.
+Le navigateur affiche le contenu d'un dossier. Un **fil d'Ariane** en haut permet de remonter dans l'arborescence. Le bouton **🏠** ramène à l'écran d'accueil.
+
+### Écran d'accueil et dossiers home
+
+Si aucun dossier home n'est configuré, le navigateur s'ouvre directement sur la racine `MEDIA_ROOT`. Si des dossiers home sont définis (via **Paramètres → Dossiers home**), l'appui sur **🏠** affiche un écran de sélection listant chaque dossier home nommé. Clique sur l'un d'eux pour y naviguer directement.
 
 Chaque fichier ou dossier est affiché avec :
 
@@ -25,15 +29,32 @@ Chaque fichier ou dossier est affiché avec :
   - Fond jaune + barre de progression + pourcentage → **en cours**
   - Fond vert → **vu** (≥ 90 % regardé)
 
-### Actions sur un fichier
+### Recherche
 
-En passant sur un fichier (ou en appuyant longuement sur mobile), des boutons d'action apparaissent :
+Un champ **🔍** est disponible dans la barre de tri. La recherche est insensible à la casse et récursive dans le dossier courant. Le résultat remplace la liste ; effacer le champ (ou appuyer sur ✕) revient à la navigation normale.
 
-| Action | Description |
-|--------|-------------|
+### Tags et filtrage par tag
+
+Chaque fichier ou dossier peut porter des **tags texte libres** (ex : `excellent`, `à finir`). Les tags sont stockés en SQLite et affichés comme badges colorés dans la liste.
+
+| Action | Comment |
+|--------|---------|
+| Ajouter / retirer un tag | Clique sur le bouton **🏷** à côté de l'entrée |
+| Filtrer la liste par tag | Clique sur un badge dans la **barre de filtrage par tag** sous la barre de tri |
+| Effacer le filtre | Re-clique sur le même badge ou navigue vers un autre dossier |
+
+La barre de filtrage apparaît automatiquement dès qu'un dossier contient au moins un fichier taggé.
 | **▶ Lire** | Ouvre la vidéo dans le player |
-| **📁 Déplacer** | Ouvre le modal de déplacement rapide (dossiers épinglés) |
+| **🏷 Tags** | Ouvre le modal de gestion des tags |
+| **📁 Déplacer** | Ouvre le modal de déplacement (dossiers épinglés + sélecteur libre) |
 | **🗑 Supprimer** | Supprime le fichier après confirmation |
+
+### Déplacer vers un dossier quelconque
+
+Le modal de déplacement propose deux modes :
+
+- **Dossiers épinglés** : déplacement rapide vers un dossier prédéfini.
+- **📂 Parcourir…** : ouvre un sélecteur qui parcourt toute l'arborescence pour choisir n'importe quel dossier de destination.
 
 ---
 
@@ -44,20 +65,53 @@ En passant sur un fichier (ou en appuyant longuement sur mobile), des boutons d'
 | Élément | Rôle |
 |---------|------|
 | **Barre de progression** | Indique et contrôle la position dans la vidéo |
-| **⏮ / ⏭** | Recule / avance de 30 secondes |
-| **◀◀ / ▶▶** | Recule / avance de 10 secondes |
+| **⏮ / ⏭** | Seek moyen (30 s par défaut, configurable) |
+| **◀◀ / ▶▶** | Seek court (10 s par défaut, configurable) |
 | **▶ / ⏸** | Lecture / Pause |
 | **🔊** | Muet/son |
 | **Volume** | Curseur de volume |
+| **🐢 / 🐇** | Cycle de vitesse : 0,5× → 1× → 1,5× → 2× (réinitialisé à chaque ouverture) |
 | **⛶** | Plein écran |
+
+Quand tu passes en plein écran, Hoard masque automatiquement les contrôles pour maximiser la zone vidéo.
+
+- Sur desktop, bouge la souris ou utilise les raccourcis clavier pour faire réapparaître temporairement les contrôles.
+- Sur tactile, seule la zone de tap en bas au centre, près des contrôles, doit afficher ou masquer les contrôles.
+
+### Métadonnées vidéo
+
+Quand un fichier est en cours de lecture, le codec, la résolution, la durée et le bitrate sont affichés sous le titre du fichier (via `ffprobe` côté serveur).
 
 ### Reprise automatique
 
 La position est sauvegardée automatiquement toutes les 5 secondes. Lorsque tu ouvres à nouveau un fichier, la lecture reprend là où tu t'es arrêté.
 
+### Détection plus intelligente de la lecture native
+
+Avant de basculer vers le transcodage côté serveur, Hoard vérifie maintenant si le navigateur courant a de bonnes chances de lire le fichier original nativement.
+
+- MP4/H.264/AAC reste la base la plus sûre pour la lecture native.
+- Pour les formats plus variables comme HEVC, AV1 ou WebM, Hoard sonde d'abord le support du navigateur quand les métadonnées sont disponibles.
+- Si la lecture native n'est pas confirmée, Hoard bascule automatiquement vers le flux transcodé.
+
+### Initial Sweep Pour Les Nouvelles Vidéos
+
+Tu peux configurer un **initial sweep** pour les vidéos qui n'ont **encore aucune progression enregistrée**.
+
+- Une **valeur globale par défaut** est disponible dans **Paramètres → Player**.
+- Pendant la lecture, une unique action **départ dossier** permet d'enregistrer la **position actuelle** comme départ par défaut du dossier courant.
+- `0` signifie désactivé.
+- Une surcharge de dossier prend le pas sur la valeur globale.
+
+Cette règle ne s'applique qu'aux vidéos neuves. Dès qu'un fichier a une progression sauvegardée, Hoard reprend toujours à la vraie position enregistrée.
+
 ### Marqueurs IN/OUT (découpe)
 
 Des boutons `[IN` et `OUT]` permettent de définir une zone de lecture restreinte (sans modifier le fichier). Le bouton ✂ lance une découpe physique du fichier via ffmpeg.
+
+### Rafraîchissement automatique de la liste
+
+La liste de fichiers se met à jour toutes les 30 secondes quand l'onglet est visible, la vidéo en pause et aucune recherche active. Cela permet de voir apparaître de nouveaux fichiers sans recharger la page.
 
 ---
 
@@ -69,17 +123,17 @@ Les gestes fonctionnent directement sur l'image vidéo.
 
 | Zone | Action |
 |------|--------|
-| Centre (haut) | Lecture / Pause |
-| Centre (bas, dernière rangée) | Afficher / masquer les contrôles |
+| Bande centrale étroite (haut) | Lecture / Pause |
+| Bande étroite en bas-centre | Afficher / masquer les contrôles en plein écran |
 
 ### Double-tap
 
 | Zone | Action |
 |------|--------|
 | Bord gauche (< 20 % de largeur) | Reculer de 30 s |
-| Bord droit — tiers bas | Avancer de 30 s |
-| Bord droit — tiers médian | Avancer de 60 s |
-| Bord droit — tiers haut | Avancer de 90 s |
+| Bord droit — tiers bas | Avancer de seek moyen (30 s par défaut) |
+| Bord droit — tiers médian | Avancer de seek long (60 s par défaut) |
+| Bord droit — tiers haut | Avancer de seek très long (120 s par défaut) |
 | Centre | Plein écran |
 
 ### Triple-tap
@@ -104,12 +158,76 @@ Seek progressif dans la vidéo. La **vitesse dépend de la hauteur du doigt** : 
 | Touche | Action |
 |--------|--------|
 | `Espace` | Lecture / Pause |
-| `←` | Reculer de 10 s |
-| `→` | Avancer de 10 s |
-| `↑` | Volume + 10 % |
-| `↓` | Volume − 10 % |
+| `← / →` | Seek court (10 s par défaut) |
+| `Shift + ← / →` | Seek moyen (30 s par défaut) |
+| `Ctrl + ← / →` | Seek long (60 s par défaut) |
+| `Alt + ← / →` | Seek très long (120 s par défaut) |
+| `↑ / ↓` | Volume +/− 10 % |
 | `F` | Plein écran |
-| `M` | Muet |
+| `M` | Muet / Son |
+| `A` | Cycle aspect ratio (Fit / Fill / …) |
+| `PageDown / PageUp` | Vidéo suivante / précédente |
+| `I / O` | Marquer point IN / OUT |
+| `C` | Ouvrir la fenêtre Couper |
+| `D` | Ouvrir la fenêtre Déplacer |
+| `Suppr` | Supprimer le fichier en cours |
+| `S` | Sauvegarder la position initiale du dossier |
+| `?` | Afficher / masquer l'aide clavier |
+
+---
+
+## Manette / Gamepad
+
+Hoard supporte les manettes de jeu via la **Gamepad API** du navigateur (Xbox, PlayStation DualSense, Switch Pro, Steam Deck, iPhone avec manette Bluetooth, etc.).
+
+### Connexion
+
+- Connecte la manette (USB ou Bluetooth) et appuie sur un bouton dans Hoard.
+- Un toast « 🎮 Manette connectée » confirme la détection.
+- **Steam Deck / Firefox** : Firefox n'envoie l'événement `gamepadconnected` qu'après un appui. Un toast « Appuyez sur un bouton pour activer la manette » apparaît si la manette est détectée mais pas encore active.
+
+### Actions — Lecteur vidéo
+
+| Bouton | Base | + L1 | + R1 | + L1+R1 |
+|--------|------|------|------|---------|
+| **A** | Lecture / Pause | Sous-titres | Déplacer → Dossier 1 | Aller à 0% |
+| **B** | Fermer le lecteur | — | Déplacer → Dossier 2 | — |
+| **X** | Marquer vu / non vu | Ratio image | Déplacer → Dossier 3 | Aller à 50% |
+| **Y** | Plein écran | Aller à 0% | — | Aller à 100% |
+| **D-pad ←/→** | Seek moyen | Seek long | Seek très long | — |
+| **D-pad ↑/↓** | Volume ±10% | Fichier précédent/suivant | Aller à 25%/75% | — |
+| **Select** | Paramètres | — | — | — |
+| **Start** | Afficher la carte des boutons | — | — | — |
+| **Stick gauche X** | Scrubbing analogique | — | — | — |
+| **Stick droit Y** | Volume analogique | — | — | — |
+
+### Actions — Navigateur de fichiers (sans vidéo)
+
+| Bouton | Action |
+|--------|--------|
+| **D-pad ↑/↓** | Déplacer le curseur dans la liste |
+| **Stick gauche Y** | Déplacer le curseur (analogique) |
+| **A** | Ouvrir le fichier ou dossier sélectionné |
+| **B** | Remonter d'un niveau |
+| **Start** | Ouvrir les Paramètres |
+
+### Modificateurs (L1 / R1)
+
+Maintenir **L1** ou **R1** active une couche de commandes supplémentaires. Les deux ensemble (L1+R1) activent une quatrième couche. Un **badge en coin** (ex : « 🎮 L1 ») indique la couche active.
+
+### Carte des boutons
+
+Appuie sur **Start** (ou le bouton « Afficher la carte des boutons » dans Paramètres) pour afficher un overlay listant toutes les actions disponibles par couche, mis à jour dynamiquement avec les durées de seek configurées.
+
+### Paramètres manette
+
+Dans **Paramètres → 🎮 Manette** :
+
+| Paramètre | Description |
+|-----------|-------------|
+| **Manette activée** | Active / désactive complètement la détection gamepad |
+| **Retour haptique** | Vibration courte sur play/pause, seek, vu/non vu (Chrome uniquement) |
+| **Zone morte** | Seuil de détection des sticks (défaut 20%). Augmenter si les sticks dérivent. |
 
 ---
 
@@ -160,6 +278,10 @@ Tous les téléchargements sont regroupés dans une file centrale accessible dep
 
 | Paramètre | Description |
 |-----------|-------------|
+| **Durées de seek** | Quatre niveaux configurables dans **Paramètres → Player** : court (défaut 10 s), moyen (30 s), long (60 s), très long (120 s). Utilisés par les boutons, les raccourcis clavier et les double-taps. |
+| **Activer le transcodage** | Quand désactivé, Hoard envoie toujours le flux original (`/api/stream`) sans appeler le transcodeur. Utile si votre NAS est lent ou si votre navigateur lit nativement le format. |
+| **Initial sweep par défaut** | Démarre les vidéos neuves à N secondes au lieu de 0. S'applique seulement si le fichier n'a aucune progression enregistrée. `0` le désactive globalement. |
+| **Dossiers home** | Liste de dossiers nommés affichés sur l'écran d'accueil. Ajouter/supprimer dans **Paramètres → Dossiers home**. |
 | **Dossier de téléchargement** | Dossier cible, relatif à `MEDIA_ROOT` (défaut : `Downloads`). Créé automatiquement s'il n'existe pas. |
 | **Chemin du fichier cookies** | Chemin absolu vers un fichier `cookies.txt` au format Netscape. Utile pour les sites qui nécessitent une authentification. |
 
@@ -175,3 +297,9 @@ La bookmarklet transmet le `document.cookie` de la page source. Attention : les 
 |-------|------|
 | Largeur > 700 px | Vue divisée : liste à gauche, player à droite |
 | Largeur ≤ 700 px | Liste plein écran, player en overlay |
+
+## Installer comme une app
+
+Sur les navigateurs qui prennent en charge l'installation des web apps, Hoard peut maintenant s'installer comme une application autonome au lieu de rester dans un onglet classique. Sur iPad et iPhone, utilise l'action **Ajouter à l'écran d'accueil** du navigateur pour obtenir le même lancement en mode standalone.
+
+Cette couche d'installation ne met en cache que le shell de l'application pour rouvrir l'interface plus vite. Hoard a toujours besoin d'une connexion active au NAS pour les appels API, la navigation dans les dossiers et la lecture vidéo.

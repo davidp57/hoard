@@ -85,14 +85,31 @@ def safe_path(rel: str) -> Path:
 | GET | `/api/quick-folders` | Liste les dossiers épinglés |
 | POST | `/api/quick-folders` | Épingle un dossier `{path}` |
 | DELETE | `/api/quick-folders?path=` | Désépingle un dossier |
+| GET | `/api/initial-sweep?path=` | Lit la config d'initial sweep effective pour un dossier |
+| POST | `/api/initial-sweep` | Définit une surcharge de dossier `{path, seconds}` |
+| DELETE | `/api/initial-sweep?path=` | Supprime une surcharge de dossier et revient à la valeur globale |
 | GET | `/api/browse?path=` | Parcourt l'arborescence (usage : modal de déplacement) |
 | GET | `/api/settings` | Lit les paramètres utilisateur |
 | POST | `/api/settings` | Sauvegarde les paramètres |
+| GET | `/api/media-info?path=` | Lit à la demande les métadonnées de lecture via ffprobe |
 | GET | `/api/stream?path=` | Stream HTTP avec support `Range` (seeking natif) |
 | GET | `/api/transcode?path=` | Stream transcodé via ffmpeg |
 | POST | `/api/download` | Télécharge une vidéo web via yt-dlp `{url, cookies?, referer?, title?}` |
 | POST | `/api/jobs/{job_id}/cancel` | Annule un job de téléchargement en attente ou en cours |
 | DELETE | `/api/jobs/{job_id}` | Retire un job terminé/échoué/annulé du store en mémoire |
+
+### Lecture native versus transcodage
+
+Hoard récupère maintenant `/api/media-info` avant la lecture quand c'est possible, puis utilise les métadonnées de conteneur et de codecs retournées pour décider si la lecture native est vraisemblablement sûre.
+
+Le frontend applique une échelle de décision :
+
+1. `video.canPlayType()` sur la chaîne MIME combinant conteneur et codecs.
+2. `navigator.mediaCapabilities.decodingInfo()` quand le navigateur l'expose et que les métadonnées sont assez complètes.
+3. `/api/stream` par défaut pour la base sûre et pour les formats `probe` comme HEVC dans MP4, même si les API de capacité du navigateur restent prudentes.
+4. `/api/transcode` immédiatement seulement pour les formats `fallback` explicites, ou ensuite quand la lecture native échoue malgré tout au chargement réel.
+
+Voir `docs/native-playback.fr.md` pour la matrice de compatibilité et la stratégie désormais implémentée.
 
 ### Schéma SQLite
 
@@ -114,7 +131,24 @@ CREATE TABLE settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+
+CREATE TABLE initial_sweep_folders (
+    path TEXT PRIMARY KEY,
+    seconds INTEGER NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 ```
+
+### Initial Sweep
+
+L'initial sweep permet à Hoard de démarrer une **vidéo neuve** à un offset configuré au lieu de `0`.
+
+- Valeur globale par défaut : stockée dans la table `settings` sous la clé `initial_sweep_seconds`
+- Surcharge par dossier : stockée dans `initial_sweep_folders`, indexée par chemin relatif de dossier
+- Action player : la position de lecture actuelle peut être enregistrée directement comme surcharge de dossier via un contrôle compact unique dans le player
+- La surcharge de dossier gagne sur la valeur globale
+- `0` signifie désactivé
+- Une progression de lecture déjà sauvegardée gagne toujours sur toute règle d'initial sweep
 
 ### Jobs en arrière-plan
 
@@ -192,6 +226,12 @@ Tous les tokens de couleur sont définis dans `:root` :
 
 - Breakpoint à **700 px** : au-delà, vue divisée (liste + player). En dessous, liste plein écran et player en overlay.
 - `dvh` utilisé partout pour éviter les problèmes d'unité viewport sur mobile.
+
+### Shell PWA
+
+- `frontend/manifest.webmanifest` fournit les métadonnées d'installation pour les navigateurs compatibles et les lanceurs home-screen.
+- `frontend/service-worker.js` ne met en cache que le shell applicatif (`/`, favicon, manifest) et évite explicitement les requêtes `/api/*`, donc l'installabilité ne signifie pas navigation ou lecture NAS hors ligne.
+- Le frontend enregistre le service worker uniquement en contexte sécurisé et applique les marges safe-area pour que le shell standalone se comporte mieux sur tablette et en lancement home-screen iOS.
 
 ---
 

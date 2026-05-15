@@ -81,18 +81,39 @@ def safe_path(rel: str) -> Path:
 | POST | `/api/files/move?path=` | Move to `{destination}` (relative path) |
 | POST | `/api/files/mkdir` | Create a folder `{path}` |
 | POST | `/api/files/cut` | Cut video via ffmpeg `{path, start, end, output}` |
+| GET | `/api/segments?path=` | List segments for a file (ordered by creation) |
+| POST | `/api/segments?path=` | Add a segment `{seg_in, seg_out}` → `{id}` |
+| DELETE | `/api/segments/{id}` | Delete a segment by id |
+| POST | `/api/files/export-segments?path=` | Export segments `{mode, destination, keep_original}` — starts a background job |
 | GET | `/api/jobs` | Status of ongoing background jobs (ffmpeg cuts, downloads) |
 | GET | `/api/quick-folders` | List pinned folders |
 | POST | `/api/quick-folders` | Pin a folder `{path}` |
 | DELETE | `/api/quick-folders?path=` | Unpin a folder |
+| GET | `/api/initial-sweep?path=` | Read the effective initial-sweep config for a folder |
+| POST | `/api/initial-sweep` | Set a folder override `{path, seconds}` |
+| DELETE | `/api/initial-sweep?path=` | Remove a folder override and fall back to the global default |
 | GET | `/api/browse?path=` | Browse the directory tree (used by the move modal) |
 | GET | `/api/settings` | Read user settings |
 | POST | `/api/settings` | Save user settings |
+| GET | `/api/media-info?path=` | Read on-demand playback metadata via ffprobe |
 | GET | `/api/stream?path=` | HTTP video stream with `Range` support (native seeking) |
 | GET | `/api/transcode?path=` | Transcoded stream via ffmpeg |
 | POST | `/api/download` | Download a web video via yt-dlp `{url, cookies?, referer?, title?}` |
 | POST | `/api/jobs/{job_id}/cancel` | Cancel a pending or running download job |
 | DELETE | `/api/jobs/{job_id}` | Remove a completed/failed/cancelled job from the in-memory store |
+
+### Native Playback Versus Transcode
+
+Hoard now fetches `/api/media-info` before playback when possible, then uses the returned container and codec metadata to decide whether native playback is likely safe.
+
+The frontend applies a layered decision ladder:
+
+1. `video.canPlayType()` against the combined container/codecs MIME string.
+2. `navigator.mediaCapabilities.decodingInfo()` when the browser exposes it and the metadata is complete enough.
+3. `/api/stream` by default for the safe baseline and for `probe` formats such as HEVC-in-MP4, even if browser capability APIs stay conservative.
+4. `/api/transcode` immediately only for explicit `fallback` formats, or later when native playback still fails at load time.
+
+See `docs/native-playback.en.md` for the compatibility matrix and the implemented strategy.
 
 ### SQLite Schema
 
@@ -114,7 +135,32 @@ CREATE TABLE settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+
+CREATE TABLE initial_sweep_folders (
+    path TEXT PRIMARY KEY,
+    seconds INTEGER NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE segments (
+    id      INTEGER PRIMARY KEY AUTOINCREMENT,
+    path    TEXT NOT NULL,
+    seg_in  REAL NOT NULL,
+    seg_out REAL NOT NULL
+);
+-- index: idx_segments_path ON segments(path)
 ```
+
+### Initial Sweep
+
+Initial sweep lets Hoard start a **brand-new video** at a configured offset instead of `0`.
+
+- Global default: stored in the regular `settings` table as `initial_sweep_seconds`
+- Folder override: stored in `initial_sweep_folders`, keyed by relative folder path
+- Player action: the current playback position can be saved directly as the folder override from a single compact control in the player
+- Folder override wins over the global default
+- `0` means disabled
+- Saved playback progress always wins over any initial-sweep rule
 
 ### Background Jobs
 
@@ -192,6 +238,12 @@ All colour tokens are defined in `:root`:
 
 - Breakpoint at **700 px**: above, split view (list + player). Below, full-screen list with player as overlay.
 - `dvh` used throughout to avoid mobile viewport unit issues.
+
+### PWA Shell
+
+- `frontend/manifest.webmanifest` provides install metadata for supported browsers and home-screen launchers.
+- `frontend/service-worker.js` caches only the app shell (`/`, favicon, manifest) and explicitly avoids `/api/*` requests, so installability does not imply offline NAS browsing or playback.
+- The frontend registers the service worker only in secure contexts and applies safe-area padding so the standalone shell behaves better on tablets and iOS home-screen launch.
 
 ---
 

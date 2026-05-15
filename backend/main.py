@@ -1,5 +1,7 @@
 import hashlib
 import ipaddress
+import json
+import logging
 import mimetypes
 import os
 import queue as _queue_module
@@ -20,7 +22,15 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+# ── Logging ──────────────────────────────────────────────────────────────────
+_log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
+logging.basicConfig(
+    level=getattr(logging, _log_level, logging.INFO),
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger("hoard")
 
 # ── Config ────────────────────────────────────────────────────────────────────
 MEDIA_ROOT = Path(os.environ.get("MEDIA_ROOT", "/media"))
@@ -44,7 +54,32 @@ def _resolve_ffmpeg() -> str:
     return "ffmpeg"
 
 
+def _resolve_ffprobe() -> str:
+    explicit = os.environ.get("FFPROBE_BIN")
+    if explicit:
+        return explicit
+    if shutil.which("ffprobe"):
+        return "ffprobe"
+    explicit_ffmpeg = os.environ.get("FFMPEG_BIN") or ""
+    if explicit_ffmpeg:
+        ffmpeg_path = Path(explicit_ffmpeg)
+        if ffmpeg_path.exists():
+            probe_name = "ffprobe.exe" if ffmpeg_path.suffix.lower() == ".exe" else "ffprobe"
+            candidate = ffmpeg_path.with_name(probe_name)
+            if candidate.exists():
+                return str(candidate)
+    local_app = os.environ.get("LOCALAPPDATA", "")
+    if local_app:
+        winget_base = Path(local_app) / "Microsoft" / "WinGet" / "Packages"
+        if winget_base.exists():
+            for candidate in winget_base.rglob("ffprobe.exe"):
+                if "LosslessCut" not in str(candidate):
+                    return str(candidate)
+    return ""
+
+
 FFMPEG_BIN = _resolve_ffmpeg()
+FFPROBE_BIN = _resolve_ffprobe()
 
 # ── App ───────────────────────────────────────────────────────────────────────
 VERSION = "1.0.0"
@@ -95,6 +130,43 @@ def init_db():
                 value TEXT NOT NULL
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS initial_sweep_folders (
+                path TEXT PRIMARY KEY,
+                seconds INTEGER NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS home_roots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                path TEXT NOT NULL UNIQUE,
+                is_default INTEGER DEFAULT 0,
+                sort_order INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        # Migration: add is_default column if it doesn't exist yet
+        existing = [r["name"] for r in conn.execute("PRAGMA table_info(home_roots)").fetchall()]
+        if "is_default" not in existing:
+            conn.execute("ALTER TABLE home_roots ADD COLUMN is_default INTEGER DEFAULT 0")
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS file_tags (
+                path TEXT NOT NULL,
+                tag  TEXT NOT NULL,
+                PRIMARY KEY (path, tag)
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS segments (
+                id      INTEGER PRIMARY KEY AUTOINCREMENT,
+                path    TEXT NOT NULL,
+                seg_in  REAL NOT NULL,
+                seg_out REAL NOT NULL
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_segments_path ON segments(path)")
         conn.commit()
 
 
@@ -130,14 +202,35 @@ class QuickFolderRequest(BaseModel):
     path: str  # relative path from MEDIA_ROOT
 
 
+class InitialSweepFolderRequest(BaseModel):
+    path: str  # relative folder path from MEDIA_ROOT (empty string = root)
+    seconds: int = Field(ge=0, le=7200)
+
+
 class MkdirRequest(BaseModel):
     name: str  # folder name only (no slashes)
+
+
+class HomeRootRequest(BaseModel):
+    name: str  # display name
+    path: str  # relative path from MEDIA_ROOT
 
 
 class CutRequest(BaseModel):
     start: float  # seconds
     end: float  # seconds
     destination: str  # relative path from MEDIA_ROOT
+
+
+class SegmentCreate(BaseModel):
+    seg_in: float
+    seg_out: float
+
+
+class ExportSegmentsRequest(BaseModel):
+    mode: str = "merged"  # "individual" | "merged"
+    destination: str  # relative path from MEDIA_ROOT
+    keep_original: bool = False
 
 
 class DownloadRequest(BaseModel):
@@ -226,6 +319,139 @@ def _run_cut(
         job["error"] = str(e)
 
 
+def _run_export_segments(
+    job_id: str,
+    source: Path,
+    segments: list[dict],
+    mode: str,
+    dest_dir: Path,
+    keep_original: bool,
+) -> None:
+    job = _jobs[job_id]
+    job["status"] = "running"
+    try:
+        if mode == "individual":
+            for i, seg in enumerate(segments, start=1):
+                out_name = f"{source.stem} [seg{i}]{source.suffix}"
+                output = dest_dir / out_name
+                duration = seg["seg_out"] - seg["seg_in"]
+                cmd = [
+                    FFMPEG_BIN,
+                    "-y",
+                    "-ss",
+                    str(seg["seg_in"]),
+                    "-i",
+                    str(source),
+                    "-t",
+                    str(duration),
+                    "-c",
+                    "copy",
+                    "-avoid_negative_ts",
+                    "make_zero",
+                    str(output),
+                ]
+                proc = subprocess.Popen(
+                    cmd,
+                    stderr=subprocess.PIPE,
+                    stdout=subprocess.DEVNULL,
+                    universal_newlines=True,
+                    errors="replace",
+                )
+                for line in proc.stderr:  # type: ignore[union-attr]
+                    m = re.search(r"time=(\d+):(\d+):(\d+\.?\d*)", line)
+                    if m:
+                        elapsed = int(m.group(1)) * 3600 + int(m.group(2)) * 60 + float(m.group(3))
+                        seg_pct = min(99, int(elapsed / duration * 100)) if duration > 0 else 99
+                        job["progress"] = int(((i - 1) + seg_pct / 100) / len(segments) * 100)
+                proc.wait()
+                if proc.returncode != 0:
+                    job["status"] = "error"
+                    job["error"] = f"FFmpeg exited with code {proc.returncode} on segment {i}"
+                    return
+        else:
+            # Merged mode: FFmpeg concat demuxer (lossless, same codec assumed)
+            n = len(segments)
+            out_name = f"{source.stem} [{n} segment{'s' if n > 1 else ''}]{source.suffix}"
+            output = dest_dir / out_name
+            total_duration = sum(s["seg_out"] - s["seg_in"] for s in segments)
+            # Escape single quotes in path for FFmpeg concat demuxer format
+            escaped_source = str(source).replace("'", "\\'")
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".txt", delete=False, encoding="utf-8"
+            ) as f:
+                for seg in segments:
+                    f.write(f"file '{escaped_source}'\n")
+                    f.write(f"inpoint {seg['seg_in']}\n")
+                    f.write(f"outpoint {seg['seg_out']}\n")
+                filelist_path = f.name
+            try:
+                cmd = [
+                    FFMPEG_BIN,
+                    "-y",
+                    "-f",
+                    "concat",
+                    "-safe",
+                    "0",
+                    "-i",
+                    filelist_path,
+                    "-c",
+                    "copy",
+                    str(output),
+                ]
+                proc = subprocess.Popen(
+                    cmd,
+                    stderr=subprocess.PIPE,
+                    stdout=subprocess.DEVNULL,
+                    universal_newlines=True,
+                    errors="replace",
+                )
+                for line in proc.stderr:  # type: ignore[union-attr]
+                    m = re.search(r"time=(\d+):(\d+):(\d+\.?\d*)", line)
+                    if m:
+                        elapsed = int(m.group(1)) * 3600 + int(m.group(2)) * 60 + float(m.group(3))
+                        job["progress"] = (
+                            min(99, int(elapsed / total_duration * 100))
+                            if total_duration > 0
+                            else 99
+                        )
+                proc.wait()
+            finally:
+                Path(filelist_path).unlink(missing_ok=True)
+            if proc.returncode != 0:
+                job["status"] = "error"
+                job["error"] = f"FFmpeg concat exited with code {proc.returncode}"
+                return
+
+        # Post-export: move original to dest_dir (unless keep_original or same dir)
+        rel_path = to_rel(source)
+        if not keep_original and dest_dir.resolve() != source.parent.resolve():
+            dest_source = dest_dir / source.name
+            try:
+                shutil.move(str(source), str(dest_source))
+                new_rel = to_rel(dest_source)
+                with get_db() as conn:
+                    conn.execute("UPDATE progress SET path = ? WHERE path = ?", (new_rel, rel_path))
+                    conn.execute("UPDATE segments SET path = ? WHERE path = ?", (new_rel, rel_path))
+                    conn.commit()
+                rel_path = new_rel
+            except Exception as e:
+                job["move_error"] = str(e)
+
+        # Clear segments for this file after successful export
+        with get_db() as conn:
+            conn.execute("DELETE FROM segments WHERE path = ?", (rel_path,))
+            conn.commit()
+
+        job["status"] = "done"
+        job["progress"] = 100
+    except FileNotFoundError:
+        job["status"] = "error"
+        job["error"] = "FFmpeg introuvable — installez-le (winget install ffmpeg)"
+    except Exception as e:
+        job["status"] = "error"
+        job["error"] = str(e)
+
+
 def _run_move(job_id: str, source: Path, destination: Path) -> None:
     job = _jobs[job_id]
     job["status"] = "running"
@@ -250,6 +476,7 @@ def _run_move(job_id: str, source: Path, destination: Path) -> None:
     new_rel = to_rel(final_dest)
     with get_db() as conn:
         conn.execute("UPDATE progress SET path = ? WHERE path = ?", (new_rel, old_rel))
+        conn.execute("UPDATE segments SET path = ? WHERE path = ?", (new_rel, old_rel))
         conn.commit()
     job["status"] = "done"
     job["progress"] = 100
@@ -640,10 +867,235 @@ def is_video(path: Path) -> bool:
     return path.suffix.lower() in VIDEO_EXTENSIONS
 
 
+def _safe_int(value):
+    if value in (None, ""):
+        return None
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return None
+
+
+def _safe_float(value):
+    if value in (None, ""):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _parse_frame_rate(value):
+    if value in (None, "", "0/0"):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if "/" in str(value):
+        num_str, den_str = str(value).split("/", 1)
+        num = _safe_float(num_str)
+        den = _safe_float(den_str)
+        if not num or not den:
+            return None
+        return num / den
+    return _safe_float(value)
+
+
+def _infer_bit_depth(stream):
+    bits = _safe_int(stream.get("bits_per_raw_sample")) or _safe_int(stream.get("bits_per_sample"))
+    if bits:
+        return bits
+    pix_fmt = (stream.get("pix_fmt") or "").lower()
+    match = re.search(r"p(\d+)(?:le|be)?$", pix_fmt)
+    if match:
+        return int(match.group(1))
+    if pix_fmt.endswith("p"):
+        return 8
+    return None
+
+
+def _codec_parameter(codec_name: str | None, codec_tag: str | None) -> str | None:
+    codec = (codec_name or "").lower()
+    tag = (codec_tag or "").lower()
+    if codec == "h264":
+        return tag if tag in {"avc1", "avc3"} else "avc1"
+    if codec in {"hevc", "h265"}:
+        return tag if tag in {"hvc1", "hev1"} else "hvc1"
+    if codec == "aac":
+        return "mp4a.40.2"
+    if codec == "opus":
+        return "opus"
+    if codec == "vorbis":
+        return "vorbis"
+    if codec == "vp8":
+        return "vp8"
+    if codec == "vp9":
+        return "vp09"
+    if codec == "av1":
+        return "av01"
+    return None
+
+
+def _audio_mime_type(video_mime_type: str | None) -> str | None:
+    if video_mime_type == "video/mp4":
+        return "audio/mp4"
+    if video_mime_type == "video/webm":
+        return "audio/webm"
+    return None
+
+
+def _combine_content_type(mime_type: str | None, codec_params: list[str]) -> str | None:
+    if not mime_type or not codec_params:
+        return None
+    joined = ", ".join(codec_params)
+    return f'{mime_type}; codecs="{joined}"'
+
+
+def _ffprobe_env() -> dict[str, str] | None:
+    if not FFPROBE_BIN:
+        raise HTTPException(status_code=503, detail="FFprobe not available")
+
+    candidate = Path(FFPROBE_BIN)
+    allowed_names = {"ffprobe", "ffprobe.exe"}
+    if candidate.is_absolute():
+        if candidate.name.lower() not in allowed_names or not candidate.is_file():
+            raise HTTPException(status_code=503, detail="FFprobe not available")
+        env = os.environ.copy()
+        current_path = env.get("PATH", "")
+        env["PATH"] = (
+            f"{candidate.parent}{os.pathsep}{current_path}"
+            if current_path
+            else str(candidate.parent)
+        )
+        return env
+
+    if FFPROBE_BIN.lower() not in allowed_names:
+        raise HTTPException(status_code=503, detail="FFprobe not available")
+    return None
+
+
+def _playback_strategy(
+    mime_type: str | None, video_codec: str | None, audio_codec: str | None
+) -> str:
+    codec = (video_codec or "").lower()
+    audio = (audio_codec or "").lower() or None
+    if mime_type == "video/mp4" and codec == "h264" and audio in {None, "aac"}:
+        return "baseline"
+    if mime_type in {"video/mp4", "video/webm"} and codec in {
+        "h264",
+        "hevc",
+        "h265",
+        "vp8",
+        "vp9",
+        "av1",
+    }:
+        return "probe"
+    return "fallback"
+
+
+def _read_media_info(file: Path) -> dict:
+    ffprobe_env = _ffprobe_env()
+    try:
+        completed = subprocess.run(
+            [
+                "ffprobe",
+                "-v",
+                "error",
+                "-show_entries",
+                "format=format_name,bit_rate,duration:stream=index,codec_type,codec_name,codec_tag_string,width,height,bit_rate,r_frame_rate,avg_frame_rate,bits_per_raw_sample,bits_per_sample,pix_fmt,channels,sample_rate",
+                "-show_streams",
+                "-of",
+                "json",
+                str(file),
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            env=ffprobe_env,
+            shell=False,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=503, detail="FFprobe not available") from exc
+    except subprocess.CalledProcessError as exc:
+        raise HTTPException(status_code=422, detail="Could not read media metadata") from exc
+
+    payload = json.loads(completed.stdout or "{}")
+    streams = payload.get("streams") or []
+    format_info = payload.get("format") or {}
+    video_stream = next((stream for stream in streams if stream.get("codec_type") == "video"), None)
+    audio_stream = next((stream for stream in streams if stream.get("codec_type") == "audio"), None)
+    if not video_stream:
+        raise HTTPException(status_code=422, detail="Video stream metadata missing")
+
+    mime_type = mimetypes.guess_type(str(file))[0] or "video/mp4"
+    container = file.suffix.lower().lstrip(".") or (format_info.get("format_name") or "unknown")
+
+    video_codec_param = _codec_parameter(
+        video_stream.get("codec_name"), video_stream.get("codec_tag_string")
+    )
+    audio_codec_param = None
+    audio_mime_type = _audio_mime_type(mime_type)
+    if audio_stream:
+        audio_codec_param = _codec_parameter(
+            audio_stream.get("codec_name"), audio_stream.get("codec_tag_string")
+        )
+
+    video_payload = {
+        "codec": video_stream.get("codec_name"),
+        "codec_tag": video_stream.get("codec_tag_string"),
+        "width": _safe_int(video_stream.get("width")),
+        "height": _safe_int(video_stream.get("height")),
+        "bitrate": _safe_int(video_stream.get("bit_rate"))
+        or _safe_int(format_info.get("bit_rate")),
+        "framerate": _parse_frame_rate(video_stream.get("avg_frame_rate"))
+        or _parse_frame_rate(video_stream.get("r_frame_rate")),
+        "bit_depth": _infer_bit_depth(video_stream),
+        "content_type": _combine_content_type(
+            mime_type, [video_codec_param] if video_codec_param else []
+        ),
+    }
+
+    audio_payload = None
+    if audio_stream:
+        audio_payload = {
+            "codec": audio_stream.get("codec_name"),
+            "codec_tag": audio_stream.get("codec_tag_string"),
+            "channels": _safe_int(audio_stream.get("channels")),
+            "sample_rate": _safe_int(audio_stream.get("sample_rate")),
+            "bitrate": _safe_int(audio_stream.get("bit_rate")),
+            "content_type": _combine_content_type(
+                audio_mime_type, [audio_codec_param] if audio_codec_param else []
+            ),
+        }
+
+    combined_codec_params = [video_codec_param] if video_codec_param else []
+    if video_codec_param and audio_codec_param:
+        combined_codec_params.append(audio_codec_param)
+    return {
+        "path": to_rel(file),
+        "container": container,
+        "format_name": format_info.get("format_name"),
+        "mime_type": mime_type,
+        "duration": _safe_float(format_info.get("duration")),
+        "bitrate": _safe_int(format_info.get("bit_rate")),
+        "strategy": _playback_strategy(
+            mime_type,
+            video_stream.get("codec_name"),
+            audio_stream.get("codec_name") if audio_stream else None,
+        ),
+        "content_type": _combine_content_type(mime_type, combined_codec_params),
+        "video": video_payload,
+        "audio": audio_payload,
+    }
+
+
 def safe_path(rel: str) -> Path:
     """Resolve and ensure path stays within MEDIA_ROOT."""
     resolved = (MEDIA_ROOT / rel).resolve()
-    if not str(resolved).startswith(str(MEDIA_ROOT.resolve())):
+    media_resolved = MEDIA_ROOT.resolve()
+    logger.debug("safe_path: rel=%r resolved=%s media_root=%s", rel, resolved, media_resolved)
+    if not resolved.is_relative_to(media_resolved):
+        logger.warning("safe_path DENIED: %s is outside %s", resolved, media_resolved)
         raise HTTPException(status_code=403, detail="Access denied")
     return resolved
 
@@ -668,8 +1120,45 @@ def get_progress(path: Path) -> dict:
             "percent": round(pct, 1),
             "cut_in": row["cut_in"],
             "cut_out": row["cut_out"],
+            "has_saved_progress": True,
         }
-    return {"position": 0, "duration": 0, "percent": 0, "cut_in": None, "cut_out": None}
+    return {
+        "position": 0,
+        "duration": 0,
+        "percent": 0,
+        "cut_in": None,
+        "cut_out": None,
+        "has_saved_progress": False,
+    }
+
+
+def _validate_folder_setting_path(path: str) -> str:
+    if path in ("", "."):
+        return ""
+    target = safe_path(path)
+    if not target.exists() or not target.is_dir():
+        raise HTTPException(status_code=404, detail="Folder not found")
+    rel = to_rel(target)
+    return "" if rel == "." else rel
+
+
+def _get_initial_sweep_state(folder_path: str) -> dict[str, int | str | None]:
+    folder_rel = _validate_folder_setting_path(folder_path)
+    with get_db() as conn:
+        settings = _read_all_settings(conn)
+        row = conn.execute(
+            "SELECT seconds FROM initial_sweep_folders WHERE path = ?", (folder_rel,)
+        ).fetchone()
+    default_seconds = max(0, int(settings.get("initial_sweep_seconds", "0") or 0))
+    override_seconds = int(row["seconds"]) if row else None
+    effective_seconds = override_seconds if override_seconds is not None else default_seconds
+    return {
+        "path": folder_rel,
+        "default_seconds": default_seconds,
+        "override_seconds": override_seconds,
+        "effective_seconds": effective_seconds,
+        "source": "override" if override_seconds is not None else "default",
+    }
 
 
 def get_folder_state(folder: Path, progress_map: dict) -> str:
@@ -704,6 +1193,11 @@ def list_files(path: str = ""):
             "SELECT path, position, duration FROM progress WHERE duration > 0"
         ).fetchall()
         progress_map = {row["path"]: row["position"] / row["duration"] * 100 for row in rows}
+        tag_rows = conn.execute("SELECT path, tag FROM file_tags").fetchall()
+
+    tags_map: dict[str, list[str]] = {}
+    for tr in tag_rows:
+        tags_map.setdefault(tr["path"], []).append(tr["tag"])
 
     # Gather items with stat cached
     items_with_stat = []
@@ -734,9 +1228,8 @@ def list_files(path: str = ""):
         }
         if entry["is_video"]:
             entry["progress"] = get_progress(item)
+        entry["tags"] = tags_map.get(rel, [])
         entries.append(entry)
-
-    # Breadcrumb
     parts = []
     current = Path(path)
     accumulated = Path("")
@@ -745,6 +1238,59 @@ def list_files(path: str = ""):
         parts.append({"name": part, "path": str(accumulated).replace("\\", "/")})
 
     return {"path": path, "breadcrumb": parts, "entries": entries}
+
+
+@app.get("/api/search")
+def search_files(q: str, path: str = ""):
+    """Search filenames recursively under *path* (default: MEDIA_ROOT)."""
+    if not q or not q.strip():
+        raise HTTPException(status_code=400, detail="Query required")
+    folder = safe_path(path)
+    if not folder.exists() or not folder.is_dir():
+        raise HTTPException(status_code=404, detail="Folder not found")
+
+    needle = q.strip().lower()
+
+    with get_db() as conn:
+        qf_paths = {
+            row["path"] for row in conn.execute("SELECT path FROM quick_folders").fetchall()
+        }
+        tag_rows_s = conn.execute("SELECT path, tag FROM file_tags").fetchall()
+
+    tags_map_s: dict[str, list[str]] = {}
+    for tr in tag_rows_s:
+        tags_map_s.setdefault(tr["path"], []).append(tr["tag"])
+
+    entries = []
+    for item in folder.rglob("*"):
+        if item.is_symlink() and not item.resolve().is_relative_to(MEDIA_ROOT.resolve()):
+            continue
+        if item.name.startswith("."):
+            continue
+        if needle not in item.name.lower():
+            continue
+        try:
+            st = item.stat()
+        except PermissionError:
+            continue
+        rel = to_rel(item)
+        entry = {
+            "name": item.name,
+            "path": rel,
+            "is_dir": item.is_dir(),
+            "is_video": is_video(item) if item.is_file() else False,
+            "size": st.st_size if item.is_file() else 0,
+            "mtime": st.st_mtime,
+            "is_quick_folder": rel in qf_paths if item.is_dir() else False,
+            "folder_state": None,  # skip get_folder_state to avoid nested rglob in search
+        }
+        if entry["is_video"]:
+            entry["progress"] = get_progress(item)
+        entry["tags"] = tags_map_s.get(rel, [])
+        entries.append(entry)
+
+    entries.sort(key=lambda e: e["name"].lower())
+    return {"q": q, "path": path, "entries": entries}
 
 
 @app.get("/api/progress")
@@ -789,10 +1335,11 @@ def delete_file(path: str):
             target.unlink()
     except PermissionError:
         raise HTTPException(status_code=423, detail="File is locked by another process") from None
-    # Clean progress entry
+    # Clean progress and segments entries
     rel = to_rel(target)
     with get_db() as conn:
         conn.execute("DELETE FROM progress WHERE path = ?", (rel,))
+        conn.execute("DELETE FROM segments WHERE path = ?", (rel,))
         conn.commit()
     return {"ok": True}
 
@@ -862,6 +1409,82 @@ def cut_video(path: str, body: CutRequest):
     threading.Thread(
         target=_run_cut,
         args=(job_id, source, output, body.start, body.end, dest_dir),
+        daemon=True,
+    ).start()
+    return {"job_id": job_id}
+
+
+# ── Segments ──────────────────────────────────────────────────────────────────
+
+
+@app.get("/api/segments")
+def list_segments(path: str):
+    rel = to_rel(safe_path(path))
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT id, seg_in, seg_out FROM segments WHERE path = ? ORDER BY id ASC",
+            (rel,),
+        ).fetchall()
+    return [{"id": r["id"], "seg_in": r["seg_in"], "seg_out": r["seg_out"]} for r in rows]
+
+
+@app.post("/api/segments")
+def create_segment(path: str, body: SegmentCreate):
+    if body.seg_out <= body.seg_in:
+        raise HTTPException(status_code=400, detail="seg_out must be after seg_in")
+    rel = to_rel(safe_path(path))
+    with get_db() as conn:
+        cur = conn.execute(
+            "INSERT INTO segments (path, seg_in, seg_out) VALUES (?, ?, ?)",
+            (rel, body.seg_in, body.seg_out),
+        )
+        conn.commit()
+    return {"id": cur.lastrowid}
+
+
+@app.delete("/api/segments/{seg_id}")
+def delete_segment(seg_id: int):
+    with get_db() as conn:
+        n = conn.execute("DELETE FROM segments WHERE id = ?", (seg_id,)).rowcount
+        conn.commit()
+    if n == 0:
+        raise HTTPException(status_code=404, detail="Segment not found")
+    return {"ok": True}
+
+
+@app.post("/api/files/export-segments")
+def export_segments(path: str, body: ExportSegmentsRequest):
+    source = safe_path(path)
+    if not source.exists() or not is_video(source):
+        raise HTTPException(status_code=404, detail="Video not found")
+    if body.mode not in ("individual", "merged"):
+        raise HTTPException(status_code=400, detail="mode must be 'individual' or 'merged'")
+    dest_dir = safe_path(body.destination)
+    if not dest_dir.is_dir():
+        raise HTTPException(status_code=404, detail="Destination folder not found")
+    rel_path = to_rel(source)
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT id, seg_in, seg_out FROM segments WHERE path = ? ORDER BY id ASC",
+            (rel_path,),
+        ).fetchall()
+    segments = [{"seg_in": r["seg_in"], "seg_out": r["seg_out"]} for r in rows]
+    if not segments:
+        raise HTTPException(status_code=400, detail="No segments defined for this file")
+    n = len(segments)
+    label = f"{n} segment{'s' if n > 1 else ''}" if body.mode == "merged" else f"seg1…{n}"
+    job_id = str(uuid.uuid4())
+    _jobs[job_id] = {
+        "id": job_id,
+        "source_name": source.name,
+        "output_name": label,
+        "status": "pending",
+        "progress": 0,
+        "error": None,
+    }
+    threading.Thread(
+        target=_run_export_segments,
+        args=(job_id, source, segments, body.mode, dest_dir, body.keep_original),
         daemon=True,
     ).start()
     return {"job_id": job_id}
@@ -1019,6 +1642,176 @@ def remove_quick_folder(path: str):
     return {"ok": True}
 
 
+# ── Home roots ────────────────────────────────────────────────────────────────
+
+
+@app.get("/api/home-roots")
+def list_home_roots():
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT id, name, path, is_default FROM home_roots ORDER BY sort_order, created_at"
+        ).fetchall()
+    result = []
+    for row in rows:
+        p = MEDIA_ROOT / row["path"]
+        if p.is_dir():
+            result.append(
+                {
+                    "id": row["id"],
+                    "name": row["name"],
+                    "path": row["path"],
+                    "is_default": bool(row["is_default"]),
+                }
+            )
+    return result
+
+
+@app.post("/api/home-roots")
+def add_home_root(body: HomeRootRequest):
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Name is required")
+    # Accept both absolute paths (from browse modal) and relative paths
+    path = body.path
+    logger.info("add_home_root: name=%r raw_path=%r MEDIA_ROOT=%s", name, path, MEDIA_ROOT)
+    try:
+        path = str(Path(path).relative_to(MEDIA_ROOT))
+        logger.debug("add_home_root: converted to relative path=%r", path)
+    except ValueError:
+        logger.debug("add_home_root: path not under MEDIA_ROOT, passing as-is: %r", path)
+    target = safe_path(path)
+    if not target.is_dir():
+        raise HTTPException(status_code=404, detail="Folder not found")
+    rel = to_rel(target)
+    if rel == ".":
+        rel = ""
+    with get_db() as conn:
+        # First root added becomes the default automatically
+        count = conn.execute("SELECT COUNT(*) FROM home_roots").fetchone()[0]
+        is_default = 1 if count == 0 else 0
+        try:
+            conn.execute(
+                "INSERT INTO home_roots (name, path, is_default) VALUES (?, ?, ?)",
+                (name, rel, is_default),
+            )
+            conn.commit()
+        except sqlite3.IntegrityError:
+            raise HTTPException(status_code=409, detail="Root already exists") from None
+    return {"ok": True}
+
+
+@app.post("/api/home-roots/{root_id}/set-default")
+def set_default_home_root(root_id: int):
+    with get_db() as conn:
+        row = conn.execute("SELECT id FROM home_roots WHERE id = ?", (root_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Root not found")
+        conn.execute("UPDATE home_roots SET is_default = 0")
+        conn.execute("UPDATE home_roots SET is_default = 1 WHERE id = ?", (root_id,))
+        conn.commit()
+    return {"ok": True}
+
+
+@app.delete("/api/home-roots/{root_id}")
+def remove_home_root(root_id: int):
+    with get_db() as conn:
+        row = conn.execute("SELECT is_default FROM home_roots WHERE id = ?", (root_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Root not found")
+        conn.execute("DELETE FROM home_roots WHERE id = ?", (root_id,))
+        conn.commit()
+        # If the deleted root was the default, promote the first remaining root
+        if row["is_default"]:
+            first = conn.execute(
+                "SELECT id FROM home_roots ORDER BY sort_order, created_at LIMIT 1"
+            ).fetchone()
+            if first:
+                conn.execute("UPDATE home_roots SET is_default = 1 WHERE id = ?", (first["id"],))
+                conn.commit()
+    return {"ok": True}
+
+
+class TagRequest(BaseModel):
+    tag: str
+
+
+@app.get("/api/tags")
+def get_file_tags(path: str):
+    rel = to_rel(safe_path(path))
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT tag FROM file_tags WHERE path = ? ORDER BY tag", (rel,)
+        ).fetchall()
+    return {"tags": [r["tag"] for r in rows]}
+
+
+@app.post("/api/tags")
+def add_file_tag(path: str, body: TagRequest):
+    rel = to_rel(safe_path(path))
+    tag = body.tag.strip().lower()
+    if not tag:
+        raise HTTPException(status_code=400, detail="Tag must not be empty")
+    with get_db() as conn:
+        conn.execute("INSERT OR IGNORE INTO file_tags (path, tag) VALUES (?, ?)", (rel, tag))
+        conn.commit()
+    return {"ok": True}
+
+
+@app.delete("/api/tags")
+def remove_file_tag(path: str, tag: str):
+    rel = to_rel(safe_path(path))
+    with get_db() as conn:
+        conn.execute("DELETE FROM file_tags WHERE path = ? AND tag = ?", (rel, tag))
+        conn.commit()
+    return {"ok": True}
+
+
+@app.get("/api/all-tags")
+def list_all_tags():
+    with get_db() as conn:
+        rows = conn.execute("SELECT DISTINCT tag FROM file_tags ORDER BY tag").fetchall()
+    return {"tags": [r["tag"] for r in rows]}
+
+
+@app.get("/api/initial-sweep")
+def get_initial_sweep(path: str = ""):
+    return _get_initial_sweep_state(path)
+
+
+@app.post("/api/initial-sweep")
+def set_initial_sweep(body: InitialSweepFolderRequest):
+    folder_rel = _validate_folder_setting_path(body.path)
+    with get_db() as conn:
+        conn.execute(
+            """
+            INSERT INTO initial_sweep_folders (path, seconds, updated_at)
+            VALUES (?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(path) DO UPDATE SET
+                seconds=excluded.seconds,
+                updated_at=CURRENT_TIMESTAMP
+            """,
+            (folder_rel, body.seconds),
+        )
+        conn.commit()
+    return {"ok": True}
+
+
+@app.delete("/api/initial-sweep")
+def clear_initial_sweep(path: str = ""):
+    # Use safe_path for traversal protection only — no existence check, so stale
+    # overrides can still be cleared even if the folder was deleted/renamed.
+    if path in ("", "."):
+        folder_rel = ""
+    else:
+        target = safe_path(path)
+        rel = to_rel(target)
+        folder_rel = "" if rel == "." else rel
+    with get_db() as conn:
+        conn.execute("DELETE FROM initial_sweep_folders WHERE path = ?", (folder_rel,))
+        conn.commit()
+    return {"ok": True}
+
+
 # ── Filesystem browser (unrestricted, dirs only) ──────────────────────────────
 
 
@@ -1088,12 +1881,20 @@ _SETTINGS_KEYS = {
     "gesture_edge_pct",  # int 10-35
     "gesture_swipe_threshold",  # px int, default 15
     "gesture_swipe_sensitivity",  # 'slow'|'medium'|'fast'
-    "doubletap_left",  # seconds int
-    "doubletap_right_bottom",  # seconds int
-    "doubletap_right_mid",  # seconds int
-    "doubletap_right_top",  # seconds int
+    "seek_short",  # seconds int, default 10
+    "seek_medium",  # seconds int, default 30
+    "seek_long",  # seconds int, default 60
+    "seek_xlong",  # seconds int, default 120
+    "initial_sweep_seconds",  # seconds int, default 0 = disabled
     "download_folder",  # relative path from MEDIA_ROOT, default 'Downloads'
     "download_cookies_path",  # absolute path to a Netscape cookies.txt file, optional
+    "transcode_enabled",  # '1' | '0', default '1'
+    "gamepad_enabled",  # '1' | '0', default '1'
+    "gamepad_deadzone",  # float 0.0–0.5, default '0.20'
+    "gamepad_haptic",  # '1' | '0', default '1'
+    "gamepad_swap_sticks",  # '1' | '0', default '0' — swap left/right stick assignments
+    "gamepad_mapping",  # JSON string, default '{}' (use built-in defaults)
+    "fs_progress_zoom",  # int 5-50, zoom window % for fullscreen progress bar, default 20
 }
 
 _SETTINGS_DEFAULTS: dict[str, str] = {
@@ -1111,12 +1912,20 @@ _SETTINGS_DEFAULTS: dict[str, str] = {
     "gesture_edge_pct": "20",
     "gesture_swipe_threshold": "15",
     "gesture_swipe_sensitivity": "medium",
-    "doubletap_left": "30",
-    "doubletap_right_bottom": "30",
-    "doubletap_right_mid": "60",
-    "doubletap_right_top": "90",
+    "seek_short": "10",
+    "seek_medium": "30",
+    "seek_long": "60",
+    "seek_xlong": "120",
+    "initial_sweep_seconds": "0",
     "download_folder": "Downloads",
     "download_cookies_path": "",
+    "transcode_enabled": "1",
+    "gamepad_enabled": "1",
+    "gamepad_deadzone": "0.20",
+    "gamepad_haptic": "1",
+    "gamepad_swap_sticks": "0",
+    "gamepad_mapping": "{}",
+    "fs_progress_zoom": "20",
 }
 
 
@@ -1153,12 +1962,20 @@ class SettingsPayload(BaseModel):
     gesture_edge_pct: int | None = None
     gesture_swipe_threshold: int | None = None
     gesture_swipe_sensitivity: str | None = None
-    doubletap_left: int | None = None
-    doubletap_right_bottom: int | None = None
-    doubletap_right_mid: int | None = None
-    doubletap_right_top: int | None = None
+    seek_short: int | None = None
+    seek_medium: int | None = None
+    seek_long: int | None = None
+    seek_xlong: int | None = None
+    initial_sweep_seconds: int | None = Field(default=None, ge=0, le=7200)
     download_folder: str | None = None
     download_cookies_path: str | None = None
+    transcode_enabled: bool | None = None
+    gamepad_enabled: bool | None = None
+    gamepad_deadzone: float | None = Field(default=None, ge=0.0, le=0.5)
+    gamepad_haptic: bool | None = None
+    gamepad_swap_sticks: bool | None = None
+    gamepad_mapping: str | None = None  # raw JSON string
+    fs_progress_zoom: int | None = Field(default=None, ge=5, le=50)
 
 
 @app.get("/api/settings")
@@ -1193,6 +2010,14 @@ def update_settings(body: SettingsPayload):
                 h = hashlib.sha256(body.pin.encode()).hexdigest()
                 _write_setting(conn, "pin_hash", h)
 
+        if body.gamepad_mapping is not None:
+            try:
+                json.loads(body.gamepad_mapping)
+            except (ValueError, TypeError) as exc:
+                raise HTTPException(
+                    status_code=422, detail="gamepad_mapping must be valid JSON"
+                ) from exc
+
         _simple: list[tuple[str, object]] = [
             ("privacy_timeout", body.privacy_timeout),
             ("watched_threshold", body.watched_threshold),
@@ -1202,12 +2027,16 @@ def update_settings(body: SettingsPayload):
             ("gesture_swipe_threshold", body.gesture_swipe_threshold),
             ("gesture_edge_pct", body.gesture_edge_pct),
             ("gesture_swipe_sensitivity", body.gesture_swipe_sensitivity),
-            ("doubletap_left", body.doubletap_left),
-            ("doubletap_right_bottom", body.doubletap_right_bottom),
-            ("doubletap_right_mid", body.doubletap_right_mid),
-            ("doubletap_right_top", body.doubletap_right_top),
+            ("seek_short", body.seek_short),
+            ("seek_medium", body.seek_medium),
+            ("seek_long", body.seek_long),
+            ("seek_xlong", body.seek_xlong),
+            ("initial_sweep_seconds", body.initial_sweep_seconds),
             ("download_folder", body.download_folder),
             ("download_cookies_path", body.download_cookies_path),
+            ("gamepad_deadzone", body.gamepad_deadzone),
+            ("gamepad_mapping", body.gamepad_mapping),
+            ("fs_progress_zoom", body.fs_progress_zoom),
         ]
         for key, val in _simple:
             if val is not None:
@@ -1219,6 +2048,10 @@ def update_settings(body: SettingsPayload):
             ("gesture_volume", body.gesture_volume),
             ("gesture_brightness", body.gesture_brightness),
             ("gesture_doubletap", body.gesture_doubletap),
+            ("transcode_enabled", body.transcode_enabled),
+            ("gamepad_enabled", body.gamepad_enabled),
+            ("gamepad_haptic", body.gamepad_haptic),
+            ("gamepad_swap_sticks", body.gamepad_swap_sticks),
         ]
         for key, val in _bools:
             if val is not None:
@@ -1291,6 +2124,14 @@ def stream_video(path: str, request: Request):
         media_type=mime_type,
         headers={"Accept-Ranges": "bytes", "Content-Length": str(file_size)},
     )
+
+
+@app.get("/api/media-info")
+def media_info(path: str):
+    file = safe_path(path)
+    if not file.exists() or not is_video(file):
+        raise HTTPException(status_code=404)
+    return _read_media_info(file)
 
 
 @app.get("/api/transcode")

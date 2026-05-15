@@ -5,7 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>Hoard</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/favicon.svg">
+<meta name="theme-color" content="#0e0e0f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Hoard">
 <style>
   @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700&display=swap');
 
@@ -35,6 +40,11 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    padding:
+      env(safe-area-inset-top, 0px)
+      env(safe-area-inset-right, 0px)
+      env(safe-area-inset-bottom, 0px)
+      env(safe-area-inset-left, 0px);
   }
 
   /* ── Header ── */
@@ -156,6 +166,42 @@
   }
   #refresh-indicator.active { opacity: 1; animation: pulse 1s ease-in-out infinite; }
   @keyframes pulse { 0%,100%{opacity:0.3} 50%{opacity:1} }
+  #search-input {
+    flex: 1;
+    min-width: 0;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--text);
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    padding: 4px 8px;
+    outline: none;
+  }
+  #search-input:focus { border-color: rgba(232,255,71,0.4); }
+  #search-input::placeholder { color: var(--text-dim); }
+
+  /* ── Home screen (multi-root picker) ── */
+  .home-screen {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 12px;
+    padding: 20px 12px;
+  }
+  .root-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 12px 14px;
+    cursor: pointer;
+    text-align: center;
+    transition: border-color 0.15s, background 0.15s;
+    user-select: none;
+  }
+  .root-card:hover { border-color: var(--accent); background: var(--surface3); }
+  .root-card .rc-icon { font-size: 32px; margin-bottom: 8px; line-height: 1; }
+  .root-card .rc-name { font-size: 13px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .root-card .rc-path { font-size: 10px; color: var(--text-dim); margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   #filelist {
     flex: 1;
@@ -177,6 +223,7 @@
   }
   .entry:hover { background: var(--surface2); border-color: var(--border); }
   .entry.active { background: var(--accent-dim); border-color: var(--accent); }
+  .entry.gp-cursor { outline: 2px solid var(--accent); outline-offset: -1px; }
   .entry.seen { background: rgba(58,90,58,0.25); }
   .entry.inprogress { background: rgba(90,74,26,0.3); }
 
@@ -244,6 +291,10 @@
   }
   .action-btn:hover { border-color: var(--accent); color: var(--accent); }
   .action-btn.danger:hover { border-color: var(--danger); color: var(--danger); }
+  .action-btn:disabled {
+    opacity: 0.55;
+    cursor: wait;
+  }
 
   /* ── Player panel ── */
   #player-panel {
@@ -293,16 +344,38 @@
   }
 
   #now-playing {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
     font-size: 12px;
     font-weight: 600;
     color: var(--text-mid);
     margin-bottom: 10px;
+    font-family: 'DM Mono', monospace;
+  }
+  #now-playing-label {
+    flex: 1;
+    min-width: 0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    font-family: 'DM Mono', monospace;
   }
-  #now-playing span { color: var(--accent); }
+  #now-playing-name { color: var(--accent); }
+  #media-meta {
+    font-size: 10px;
+    color: var(--text-dim);
+    font-family: 'DM Mono', monospace;
+    margin-top: -8px;
+    margin-bottom: 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #initial-sweep-btn {
+    flex-shrink: 0;
+    padding: 4px 7px;
+  }
 
   #seekbar-wrap {
     position: relative;
@@ -352,7 +425,8 @@
     flex: 1;
     height: 0;
   }
-  #video-container.faux-fullscreen #controls {
+  #video-container.faux-fullscreen #controls,
+  #video-container:fullscreen #controls {
     position: absolute;
     bottom: 0;
     left: 0;
@@ -363,27 +437,71 @@
     padding-bottom: max(12px, env(safe-area-inset-bottom));
     transition: opacity 0.3s;
   }
-  #video-container.faux-fullscreen #controls.ctrl-hidden {
+  #video-container.faux-fullscreen #controls.ctrl-hidden,
+  #video-container:fullscreen #controls.ctrl-hidden {
     opacity: 0;
     pointer-events: none;
   }
 
-  /* Mini time overlay (visible when controls are hidden in fullscreen) */
+  /* Mini progress overlay (visible in fullscreen) */
   #mini-time {
     display: none;
     position: absolute;
     top: 10px;
     right: 14px;
-    font-family: 'DM Mono', monospace;
-    font-size: 11px;
-    color: rgba(255,255,255,0.7);
-    background: rgba(0,0,0,0.45);
-    padding: 3px 7px;
-    border-radius: 6px;
+    background: rgba(0,0,0,0.55);
+    padding: 6px 10px 8px;
+    border-radius: 8px;
     pointer-events: none;
     z-index: 10;
+    min-width: 140px;
   }
-  #video-container.faux-fullscreen #mini-time { display: block; }
+  #video-container.faux-fullscreen #mini-time,
+  #video-container:fullscreen #mini-time { display: block; }
+  #mini-remaining {
+    font-family: 'DM Mono', monospace;
+    font-size: 15px;
+    color: rgba(255,255,255,0.92);
+    text-align: right;
+    margin-bottom: 5px;
+    letter-spacing: 0.02em;
+  }
+  #mini-progress-wrap {
+    position: relative;
+    height: 14px;
+    margin-top: 2px;
+  }
+  #mini-bar-full {
+    position: absolute;
+    top: 5px;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  #mini-bar-fill {
+    height: 100%;
+    background: var(--accent);
+    width: 0%;
+  }
+  #mini-bar-zoom-track {
+    position: absolute;
+    top: 0;
+    left: 0%;
+    width: 20%;
+    height: 14px;
+    background: rgba(255,255,255,0.25);
+    border-radius: 3px;
+    overflow: hidden;
+    z-index: 1;
+  }
+  #mini-bar-zoom-fill {
+    height: 100%;
+    background: var(--accent);
+    width: 0%;
+  }
 
   #ctrl-row {
     display: flex;
@@ -425,17 +543,19 @@
     cursor: pointer;
   }
 
-  /* ── Move modal ── */
-  #modal-overlay {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.7);
-    z-index: 100;
-    align-items: center;
-    justify-content: center;
+  /* ── Move modal / dialogs ── */
+  dialog {
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    max-width: 95vw;
+    max-height: 95vh;
+    overflow: visible;
   }
-  #modal-overlay.open { display: flex; }
+  dialog::backdrop {
+    background: rgba(0,0,0,0.7);
+  }
   #modal {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -464,6 +584,9 @@
     transition: all 0.15s;
   }
   .modal-folder-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .modal-folder-btn.gp-cursor { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface2)); }
+  .modal-folder-btn.selected { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 18%, var(--surface2)); }
+  #cut-confirm-btn.gp-cursor, #move-confirm-btn.gp-cursor, #export-confirm-btn.gp-cursor { outline: 3px solid #fff; outline-offset: 3px; }
 
   #modal-cancel {
     margin-top: 8px;
@@ -480,44 +603,52 @@
   }
   #modal-cancel:hover { border-color: var(--text-dim); color: var(--text); }
 
-  /* ── Cut markers on seekbar ── */
-  #cut-seekbar-fill {
+  /* ── Segment fills on seekbar ── */
+  .seg-fill {
     position: absolute;
     top: 0; height: 100%;
-    background: #4a9ee8;
-    opacity: 0.45;
+    opacity: 0.5;
+    pointer-events: none;
+    border-radius: 2px;
+  }
+  #pending-in-fill {
+    position: absolute;
+    top: 0; height: 100%;
+    background: repeating-linear-gradient(
+      90deg,
+      rgba(255,255,255,0.18) 0px, rgba(255,255,255,0.18) 4px,
+      transparent 4px, transparent 8px
+    );
     pointer-events: none;
     border-radius: 2px;
     display: none;
   }
-  /* Downward triangle ▼ below the bar */
-  .cut-seekbar-marker {
-    position: absolute;
-    top: 8px;        /* 6px bar + 2px gap */
-    width: 0; height: 0;
-    border-left: 5px solid transparent;
-    border-right: 5px solid transparent;
-    border-top: 7px solid var(--accent);
-    transform: translateX(-50%);
-    display: none;
-    pointer-events: none;
+  #segments-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    padding: 4px 0 2px;
   }
-  /* IN/OUT mark buttons */
-  .cut-mark-btn {
-    font-size: 11px !important;
-    font-weight: 700;
+  .seg-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
     font-family: 'DM Mono', monospace;
-    padding: 4px 7px !important;
+    background: var(--surface2);
     border: 1px solid var(--border);
-    border-radius: 5px;
-    opacity: 0.5;
+    border-radius: 12px;
+    padding: 2px 8px;
+    color: var(--text);
   }
-  .cut-mark-btn.active {
-    opacity: 1;
-    border-color: var(--accent);
-    color: var(--accent);
+  .seg-chip-del {
+    cursor: pointer;
+    color: var(--text-dim);
+    font-size: 14px;
+    line-height: 1;
+    padding: 0 0 0 2px;
   }
-  #cut-btn.ready { color: var(--accent); }
+  .seg-chip-del:hover { color: var(--text); }
 
   /* ── Jobs panel ── */
   #jobs-panel {
@@ -577,7 +708,7 @@
 
   /* ── Toast ── */
   #toast {
-    position: fixed;
+    position: absolute;
     bottom: 24px;
     left: 50%;
     transform: translateX(-50%) translateY(80px);
@@ -593,6 +724,124 @@
     white-space: nowrap;
   }
   #toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* ── Volume OSD ── */
+  #vol-osd {
+    position: absolute;
+    bottom: 80px;
+    right: 20px;
+    background: rgba(0,0,0,0.65);
+    border-radius: 10px;
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.25s;
+    z-index: 50;
+  }
+  #vol-osd.visible { opacity: 1; }
+  #vol-osd-bar-track {
+    width: 130px;
+    height: 6px;
+    background: rgba(255,255,255,0.25);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  #vol-osd-bar-fill {
+    height: 100%;
+    background: #fff;
+    border-radius: 3px;
+    transition: width 0.1s;
+  }
+  #vol-osd-pct {
+    font-size: 13px;
+    color: #fff;
+    font-family: 'DM Mono', monospace;
+    min-width: 36px;
+    text-align: right;
+  }
+
+  /* ── Gamepad HUD ── */
+  #gp-hud {
+    position: fixed;
+    top: 12px;
+    right: 14px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--accent);
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    padding: 3px 8px;
+    border-radius: 6px;
+    z-index: 300;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  #gp-hud.visible { opacity: 1; }
+  #gp-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.82);
+    z-index: 9999;
+    display: none;
+    align-items: center;
+    justify-content: center;
+  }
+  #gp-overlay.open { display: flex; }
+  /* When moved inside the fullscreen element */
+  #gp-overlay.in-fullscreen { position: absolute; }
+  #gp-overlay-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 24px;
+    overflow-y: auto;
+    width: 480px;
+    max-width: 95vw;
+    max-height: 85vh;
+  }
+  #gp-overlay h2 {
+    color: var(--accent);
+    font-size: 15px;
+    margin: 0 0 4px 0;
+    letter-spacing: .06em;
+  }
+  .gp-layer-title {
+    color: var(--text-dim);
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    margin: 10px 0 4px;
+  }
+  .gp-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    font-size: 12px;
+    width: 100%;
+    max-width: 420px;
+  }
+  .gp-btn-badge {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 2px 7px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    min-width: 38px;
+    text-align: center;
+    flex-shrink: 0;
+    color: var(--text);
+  }
+  .gp-action { color: var(--text-mid); flex: 1; }
 
   /* ── Mobile ── */
   @media (max-width: 700px) {
@@ -637,6 +886,48 @@
   .entry.qf:hover { border-color: var(--accent); }
   .qf-divider { height: 1px; background: var(--border); margin: 8px 8px; }
   .action-btn.pinned { color: var(--accent); border-color: rgba(232,255,71,0.4); }
+  .tag-badge {
+    display: inline-block;
+    background: rgba(232,255,71,0.12);
+    color: var(--accent);
+    border: 1px solid rgba(232,255,71,0.3);
+    border-radius: 10px;
+    padding: 1px 7px;
+    font-size: 10px;
+    margin-right: 3px;
+    cursor: default;
+  }
+  .tag-filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 6px 8px 4px;
+    border-bottom: 1px solid var(--border);
+  }
+  .tag-filter-bar:empty { display: none; }
+  .tag-filter-chip {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 2px 10px;
+    font-size: 11px;
+    cursor: pointer;
+    color: var(--text-mid);
+  }
+  .tag-filter-chip.active { border-color: var(--accent); color: var(--accent); background: rgba(232,255,71,0.08); }
+  #tag-modal { display:none; position:fixed; inset:0; z-index:3100; background:rgba(0,0,0,0.55); align-items:center; justify-content:center; }
+  #tag-modal.open { display:flex; }
+  #tag-modal .modal-box { background:var(--surface); border-radius:10px; padding:20px; min-width:300px; max-width:400px; width:90%; }
+  .tag-list { display:flex; flex-wrap:wrap; gap:6px; margin:12px 0; min-height:24px; }
+  .tag-item { background:rgba(232,255,71,0.1); border:1px solid rgba(232,255,71,0.3); border-radius:12px; padding:3px 10px; font-size:12px; color:var(--accent); display:flex; align-items:center; gap:5px; }
+  .tag-remove { cursor:pointer; opacity:0.6; font-size:13px; }
+  .tag-remove:hover { opacity:1; }
+  #tag-input-row { display:flex; gap:6px; margin-top:10px; }
+  #tag-input { flex:1; background:var(--surface2); border:1px solid var(--border); color:var(--text); border-radius:5px; padding:6px 10px; font-size:13px; }
+  #tag-input:focus { outline:none; border-color:var(--accent); }
+  #tag-suggestions { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
+  .tag-sugg { background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:1px 8px; font-size:11px; cursor:pointer; color:var(--text-dim); }
+  .tag-sugg:hover { border-color:var(--accent); color:var(--accent); }
 
   /* scrollbar */
   ::-webkit-scrollbar { width: 6px; }
@@ -851,6 +1142,16 @@
       </div>
     </div>
 
+    <!-- Home roots -->
+    <div>
+      <div class="s-section-title">🏠 Racines de navigation</div>
+      <div class="s-row" style="flex-direction:column;align-items:flex-start;gap:8px">
+        <div class="s-desc">Configurez plusieurs points d&apos;entrée. Le bouton ⌂ affichera un écran d&apos;accueil pour choisir la racine active.</div>
+        <div id="s-home-roots-list" style="width:100%;display:flex;flex-direction:column;gap:5px"></div>
+        <button class="s-btn" onclick="openRootPicker()">Ajouter une racine…</button>
+      </div>
+    </div>
+
     <!-- Downloads -->
     <div>
       <div class="s-section-title">📥 Téléchargements</div>
@@ -878,6 +1179,18 @@
       <div class="s-row">
         <div><div class="s-label">Seuil « vu »</div><div class="s-desc">Pourcentage minimum pour marquer une vidéo comme vue</div></div>
         <div class="s-right"><input type="number" class="s-num" id="s-watched-threshold" min="75" max="99" step="1"> <span style="font-size:12px;color:var(--text-dim)">%</span></div>
+      </div>
+      <div class="s-row">
+        <div><div class="s-label">Zoom barre plein écran</div><div class="s-desc">Taille de la fenêtre de zoom sur la barre de progression en plein écran</div></div>
+        <div class="s-right"><input type="number" class="s-num" id="s-fs-progress-zoom" min="5" max="50" step="5"> <span style="font-size:12px;color:var(--text-dim)">%</span></div>
+      </div>
+      <div class="s-row">
+        <div><div class="s-label">Initial sweep par défaut</div><div class="s-desc">Pour une vidéo sans progression enregistrée : démarrer à N secondes. 0 = désactivé.</div></div>
+        <div class="s-right"><input type="number" class="s-num" id="s-initial-sweep" min="0" max="7200" step="30"> <span style="font-size:12px;color:var(--text-dim)">s</span></div>
+      </div>
+      <div class="s-row">
+        <div><div class="s-label">Transcodage activé</div><div class="s-desc">Désactiver pour toujours lire les fichiers directement (plus léger sur le NAS). Attention : peut échouer pour les formats non supportés nativement par le navigateur.</div></div>
+        <div class="s-right"><label class="toggle"><input type="checkbox" id="s-transcode-enabled"><div class="toggle-track"></div></label></div>
       </div>
     </div>
 
@@ -924,24 +1237,50 @@
       </div>
     </div>
 
-    <!-- Double-tap values -->
+    <!-- Seek values -->
     <div>
-      <div class="s-section-title">Double-tap — valeurs seek (s)</div>
+      <div class="s-section-title">⏩ Seek — durées (s)</div>
+      <div class="s-desc" style="padding:0 0 8px 0;font-size:11px;color:var(--text-dim)">Utilisées par le clavier, le double-tap et les boutons skip.</div>
       <div class="s-row">
-        <div><div class="s-label">Bord gauche</div></div>
-        <div class="s-right"><input type="number" class="s-num" id="s-dt-left" min="5" max="300" step="5"> <span style="font-size:12px;color:var(--text-dim)">s</span></div>
+        <div><div class="s-label">Court (←/→)</div></div>
+        <div class="s-right"><input type="number" class="s-num" id="s-seek-short" min="1" max="120" step="1"> <span style="font-size:12px;color:var(--text-dim)">s</span></div>
       </div>
       <div class="s-row">
-        <div><div class="s-label">Bord droit — tiers bas</div></div>
-        <div class="s-right"><input type="number" class="s-num" id="s-dt-right-bottom" min="5" max="300" step="5"> <span style="font-size:12px;color:var(--text-dim)">s</span></div>
+        <div><div class="s-label">Moyen (Shift+←/→)</div></div>
+        <div class="s-right"><input type="number" class="s-num" id="s-seek-medium" min="5" max="300" step="5"> <span style="font-size:12px;color:var(--text-dim)">s</span></div>
       </div>
       <div class="s-row">
-        <div><div class="s-label">Bord droit — tiers médian</div></div>
-        <div class="s-right"><input type="number" class="s-num" id="s-dt-right-mid" min="5" max="300" step="5"> <span style="font-size:12px;color:var(--text-dim)">s</span></div>
+        <div><div class="s-label">Long (Ctrl+←/→)</div></div>
+        <div class="s-right"><input type="number" class="s-num" id="s-seek-long" min="10" max="600" step="10"> <span style="font-size:12px;color:var(--text-dim)">s</span></div>
       </div>
       <div class="s-row">
-        <div><div class="s-label">Bord droit — tiers haut</div></div>
-        <div class="s-right"><input type="number" class="s-num" id="s-dt-right-top" min="5" max="300" step="5"> <span style="font-size:12px;color:var(--text-dim)">s</span></div>
+        <div><div class="s-label">Très long (Alt+←/→)</div></div>
+        <div class="s-right"><input type="number" class="s-num" id="s-seek-xlong" min="30" max="1800" step="30"> <span style="font-size:12px;color:var(--text-dim)">s</span></div>
+      </div>
+    </div>
+
+    <!-- Gamepad -->
+    <div>
+      <div class="s-section-title">🎮 Manette</div>
+      <div class="s-row">
+        <div><div class="s-label">Manette activée</div><div class="s-desc">Gamepad API (Xbox, Switch Pro, Steam Deck…)</div></div>
+        <div class="s-right"><label class="toggle"><input type="checkbox" id="s-gamepad-enabled"><div class="toggle-track"></div></label></div>
+      </div>
+      <div class="s-row">
+        <div><div class="s-label">Retour haptique</div><div class="s-desc">Vibration sur les actions (Chrome uniquement)</div></div>
+        <div class="s-right"><label class="toggle"><input type="checkbox" id="s-gamepad-haptic"><div class="toggle-track"></div></label></div>
+      </div>
+      <div class="s-row">
+        <div><div class="s-label">Inverser les sticks</div><div class="s-desc">Stick gauche = volume / Stick droit = seek</div></div>
+        <div class="s-right"><label class="toggle"><input type="checkbox" id="s-gamepad-swap-sticks"><div class="toggle-track"></div></label></div>
+      </div>
+      <div class="s-row">
+        <div><div class="s-label">Zone morte</div><div class="s-desc">Seuil de détection des sticks analogiques</div></div>
+        <div class="s-right"><input type="number" class="s-num" id="s-gamepad-deadzone" min="0" max="50" step="1"> <span style="font-size:12px;color:var(--text-dim)">%</span></div>
+      </div>
+      <div class="s-row" style="flex-direction:column;align-items:flex-start;gap:6px">
+        <div class="s-label">Aide raccourcis manette</div>
+        <button class="s-btn" onclick="openGpOverlay()">Afficher la carte des boutons</button>
       </div>
     </div>
 
@@ -994,7 +1333,9 @@
       <button class="sort-btn" id="sort-dir-btn" onclick="toggleSortDir()" title="Inverser l'ordre">&#x2193;</button>
       <div id="refresh-indicator" title="Mise à jour en cours…"></div>
       <button class="sort-btn" onclick="openMkdirModal()" title="Nouveau dossier" style="margin-left:4px">&#x2795;</button>
+      <input id="search-input" type="search" placeholder="🔍 Rechercher…" oninput="onSearchInput(this.value)" autocomplete="off">
     </div>
+    <div id="tag-filter-bar" class="tag-filter-bar"></div>
     <div id="filelist">
       <div style="color:var(--text-dim);font-size:13px;padding:20px;text-align:center">Chargement…</div>
     </div>
@@ -1010,33 +1351,53 @@
     </div>
 
     <div id="video-container">
+      <div id="toast"></div>
+      <div id="vol-osd">
+        <span id="vol-osd-icon">🔊</span>
+        <div id="vol-osd-bar-track"><div id="vol-osd-bar-fill" style="width:100%"></div></div>
+        <span id="vol-osd-pct">100%</span>
+      </div>
       <video id="video" preload="metadata"></video>
-      <div id="mini-time">0:00 / 0:00</div>
+      <div id="mini-time">
+        <div id="mini-remaining">-0:00</div>
+        <div id="mini-progress-wrap">
+          <div id="mini-bar-full"><div id="mini-bar-fill"></div></div>
+          <div id="mini-bar-zoom-track"><div id="mini-bar-zoom-fill"></div></div>
+        </div>
+      </div>
       <div id="controls">
-        <div id="now-playing">— <span id="now-playing-name"></span></div>
-        <div id="seekbar-wrap" id="seekbar">
+        <div id="now-playing">
+          <div id="now-playing-label">— <span id="now-playing-name"></span></div>
+          <button id="initial-sweep-btn" class="action-btn" onclick="saveCurrentPositionAsInitialSweep()" title="Enregistrer la position actuelle comme départ du dossier" style="display:none">⏱ Départ dossier</button>
+        </div>
+        <div id="media-meta"></div>
+        <div id="seekbar-wrap">
           <div id="seekbar-fill"></div>
-          <div id="cut-seekbar-fill"></div>
-          <div id="cut-seekbar-in" class="cut-seekbar-marker"></div>
-          <div id="cut-seekbar-out" class="cut-seekbar-marker"></div>
+          <div id="segment-fills"></div>
+          <div id="pending-in-fill"></div>
           <div id="seekbar-thumb"></div>
         </div>
+        <div id="segments-list" style="display:none"></div>
         <div id="ctrl-row">
-          <button class="ctrl-btn" onclick="skip(-30)" title="-30s">⏪</button>
-          <button class="ctrl-btn" onclick="skip(-10)" title="-10s">◀◀</button>
+          <button class="ctrl-btn" data-seek="seek_medium" data-dir="back" onclick="skip(-cfg.seek_medium)" title="-30s">⏪</button>
+          <button class="ctrl-btn" data-seek="seek_short" data-dir="back" onclick="skip(-cfg.seek_short)" title="-10s">◀◀</button>
           <button class="ctrl-btn" id="playpause-btn" onclick="togglePlay()">▶</button>
-          <button class="ctrl-btn" onclick="skip(10)" title="+10s">▶▶</button>
-          <button class="ctrl-btn" onclick="skip(30)" title="+30s">⏩</button>
+          <button class="ctrl-btn" data-seek="seek_short" data-dir="fwd" onclick="skip(cfg.seek_short)" title="+10s">▶▶</button>
+          <button class="ctrl-btn" data-seek="seek_medium" data-dir="fwd" onclick="skip(cfg.seek_medium)" title="+30s">⏩</button>
           <div id="time-display">0:00 / 0:00</div>
           <div id="volume-wrap">
             <span style="font-size:16px;cursor:pointer" onclick="toggleMute()">🔊</span>
             <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="1" oninput="setVolume(this.value)">
           </div>          <button class="ctrl-btn" id="fullscreen-btn" onclick="toggleFullscreen()" title="Plein écran (F)">&#x26F6;</button>
-          <button class="ctrl-btn" id="fit-btn" onclick="toggleVideoFit()" title="Fit / Fill">&#x26F6;&#xFE0E;</button>
-          <button class="ctrl-btn cut-mark-btn" id="cut-in-btn" onclick="setCutPoint('in')" title="Marquer point IN" style="display:none">[IN</button>
-          <button class="ctrl-btn cut-mark-btn" id="cut-out-btn" onclick="setCutPoint('out')" title="Marquer point OUT" style="display:none">OUT]</button>
-          <button class="ctrl-btn cut-mark-btn" id="cut-clear-btn" onclick="clearCutPoints()" title="Annuler les points IN/OUT" style="display:none;opacity:0.7">✕</button>
-          <button class="ctrl-btn" id="cut-btn" onclick="openCutModal()" title="✂ Découper" style="display:none">&#x2702;</button>        </div>
+          <button class="ctrl-btn" id="speed-btn" onclick="cycleSpeed()" title="Vitesse de lecture">1×</button>
+          <button class="ctrl-btn" id="fit-btn" onclick="toggleVideoFit()" title="Fit / Fill">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="5" width="18" height="14" rx="1"/>
+              <path d="M3 9h18M9 5v14"/>
+            </svg>
+          </button>
+          <button class="ctrl-btn" id="segments-export-btn" onclick="openExportModal()" title="Exporter les segments (E)" style="display:none">&#x2702; <span id="segments-count"></span></button>
+        </div>
       </div>
     </div>
   </div>
@@ -1077,19 +1438,23 @@
 </div>
 
 <!-- Move modal -->
-<div id="modal-overlay" onclick="closeModal(event)">
+<div id="move-dialog" onclick="if(event.target===this)closeModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center">
   <div id="modal">
     <h3>Déplacer vers…</h3>
     <div id="modal-filename"></div>
     <div id="modal-folders"></div>
-    <button id="modal-cancel" onclick="closeModal()">Annuler</button>
+    <button id="modal-browse-btn" onclick="openDestPickerFromMoveModal()" style="width:100%;margin-top:4px;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px;border-radius:6px;cursor:pointer;font-family:inherit;font-size:12px">📂 Parcourir…</button>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button id="move-confirm-btn" onclick="confirmMoveModal()" disabled style="flex:1;background:var(--accent);color:#000;border:none;padding:10px;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit;opacity:0.4">↗ Déplacer</button>
+      <button id="modal-cancel" onclick="closeModal()" style="margin-top:0">Annuler</button>
+    </div>
   </div>
 </div>
 
 <!-- Browse modal -->
 <div id="browse-overlay" onclick="closeBrowseModal(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center">
   <div id="browse-modal" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:480px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;gap:10px">
-    <div style="font-size:15px;font-weight:700;color:var(--accent)">Choisir le dossier de départ</div>
+    <div id="browse-modal-title" style="font-size:15px;font-weight:700;color:var(--accent)">Choisir le dossier de départ</div>
     <div style="display:flex;gap:6px">
       <input id="browse-path-input" type="text" placeholder="Ex: C:\\Users ou //serveur/partage" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:7px 10px;outline:none" onkeydown="if(event.key==='Enter')browseGoToInput()">
       <button onclick="browseGoToInput()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:7px 12px;border-radius:6px;cursor:pointer;font-family:inherit;white-space:nowrap">&#x2192; Aller</button>
@@ -1098,30 +1463,68 @@
     <div id="browse-crumb" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim);word-break:break-all;min-height:16px"></div>
     <div id="browse-list" style="overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:4px;min-height:120px;max-height:50vh"></div>
     <div style="display:flex;gap:8px;margin-top:4px">
-      <button onclick="confirmBrowseSelect()" style="flex:1;background:var(--accent);color:#000;border:none;padding:10px;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">⌂ Définir comme départ</button>
+      <button id="browse-confirm-btn" onclick="confirmBrowseSelect()" style="flex:1;background:var(--accent);color:#000;border:none;padding:10px;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">⌂ Définir comme départ</button>
       <button onclick="closeBrowseModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:10px 16px;border-radius:8px;cursor:pointer;font-family:inherit">Annuler</button>
     </div>
   </div>
 </div>
 
-<!-- Cut modal -->
-<div id="cut-overlay" onclick="closeCutModal(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center">
-  <div id="cut-modal" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:400px;max-width:95vw;display:flex;flex-direction:column;gap:14px">
-    <div style="font-size:15px;font-weight:700;color:var(--accent)">&#x2702; Couper</div>
-    <div id="cut-filename" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim);word-break:break-all"></div>
-    <div id="cut-duration" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--accent);opacity:0.8"></div>
+<!-- Destination picker modal (free move) -->
+<div id="dest-picker-overlay" onclick="closeDestPicker(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:480px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;gap:10px">
+    <div id="dest-picker-title" style="font-size:15px;font-weight:700;color:var(--accent)">Déplacer vers…</div>
+    <div id="dest-picker-crumb" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim);word-break:break-all;min-height:16px"></div>
+    <div id="dest-picker-list" style="overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:4px;min-height:120px;max-height:50vh"></div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button onclick="confirmDestPicker()" style="flex:1;background:var(--accent);color:#000;border:none;padding:10px;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">↗ Déplacer ici</button>
+      <button onclick="closeDestPicker()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:10px 16px;border-radius:8px;cursor:pointer;font-family:inherit">Annuler</button>
+    </div>
+  </div>
+</div>
 
+<!-- Tag modal -->
+<div id="tag-modal" onclick="closeTagModal(event)">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div style="font-size:15px;font-weight:700;color:var(--accent);margin-bottom:4px">🏷 Tags</div>
+    <div id="tag-modal-filename" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim);word-break:break-all;margin-bottom:4px"></div>
+    <div class="tag-list" id="tag-list"></div>
+    <div id="tag-input-row">
+      <input id="tag-input" type="text" placeholder="Nouveau tag…" onkeydown="if(event.key==='Enter')addTag()">
+      <button class="action-btn" onclick="addTag()">+ Ajouter</button>
+    </div>
+    <div id="tag-suggestions"></div>
+    <div style="margin-top:14px;text-align:right">
+      <button class="action-btn" onclick="closeTagModal()">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Cut modal -->
+<div id="export-dialog" onclick="if(event.target===this)closeExportModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:440px;max-width:95vw;display:flex;flex-direction:column;gap:14px">
+    <div style="font-size:15px;font-weight:700;color:var(--accent)">&#x2702; Exporter les segments</div>
+    <div id="export-filename" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim);word-break:break-all"></div>
+    <div id="export-seg-summary" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--accent);opacity:0.8"></div>
+    <!-- Mode -->
+    <div style="display:flex;gap:8px">
+      <button id="export-mode-merged" class="modal-folder-btn selected" onclick="selectExportMode('merged')" style="flex:1">&#x1F517; Fusionn&#233;</button>
+      <button id="export-mode-individual" class="modal-folder-btn" onclick="selectExportMode('individual')" style="flex:1">&#x1F4C4; Individuel</button>
+    </div>
     <!-- Destination -->
     <div style="font-size:12px;color:var(--text-dim)">Dossier destination</div>
-    <div id="cut-folders" style="display:flex;flex-direction:column;gap:6px;max-height:180px;overflow-y:auto"></div>
+    <div id="export-folders" style="display:flex;flex-direction:column;gap:6px;max-height:160px;overflow-y:auto"></div>
     <div style="display:flex;gap:6px">
-      <input id="cut-dest-input" type="text" placeholder="ou saisir un chemin relatif…"
+      <input id="export-dest-input" type="text" placeholder="ou saisir un chemin relatif…"
         style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:7px 10px;outline:none">
     </div>
-
+    <!-- Keep original -->
+    <label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer">
+      <input type="checkbox" id="export-keep-original">
+      <span>Conserver le fichier d&#8217;origine en place</span>
+    </label>
     <div style="display:flex;gap:8px;margin-top:4px">
-      <button onclick="confirmCut()" style="flex:1;background:var(--accent);color:#000;border:none;padding:10px;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">&#x2702; Couper</button>
-      <button onclick="closeCutModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:10px 16px;border-radius:8px;cursor:pointer;font-family:inherit">Annuler</button>
+      <button id="export-confirm-btn" onclick="confirmExport()" style="flex:1;background:var(--accent);color:#000;border:none;padding:10px;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">&#x2702; Exporter</button>
+      <button onclick="closeExportModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:10px 16px;border-radius:8px;cursor:pointer;font-family:inherit">Annuler</button>
     </div>
   </div>
 </div>
@@ -1143,13 +1546,74 @@
   </div>
 </div>
 
-<!-- Toast -->
-<div id="toast"></div>
+<!-- Delete confirmation dialog -->
+<div id="delete-dialog" onclick="if(event.target===this)closeDeleteDialog()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:340px;max-width:90vw;display:flex;flex-direction:column;gap:14px">
+    <div style="font-size:15px;font-weight:700;color:#e55">Supprimer ?</div>
+    <div id="delete-dialog-filename" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim);word-break:break-all"></div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button id="delete-dialog-confirm" style="flex:1;background:#c44;color:#fff;border:none;padding:10px;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">Supprimer</button>
+      <button onclick="closeDeleteDialog()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:10px 16px;border-radius:8px;cursor:pointer;font-family:inherit">Annuler</button>
+    </div>
+  </div>
+</div>
+
+<!-- Keyboard shortcuts dialog -->
+<dialog id="shortcuts-dialog" onclick="_dialogBackdropClose(event, 'shortcuts-dialog')">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:520px;max-width:95vw;max-height:85vh;overflow-y:auto;display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div style="font-size:15px;font-weight:700;color:var(--accent)">⌨ Raccourcis clavier</div>
+      <button onclick="document.getElementById('shortcuts-dialog').close()" style="background:none;border:none;color:var(--text-dim);font-size:20px;cursor:pointer;line-height:1">✕</button>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr style="color:var(--text-dim);text-align:left"><th style="padding:4px 8px">Touche</th><th style="padding:4px 8px">Action</th></tr></thead>
+      <tbody>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">Espace</td><td style="padding:4px 8px">Pause / Lecture</td></tr>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">←  /  →</td><td style="padding:4px 8px">Seek court</td></tr>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">Shift+← / →</td><td style="padding:4px 8px">Seek moyen</td></tr>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">Ctrl+← / →</td><td style="padding:4px 8px">Seek long</td></tr>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">Alt+← / →</td><td style="padding:4px 8px">Seek très long</td></tr>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">↑ / ↓</td><td style="padding:4px 8px">Volume +/− 10 %</td></tr>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">F</td><td style="padding:4px 8px">Plein écran</td></tr>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">M</td><td style="padding:4px 8px">Muet / Son</td></tr>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">A</td><td style="padding:4px 8px">Cycle aspect ratio (Fit / Fill / …)</td></tr>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">PageDown / PageUp</td><td style="padding:4px 8px">Vidéo suivante / précédente</td></tr>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">I / O</td><td style="padding:4px 8px">Marquer point IN / OUT</td></tr>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">C</td><td style="padding:4px 8px">Ouvrir la fenêtre Couper</td></tr>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">D</td><td style="padding:4px 8px">Ouvrir la fenêtre Déplacer</td></tr>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">Suppr</td><td style="padding:4px 8px">Supprimer le fichier en cours</td></tr>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">S</td><td style="padding:4px 8px">Sauvegarder position initiale du dossier</td></tr>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">?</td><td style="padding:4px 8px">Afficher / masquer cette aide</td></tr>
+      </tbody>
+    </table>
+  </div>
+</dialog>
+
+<!-- Toast (inside video-container so it is visible in native fullscreen) -->
+
+<!-- Gamepad layer HUD badge -->
+<div id="gp-hud"></div>
+
+<!-- Gamepad mapping overlay (div déplacé dans l'élément fullscreen pour visibilité native) -->
+<div id="gp-overlay" onclick="_gpOverlayBackdropClose(event)">
+  <div id="gp-overlay-box">
+    <h2>🎮 Manette — Actions</h2>
+    <div id="gp-overlay-body"></div>
+    <button onclick="closeGpOverlay()" style="margin-top:14px;background:var(--surface2);border:1px solid var(--border);color:var(--text-mid);font-size:13px;cursor:pointer;padding:8px 20px;border-radius:8px;font-family:inherit">Fermer</button>
+  </div>
+</div>
 
 <script>
 const API = '';  // same origin
 let currentPath = '';
 let homeFolder = '';
+let homeRoots = [];
+let showingHomeScreen = false;
+let searchDebounceTimer = null;
+let searchQuery = '';
+let activeTagFilter = null;  // tag string or null = no filter
+let allKnownTags = [];       // populated from /api/all-tags
+let _tagModalPath = null;    // path of file being tagged
 let sortBy = 'date';
 let sortDir = 'desc';
 let currentFile = null;
@@ -1158,8 +1622,15 @@ let saveInterval = null;
 let isSeeking = false;
 let pendingMovePath = null;
 let entries = [];
+let currentInitialSweepState = null;
+let isSavingInitialSweep = false;
 const dirCache = new Map(); // path -> {entries, breadcrumb, ts}
 const DIR_CACHE_TTL = 30_000; // ms — no background refresh if data is this fresh
+const MAX_INITIAL_SWEEP_SECONDS = 7200;
+const STANDALONE_DISPLAY_QUERY = '(display-mode: standalone)';
+const SINGLE_TAP_CENTER_MIN_X = 0.35;
+const SINGLE_TAP_CENTER_MAX_X = 0.65;
+const SINGLE_TAP_CONTROLS_MIN_Y = 0.72;
 
 // ── Settings cache (loaded from backend on init) ─────────────────────────────
 let cfg = {
@@ -1177,12 +1648,20 @@ let cfg = {
   gesture_edge_pct: 20,
   gesture_swipe_threshold: 15,
   gesture_swipe_sensitivity: 'medium',
-  doubletap_left: 30,
-  doubletap_right_bottom: 30,
-  doubletap_right_mid: 60,
-  doubletap_right_top: 90,
+  seek_short: 10,
+  seek_medium: 30,
+  seek_long: 60,
+  seek_xlong: 120,
+  initial_sweep_seconds: 0,
   download_folder: 'Downloads',
   download_cookies_path: '',
+  transcode_enabled: true,
+  gamepad_enabled: true,
+  gamepad_deadzone: 0.20,
+  gamepad_haptic: true,
+  gamepad_swap_sticks: false,
+  gamepad_mapping: {},
+  fs_progress_zoom: 20,
 };
 
 function applyCfg(s) {
@@ -1200,18 +1679,230 @@ function applyCfg(s) {
   cfg.gesture_edge_pct         = parseInt(s.gesture_edge_pct          ?? 20, 10);
   cfg.gesture_swipe_threshold  = parseInt(s.gesture_swipe_threshold   ?? 15, 10);
   cfg.gesture_swipe_sensitivity = s.gesture_swipe_sensitivity || 'medium';
-  cfg.doubletap_left            = parseInt(s.doubletap_left           ?? 30, 10);
-  cfg.doubletap_right_bottom    = parseInt(s.doubletap_right_bottom   ?? 30, 10);
-  cfg.doubletap_right_mid       = parseInt(s.doubletap_right_mid      ?? 60, 10);
-  cfg.doubletap_right_top       = parseInt(s.doubletap_right_top      ?? 90, 10);
+  cfg.seek_short                = parseInt(s.seek_short   ?? 10, 10);
+  cfg.seek_medium               = parseInt(s.seek_medium  ?? 30, 10);
+  cfg.seek_long                 = parseInt(s.seek_long    ?? 60, 10);
+  cfg.seek_xlong                = parseInt(s.seek_xlong   ?? 120, 10);
+  cfg.initial_sweep_seconds     = parseInt(s.initial_sweep_seconds    ?? 0, 10);
+  // Sync skip button tooltips with configured seek durations
+  const skipBtns = document.querySelectorAll('#ctrl-row .ctrl-btn[data-seek]');
+  skipBtns.forEach(btn => {
+    const key = btn.dataset.seek;
+    const val = cfg[key];
+    const sign = btn.dataset.dir === 'back' ? '-' : '+';
+    btn.title = `${sign}${val}s`;
+  });
   cfg.download_folder            = s.download_folder        || 'Downloads';
   cfg.download_cookies_path      = s.download_cookies_path  || '';
+  cfg.transcode_enabled          = s.transcode_enabled !== '0' && s.transcode_enabled !== false;
+  cfg.gamepad_enabled            = s.gamepad_enabled !== '0' && s.gamepad_enabled !== false;
+  cfg.gamepad_deadzone           = parseFloat(s.gamepad_deadzone ?? 0.20);
+  cfg.gamepad_haptic             = s.gamepad_haptic !== '0' && s.gamepad_haptic !== false;
+  cfg.gamepad_swap_sticks        = s.gamepad_swap_sticks === '1' || s.gamepad_swap_sticks === true;
+  try { cfg.gamepad_mapping = JSON.parse(s.gamepad_mapping || '{}'); } catch { cfg.gamepad_mapping = {}; }
+  cfg.fs_progress_zoom = parseInt(s.fs_progress_zoom ?? 20, 10);
   // propagate navigation prefs
   homeFolder = cfg.home_folder;
   sortBy     = cfg.sort_by;
   sortDir    = cfg.sort_dir;
   const vEl = document.getElementById('app-version');
   if (vEl && s.app_version) vEl.textContent = '\u00a0v' + s.app_version;
+}
+
+function getCurrentFolderPath(path) {
+  const idx = path.lastIndexOf('/');
+  return idx === -1 ? '' : path.slice(0, idx);
+}
+
+function formatSweepSeconds(seconds) {
+  if (!seconds) return 'disabled';
+  if (seconds % 60 === 0) {
+    const mins = seconds / 60;
+    return mins === 1 ? '1 min' : `${mins} min`;
+  }
+  return `${seconds}s`;
+}
+
+async function fetchInitialSweepState(folderPath) {
+  const resp = await fetch(`${API}/api/initial-sweep?path=${encodeURIComponent(folderPath)}`).catch(() => null);
+  if (!resp || !resp.ok) {
+    return {
+      path: folderPath,
+      default_seconds: cfg.initial_sweep_seconds,
+      override_seconds: null,
+      effective_seconds: cfg.initial_sweep_seconds,
+      source: 'default',
+    };
+  }
+  return resp.json();
+}
+
+async function fetchMediaInfo(path) {
+  const resp = await fetch(`${API}/api/media-info?path=${encodeURIComponent(path)}`).catch(() => null);
+  if (!resp || !resp.ok) return null;
+  return resp.json();
+}
+
+function buildMediaCapabilitiesConfig(mediaInfo) {
+  const info = mediaInfo && mediaInfo.video;
+  if (!info || !info.content_type) return null;
+  if (!(info.width > 0 && info.height > 0 && info.bitrate > 0 && info.framerate > 0)) {
+    return null;
+  }
+
+  const config = {
+    type: 'file',
+    video: {
+      contentType: info.content_type,
+      width: info.width,
+      height: info.height,
+      bitrate: info.bitrate,
+      framerate: info.framerate,
+    },
+  };
+
+  const audio = mediaInfo.audio;
+  if (audio && audio.content_type && audio.channels > 0 && audio.bitrate > 0 && audio.sample_rate > 0) {
+    config.audio = {
+      contentType: audio.content_type,
+      channels: String(audio.channels),
+      bitrate: audio.bitrate,
+      samplerate: audio.sample_rate,
+    };
+  }
+
+  return config;
+}
+
+async function choosePlaybackSource(entry, mediaInfo) {
+  const streamUrl = `${API}/api/stream?path=${encodeURIComponent(entry.path)}`;
+  const transcodeUrl = `${API}/api/transcode?path=${encodeURIComponent(entry.path)}`;
+
+  if (!cfg.transcode_enabled) {
+    return { src: streamUrl, mode: 'stream', reason: 'transcode-disabled' };
+  }
+
+  if (!mediaInfo) {
+    return { src: streamUrl, mode: 'stream', reason: 'no-metadata' };
+  }
+
+  if (mediaInfo.strategy === 'baseline') {
+    return { src: streamUrl, mode: 'stream', reason: 'baseline' };
+  }
+
+  if (mediaInfo.strategy === 'fallback') {
+    if (!mediaInfo.content_type) {
+      return { src: transcodeUrl, mode: 'transcode', reason: 'missing-content-type-fallback' };
+    }
+
+    const canPlayTypeValue = video.canPlayType(mediaInfo.content_type);
+    if (!canPlayTypeValue) {
+      return { src: transcodeUrl, mode: 'transcode', reason: 'canplaytype-rejected' };
+    }
+
+    if (typeof navigator.mediaCapabilities?.decodingInfo === 'function') {
+      const config = buildMediaCapabilitiesConfig(mediaInfo);
+      if (config) {
+        try {
+          const result = await navigator.mediaCapabilities.decodingInfo(config);
+          if (!result.supported) {
+            return { src: transcodeUrl, mode: 'transcode', reason: 'decoding-unsupported' };
+          }
+        } catch (_) {
+          // Ignore probing errors and keep the optimistic native path.
+        }
+      }
+    }
+
+    return { src: streamUrl, mode: 'stream', reason: 'fallback-probe-passed' };
+  }
+
+  if (!mediaInfo.content_type) {
+    return { src: streamUrl, mode: 'stream', reason: 'partial-metadata' };
+  }
+
+  const canPlayTypeValue = video.canPlayType(mediaInfo.content_type);
+  if (canPlayTypeValue) {
+    return { src: streamUrl, mode: 'stream', reason: 'canplaytype-confirmed' };
+  }
+
+  if (typeof navigator.mediaCapabilities?.decodingInfo === 'function') {
+    const config = buildMediaCapabilitiesConfig(mediaInfo);
+    if (config) {
+      try {
+        const result = await navigator.mediaCapabilities.decodingInfo(config);
+        if (result.supported) {
+          return { src: streamUrl, mode: 'stream', reason: 'decoding-supported' };
+        }
+      } catch (_) {
+        // Ignore probing errors and keep the optimistic native path.
+      }
+    }
+  }
+
+  // Some browsers keep HEVC/AV1 support checks conservative even when native playback still works.
+  return { src: streamUrl, mode: 'stream', reason: 'probe-optimistic' };
+}
+
+function refreshInitialSweepAction() {
+  const button = document.getElementById('initial-sweep-btn');
+  if (!button || !currentFile) {
+    if (button) button.style.display = 'none';
+    return;
+  }
+
+  const folderPath = getCurrentFolderPath(currentFile.path);
+  const state = currentInitialSweepState || {
+    path: folderPath,
+    default_seconds: cfg.initial_sweep_seconds,
+    override_seconds: null,
+    effective_seconds: cfg.initial_sweep_seconds,
+    source: 'default',
+  };
+  const folderLabel = folderPath || '/';
+  const sourceText = state.override_seconds !== null
+    ? `Départ du dossier: ${formatSweepSeconds(state.override_seconds)}`
+    : `Valeur globale: ${formatSweepSeconds(state.default_seconds)}`;
+  button.style.display = '';
+  button.disabled = isSavingInitialSweep;
+  button.textContent = state.override_seconds !== null ? '⏱ Mettre à jour départ' : '⏱ Départ dossier';
+  button.title = `${sourceText} — enregistrer la position actuelle comme départ par défaut pour ${folderLabel}`;
+}
+
+async function saveCurrentPositionAsInitialSweep() {
+  if (!currentFile || isSavingInitialSweep) return;
+  const seconds = Math.round(video.currentTime || 0);
+  if (Number.isNaN(seconds) || seconds < 0) {
+    showToast('Valeur de sweep invalide');
+    return;
+  }
+  if (seconds > MAX_INITIAL_SWEEP_SECONDS) {
+    showToast(`Le sweep dossier est limité à ${MAX_INITIAL_SWEEP_SECONDS}s`);
+    return;
+  }
+  const folderPath = getCurrentFolderPath(currentFile.path);
+  isSavingInitialSweep = true;
+  refreshInitialSweepAction();
+  try {
+    const resp = await fetch(`${API}/api/initial-sweep`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ path: folderPath, seconds }),
+    });
+    if (!resp.ok) {
+      showToast('Erreur lors de la sauvegarde du dossier');
+      return;
+    }
+    currentInitialSweepState = await fetchInitialSweepState(folderPath);
+    showToast(
+      seconds === 0
+        ? '✓ Départ dossier désactivé'
+        : `✓ Départ dossier réglé sur ${formatSweepSeconds(seconds)}`
+    );
+  } finally {
+    isSavingInitialSweep = false;
+    refreshInitialSweepAction();
+  }
 }
 
 // ── Privacy: auto-close player after being hidden for a while ─────────────────
@@ -1222,9 +1913,12 @@ function privacyClose() {
   video.src = '';
   if (saveInterval) { clearInterval(saveInterval); saveInterval = null; }
   currentFile = null;
+  currentInitialSweepState = null;
   document.getElementById('video-container').classList.remove('active');
   document.getElementById('player-empty').style.display = '';
+  updateMediaMeta(null);
   closeMobilePlayer();
+  refreshInitialSweepAction();
 }
 
 document.addEventListener('visibilitychange', () => {
@@ -1241,7 +1935,17 @@ document.addEventListener('visibilitychange', () => {
 });
 
 function navigateHome() {
-  navigate(homeFolder);
+  if (homeRoots.length === 0) {
+    navigate(homeFolder);
+    return;
+  }
+  // If already at the default root, show the picker screen
+  const def = homeRoots.find(r => r.is_default) || homeRoots[0];
+  if (showingHomeScreen || currentPath === def.path) {
+    renderHomeScreen();
+  } else {
+    navigate(def.path);
+  }
 }
 
 function setSortBy(by) {
@@ -1281,13 +1985,137 @@ function sortedList(list) {
 
 function updateHomeBtnState() {
   const btn = document.getElementById('home-btn');
-  if (btn) btn.classList.toggle('is-home', currentPath === homeFolder);
+  if (btn) {
+    const atHome = homeRoots.length > 0 ? showingHomeScreen : currentPath === homeFolder;
+    btn.classList.toggle('is-home', atHome);
+  }
+}
+
+// ── Home roots ──────────────────────────────────────────────────────────────
+async function loadHomeRoots() {
+  const resp = await fetch(`${API}/api/home-roots`).catch(() => null);
+  if (!resp || !resp.ok) return;
+  homeRoots = await resp.json();
+}
+
+function renderHomeScreen() {
+  showingHomeScreen = true;
+  currentPath = '';
+  const bc = document.getElementById('breadcrumb');
+  bc.innerHTML = '<span onclick="navigateHome()" style="cursor:default">🏠 Accueil</span>';
+  const el = document.getElementById('filelist');
+  if (homeRoots.length === 0) {
+    el.innerHTML = '<div style="color:var(--text-dim);font-size:13px;padding:24px;text-align:center">Aucune racine configurée. Ajoutez des racines dans les Paramètres ⚙️.</div>';
+    updateHomeBtnState();
+    return;
+  }
+  const cards = homeRoots.map(r => `
+    <div class="root-card" onclick="navigate(this.dataset.path)" data-path="${esc(r.path)}">
+      <div class="rc-icon">📁</div>
+      <div class="rc-name">${esc(r.name)}</div>
+      <div class="rc-path">${esc(r.path || '/')}</div>
+    </div>
+  `).join('');
+  el.innerHTML = `<div class="home-screen">${cards}</div>`;
+  updateHomeBtnState();
+}
+
+function updateSettingsHomeRoots() {
+  const list = document.getElementById('s-home-roots-list');
+  if (!list) return;
+  if (homeRoots.length === 0) {
+    list.innerHTML = '<div style="font-size:12px;color:var(--text-dim);font-style:italic">Aucune racine configurée.</div>';
+    return;
+  }
+  list.innerHTML = homeRoots.map(r => `
+    <div style="display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid ${r.is_default ? 'var(--accent)' : 'var(--border)'};border-radius:6px;padding:7px 10px">
+      <span style="font-size:14px">${r.is_default ? '🏠' : '📁'}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:600;color:var(--text)">${esc(r.name)}${r.is_default ? ' <span style="font-size:10px;color:var(--accent);font-weight:400">défaut</span>' : ''}</div>
+        <div style="font-size:10px;color:var(--text-dim);font-family:'DM Mono',monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.path || '/')}</div>
+      </div>
+      ${r.is_default ? '' : `<button onclick="setDefaultHomeRoot(${r.id})" style="background:none;border:1px solid var(--border);border-radius:4px;color:var(--text-dim);cursor:pointer;font-size:10px;padding:2px 5px;flex-shrink:0" title="Définir par défaut">⌂</button>`}
+      <button onclick="removeHomeRoot(${r.id})" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:14px;padding:2px 4px;flex-shrink:0" title="Supprimer">✕</button>
+    </div>
+  `).join('');
+}
+
+async function setDefaultHomeRoot(id) {
+  const resp = await fetch(`${API}/api/home-roots/${id}/set-default`, { method: 'POST' }).catch(() => null);
+  if (!resp || !resp.ok) { showToast('Erreur lors de la mise à jour'); return; }
+  await loadHomeRoots();
+  updateSettingsHomeRoots();
+  showToast('✅ Racine par défaut mise à jour');
+}
+
+async function removeHomeRoot(id) {
+  const resp = await fetch(`${API}/api/home-roots/${id}`, { method: 'DELETE' }).catch(() => null);
+  if (!resp || !resp.ok) { showToast('Erreur lors de la suppression'); return; }
+  await loadHomeRoots();
+  updateSettingsHomeRoots();
+  showToast('Racine supprimée');
+}
+
+async function openRootPicker() {
+  closeSettings();
+  const title = document.getElementById('browse-modal-title');
+  const btn = document.getElementById('browse-confirm-btn');
+  if (title) title.textContent = 'Choisir un dossier racine…';
+  if (btn) btn.textContent = '🏠 Ajouter comme racine';
+  browseCallback = async (selectedPath) => {
+    const basename = selectedPath ? selectedPath.split('/').filter(Boolean).pop() || 'Racine' : 'Racine';
+    const name = window.prompt('Nom de la racine :', basename);
+    if (name === null) return;
+    const trimmedName = name.trim();
+    if (!trimmedName) { showToast('Le nom ne peut pas être vide'); return; }
+    await addHomeRoot(trimmedName, selectedPath);
+  };
+  // Start from MEDIA_ROOT so the user can only pick within the media filesystem
+  const settings = await fetch(`${API}/api/settings`).then(r => r.json()).catch(() => ({}));
+  const startPath = settings.media_root || '';
+  document.getElementById('browse-overlay').style.display = 'flex';
+  await loadBrowseDir(startPath);
+}
+
+async function addHomeRoot(name, path) {
+  const resp = await fetch(`${API}/api/home-roots`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, path }),
+  }).catch(() => null);
+  if (!resp) { showToast('Erreur réseau'); return; }
+  if (resp.status === 409) { showToast('Cette racine existe déjà'); return; }
+  if (resp.status === 404) { showToast('Dossier introuvable'); return; }
+  if (!resp.ok) { const err = await resp.json().catch(() => ({})); showToast('Erreur : ' + (err.detail || resp.status)); return; }
+  await loadHomeRoots();
+  updateSettingsHomeRoots();
+  openSettings();
+  showToast(`✅ Racine « ${name} » ajoutée`);
 }
 
 // ── Browse modal (choose home folder) ──────────────────────────────────────
 let browsePath = '';
+let browseCallback = null; // if set, called with (relativePath) instead of navigating
 
 async function openBrowseModal() {
+  browseCallback = null;
+  const title = document.getElementById('browse-modal-title');
+  const btn = document.getElementById('browse-confirm-btn');
+  if (homeRoots.length > 0) {
+    if (title) title.textContent = 'Ajouter une racine de navigation…';
+    if (btn) btn.textContent = '🏠 Ajouter comme racine';
+    browseCallback = async (selectedPath) => {
+      const basename = selectedPath ? selectedPath.split('/').filter(Boolean).pop() || 'Racine' : 'Racine';
+      const name = window.prompt('Nom de la racine :', basename);
+      if (name === null) return;
+      const trimmedName = name.trim();
+      if (!trimmedName) { showToast('Le nom ne peut pas être vide'); return; }
+      await addHomeRoot(trimmedName, selectedPath);
+    };
+  } else {
+    if (title) title.textContent = 'Choisir le dossier de départ';
+    if (btn) btn.textContent = '⌂ Définir comme départ';
+  }
   // Start from current server MEDIA_ROOT
   const settings = await fetch(`${API}/api/settings`).then(r => r.json());
   browsePath = settings.media_root || '';
@@ -1296,8 +2124,96 @@ async function openBrowseModal() {
   await loadBrowseDir(browsePath);
 }
 
+async function openDestinationPicker(filename) {
+  // Opens the browse modal in "pick destination" mode for file move
+  const title = document.getElementById('browse-modal-title');
+  const btn = document.getElementById('browse-confirm-btn');
+  if (title) title.textContent = `Déplacer « ${filename} » vers…`;
+  if (btn) btn.textContent = '↗ Déplacer ici';
+  browseCallback = async (destPath) => {
+    await moveFileToPath(currentFile.path, destPath);
+  };
+  // Start from the active home root or current folder
+  const startPath = homeRoots.length > 0 ? homeRoots[0].path : (currentPath || '');
+  browsePath = startPath;
+  document.getElementById('browse-overlay').style.display = 'flex';
+  await loadBrowseDir(browsePath);
+}
+
+let _destPickerPath = '';
+let _destPickerFile = null;
+
+async function openDestPickerForFile(filePath, fileName) {
+  _destPickerFile = filePath;
+  document.getElementById('dest-picker-title').textContent = `Déplacer « ${fileName} » vers…`;
+  document.getElementById('dest-picker-overlay').style.display = 'flex';
+  await _loadDestPickerDir('');
+}
+
+function closeDestPicker(e) {
+  if (e && e.target !== document.getElementById('dest-picker-overlay')) return;
+  _destPickerFile = null;
+  document.getElementById('dest-picker-overlay').style.display = 'none';
+}
+
+async function _loadDestPickerDir(relPath) {
+  _destPickerPath = relPath;
+  const r = await fetch(`${API}/api/files?path=${encodeURIComponent(relPath)}`).then(r => r.json()).catch(() => null);
+  if (!r) { showToast('Erreur'); return; }
+  // Crumb
+  const crumb = document.getElementById('dest-picker-crumb');
+  const parts = relPath ? relPath.split('/').filter(Boolean) : [];
+  let crumbHtml = `<span onclick="_loadDestPickerDir('')" style="cursor:pointer;color:var(--accent)">🏠 Racine</span>`;
+  let acc = '';
+  for (const p of parts) {
+    acc = acc ? acc + '/' + p : p;
+    const captured = acc;
+    crumbHtml += ` / <span onclick="_loadDestPickerDir(${jsStr(captured)})" style="cursor:pointer;color:var(--accent)">${esc(p)}</span>`;
+  }
+  crumb.innerHTML = crumbHtml;
+  // List dirs only
+  const list = document.getElementById('dest-picker-list');
+  const dirs = r.entries.filter(e => e.is_dir);
+  if (!dirs.length) {
+    list.innerHTML = `<div style="color:var(--text-dim);font-size:12px;padding:8px">Aucun sous-dossier</div>`;
+    return;
+  }
+  list.innerHTML = dirs.map(d => `
+    <div onclick="_loadDestPickerDir(${jsStr(d.path)})" style="display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:13px" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+      📁 ${esc(d.name)}
+    </div>
+  `).join('');
+}
+
+async function confirmDestPicker() {
+  if (!_destPickerFile) return;
+  document.getElementById('dest-picker-overlay').style.display = 'none';
+  await moveFileToPath(_destPickerFile, _destPickerPath);
+  _destPickerFile = null;
+}
+
+async function moveFileToPath(srcPath, destFolderRel) {
+  // Build destination: destFolderRel/filename
+  const fileName = srcPath.split('/').pop();
+  const destPath = destFolderRel ? `${destFolderRel}/${fileName}` : fileName;
+  const r = await fetch(`${API}/api/files/move?path=${encodeURIComponent(srcPath)}`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ destination: destPath }),
+  });
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({}));
+    showToast('Erreur : ' + (err.detail || r.status));
+    return;
+  }
+  showToast(`↗ Déplacé vers ${destFolderRel || 'racine'}`);
+  dirCache.delete(currentPath);
+  navigate(currentPath);
+}
+
 function closeBrowseModal(e) {
   if (e && e.target !== document.getElementById('browse-overlay')) return;
+  browseCallback = null;
   document.getElementById('browse-overlay').style.display = 'none';
 }
 
@@ -1336,6 +2252,13 @@ function browseGoToInput() {
 }
 
 async function confirmBrowseSelect() {
+  if (browseCallback) {
+    const cb = browseCallback;
+    browseCallback = null;
+    document.getElementById('browse-overlay').style.display = 'none';
+    await cb(browsePath);
+    return;
+  }
   const resp = await fetch(`${API}/api/settings`, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -1368,6 +2291,32 @@ async function loadQuickFolders() {
   quickFolders = await fetch(`${API}/api/quick-folders`).then(r => r.json());
 }
 
+function isStandaloneShell() {
+  return window.navigator.standalone === true || !!window.matchMedia?.(STANDALONE_DISPLAY_QUERY).matches;
+}
+
+function syncStandaloneShellClass() {
+  document.body.classList.toggle('standalone-shell', isStandaloneShell());
+}
+
+function installStandaloneShellHooks() {
+  syncStandaloneShellClass();
+  const mediaQuery = window.matchMedia?.(STANDALONE_DISPLAY_QUERY);
+  if (!mediaQuery) return;
+  if (typeof mediaQuery.addEventListener === 'function') {
+    mediaQuery.addEventListener('change', syncStandaloneShellClass);
+  } else if (typeof mediaQuery.addListener === 'function') {
+    mediaQuery.addListener(syncStandaloneShellClass);
+  }
+}
+
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator) || !window.isSecureContext) return;
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/service-worker.js', {scope: '/'}).catch(() => {});
+  }, {once: true});
+}
+
 async function init() {
   // 1. Load settings from backend
   const s = await fetch(`${API}/api/settings`).then(r => r.json()).catch(() => ({}));
@@ -1380,9 +2329,19 @@ async function init() {
     document.getElementById('volume-slider').value = v;
   }
   await loadQuickFolders();
+  await loadHomeRoots();
   updateSortUI();
   // Pick up any download jobs still running in the backend (survives page reload)
   _initDlQueue();
+  // Scan for already-connected gamepads (Firefox compat: fires before gamepadconnected)
+  _gpScanConnected();
+  // Auto-refresh: re-fetch the current folder every 30 s (stale-while-revalidate,
+  // no flicker). Skipped when the home screen or a video is active and no search is active.
+  setInterval(() => {
+    if (!showingHomeScreen && !document.hidden && !currentFile && !searchQuery) {
+      navigate(currentPath);
+    }
+  }, 30_000);
 
   // 2. Handle bookmarklet redirect: #download?url=...&cookies=...&videoSrc=...&title=...
   if (location.hash.startsWith('#download?')) {
@@ -1408,6 +2367,9 @@ async function init() {
 
   if (cfg.pin_set) {
     showPinScreen();
+  } else if (homeRoots.length > 0) {
+    const def = homeRoots.find(r => r.is_default) || homeRoots[0];
+    navigate(def.path);
   } else {
     navigate(homeFolder);
   }
@@ -1456,7 +2418,12 @@ async function submitPin() {
   });
   if (resp.ok) {
     hidePinScreen();
-    navigate(homeFolder);
+    if (homeRoots.length > 0) {
+      const def = homeRoots.find(r => r.is_default) || homeRoots[0];
+      navigate(def.path);
+    } else {
+      navigate(homeFolder);
+    }
     // If bookmarklet set a pending download URL, open the modal now
     if (window._pendingDownloadUrl) {
       const url = window._pendingDownloadUrl;
@@ -1537,6 +2504,8 @@ function _refreshPinStatusUI() {
 function openSettings() {
   document.getElementById('s-privacy-timeout').value    = cfg.privacy_timeout;
   document.getElementById('s-watched-threshold').value  = cfg.watched_threshold;
+  document.getElementById('s-fs-progress-zoom').value   = cfg.fs_progress_zoom;
+  document.getElementById('s-initial-sweep').value      = cfg.initial_sweep_seconds;
   document.getElementById('s-sort-by').value            = cfg.sort_by;
   document.getElementById('s-sort-dir').value           = cfg.sort_dir;
   document.getElementById('s-gesture-enabled').checked     = cfg.gesture_enabled;
@@ -1547,13 +2516,19 @@ function openSettings() {
   document.getElementById('s-gesture-edge-pct').value           = cfg.gesture_edge_pct;
   document.getElementById('s-gesture-swipe-threshold').value    = cfg.gesture_swipe_threshold;
   document.getElementById('s-gesture-swipe-sensitivity').value  = cfg.gesture_swipe_sensitivity;
-  document.getElementById('s-dt-left').value           = cfg.doubletap_left;
-  document.getElementById('s-dt-right-bottom').value   = cfg.doubletap_right_bottom;
-  document.getElementById('s-dt-right-mid').value      = cfg.doubletap_right_mid;
-  document.getElementById('s-dt-right-top').value      = cfg.doubletap_right_top;
+  document.getElementById('s-seek-short').value   = cfg.seek_short;
+  document.getElementById('s-seek-medium').value  = cfg.seek_medium;
+  document.getElementById('s-seek-long').value    = cfg.seek_long;
+  document.getElementById('s-seek-xlong').value   = cfg.seek_xlong;
   document.getElementById('s-home-desc').textContent   = cfg.home_folder || '(racine)';
   document.getElementById('s-download-folder').value   = cfg.download_folder;
   document.getElementById('s-cookies-path').value      = cfg.download_cookies_path;
+  document.getElementById('s-transcode-enabled').checked = cfg.transcode_enabled;
+  document.getElementById('s-gamepad-enabled').checked  = cfg.gamepad_enabled;
+  document.getElementById('s-gamepad-haptic').checked   = cfg.gamepad_haptic;
+  document.getElementById('s-gamepad-swap-sticks').checked = cfg.gamepad_swap_sticks;
+  document.getElementById('s-gamepad-deadzone').value   = Math.round((cfg.gamepad_deadzone ?? 0.20) * 100);
+  updateSettingsHomeRoots();
   _updateBookmarkletLink();
   _refreshPinStatusUI();
   document.getElementById('settings-page').classList.add('open');
@@ -1578,6 +2553,8 @@ async function saveSettings() {
   const payload = {
     privacy_timeout:           parseInt(document.getElementById('s-privacy-timeout').value, 10),
     watched_threshold:         parseInt(document.getElementById('s-watched-threshold').value, 10),
+    fs_progress_zoom:          parseInt(document.getElementById('s-fs-progress-zoom').value, 10),
+    initial_sweep_seconds:     parseInt(document.getElementById('s-initial-sweep').value, 10),
     home_folder:               cfg.home_folder,
     sort_by:                   document.getElementById('s-sort-by').value,
     sort_dir:                  document.getElementById('s-sort-dir').value,
@@ -1589,12 +2566,17 @@ async function saveSettings() {
     gesture_edge_pct:          parseInt(document.getElementById('s-gesture-edge-pct').value, 10),
     gesture_swipe_threshold:   parseInt(document.getElementById('s-gesture-swipe-threshold').value, 10),
     gesture_swipe_sensitivity: document.getElementById('s-gesture-swipe-sensitivity').value,
-    doubletap_left:            parseInt(document.getElementById('s-dt-left').value, 10),
-    doubletap_right_bottom:    parseInt(document.getElementById('s-dt-right-bottom').value, 10),
-    doubletap_right_mid:       parseInt(document.getElementById('s-dt-right-mid').value, 10),
-    doubletap_right_top:       parseInt(document.getElementById('s-dt-right-top').value, 10),
+    seek_short:    parseInt(document.getElementById('s-seek-short').value,  10),
+    seek_medium:   parseInt(document.getElementById('s-seek-medium').value, 10),
+    seek_long:     parseInt(document.getElementById('s-seek-long').value,   10),
+    seek_xlong:    parseInt(document.getElementById('s-seek-xlong').value,  10),
     download_folder:           (document.getElementById('s-download-folder').value || 'Downloads').trim(),
     download_cookies_path:     document.getElementById('s-cookies-path').value.trim(),
+    transcode_enabled:         document.getElementById('s-transcode-enabled').checked,
+    gamepad_enabled:           document.getElementById('s-gamepad-enabled').checked,
+    gamepad_haptic:            document.getElementById('s-gamepad-haptic').checked,
+    gamepad_swap_sticks:       document.getElementById('s-gamepad-swap-sticks').checked,
+    gamepad_deadzone:          parseInt(document.getElementById('s-gamepad-deadzone').value, 10) / 100,
   };
   const resp = await fetch(`${API}/api/settings`, {
     method: 'POST',
@@ -1604,6 +2586,7 @@ async function saveSettings() {
   if (!resp.ok) { showToast('Erreur lors de la sauvegarde'); return; }
   applyCfg({ ...cfg, ...payload });
   updateSortUI();
+  _gpScanConnected(); // restart polling if gamepad was just re-enabled
   closeSettings();
   showToast('\u2713 Param\u00e8tres enregistr\u00e9s');
 }
@@ -1917,8 +2900,131 @@ async function _initDlQueue() {
   setInterval(_pollDlQueue, 8000);
 }
 
+// ── Search ─────────────────────────────────────────────────────────────────
+function onSearchInput(value) {
+  clearTimeout(searchDebounceTimer);
+  searchQuery = value.trim();
+  if (!searchQuery) { navigate(currentPath); return; }
+  searchDebounceTimer = setTimeout(runSearch, 350);
+}
+
+async function runSearch() {
+  if (!searchQuery) return;
+  const indicator = document.getElementById('refresh-indicator');
+  if (indicator) indicator.classList.add('active');
+  try {
+    const r = await fetch(`${API}/api/search?q=${encodeURIComponent(searchQuery)}&path=${encodeURIComponent(currentPath)}`);
+    if (!r.ok) return;
+    const data = await r.json();
+    showingHomeScreen = false;
+    entries = data.entries;
+    renderFiles(entries);
+    document.getElementById('breadcrumb').textContent = `🔍 "${searchQuery}"`;
+  } finally {
+    if (indicator) indicator.classList.remove('active');
+  }
+}
+
+// ── Tag management ────────────────────────────────────────────────────────────
+async function loadAllTags() {
+  try {
+    const r = await fetch(`${API}/api/all-tags`);
+    if (r.ok) { const d = await r.json(); allKnownTags = d.tags; }
+  } catch (_) { /* ignore */ }
+}
+
+async function openTagModal(filePath, fileName) {
+  _tagModalPath = filePath;
+  document.getElementById('tag-modal-filename').textContent = fileName;
+  await _refreshTagModal();
+  await loadAllTags();
+  _renderTagSuggestions();
+  document.getElementById('tag-modal').classList.add('open');
+  document.getElementById('tag-input').value = '';
+  document.getElementById('tag-input').focus();
+}
+
+function closeTagModal(e) {
+  if (e && e.target !== document.getElementById('tag-modal')) return;
+  document.getElementById('tag-modal').classList.remove('open');
+  _tagModalPath = null;
+}
+
+async function _refreshTagModal() {
+  if (!_tagModalPath) return;
+  const r = await fetch(`${API}/api/tags?path=${encodeURIComponent(_tagModalPath)}`);
+  if (!r.ok) return;
+  const d = await r.json();
+  const list = document.getElementById('tag-list');
+  list.innerHTML = d.tags.length
+    ? d.tags.map(t => `<span class="tag-item">${esc(t)}<span class="tag-remove" onclick="removeTag(${jsStr(t)})">✕</span></span>`).join('')
+    : `<span style="color:var(--text-dim);font-size:12px">Aucun tag</span>`;
+  // Also update the entry in memory
+  const entry = entries.find(en => en.path === _tagModalPath);
+  if (entry) { entry.tags = d.tags; renderFiles(entries); }
+  _renderTagFilterBar();
+}
+
+function _renderTagSuggestions() {
+  const input = document.getElementById('tag-input').value.trim().toLowerCase();
+  const existing = Array.from(document.querySelectorAll('#tag-list .tag-item')).map(s => s.childNodes[0].textContent);
+  const suggs = allKnownTags.filter(t => !existing.includes(t) && (!input || t.includes(input)));
+  document.getElementById('tag-suggestions').innerHTML = suggs.slice(0, 12)
+    .map(t => `<span class="tag-sugg" onclick="applyTagSugg(${jsStr(t)})">${esc(t)}</span>`).join('');
+}
+
+async function addTag() {
+  const input = document.getElementById('tag-input');
+  const tag = input.value.trim().toLowerCase();
+  if (!tag || !_tagModalPath) return;
+  const r = await fetch(`${API}/api/tags?path=${encodeURIComponent(_tagModalPath)}`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({tag})
+  });
+  if (!r.ok) { alert('Erreur lors de l\'ajout du tag'); return; }
+  input.value = '';
+  await _refreshTagModal();
+  await loadAllTags();
+  _renderTagSuggestions();
+}
+
+async function removeTag(tag) {
+  if (!_tagModalPath) return;
+  await fetch(`${API}/api/tags?path=${encodeURIComponent(_tagModalPath)}&tag=${encodeURIComponent(tag)}`, { method: 'DELETE' });
+  await _refreshTagModal();
+  await loadAllTags();
+  _renderTagSuggestions();
+}
+
+function applyTagSugg(tag) {
+  document.getElementById('tag-input').value = tag;
+  addTag();
+}
+
+// ── Tag filter bar ────────────────────────────────────────────────────────────
+function _renderTagFilterBar() {
+  const allTags = [...new Set(entries.flatMap(e => e.tags || []))].sort();
+  const bar = document.getElementById('tag-filter-bar');
+  if (!bar) return;
+  bar.innerHTML = allTags.map(t =>
+    `<span class="tag-filter-chip ${activeTagFilter === t ? 'active' : ''}" onclick="toggleTagFilter(${jsStr(t)})">${esc(t)}</span>`
+  ).join('');
+}
+
+function toggleTagFilter(tag) {
+  activeTagFilter = activeTagFilter === tag ? null : tag;
+  _renderTagFilterBar();
+  renderFiles(entries);
+}
+
 // ── Navigation ────────────────────────────────────────────────────────────────
 async function navigate(path) {
+  showingHomeScreen = false;
+  searchQuery = '';
+  activeTagFilter = null;
+  const si = document.getElementById('search-input');
+  if (si) si.value = '';
+  const bar = document.getElementById('tag-filter-bar');
+  if (bar) bar.innerHTML = '';
   // Stop any playing video when changing folder
   if (currentFile) {
     video.pause();
@@ -1927,11 +3033,7 @@ async function navigate(path) {
     document.getElementById('player-empty').style.display = '';
     if (saveInterval) { clearInterval(saveInterval); saveInterval = null; }
     currentFile = null;
-    document.getElementById('cut-in-btn').style.display = 'none';
-    document.getElementById('cut-out-btn').style.display = 'none';
-    document.getElementById('cut-btn').style.display = 'none';
-    document.getElementById('cut-clear-btn').style.display = 'none';
-    cutIn = null; cutOut = null;
+    updateMediaMeta(null);
   }
   currentPath = path;
 
@@ -1942,6 +3044,8 @@ async function navigate(path) {
     entries = cached.entries;
     renderBreadcrumb(cached.breadcrumb);
     renderFiles(cached.entries);
+    _renderTagFilterBar();
+    await _autoPlayNextFullscreen(path);
     // If data is fresh enough, skip background refresh entirely
     if (Date.now() - cached.ts < DIR_CACHE_TTL) return;
   }
@@ -1977,11 +3081,13 @@ async function navigate(path) {
   entries = data.entries;
   renderBreadcrumb(data.breadcrumb);
   renderFiles(data.entries);
+  _renderTagFilterBar();
+  await _autoPlayNextFullscreen(path);
 }
 
 function renderBreadcrumb(crumbs) {
   const bc = document.getElementById('breadcrumb');
-  const homeLabel = homeFolder ? homeFolder.split('/').pop() + ' \u2302' : '~';
+  const homeLabel = homeRoots.length > 0 ? '🏠' : (homeFolder ? homeFolder.split('/').pop() + ' \u2302' : '~');
   let html = `<span onclick="navigateHome()">${homeLabel}</span>`;
   for (const c of crumbs) {
     html += `<span class="sep">/</span><span onclick="navigate('${esc(c.path)}')">${esc(c.name)}</span>`;
@@ -2002,17 +3108,19 @@ function renderEntry(e, i) {
   ` : '';
 
   const stateClass = e.is_video ? getStateClass(e.progress) : (e.folder_state === 'seen' ? 'seen' : (e.folder_state === 'inprogress' ? 'inprogress' : ''));
-  const pinBtn = e.is_dir ? `<button class="action-btn ${e.is_quick_folder ? 'pinned' : ''}" onclick="togglePin('${esc(e.path)}', ${e.is_quick_folder})" title="${e.is_quick_folder ? 'Retirer' : 'Accès rapide'}">📌</button>` : '';
+  const pinBtn = e.is_dir ? `<button class="action-btn ${e.is_quick_folder ? 'pinned' : ''}" onclick="togglePin(${jsStr(e.path)}, ${e.is_quick_folder})" title="${e.is_quick_folder ? 'Retirer' : 'Accès rapide'}">📌</button>` : '';
+  const tagsHtml = (e.tags && e.tags.length) ? e.tags.map(t => `<span class="tag-badge">${esc(t)}</span>`).join('') : '';
   const actionsHtml = e.is_video || e.is_dir ? `
     <div class="entry-actions" onclick="event.stopPropagation()">
       ${pinBtn}
-      <button class="action-btn" onclick="openMoveModal('${esc(e.path)}', '${esc(e.name)}')">↗</button>
-      <button class="action-btn danger" onclick="confirmDelete('${esc(e.path)}', '${esc(e.name)}')">🗑</button>
+      <button class="action-btn" onclick="openTagModal(${jsStr(e.path)}, ${jsStr(e.name)})">🏷</button>
+      <button class="action-btn" onclick="openMoveModal(${jsStr(e.path)}, ${jsStr(e.name)})">↗</button>
+      <button class="action-btn danger" onclick="confirmDelete(${jsStr(e.path)}, ${jsStr(e.name)})">🗑</button>
     </div>
   ` : '';
 
   const activeClass = currentFile && currentFile.path === e.path ? 'active' : '';
-  const clickHandler = e.is_dir ? "navigate('" + esc(e.path) + "')" : (e.is_video ? 'playVideo(' + i + ')' : '');
+  const clickHandler = e.is_dir ? 'navigate(' + jsStr(e.path) + ')' : (e.is_video ? 'playVideo(' + i + ')' : '');
   const qfClass = e.is_quick_folder ? 'qf' : '';
 
   return `
@@ -2023,6 +3131,7 @@ function renderEntry(e, i) {
         <div class="entry-meta">
           <span>${meta}</span>
           ${progressHtml}
+          <div style="margin-top:3px">${tagsHtml}</div>
         </div>
       </div>
       ${actionsHtml}
@@ -2032,12 +3141,23 @@ function renderEntry(e, i) {
 
 function renderFiles(list) {
   const el = document.getElementById('filelist');
-  if (!list.length) {
-    el.innerHTML = `<div style="color:var(--text-dim);font-size:13px;padding:20px;text-align:center">Dossier vide</div>`;
+  const filtered = activeTagFilter ? list.filter(e => e.tags && e.tags.includes(activeTagFilter)) : list;
+  if (!filtered.length) {
+    el.innerHTML = `<div style="color:var(--text-dim);font-size:13px;padding:20px;text-align:center">${activeTagFilter ? 'Aucun fichier avec ce tag' : 'Dossier vide'}</div>`;
+    _gpRenderedList = []; _gpCursorIdx = -1; _gpPendingRestoreIdx = -1;
     return;
   }
 
-  const { pinned, rest } = sortedList(list);
+  const { pinned, rest } = sortedList(filtered);
+  _gpRenderedList = [...pinned, ...rest];
+
+  // BL-043: restore cursor position after a file action (delete/move/cut)
+  if (_gpPendingRestoreIdx >= 0) {
+    _gpCursorIdx = Math.min(_gpPendingRestoreIdx, _gpRenderedList.length - 1);
+    _gpPendingRestoreIdx = -1;
+  } else {
+    _gpCursorIdx = -1;
+  }
 
   let html = '';
   if (pinned.length) {
@@ -2047,6 +3167,13 @@ function renderFiles(list) {
   }
   html += rest.map((e) => renderEntry(e, list.indexOf(e))).join('');
   el.innerHTML = html;
+
+  // Re-apply cursor highlight after DOM rebuild
+  if (_gpCursorIdx >= 0) {
+    const items = document.querySelectorAll('#filelist .entry');
+    items.forEach((item, i) => item.classList.toggle('gp-cursor', i === _gpCursorIdx));
+    items[_gpCursorIdx]?.scrollIntoView({ block: 'nearest' });
+  }
 }
 
 function getVideoIcon(p) {
@@ -2064,21 +3191,45 @@ function getStateClass(p) {
 // ── Player ────────────────────────────────────────────────────────────────────
 const video = document.getElementById('video');
 
+// After a delete/move/cut in fullscreen, auto-play the next video and re-enter fullscreen
+async function _autoPlayNextFullscreen(navigatePath) {
+  if (!_fsReenterFullscreen) return;
+  if (_fsReenterFullscreenPath !== navigatePath) {
+    _fsReenterFullscreen = false; _fsReenterFullscreenPath = null;
+    return;
+  }
+  _fsReenterFullscreen = false; _fsReenterFullscreenPath = null;
+  if (!_gpRenderedList.length) return;
+  const start = _gpCursorIdx >= 0 ? _gpCursorIdx : 0;
+  let target = -1;
+  for (let i = start; i < _gpRenderedList.length; i++) {
+    if (_gpRenderedList[i].is_video) { target = i; break; }
+  }
+  if (target < 0) {
+    for (let i = start - 1; i >= 0; i--) {
+      if (_gpRenderedList[i].is_video) { target = i; break; }
+    }
+  }
+  if (target < 0) return;
+  const entry = _gpRenderedList[target];
+  const idx = entries.findIndex(e => e.path === entry.path);
+  if (idx < 0) return;
+  await playVideo(idx);
+  videoContainer.classList.add('faux-fullscreen');
+  syncFullscreenUI();
+}
+
+
 async function playVideo(idx) {
   const entry = entries[idx];
   if (!entry || !entry.is_video) return;
 
   currentFile = entry;
 
-  // Show cut controls, reset any previous cut points
-  document.getElementById('cut-in-btn').style.display = '';
-  document.getElementById('cut-out-btn').style.display = '';
-  document.getElementById('cut-btn').style.display = '';
-  document.getElementById('cut-clear-btn').style.display = 'none';
-  document.getElementById('cut-in-btn').classList.remove('active');
-  document.getElementById('cut-out-btn').classList.remove('active');
-  cutIn = null; cutOut = null;
-  updateCutUI();
+  // Reset segment state for new video
+  _pendingIn = null;
+  _segments = [];
+  updateSegmentUI();
 
   // Mobile: show player panel
   if (window.innerWidth <= 700) {
@@ -2090,50 +3241,60 @@ async function playVideo(idx) {
   vc.classList.add('active');
   document.getElementById('now-playing-name').textContent = entry.name;
 
-  video.src = `${API}/api/stream?path=${encodeURIComponent(entry.path)}`;
-
-  // Fallback: if codec unsupported, retry via server-side transcode (H.265 → H.264)
+  // Load progress and segments
+  const folderPath = getCurrentFolderPath(entry.path);
+  const [prog, initialSweepState, mediaInfo] = await Promise.all([
+    fetch(`${API}/api/progress?path=${encodeURIComponent(entry.path)}`).then(r => r.json()),
+    fetchInitialSweepState(folderPath),
+    fetchMediaInfo(entry.path),
+  ]);
+  loadSegments(entry.path);
+  currentInitialSweepState = initialSweepState;
+  refreshInitialSweepAction();
   video.onerror = () => {
     if (video.error && video.error.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED
         && !video.src.includes('/api/transcode')) {
-      showToast('Transcodage H.265 → H.264…');
+      showToast('Lecture native refusée — transcodage…');
       video.src = `${API}/api/transcode?path=${encodeURIComponent(entry.path)}`;
       video.load();
       video.onerror = null;
     }
   };
-
-  // Restore position + cut points
-  const prog = await fetch(`${API}/api/progress?path=${encodeURIComponent(entry.path)}`).then(r => r.json());
-  if (prog.cut_in != null) {
-    cutIn = prog.cut_in;
-    document.getElementById('cut-in-btn').classList.add('active');
-  }
-  if (prog.cut_out != null) {
-    cutOut = prog.cut_out;
-    document.getElementById('cut-out-btn').classList.add('active');
-  }
   video.onloadedmetadata = () => {
-    updateCutUI();
-    if (prog.position > 5 && prog.position < video.duration - 10) {
-      video.currentTime = Math.max(cutIn ?? 0, prog.position);
-    } else if (cutIn !== null) {
-      video.currentTime = cutIn;
+    updateSegmentUI();
+    const safeDuration = Math.max(0, video.duration - 1);
+    const initialSweep = Math.min(initialSweepState.effective_seconds || 0, safeDuration);
+    const isWatched = (prog.percent ?? 0) >= cfg.watched_threshold;
+    if (prog.has_saved_progress && !isWatched) {
+      video.currentTime = Math.min(prog.position, safeDuration);
+    } else if (initialSweep > 0) {
+      video.currentTime = initialSweep;
     }
     video.play();
   };
+
+  const playbackChoice = await choosePlaybackSource(entry, mediaInfo);
+  if (playbackChoice.mode === 'transcode') {
+    showToast('Lecture native non confirmée — transcodage…');
+  }
+  video.src = playbackChoice.src;
+  resetSpeed();
+  updateMediaMeta(mediaInfo);
 
   // Auto-save every 5s
   if (saveInterval) clearInterval(saveInterval);
   saveInterval = setInterval(saveProgress, 5000);
 
-  // Re-render list to show active
+  // Re-render list to show active — preserve gamepad cursor on the current video (BL-052)
+  const gpIdx = _gpRenderedList.findIndex(e => e.path === entry.path);
+  if (gpIdx >= 0) _gpPendingRestoreIdx = gpIdx;
   renderFiles(entries);
 }
 
 function closeMobilePlayer() {
   document.getElementById('player-panel').classList.remove('mobile-active');
   video.pause();
+  resetFullscreenPlaybackUI();
 }
 
 function togglePlay() {
@@ -2141,15 +3302,29 @@ function togglePlay() {
 }
 
 function skip(seconds) {
-  const lo = cutIn ?? 0;
-  const hi = cutOut ?? (video.duration || 0);
-  video.currentTime = Math.max(lo, Math.min(hi, video.currentTime + seconds));
+  video.currentTime = Math.max(0, Math.min(video.duration || 0, video.currentTime + seconds));
+  showToast(seconds > 0 ? `+${Math.abs(seconds)}s ▶▶` : `◀◀ −${Math.abs(seconds)}s`);
 }
 
 function setVolume(v) {
   video.volume = v;
   video.muted = false;
   localStorage.setItem('volume', v);
+  document.getElementById('volume-slider').value = v;
+  if (currentFile) showVolumeOSD();
+}
+
+let _volOsdTimer = null;
+function showVolumeOSD() {
+  const vol = video.muted ? 0 : video.volume;
+  const icon = vol === 0 ? '🔇' : vol < 0.5 ? '🔉' : '🔊';
+  document.getElementById('vol-osd-icon').textContent = icon;
+  document.getElementById('vol-osd-bar-fill').style.width = (vol * 100) + '%';
+  document.getElementById('vol-osd-pct').textContent = Math.round(vol * 100) + '%';
+  const osd = document.getElementById('vol-osd');
+  osd.classList.add('visible');
+  clearTimeout(_volOsdTimer);
+  _volOsdTimer = setTimeout(() => osd.classList.remove('visible'), 2500);
 }
 
 function toggleMute() {
@@ -2162,12 +3337,10 @@ async function saveProgress() {
   const file = currentFile;
   const pos = video.currentTime;
   const dur = video.duration;
-  const cin = cutIn;
-  const cout = cutOut;
   await fetch(`${API}/api/progress?path=${encodeURIComponent(file.path)}`, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ position: pos, duration: dur, cut_in: cin, cut_out: cout })
+    body: JSON.stringify({ position: pos, duration: dur })
   });
   // Refresh entry progress in list
   const idx = entries.findIndex(e => e.path === file.path);
@@ -2193,10 +3366,7 @@ function getSeekPercent(e) {
 }
 
 function clampSeekPct(rawPct) {
-  const dur = video.duration || 1;
-  const lo = cutIn  != null ? cutIn  / dur : 0;
-  const hi = cutOut != null ? cutOut / dur : 1;
-  return Math.max(lo, Math.min(hi, rawPct));
+  return Math.max(0, Math.min(1, rawPct));
 }
 
 seekbarWrap.addEventListener('pointerdown', e => {
@@ -2220,23 +3390,30 @@ seekbarWrap.addEventListener('pointerup', e => {
 
 video.addEventListener('timeupdate', () => {
   if (isSeeking || !video.duration) return;
-  // Enforce IN/OUT playback bounds
-  if (cutIn !== null && video.currentTime < cutIn) {
-    video.currentTime = cutIn;
-    return;
-  }
-  if (cutOut !== null && video.currentTime >= cutOut) {
-    video.pause();
-    video.currentTime = cutOut;
-    saveProgress();
-    return;
-  }
   const pct = video.currentTime / video.duration * 100;
   seekbarFill.style.width = pct + '%';
   seekbarThumb.style.left = pct + '%';
   const timeStr = `${formatTime(video.currentTime)} / ${formatTime(video.duration)}`;
   document.getElementById('time-display').textContent = timeStr;
-  document.getElementById('mini-time').textContent = timeStr;
+  document.getElementById('mini-remaining').textContent = '-' + formatTime(video.duration - video.currentTime);
+  document.getElementById('mini-bar-fill').style.width = pct + '%';
+  const z = cfg.fs_progress_zoom || 20;
+  const zoomStart = Math.min(Math.floor(pct / z) * z, 100 - z);
+  const zoomTrack = document.getElementById('mini-bar-zoom-track');
+  zoomTrack.style.width = z + '%';
+  zoomTrack.style.left = zoomStart + '%';
+  document.getElementById('mini-bar-zoom-fill').style.width = ((pct - zoomStart) / z * 100) + '%';
+  // Update pending-IN fill
+  const pendingEl = document.getElementById('pending-in-fill');
+  if (_pendingIn !== null && video.currentTime > _pendingIn && video.duration) {
+    const cur = video.currentTime;
+    const dur = video.duration;
+    pendingEl.style.left = (_pendingIn / dur * 100).toFixed(3) + '%';
+    pendingEl.style.width = ((cur - _pendingIn) / dur * 100).toFixed(3) + '%';
+    pendingEl.style.display = 'block';
+  } else {
+    pendingEl.style.display = 'none';
+  }
 });
 
 video.addEventListener('play', () => { document.getElementById('playpause-btn').textContent = '⏸'; });
@@ -2255,6 +3432,43 @@ function toggleVideoFit() {
   showToast(isFill ? '\u26f6\ufe0e Fill' : '\u26f6\ufe0e Fit');
   const btn = document.getElementById('fit-btn');
   if (btn) btn.style.color = isFill ? 'var(--accent)' : '';
+}
+
+const PLAYBACK_SPEEDS = [0.5, 1, 1.5, 2];
+let speedIdx = 1; // default 1×
+function cycleSpeed() {
+  speedIdx = (speedIdx + 1) % PLAYBACK_SPEEDS.length;
+  const spd = PLAYBACK_SPEEDS[speedIdx];
+  video.playbackRate = spd;
+  const label = spd === 1 ? '1×' : spd + '×';
+  const btn = document.getElementById('speed-btn');
+  if (btn) { btn.textContent = label; btn.style.color = spd !== 1 ? 'var(--accent)' : ''; }
+  showToast('⏱ ' + label);
+}
+function resetSpeed() {
+  speedIdx = 1;
+  video.playbackRate = 1;
+  const btn = document.getElementById('speed-btn');
+  if (btn) { btn.textContent = '1×'; btn.style.color = ''; }
+}
+
+function updateMediaMeta(mediaInfo) {
+  const el = document.getElementById('media-meta');
+  if (!el) return;
+  if (!mediaInfo || !mediaInfo.video) { el.textContent = ''; return; }
+  const v = mediaInfo.video;
+  const parts = [];
+  if (v.width && v.height) parts.push(`${v.width}×${v.height}`);
+  if (v.codec) parts.push(v.codec.toUpperCase());
+  if (v.framerate) parts.push(`${Math.round(v.framerate)} fps`);
+  if (mediaInfo.duration) {
+    const s = Math.round(mediaInfo.duration);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    parts.push(h > 0 ? `${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}` : `${m}:${String(sec).padStart(2,'0')}`);
+  }
+  el.textContent = parts.join(' · ');
 }
 
 function getBrightness() {
@@ -2294,7 +3508,7 @@ video.addEventListener('touchmove', e => {
       // Right edge: volume
       video.volume = Math.max(0, Math.min(1, touchStartVol - dy / 200));
       document.getElementById('volume-slider').value = video.volume;
-      showToast(`🔊 ${Math.round(video.volume * 100)}%`);
+      showVolumeOSD();
     } else if (xPct < edgePct && cfg.gesture_brightness) {
       // Left edge: brightness
       setBrightness(touchStartBrightness - dy / 200);
@@ -2320,7 +3534,16 @@ video.addEventListener('touchend', e => {
   const tapY = e.changedTouches[0].clientY;
   const moved = Math.abs(tapX - touchStartX) > 10
              || Math.abs(tapY - touchStartY) > 10;
-  if (moved) { tapCount = 0; clearTimeout(tapTimer); return; }
+  if (moved) {
+    tapCount = 0;
+    clearTimeout(tapTimer);
+    // Show seek toast after a horizontal swipe
+    const delta = video.currentTime - touchStartTime;
+    if (Math.abs(delta) >= 1 && cfg.gesture_seek) {
+      showToast(delta > 0 ? `+${Math.round(delta)}s ▶▶` : `◀◀ −${Math.round(-delta)}s`);
+    }
+    return;
+  }
 
   tapCount++;
   clearTimeout(tapTimer);
@@ -2329,20 +3552,20 @@ video.addEventListener('touchend', e => {
     const rect = video.getBoundingClientRect();
     const xPct = (tapX - rect.left) / rect.width;
     const yPct = (tapY - rect.top) / rect.height;
-    const isMid = xPct >= 0.2 && xPct <= 0.8;
-    const isBottom = yPct > 0.7;
+    const isSingleTapCenter = xPct >= SINGLE_TAP_CENTER_MIN_X && xPct <= SINGLE_TAP_CENTER_MAX_X;
+    const isBottomCentre = isSingleTapCenter && yPct >= SINGLE_TAP_CONTROLS_MIN_Y;
 
     if (tapCount === 1) {
-      if (isMid && isBottom) {
-        // Bottom-centre: toggle controls
+      if (isBottomCentre) {
+        // Narrow bottom-centre strip: toggle controls
         const controls = document.getElementById('controls');
         if (controls.classList.contains('ctrl-hidden')) {
           showControlsFS();
         } else {
-          controls.classList.add('ctrl-hidden');
+          hideControlsFS();
         }
-      } else if (isMid) {
-        // Centre (not bottom): play/pause
+      } else if (isSingleTapCenter) {
+        // Narrow centre strip above controls: play/pause
         togglePlay();
       }
     } else if (tapCount >= 2 && cfg.gesture_doubletap) {
@@ -2358,21 +3581,21 @@ video.addEventListener('touchend', e => {
         } else {
           zoneFactor = 1;
         }
-        const s = cfg.doubletap_left * mult * zoneFactor;
+        const s = cfg.seek_medium * mult * zoneFactor;
         video.currentTime = Math.max(0, video.currentTime - s);
         showToast(`◀◀ −${s}s`);
       } else if (xPct > (1 - edgePct)) {
-        // Right zone — 3 vertical thirds, each with its own base × mult
+        // Right zone — 3 vertical thirds: bottom=medium, mid=long, top=xlong
         if (yPct < 1 / 3) {
-          const s = cfg.doubletap_right_top * mult;
+          const s = cfg.seek_xlong * mult;
           video.currentTime = Math.min(video.duration, video.currentTime + s);
           showToast(`+${s}s ▶▶▶`);
         } else if (yPct < 2 / 3) {
-          const s = cfg.doubletap_right_mid * mult;
+          const s = cfg.seek_long * mult;
           video.currentTime = Math.min(video.duration, video.currentTime + s);
           showToast(`+${s}s ▶▶`);
         } else {
-          const s = cfg.doubletap_right_bottom * mult;
+          const s = cfg.seek_medium * mult;
           video.currentTime = Math.min(video.duration, video.currentTime + s);
           showToast(`+${s}s ▶`);
         }
@@ -2402,145 +3625,232 @@ async function togglePin(path, isPinned) {
 
 function openMoveModal(path, name) {
   pendingMovePath = path;
+  pendingMoveSelectedDest = null;
+  pendingMoveSelectedDestName = null;
   document.getElementById('modal-filename').textContent = name;
   const container = document.getElementById('modal-folders');
   if (quickFolders.length) {
     container.innerHTML = quickFolders.map(qf => `
-      <button class="modal-folder-btn" onclick="moveToFolder('${esc(qf.path)}', '${esc(qf.name)}')">&#128193; ${esc(qf.name)}</button>
+      <button class="modal-folder-btn" onclick="selectMoveDest('${esc(qf.path)}', '${esc(qf.name)}', this)">&#128193; ${esc(qf.name)}</button>
     `).join('');
   } else {
     container.innerHTML = `<div style="color:var(--text-dim);font-size:12px;padding:8px 0;line-height:1.5">Aucun dossier rapide.<br>Clique sur 📌 dans la liste pour en épingler un.</div>`;
   }
-  document.getElementById('modal-overlay').classList.add('open');
+  // Reset confirm button
+  const confirmBtn = document.getElementById('move-confirm-btn');
+  if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.style.opacity = '0.4'; }
+  _gpMoveDlgIdx = 0;
+  // Pre-select first folder button for gamepad navigation
+  const firstBtn = container.querySelector('button.modal-folder-btn');
+  if (firstBtn) firstBtn.classList.add('gp-cursor');
+  const dlg = document.getElementById('move-dialog');
+  dlg._gpPhase = 'folders';
+  dlg.style.display = 'flex';
 }
 
-function closeModal(e) {
-  if (e && e.target !== document.getElementById('modal-overlay')) return;
-  document.getElementById('modal-overlay').classList.remove('open');
+function openDestPickerFromMoveModal() {
+  const filePath = pendingMovePath;
+  const fileName = filePath ? filePath.split('/').pop() : '';
+  closeModal();
+  openDestPickerForFile(filePath, fileName);
+}
+
+function closeModal() {
+  document.getElementById('move-dialog').style.display = 'none';
   pendingMovePath = null;
+  pendingMoveSelectedDest = null;
+  pendingMoveSelectedDestName = null;
+}
+
+function selectMoveDest(destPath, destName, btnEl) {
+  pendingMoveSelectedDest = destPath;
+  pendingMoveSelectedDestName = destName;
+  // Highlight selected button
+  document.querySelectorAll('#modal-folders .modal-folder-btn').forEach(b => b.classList.remove('selected'));
+  if (btnEl) btnEl.classList.add('selected');
+  const confirmBtn = document.getElementById('move-confirm-btn');
+  if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.style.opacity = '1'; }
+}
+
+function confirmMoveModal() {
+  if (!pendingMoveSelectedDest) return;
+  moveToFolder(pendingMoveSelectedDest, pendingMoveSelectedDestName);
 }
 
 function releaseVideoIfCurrent(path) {
   if (currentFile && currentFile.path === path) {
     video.pause();
     video.src = '';  // releases the file lock on Windows
+    resetFullscreenPlaybackUI();
     document.getElementById('video-container').classList.remove('active');
     document.getElementById('player-empty').style.display = '';
     currentFile = null;
-    document.getElementById('cut-in-btn').style.display = 'none';
-    document.getElementById('cut-out-btn').style.display = 'none';
-    document.getElementById('cut-btn').style.display = 'none';
-    document.getElementById('cut-clear-btn').style.display = 'none';
-    cutIn = null; cutOut = null;
-    updateCutUI();
+    document.getElementById('segments-export-btn').style.display = 'none';
+    _pendingIn = null;
+    _segments = [];
+    updateSegmentUI();
     if (saveInterval) { clearInterval(saveInterval); saveInterval = null; }
   }
 }
 
-// ── Cut ───────────────────────────────────────────────────────────────────────
-let cutIn = null;
-let cutOut = null;
+// ── Segments ──────────────────────────────────────────────────────────────────
+let _pendingIn = null;
+let _segments = [];
+const _SEG_COLORS = ['#e8884a', '#4ae888', '#4a88e8', '#e84ae8', '#e8e84a', '#4ae8e8'];
+let _exportMode = 'merged';
 
-function openCutModal() {
-  if (!currentFile) return;
-  if (cutIn === null || cutOut === null) {
-    showToast('Marquez d\'abord les points IN et OUT');
+async function loadSegments(path) {
+  try {
+    const resp = await fetch(`${API}/api/segments?path=${encodeURIComponent(path)}`);
+    if (!resp.ok) throw new Error(resp.status);
+    const data = await resp.json();
+    _segments = Array.isArray(data) ? data : [];
+  } catch (_) {
+    _segments = [];
+  }
+  updateSegmentUI();
+}
+
+function setPendingIn() {
+  if (!video.duration) return;
+  if (_pendingIn !== null) {
+    _pendingIn = null;
+    updateSegmentUI();
+    showToast('⬧ Point IN annulé');
     return;
   }
-  if (cutOut <= cutIn) {
-    showToast('Le point OUT doit être après IN');
-    return;
+  _pendingIn = video.currentTime;
+  updateSegmentUI();
+  showToast(`⬧ IN : ${formatTime(_pendingIn)}`);
+}
+
+async function addSegment() {
+  if (!currentFile || !video.duration) return;
+  if (_pendingIn === null) { showToast('Appuyez sur I d\'abord pour marquer le point IN'); return; }
+  const seg_out = video.currentTime;
+  if (seg_out <= _pendingIn) { showToast('Le point OUT doit être après IN'); return; }
+  const resp = await fetch(`${API}/api/segments?path=${encodeURIComponent(currentFile.path)}`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ seg_in: _pendingIn, seg_out }),
+  });
+  if (!resp.ok) { showToast('Erreur lors de l\'ajout du segment'); return; }
+  _pendingIn = null;
+  await loadSegments(currentFile.path);
+  showToast(`✓ Segment ajouté (${_segments.length})`);
+}
+
+async function deleteSegment(id) {
+  await fetch(`${API}/api/segments/${id}`, { method: 'DELETE' });
+  if (currentFile) await loadSegments(currentFile.path);
+}
+
+function updateSegmentUI() {
+  const dur = video.duration || 1;
+  const fillsEl = document.getElementById('segment-fills');
+  const pendingEl = document.getElementById('pending-in-fill');
+  const listEl = document.getElementById('segments-list');
+  const exportBtn = document.getElementById('segments-export-btn');
+  const countEl = document.getElementById('segments-count');
+
+  // Segment fills on seekbar
+  fillsEl.innerHTML = _segments.map((seg, i) => {
+    const color = _SEG_COLORS[i % _SEG_COLORS.length];
+    const left = (seg.seg_in / dur * 100).toFixed(3);
+    const width = ((seg.seg_out - seg.seg_in) / dur * 100).toFixed(3);
+    return `<div class="seg-fill" style="left:${left}%;width:${width}%;background:${color}"></div>`;
+  }).join('');
+
+  // Pending IN fill (hatched zone from _pendingIn to currentTime)
+  if (_pendingIn !== null) {
+    const cur = video.currentTime;
+    if (cur > _pendingIn) {
+      pendingEl.style.left = (_pendingIn / dur * 100).toFixed(3) + '%';
+      pendingEl.style.width = ((cur - _pendingIn) / dur * 100).toFixed(3) + '%';
+    } else {
+      pendingEl.style.left = (_pendingIn / dur * 100).toFixed(3) + '%';
+      pendingEl.style.width = '0.3%';
+    }
+    pendingEl.style.display = 'block';
+  } else {
+    pendingEl.style.display = 'none';
   }
-  const overlay = document.getElementById('cut-overlay');
-  overlay.style.display = 'flex';
-  document.getElementById('cut-filename').textContent = currentFile.name;
-  document.getElementById('cut-dest-input').value = currentPath;
-  const cutDur = cutOut - cutIn;
-  document.getElementById('cut-duration').textContent =
-    `IN : ${formatTime(cutIn)} → OUT : ${formatTime(cutOut)} — Durée : ${formatTime(cutDur)}`;
-  const container = document.getElementById('cut-folders');
+
+  // Chips below seekbar
+  if (_segments.length) {
+    listEl.style.display = 'flex';
+    listEl.innerHTML = _segments.map((seg, i) => {
+      const color = _SEG_COLORS[i % _SEG_COLORS.length];
+      return `<span class="seg-chip" style="border-color:${color}">`
+        + `${formatTime(seg.seg_in)} → ${formatTime(seg.seg_out)}`
+        + ` <span class="seg-chip-del" onclick="deleteSegment(${seg.id})" title="Supprimer ce segment">×</span>`
+        + `</span>`;
+    }).join('');
+  } else {
+    listEl.style.display = 'none';
+    listEl.innerHTML = '';
+  }
+
+  // Export button
+  if (exportBtn) {
+    exportBtn.style.display = _segments.length ? '' : 'none';
+    if (countEl) countEl.textContent = _segments.length;
+  }
+}
+
+function selectExportMode(mode) {
+  _exportMode = mode;
+  document.getElementById('export-mode-merged').classList.toggle('selected', mode === 'merged');
+  document.getElementById('export-mode-individual').classList.toggle('selected', mode === 'individual');
+}
+
+function openExportModal() {
+  if (!currentFile || !_segments.length) { showToast('Aucun segment à exporter — utilisez I puis O'); return; }
+  document.getElementById('export-filename').textContent = currentFile.name;
+  const total = _segments.reduce((s, seg) => s + (seg.seg_out - seg.seg_in), 0);
+  document.getElementById('export-seg-summary').textContent =
+    `${_segments.length} segment${_segments.length > 1 ? 's' : ''} — durée totale : ${formatTime(total)}`;
+  document.getElementById('export-dest-input').value = currentPath;
+  document.getElementById('export-keep-original').checked = false;
+  selectExportMode('merged');
+  const container = document.getElementById('export-folders');
   if (quickFolders.length) {
-    container.innerHTML = quickFolders.map(qf => `
-      <button class="modal-folder-btn" onclick="selectCutDest('${esc(qf.path)}')">📁 ${esc(qf.name)}</button>
-    `).join('');
+    container.innerHTML = quickFolders.map(qf =>
+      `<button class="modal-folder-btn" onclick="selectExportDest('${esc(qf.path)}')">📁 ${esc(qf.name)}</button>`
+    ).join('');
   } else {
     container.innerHTML = `<div style="color:var(--text-dim);font-size:12px">Aucun dossier rapide — saisissez un chemin ci-dessous.</div>`;
   }
+  const dlg = document.getElementById('export-dialog');
+  dlg._gpIdx = 0;
+  dlg._gpPhase = 'folders';
+  const firstBtn = container.querySelector('button.modal-folder-btn');
+  if (firstBtn) firstBtn.classList.add('gp-cursor');
+  document.getElementById('export-confirm-btn').classList.remove('gp-cursor');
+  dlg.style.display = 'flex';
 }
 
-function selectCutDest(path) {
-  document.getElementById('cut-dest-input').value = path;
+function selectExportDest(path) {
+  document.getElementById('export-dest-input').value = path;
 }
 
-function setCutPoint(which) {
-  if (!video.duration) return;
-  const t = video.currentTime;
-  if (which === 'in') {
-    cutIn = t;
-    document.getElementById('cut-in-btn').classList.add('active');
-  } else {
-    cutOut = t;
-    document.getElementById('cut-out-btn').classList.add('active');
-  }
-  updateCutUI();
-  saveProgress();
+function closeExportModal() {
+  document.getElementById('export-dialog').style.display = 'none';
 }
 
-function updateCutUI() {
-  const dur = video.duration || 1;
-  const inEl = document.getElementById('cut-seekbar-in');
-  const outEl = document.getElementById('cut-seekbar-out');
-  const fillEl = document.getElementById('cut-seekbar-fill');
-  const cutBtn = document.getElementById('cut-btn');
-  const clearBtn = document.getElementById('cut-clear-btn');
-
-  if (cutIn !== null) {
-    inEl.style.left = (cutIn / dur * 100) + '%';
-    inEl.style.display = 'block';
-  } else {
-    inEl.style.display = 'none';
-  }
-  if (cutOut !== null) {
-    outEl.style.left = (cutOut / dur * 100) + '%';
-    outEl.style.display = 'block';
-  } else {
-    outEl.style.display = 'none';
-  }
-  const bothValid = cutIn !== null && cutOut !== null && cutOut > cutIn;
-  if (bothValid) {
-    fillEl.style.left = (cutIn / dur * 100) + '%';
-    fillEl.style.width = ((cutOut - cutIn) / dur * 100) + '%';
-    fillEl.style.display = 'block';
-  } else {
-    fillEl.style.display = 'none';
-  }
-  if (cutBtn) cutBtn.classList.toggle('ready', bothValid);
-  if (clearBtn) clearBtn.style.display = (cutIn !== null || cutOut !== null) ? 'inline-flex' : 'none';
-}
-
-function clearCutPoints() {
-  cutIn = null; cutOut = null;
-  document.getElementById('cut-in-btn').classList.remove('active');
-  document.getElementById('cut-out-btn').classList.remove('active');
-  updateCutUI();
-  saveProgress();
-}
-
-function closeCutModal(e) {
-  if (e && e.target !== document.getElementById('cut-overlay')) return;
-  document.getElementById('cut-overlay').style.display = 'none';
-}
-
-async function confirmCut() {
-  const dest = document.getElementById('cut-dest-input').value.trim();
+async function confirmExport() {
+  const dest = document.getElementById('export-dest-input').value.trim();
   if (!dest) { showToast('Choisissez un dossier destination'); return; }
-  if (cutIn === null || cutOut === null || cutOut <= cutIn) { showToast('OUT doit être après IN'); return; }
-  if (!currentFile) return;
-  document.getElementById('cut-overlay').style.display = 'none';
-  const resp = await fetch(`${API}/api/files/cut?path=${encodeURIComponent(currentFile.path)}`, {
+  if (!currentFile || !_segments.length) return;
+  const keepOriginal = document.getElementById('export-keep-original').checked;
+  closeExportModal();
+  if (isInFullscreen()) { _fsReenterFullscreen = true; _fsReenterFullscreenPath = currentPath; }
+  const _expIdx = _gpRenderedList.findIndex(e => e.path === currentFile.path);
+  if (_expIdx >= 0) _gpPendingRestoreIdx = _expIdx;
+  const resp = await fetch(`${API}/api/files/export-segments?path=${encodeURIComponent(currentFile.path)}`, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ start: cutIn, end: cutOut, destination: dest })
+    body: JSON.stringify({ mode: _exportMode, destination: dest, keep_original: keepOriginal }),
   });
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
@@ -2548,7 +3858,10 @@ async function confirmCut() {
     return;
   }
   const { job_id } = await resp.json();
-  showToast('✂ Découpage en cours…');
+  showToast('✂ Export en cours…');
+  _pendingIn = null;
+  _segments = [];
+  updateSegmentUI();
   trackJob(job_id, currentPath);
 }
 
@@ -2603,9 +3916,11 @@ async function moveToFolder(destPath, destName) {
   if (!pendingMovePath) return;
   const sourcePath = pendingMovePath;
   const fromPath = currentPath;
+  if (currentFile && currentFile.path === sourcePath && isInFullscreen()) {
+    _fsReenterFullscreen = true; _fsReenterFullscreenPath = fromPath;
+  }
   releaseVideoIfCurrent(sourcePath);
-  document.getElementById('modal-overlay').classList.remove('open');
-  pendingMovePath = null;
+  closeModal();
   const resp = await fetch(`${API}/api/files/move?path=${encodeURIComponent(sourcePath)}`, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -2618,22 +3933,51 @@ async function moveToFolder(destPath, destName) {
   }
   const { job_id } = await resp.json();
   showToast(`Déplacement vers \u00ab\u00a0${destName}\u00a0\u00bb en cours…`);
+  // Restore cursor to same index after re-render (works for gamepad, keyboard, click)
+  const _movIdx = _gpRenderedList.findIndex(e => e.path === sourcePath);
+  if (_movIdx >= 0) _gpPendingRestoreIdx = _movIdx;
   trackJob(job_id, fromPath);
 }
 
+let _deleteResolve = null;
+
+function closeDeleteDialog() {
+  document.getElementById('delete-dialog').style.display = 'none';
+  document.getElementById('delete-dialog-confirm').onclick = null;
+  if (_deleteResolve) { const r = _deleteResolve; _deleteResolve = null; r(); }
+}
+
 async function confirmDelete(path, name) {
-  if (!confirm(`Supprimer "${name}" ?`)) return;
-  releaseVideoIfCurrent(path);
-  const doDelete = () => fetch(`${API}/api/files?path=${encodeURIComponent(path)}`, { method: 'DELETE' });
-  const resp = await retryOn423(doDelete);
-  if (!resp.ok) {
-    const msg = resp.status === 423 ? 'Le fichier est encore verrouillé, réessayez dans un instant' : `Erreur : impossible de supprimer (${resp.status})`;
-    showToast(msg);
-  } else {
-    showToast('Supprimé');
-  }
-  dirCache.delete(currentPath);
-  await navigate(currentPath);
+  const dlg = document.getElementById('delete-dialog');
+  document.getElementById('delete-dialog-filename').textContent = name;
+  dlg.style.display = 'flex';
+  return new Promise(resolve => {
+    _deleteResolve = resolve;
+    const btn = document.getElementById('delete-dialog-confirm');
+    btn.onclick = async () => {
+      btn.onclick = null;
+      _deleteResolve = null;
+      dlg.style.display = 'none';
+      if (currentFile && currentFile.path === path && isInFullscreen()) {
+        _fsReenterFullscreen = true; _fsReenterFullscreenPath = currentPath;
+      }
+      releaseVideoIfCurrent(path);
+      const doDelete = () => fetch(`${API}/api/files?path=${encodeURIComponent(path)}`, { method: 'DELETE' });
+      const resp = await retryOn423(doDelete);
+      if (!resp.ok) {
+        const msg = resp.status === 423 ? 'Le fichier est encore verrouillé, réessayez dans un instant' : `Erreur : impossible de supprimer (${resp.status})`;
+        showToast(msg);
+      } else {
+        showToast('Supprimé');
+      }
+      // Restore cursor to same index after re-render (works for gamepad, keyboard, click)
+      const _delIdx = _gpRenderedList.findIndex(e => e.path === path);
+      if (_delIdx >= 0) _gpPendingRestoreIdx = _delIdx;
+      dirCache.delete(currentPath);
+      await navigate(currentPath);
+      resolve();
+    };
+  });
 }
 
 // Retry a fetch fn up to maxAttempts times when the server returns 423
@@ -2700,6 +4044,12 @@ function esc(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
+// Safely encode a JS string literal for use inside an HTML attribute (onclick="...").
+// JSON.stringify handles all JS-special chars; replacing " with &quot; prevents breaking the HTML attribute.
+function jsStr(val) {
+  return JSON.stringify(String(val)).replace(/"/g, '&quot;');
+}
+
 let toastTimer;
 function showToast(msg) {
   const t = document.getElementById('toast');
@@ -2710,13 +4060,65 @@ function showToast(msg) {
 }
 
 // Fullscreen (faux-fullscreen on touch devices / iOS / PWA)
+const FULLSCREEN_CONTROLS_IDLE_MS = 2200;
+let fullscreenControlsTimer = null;
+const videoContainer = document.getElementById('video-container');
+const fullscreenControls = document.getElementById('controls');
+
 function isInFullscreen() {
-  return document.getElementById('video-container').classList.contains('faux-fullscreen')
-      || !!document.fullscreenElement;
+  return videoContainer.classList.contains('faux-fullscreen')
+      || document.fullscreenElement === videoContainer;
+}
+
+function clearFullscreenControlsTimer() {
+  if (fullscreenControlsTimer !== null) {
+    clearTimeout(fullscreenControlsTimer);
+    fullscreenControlsTimer = null;
+  }
+}
+
+function scheduleControlsFSHide() {
+  clearFullscreenControlsTimer();
+  if (!isInFullscreen()) return;
+  fullscreenControlsTimer = setTimeout(() => {
+    if (isInFullscreen()) {
+      fullscreenControls.classList.add('ctrl-hidden');
+    }
+    fullscreenControlsTimer = null;
+  }, FULLSCREEN_CONTROLS_IDLE_MS);
+}
+
+function hideControlsFS() {
+  clearFullscreenControlsTimer();
+  if (!isInFullscreen()) return;
+  fullscreenControls.classList.add('ctrl-hidden');
+}
+
+function bumpFullscreenControlsIdle(forceReveal = false) {
+  if (!isInFullscreen()) return;
+  if (forceReveal || fullscreenControls.classList.contains('ctrl-hidden')) {
+    fullscreenControls.classList.remove('ctrl-hidden');
+  }
+  scheduleControlsFSHide();
 }
 
 function showControlsFS() {
-  document.getElementById('controls').classList.remove('ctrl-hidden');
+  if (!isInFullscreen()) {
+    fullscreenControls.classList.remove('ctrl-hidden');
+    clearFullscreenControlsTimer();
+    return;
+  }
+  bumpFullscreenControlsIdle(true);
+}
+
+function resetFullscreenPlaybackUI() {
+  clearFullscreenControlsTimer();
+  videoContainer.classList.remove('faux-fullscreen');
+  fullscreenControls.classList.remove('ctrl-hidden');
+  if (document.fullscreenElement === videoContainer) {
+    document.exitFullscreen().catch(() => {});
+  }
+  updateFullscreenBtn();
 }
 
 function updateFullscreenBtn() {
@@ -2724,38 +4126,868 @@ function updateFullscreenBtn() {
   if (btn) btn.textContent = isInFullscreen() ? '\u29c4' : '\u26f6';
 }
 
+function syncFullscreenUI() {
+  updateFullscreenBtn();
+  if (isInFullscreen()) {
+    hideControlsFS();
+  } else {
+    fullscreenControls.classList.remove('ctrl-hidden');
+    clearFullscreenControlsTimer();
+  }
+}
+
 function toggleFullscreen() {
-  const vc = document.getElementById('video-container');
-  const useFaux = !document.fullscreenEnabled || navigator.maxTouchPoints > 0;
-  if (vc.classList.contains('faux-fullscreen')) {
-    vc.classList.remove('faux-fullscreen');
-    document.getElementById('controls').classList.remove('ctrl-hidden');
-  } else if (document.fullscreenElement) {
+  const useFaux = !document.fullscreenEnabled || typeof videoContainer.requestFullscreen !== 'function';
+  if (videoContainer.classList.contains('faux-fullscreen')) {
+    videoContainer.classList.remove('faux-fullscreen');
+    syncFullscreenUI();
+  } else if (document.fullscreenElement === videoContainer) {
     document.exitFullscreen();
   } else if (useFaux) {
-    vc.classList.add('faux-fullscreen');
+    videoContainer.classList.add('faux-fullscreen');
+    syncFullscreenUI();
   } else {
-    vc.requestFullscreen();
+    videoContainer.requestFullscreen().catch(err => {
+      if (err.name === 'NotAllowedError') {
+        // Browser requires a direct user gesture (e.g. Firefox + gamepad polling).
+        // Fall back to CSS faux-fullscreen so the gamepad Y button still works.
+        videoContainer.classList.add('faux-fullscreen');
+        syncFullscreenUI();
+      } else {
+        console.warn('requestFullscreen failed:', err);
+      }
+    });
   }
-  updateFullscreenBtn();
 }
 
 document.addEventListener('fullscreenchange', () => {
-  updateFullscreenBtn();
-  document.getElementById('controls').classList.remove('ctrl-hidden');
+  syncFullscreenUI();
+  // Move gp-overlay into the fullscreen element so it stays visible in native fullscreen
+  const gpOverlay = document.getElementById('gp-overlay');
+  const deleteDlg = document.getElementById('delete-dialog');
+  const moveDlg = document.getElementById('move-dialog');
+  const exportDlg = document.getElementById('export-dialog');
+  if (document.fullscreenElement) {
+    document.fullscreenElement.appendChild(gpOverlay);
+    gpOverlay.classList.add('in-fullscreen');
+    document.fullscreenElement.appendChild(deleteDlg);
+    document.fullscreenElement.appendChild(moveDlg);
+    document.fullscreenElement.appendChild(exportDlg);
+  } else {
+    document.body.appendChild(gpOverlay);
+    gpOverlay.classList.remove('in-fullscreen');
+    document.body.appendChild(deleteDlg);
+    document.body.appendChild(moveDlg);
+    document.body.appendChild(exportDlg);
+  }
+});
+
+// Mouse movement only reveals controls in the bottom 10% of the screen
+videoContainer.addEventListener('mousemove', e => {
+  if (!isInFullscreen() || !fullscreenControls.classList.contains('ctrl-hidden')) return;
+  if (e.clientY > window.innerHeight * 0.9) bumpFullscreenControlsIdle(true);
+});
+
+fullscreenControls.addEventListener('pointerdown', () => {
+  if (isInFullscreen()) bumpFullscreenControlsIdle();
 });
 
 // Keyboard shortcuts
 document.addEventListener('keydown', e => {
-  if (e.target.tagName === 'INPUT') return;
-  if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
-  if (e.code === 'ArrowLeft') skip(-10);
-  if (e.code === 'ArrowRight') skip(10);
-  if (e.code === 'ArrowUp') { video.volume = Math.min(1, video.volume + 0.1); document.getElementById('volume-slider').value = video.volume; }
-  if (e.code === 'ArrowDown') { video.volume = Math.max(0, video.volume - 0.1); document.getElementById('volume-slider').value = video.volume; }
-  if (e.code === 'KeyF') toggleFullscreen();
+  if (e.key === 'Escape') {
+    if (document.getElementById('delete-dialog')?.style.display === 'flex') { closeDeleteDialog(); return; }
+    if (document.getElementById('move-dialog')?.style.display === 'flex') { closeModal(); return; }
+    if (document.getElementById('export-dialog')?.style.display === 'flex') { closeExportModal(); return; }
+  }
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  // Volume controls always bump fullscreen controls
+  if (isInFullscreen() && ['Space', 'ArrowUp', 'ArrowDown', 'KeyF'].includes(e.code)) {
+    bumpFullscreenControlsIdle();
+  }
+  if (e.code === 'Space') { e.preventDefault(); togglePlay(); return; }
+  if (e.code === 'KeyF') { toggleFullscreen(); return; }
+  if (e.code === 'ArrowUp') {
+    setVolume(Math.min(1, video.volume + 0.1));
+    return;
+  }
+  if (e.code === 'ArrowDown') {
+    setVolume(Math.max(0, video.volume - 0.1));
+    return;
+  }
+  // Seek keys — 4 levels via modifier
+  if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
+    e.preventDefault();
+    const dir = e.code === 'ArrowLeft' ? -1 : 1;
+    let amount;
+    if (e.altKey)        amount = cfg.seek_xlong;
+    else if (e.ctrlKey)  amount = cfg.seek_long;
+    else if (e.shiftKey) amount = cfg.seek_medium;
+    else                 amount = cfg.seek_short;
+    skip(dir * amount);
+    return;
+  }
+  // Keys below require an active video
+  if (!currentFile) return;
+  if (e.code === 'KeyM') { toggleMute(); return; }
+  if (e.code === 'KeyA') { toggleVideoFit(); return; }
+  if (e.code === 'KeyI') { setPendingIn(); return; }
+  if (e.code === 'KeyO') { addSegment(); return; }
+  if (e.code === 'KeyE') { openExportModal(); return; }
+  if (e.code === 'KeyD') { openMoveModal(currentFile.path, currentFile.name); return; }
+  if (e.code === 'Delete') { confirmDelete(currentFile.path, currentFile.name); return; }
+  if (e.code === 'KeyS') { saveCurrentPositionAsInitialSweep(); return; }
+  if (e.code === 'PageDown') { nextVideoInFolder(); return; }
+  if (e.code === 'PageUp')   { prevVideoInFolder(); return; }
+  if (e.code === 'Slash' && e.shiftKey) { openShortcutsDialog(); return; }
 });
 
+// ── Dialog helpers ────────────────────────────────────────────────────────────
+function _dialogBackdropClose(event, dialogId) {
+  // Close dialog when user clicks the ::backdrop (click on the dialog element itself but not its children)
+  const dlg = document.getElementById(dialogId);
+  if (event.target === dlg) dlg.close();
+}
+
+// ── Folder navigation ─────────────────────────────────────────────────────────
+function _videoFilesInFolder() {
+  return entries.map((e, i) => ({ entry: e, idx: i })).filter(x => x.entry.type === 'file' && x.entry.is_video);
+}
+
+function nextVideoInFolder() {
+  if (!currentFile) return;
+  const videos = _videoFilesInFolder();
+  const pos = videos.findIndex(x => x.entry.path === currentFile.path);
+  if (pos === -1 || pos >= videos.length - 1) { showToast('Dernière vidéo du dossier'); return; }
+  playVideo(videos[pos + 1].idx);
+}
+
+function prevVideoInFolder() {
+  if (!currentFile) return;
+  const videos = _videoFilesInFolder();
+  const pos = videos.findIndex(x => x.entry.path === currentFile.path);
+  if (pos <= 0) { showToast('Première vidéo du dossier'); return; }
+  playVideo(videos[pos - 1].idx);
+}
+
+function openShortcutsDialog() {
+  document.getElementById('shortcuts-dialog').showModal();
+}
+
+// ── Gamepad engine ────────────────────────────────────────────────────────────
+// Standard mapping indices (gamepad.mapping === 'standard')
+// Buttons: 0=A, 1=B, 2=X, 3=Y, 4=L1, 5=R1, 6=L2, 7=R2, 8=Select, 9=Start
+//          10=L3, 11=R3, 12=Up, 13=Down, 14=Left, 15=Right
+// Axes: 0=LS-X, 1=LS-Y, 2=RS-X, 3=RS-Y
+
+const GP_DEFAULT_MAPPING = {
+  // Base layer (no modifier)
+  base: {
+    0: 'play_pause',       // A
+    1: 'close_player',     // B
+    2: 'toggle_watched',   // X
+    3: 'fullscreen',       // Y
+    8: 'open_settings',    // Select
+    9: 'open_overlay',     // Start
+    12: 'seek_back_medium', // D-pad Up  (volume up / base: seek back medium)
+    13: 'seek_fwd_medium',  // D-pad Down
+    14: 'seek_back_medium', // D-pad Left
+    15: 'seek_fwd_medium',  // D-pad Right
+  },
+  // D-pad overrides in player context
+  player_base: {
+    12: 'volume_up',
+    13: 'volume_down',
+    14: 'seek_back_medium',
+    15: 'seek_fwd_medium',
+  },
+  // L1 modifier layer (player)
+  l1: {
+    14: 'seek_back_long',
+    15: 'seek_fwd_long',
+    12: 'prev_file',
+    13: 'next_file',
+    2: 'aspect_ratio',     // L1+X
+    0: 'subtitles',        // L1+A (no-op without BL-008)
+    3: 'seg_in',           // L1+Y
+  },
+  // R1 modifier layer (player)
+  r1: {
+    14: 'seek_back_xlong',
+    15: 'seek_fwd_xlong',
+    12: 'jump_25',
+    13: 'jump_75',
+    0: 'move_quick_1',    // R1+A
+    1: 'move_quick_2',    // R1+B
+    2: 'move_quick_3',    // R1+X
+    3: 'seg_out',         // R1+Y
+  },
+  // L1+R1 modifier layer
+  lr: {
+    0: 'jump_0',
+    1: 'delete_current',  // L1+R1+B
+    2: 'move_current',    // L1+R1+X
+    3: 'open_export',     // L1+R1+Y
+    13: 'jump_100',       // L1+R1+D↓
+  },
+};
+
+// Active gamepad state
+let _gpPollId = null;
+let _gpConnected = {};          // index -> true
+let _gpPrevButtons = {};        // index -> bool[]
+let _gpNavAccum = 0;            // accumulator for left-stick Y cursor navigation
+const _GP_SCRUB_THROTTLE_MS = 100;
+let _gpLastScrubTime = 0;
+
+function _gpDeadzone(v) {
+  const dz = cfg.gamepad_deadzone ?? 0.20;
+  return Math.abs(v) < dz ? 0 : (v - Math.sign(v) * dz) / (1 - dz);
+}
+
+function _gpVibrate(gamepad, ms = 80) {
+  if (!cfg.gamepad_haptic) return;
+  try {
+    gamepad.vibrationActuator?.playEffect?.('dual-rumble', {
+      duration: ms, strongMagnitude: 0.3, weakMagnitude: 0.1,
+    });
+  } catch {}
+}
+
+function _gpAction(action, gamepad) {
+  const hasVideo = !!currentFile;
+  switch (action) {
+    case 'play_pause':
+      if (hasVideo) { togglePlay(); _gpVibrate(gamepad, 60); }
+      break;
+    case 'close_player':
+      if (hasVideo) { privacyClose(); }
+      break;
+    case 'toggle_watched':
+      if (hasVideo) { _gpToggleWatched(); _gpVibrate(gamepad, 60); }
+      break;
+    case 'fullscreen':
+      if (hasVideo) { toggleFullscreen(); }
+      break;
+    case 'open_settings':
+      openSettings();
+      break;
+    case 'open_overlay':
+      openGpOverlay();
+      break;
+    case 'seek_back_medium':
+      if (hasVideo) { skip(-cfg.seek_medium); _gpVibrate(gamepad, 40); }
+      break;
+    case 'seek_fwd_medium':
+      if (hasVideo) { skip(cfg.seek_medium); _gpVibrate(gamepad, 40); }
+      break;
+    case 'seek_back_long':
+      if (hasVideo) { skip(-cfg.seek_long); _gpVibrate(gamepad, 60); }
+      break;
+    case 'seek_fwd_long':
+      if (hasVideo) { skip(cfg.seek_long); _gpVibrate(gamepad, 60); }
+      break;
+    case 'seek_back_xlong':
+      if (hasVideo) { skip(-cfg.seek_xlong); _gpVibrate(gamepad, 80); }
+      break;
+    case 'seek_fwd_xlong':
+      if (hasVideo) { skip(cfg.seek_xlong); _gpVibrate(gamepad, 80); }
+      break;
+    case 'volume_up':
+      if (hasVideo) { setVolume(Math.min(1, video.volume + 0.10)); }
+      break;
+    case 'volume_down':
+      if (hasVideo) { setVolume(Math.max(0, video.volume - 0.10)); }
+      break;
+    case 'prev_file':
+      prevVideoInFolder();
+      break;
+    case 'next_file':
+      nextVideoInFolder();
+      break;
+    case 'jump_0':
+      if (hasVideo) { video.currentTime = 0; showToast('⏮ 0%'); }
+      break;
+    case 'jump_25':
+      if (hasVideo) { video.currentTime = (video.duration || 0) * 0.25; showToast('⏩ 25%'); }
+      break;
+    case 'jump_50':
+      if (hasVideo) { video.currentTime = (video.duration || 0) * 0.50; showToast('⏩ 50%'); }
+      break;
+    case 'jump_75':
+      if (hasVideo) { video.currentTime = (video.duration || 0) * 0.75; showToast('⏩ 75%'); }
+      break;
+    case 'jump_100':
+      if (hasVideo) { video.currentTime = video.duration || 0; showToast('⏭ 100%'); }
+      break;
+    case 'aspect_ratio':
+      if (hasVideo) { toggleVideoFit(); }
+      break;
+    case 'subtitles':
+      // no-op until BL-008
+      showToast('Sous-titres : non disponible');
+      break;
+    case 'move_quick_1':
+      if (hasVideo && quickFolders[0]) {
+        pendingMovePath = currentFile.path;
+        moveToFolder(quickFolders[0].path, quickFolders[0].name);
+      }
+      break;
+    case 'move_quick_2':
+      if (hasVideo && quickFolders[1]) {
+        pendingMovePath = currentFile.path;
+        moveToFolder(quickFolders[1].path, quickFolders[1].name);
+      }
+      break;
+    case 'move_quick_3':
+      if (hasVideo && quickFolders[2]) {
+        pendingMovePath = currentFile.path;
+        moveToFolder(quickFolders[2].path, quickFolders[2].name);
+      }
+      break;
+    case 'delete_current': {
+      const _delTarget = currentFile ?? (_gpCursorIdx >= 0 ? _gpRenderedList[_gpCursorIdx] : null);
+      if (_delTarget) { confirmDelete(_delTarget.path, _delTarget.name); _gpVibrate(gamepad, 100); }
+      break;
+    }
+    case 'move_current': {
+      const _mvTarget = currentFile ?? (_gpCursorIdx >= 0 ? _gpRenderedList[_gpCursorIdx] : null);
+      if (_mvTarget) { openMoveModal(_mvTarget.path, _mvTarget.name); _gpVibrate(gamepad, 60); }
+      break;
+    }
+    case 'seg_in':
+      if (hasVideo) { setPendingIn(); _gpVibrate(gamepad, 60); }
+      break;
+    case 'seg_out':
+      if (hasVideo) { addSegment(); _gpVibrate(gamepad, 60); }
+      break;
+    case 'open_export':
+      if (hasVideo) { openExportModal(); _gpVibrate(gamepad, 60); }
+      break;
+    // Browser navigation
+    case 'nav_up':
+      _gpMoveCursor(-1);
+      break;
+    case 'nav_down':
+      _gpMoveCursor(1);
+      break;
+    case 'nav_enter':
+      _gpActivateCursor();
+      break;
+    case 'nav_back':
+      if (currentPath) navigate(currentPath.split('/').slice(0, -1).join('/'));
+      break;
+  }
+}
+
+// ── Gamepad async toggle watched ──────────────────────────────────────────────
+async function _gpToggleWatched() {
+  if (!currentFile || !video.duration) return;
+  const isSeen = (currentFile.progress?.percent ?? 0) >= cfg.watched_threshold;
+  const newPos = isSeen ? 0 : video.duration * (cfg.watched_threshold / 100);
+  const resp = await fetch(`${API}/api/progress?path=${encodeURIComponent(currentFile.path)}`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ position: newPos, duration: video.duration }),
+  });
+  if (!resp.ok) { showToast('❌ Erreur lors de la mise à jour'); return; }
+  if (currentFile.progress) currentFile.progress.percent = isSeen ? 0 : cfg.watched_threshold;
+  showToast(isSeen ? '🎬 Marqué non vu' : '✅ Marqué vu');
+}
+
+// ── Gamepad cursor (browser navigation) ──────────────────────────────────────
+let _gpCursorIdx = -1;
+let _gpRenderedList = [];  // mirrors DOM order: [...pinned, ...rest] after each renderFiles()
+let _gpPendingRestoreIdx = -1;  // BL-043: cursor index to restore after file action + navigate()
+let _fsReenterFullscreen = false;     // auto-play next file in fullscreen after delete/move/cut
+let _fsReenterFullscreenPath = null;  // folder path where auto-play should trigger
+
+function _gpMoveCursor(delta) {
+  if (!_gpRenderedList.length) return;
+  _gpCursorIdx = Math.max(0, Math.min(_gpRenderedList.length - 1, _gpCursorIdx + delta));
+  const items = document.querySelectorAll('#filelist .entry');
+  items.forEach((el, i) => el.classList.toggle('gp-cursor', i === _gpCursorIdx));
+  items[_gpCursorIdx]?.scrollIntoView({ block: 'nearest' });
+}
+
+function _gpActivateCursor() {
+  if (_gpCursorIdx < 0 || _gpCursorIdx >= _gpRenderedList.length) return;
+  const entry = _gpRenderedList[_gpCursorIdx];
+  if (entry.is_video) {
+    playVideo(entries.indexOf(entry));
+  } else {
+    navigate(entry.path);
+  }
+}
+
+// ── Gamepad poll loop ─────────────────────────────────────────────────────────
+function _gpPoll() {
+  if (!cfg.gamepad_enabled) { _gpStopPolling(); return; }
+
+  const gamepads = navigator.getGamepads();
+  for (const gp of gamepads) {
+    if (!gp) continue;
+    const idx = gp.index;
+
+    // First time seeing this gamepad
+    if (!_gpPrevButtons[idx]) {
+      _gpPrevButtons[idx] = new Array(gp.buttons.length).fill(false);
+    }
+    const prev = _gpPrevButtons[idx];
+    const cur = gp.buttons.map(b => b.pressed);
+
+    // Detect modifier buttons (L1=4, R1=5)
+    const l1 = cur[4];
+    const r1 = cur[5];
+
+    // Update HUD
+    const hud = document.getElementById('gp-hud');
+    if (hud) {
+      const label = l1 && r1 ? 'L1+R1' : l1 ? 'L1' : r1 ? 'R1' : null;
+      hud.textContent = label ? `🎮 ${label}` : '';
+      hud.classList.toggle('visible', !!(label));
+    }
+
+    // Button edge detection (pressed this frame, not last)
+    for (let i = 0; i < cur.length; i++) {
+      if (i === 4 || i === 5) { prev[i] = cur[i]; continue; } // skip modifier tracking below
+      if (cur[i] && !prev[i]) {
+        // Button just pressed — dispatch action
+        _gpDispatch(i, l1, r1, gp);
+      }
+      prev[i] = cur[i];
+    }
+    _gpPrevButtons[idx] = prev;
+
+    // Analog sticks — axis assignment depends on gamepad_swap_sticks setting
+    // Normal : left X = seek, right Y = volume
+    // Swapped: right X = seek, left Y = volume
+    // Browser navigation (left Y) is unaffected by the swap
+    const _swap = cfg.gamepad_swap_sticks;
+    const seekAxisIdx  = _swap ? 2 : 0;  // RX vs LX
+    const volAxisIdx   = _swap ? 1 : 3;  // LY vs RY
+
+    // Seek stick X — scrubbing
+    const lx = _gpDeadzone(gp.axes[seekAxisIdx] ?? 0);
+    if (lx !== 0 && currentFile && video.duration) {
+      const now = performance.now();
+      if (now - _gpLastScrubTime > _GP_SCRUB_THROTTLE_MS) {
+        const dur = video.duration;
+        const pct = Math.max(0, Math.min(1, video.currentTime / dur + lx * 0.005));
+        seekbarFill.style.width = (pct * 100) + '%';
+        seekbarThumb.style.left = (pct * 100) + '%';
+        video.currentTime = pct * dur;
+        _gpLastScrubTime = now;
+      }
+    }
+
+    // Volume stick Y
+    const ry = _gpDeadzone(gp.axes[volAxisIdx] ?? 0);
+    if (ry !== 0 && currentFile) {
+      setVolume(Math.max(0, Math.min(1, video.volume - ry * 0.02)));
+    }
+
+    // Nav stick Y — browser cursor navigation (always left stick Y, axes[1])
+    if (!currentFile) {
+      const ly = _gpDeadzone(gp.axes[1] ?? 0);
+      if (Math.abs(ly) > 0.5) {
+        _gpNavAccum += ly;
+        if (Math.abs(_gpNavAccum) >= 10) {
+          _gpMoveCursor(Math.sign(_gpNavAccum));
+          _gpNavAccum = 0;
+        }
+      } else {
+        _gpNavAccum = 0;
+      }
+    }
+  }
+
+  _gpPollId = requestAnimationFrame(_gpPoll);
+}
+
+// ── Gamepad context handlers ──────────────────────────────────────────────────
+let _gpMoveDlgIdx = 0;   // folder cursor index in move-dialog
+let pendingMoveSelectedDest = null;
+let pendingMoveSelectedDestName = null;
+
+// BL-046: detect open modals regardless of whether they are <dialog> or <div> overlays
+function _gpOpenModal() {
+  const del = document.getElementById('delete-dialog');
+  if (del?.style.display === 'flex') return del;
+  const mov = document.getElementById('move-dialog');
+  if (mov?.style.display === 'flex') return mov;
+  const exportDlg = document.getElementById('export-dialog');
+  if (exportDlg?.style.display === 'flex') return exportDlg;
+  return document.querySelector('dialog[open]');
+}
+
+function _gpHandleDialog(dlg, btnIdx, gp) {
+  if (dlg.id === 'delete-dialog') {
+    if (btnIdx === 0) { // A = confirm delete
+      // BL-044: reset cursor immediately to prevent phantom play
+      _gpCursorIdx = -1;
+      document.getElementById('delete-dialog-confirm').click();
+      _gpVibrate(gp, 100);
+    } else if (btnIdx === 1) { // B = cancel
+      closeDeleteDialog();
+    }
+    return;
+  }
+  if (dlg.id === 'move-dialog') {
+    if (btnIdx === 1) { closeModal(); return; } // B = always cancel
+
+    const phase = dlg._gpPhase ?? 'folders';
+    const btns = [...dlg.querySelectorAll('button.modal-folder-btn')];
+    const confirmBtn = document.getElementById('move-confirm-btn');
+
+    if (phase === 'folders') {
+      if (btns.length) {
+        if (btnIdx === 12) { // D↑
+          _gpMoveDlgIdx = Math.max(0, _gpMoveDlgIdx - 1);
+          btns.forEach((b, i) => b.classList.toggle('gp-cursor', i === _gpMoveDlgIdx));
+          btns[_gpMoveDlgIdx]?.scrollIntoView({ block: 'nearest' });
+          _gpVibrate(gp, 40);
+          return;
+        }
+        if (btnIdx === 13) { // D↓
+          _gpMoveDlgIdx = Math.min(btns.length - 1, _gpMoveDlgIdx + 1);
+          btns.forEach((b, i) => b.classList.toggle('gp-cursor', i === _gpMoveDlgIdx));
+          btns[_gpMoveDlgIdx]?.scrollIntoView({ block: 'nearest' });
+          _gpVibrate(gp, 40);
+          return;
+        }
+        if (btnIdx === 0) { // A = select folder → move to confirm phase
+          btns[_gpMoveDlgIdx]?.click(); // calls selectMoveDest()
+          btns.forEach(b => b.classList.remove('gp-cursor'));
+          dlg._gpPhase = 'confirm';
+          if (confirmBtn) confirmBtn.classList.add('gp-cursor');
+          _gpVibrate(gp, 60);
+          return;
+        }
+      }
+      return;
+    }
+
+    if (phase === 'confirm') {
+      if (btnIdx === 0) { // A = confirm move
+        // BL-044: reset cursor immediately to prevent phantom play
+        _gpCursorIdx = -1;
+        if (confirmBtn) confirmBtn.classList.remove('gp-cursor');
+        confirmMoveModal();
+        _gpVibrate(gp, 100);
+        return;
+      }
+      if (btnIdx === 12 && btns.length) { // D↑ = back to folder selection
+        if (confirmBtn) { confirmBtn.classList.remove('gp-cursor'); confirmBtn.disabled = true; confirmBtn.style.opacity = '0.4'; }
+        btns.forEach(b => b.classList.remove('selected'));
+        pendingMoveSelectedDest = null;
+        pendingMoveSelectedDestName = null;
+        dlg._gpPhase = 'folders';
+        btns.forEach((b, i) => b.classList.toggle('gp-cursor', i === _gpMoveDlgIdx));
+        _gpVibrate(gp, 40);
+        return;
+      }
+    }
+    return;
+  }
+  if (dlg.id === 'export-dialog') {
+    if (btnIdx === 1) { closeExportModal(); return; } // B = always cancel
+
+    const phase = dlg._gpPhase ?? 'folders';
+    const btns = [...dlg.querySelectorAll('#export-folders button')];
+    const confirmBtn = document.getElementById('export-confirm-btn');
+
+    if (phase === 'folders') {
+      if (btns.length) {
+        let idx = dlg._gpIdx ?? 0;
+        if (btnIdx === 12) { // D↑
+          idx = Math.max(0, idx - 1);
+          dlg._gpIdx = idx;
+          btns.forEach((b, i) => b.classList.toggle('gp-cursor', i === idx));
+          btns[idx]?.scrollIntoView({ block: 'nearest' });
+          _gpVibrate(gp, 40);
+          return;
+        }
+        if (btnIdx === 13) { // D↓
+          idx = Math.min(btns.length - 1, idx + 1);
+          dlg._gpIdx = idx;
+          btns.forEach((b, i) => b.classList.toggle('gp-cursor', i === idx));
+          btns[idx]?.scrollIntoView({ block: 'nearest' });
+          _gpVibrate(gp, 40);
+          return;
+        }
+        if (btnIdx === 0) { // A = select folder → confirm phase
+          btns[idx]?.click(); // selectExportDest()
+          btns.forEach(b => b.classList.remove('gp-cursor'));
+          dlg._gpPhase = 'confirm';
+          if (confirmBtn) confirmBtn.classList.add('gp-cursor');
+          _gpVibrate(gp, 60);
+          return;
+        }
+      } else {
+        // No quick folders: A confirms directly
+        if (btnIdx === 0) {
+          _gpCursorIdx = -1;
+          confirmExport(); _gpVibrate(gp, 100); return;
+        }
+      }
+    }
+
+    if (phase === 'confirm') {
+      if (btnIdx === 0) { // A = confirm export
+        _gpCursorIdx = -1;
+        confirmExport();
+        _gpVibrate(gp, 100);
+        return;
+      }
+      if (btnIdx === 12 && btns.length) { // D↑ = back to folder list
+        if (confirmBtn) confirmBtn.classList.remove('gp-cursor');
+        dlg._gpPhase = 'folders';
+        const idx = dlg._gpIdx ?? 0;
+        btns.forEach((b, i) => b.classList.toggle('gp-cursor', i === idx));
+        _gpVibrate(gp, 40);
+        return;
+      }
+    }
+
+    // Y = shortcut to confirm at any time
+    if (btnIdx === 3) {
+      _gpCursorIdx = -1;
+      confirmExport(); _gpVibrate(gp, 100);
+    }
+  }
+}
+
+function _gpHandleSettings(btnIdx, gp) {
+  const page = document.getElementById('settings-page');
+  if (btnIdx === 1 || btnIdx === 9) { // B or Start = close settings
+    closeSettings();
+    return;
+  }
+  if (btnIdx === 12) { // D-pad up = scroll up
+    page.scrollBy({ top: -100, behavior: 'smooth' });
+    return;
+  }
+  if (btnIdx === 13) { // D-pad down = scroll down
+    page.scrollBy({ top: 100, behavior: 'smooth' });
+    return;
+  }
+}
+
+function _gpDispatch(btnIdx, l1, r1, gp) {
+  // 1. Gamepad overlay open → only allow closing
+  if (document.getElementById('gp-overlay').classList.contains('open')) {
+    if (btnIdx === 1 || btnIdx === 9) closeGpOverlay(); // B or Start
+    return;
+  }
+
+  // 2. Any modal/dialog open → route to dialog handler (BL-046: includes div-based overlays)
+  const openDialog = _gpOpenModal();
+  if (openDialog) {
+    _gpHandleDialog(openDialog, btnIdx, gp);
+    return;
+  }
+
+  // 3. Settings page open → route to settings handler
+  if (document.getElementById('settings-page').classList.contains('open')) {
+    _gpHandleSettings(btnIdx, gp);
+    return;
+  }
+
+  const hasVideo = !!currentFile;
+  const mapping = cfg.gamepad_mapping || {};
+
+  // Try user-defined mapping override first (flat, no layer)
+  if (mapping[String(btnIdx)]) {
+    _gpAction(mapping[String(btnIdx)], gp);
+    return;
+  }
+
+  if (l1 && r1) {
+    const act = GP_DEFAULT_MAPPING.lr[btnIdx];
+    if (act) { _gpAction(act, gp); return; }
+  }
+  if (l1) {
+    if (hasVideo) {
+      const act = GP_DEFAULT_MAPPING.l1[btnIdx];
+      if (act) { _gpAction(act, gp); return; }
+    }
+  }
+  if (r1) {
+    if (hasVideo) {
+      const act = GP_DEFAULT_MAPPING.r1[btnIdx];
+      if (act) { _gpAction(act, gp); return; }
+    }
+  }
+  // Base layer
+  if (hasVideo) {
+    const act = GP_DEFAULT_MAPPING.player_base[btnIdx] ?? GP_DEFAULT_MAPPING.base[btnIdx];
+    if (act) { _gpAction(act, gp); return; }
+  } else {
+    // Browser nav when no video
+    const browserMap = { 12: 'nav_up', 13: 'nav_down', 15: 'nav_down', 14: 'nav_up',
+                         0: 'nav_enter', 1: 'nav_back', 9: 'open_settings' };
+    const act = browserMap[btnIdx] ?? GP_DEFAULT_MAPPING.base[btnIdx];
+    if (act) { _gpAction(act, gp); return; }
+  }
+}
+
+function _gpStartPolling() {
+  if (_gpPollId !== null) return;
+  _gpPollId = requestAnimationFrame(_gpPoll);
+}
+
+function _gpStopPolling() {
+  if (_gpPollId !== null) { cancelAnimationFrame(_gpPollId); _gpPollId = null; }
+}
+
+function _gpScanConnected() {
+  const gamepads = navigator.getGamepads();
+  let anyNew = false;
+  for (const gp of gamepads) {
+    if (!gp) continue;
+    if (!_gpConnected[gp.index]) {
+      _gpConnected[gp.index] = true;
+      anyNew = true;
+      // Firefox: if mapping is '' the gamepad needs a button press to activate
+      if (gp.mapping === '') {
+        showToast('🎮 Appuyez sur un bouton pour activer la manette');
+      } else {
+        showToast(`🎮 Manette connectée : ${gp.id.slice(0, 30)}`);
+        _gpStartPolling();
+      }
+    }
+  }
+  return anyNew;
+}
+
+window.addEventListener('gamepadconnected', (e) => {
+  _gpConnected[e.gamepad.index] = true;
+  if (e.gamepad.mapping === '') {
+    showToast('🎮 Appuyez sur un bouton pour activer la manette');
+  } else {
+    showToast(`🎮 Manette connectée : ${e.gamepad.id.slice(0, 30)}`);
+  }
+  _gpStartPolling();
+});
+
+window.addEventListener('gamepaddisconnected', (e) => {
+  delete _gpConnected[e.gamepad.index];
+  delete _gpPrevButtons[e.gamepad.index];
+  showToast('🎮 Manette déconnectée');
+  if (Object.keys(_gpConnected).length === 0) _gpStopPolling();
+});
+
+// Scan on load + on tab visibility (Firefox compat)
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) _gpScanConnected();
+});
+
+// ── Gamepad mapping overlay ───────────────────────────────────────────────────
+function _gpOverlayBackdropClose(e) {
+  if (e.target === document.getElementById('gp-overlay')) closeGpOverlay();
+}
+
+function openGpOverlay() {
+  const body = document.getElementById('gp-overlay-body');
+  const LABEL = {
+    0: 'A', 1: 'B', 2: 'X', 3: 'Y',
+    8: 'Select', 9: 'Start',
+    12: 'D↑', 13: 'D↓', 14: 'D←', 15: 'D→',
+  };
+  const ACTION_LABEL = {
+    play_pause: 'Lecture / Pause',
+    close_player: 'Fermer le lecteur',
+    toggle_watched: 'Marquer vu / non vu',
+    fullscreen: 'Plein écran',
+    open_settings: 'Paramètres',
+    open_overlay: 'Cette aide',
+    seek_back_medium: `Reculer ${cfg.seek_medium}s`,
+    seek_fwd_medium: `Avancer ${cfg.seek_medium}s`,
+    seek_back_long: `Reculer ${cfg.seek_long}s`,
+    seek_fwd_long: `Avancer ${cfg.seek_long}s`,
+    seek_back_xlong: `Reculer ${cfg.seek_xlong}s`,
+    seek_fwd_xlong: `Avancer ${cfg.seek_xlong}s`,
+    volume_up: 'Volume +10%',
+    volume_down: 'Volume −10%',
+    prev_file: 'Fichier précédent',
+    next_file: 'Fichier suivant',
+    jump_0: 'Aller à 0%',
+    jump_25: 'Aller à 25%',
+    jump_50: 'Aller à 50%',
+    jump_75: 'Aller à 75%',
+    jump_100: 'Aller à 100%',
+    aspect_ratio: 'Ratio image',
+    subtitles: 'Sous-titres',
+    move_quick_1: `Déplacer → ${esc(quickFolders[0]?.name ?? 'Dossier 1')}`,
+    move_quick_2: `Déplacer → ${esc(quickFolders[1]?.name ?? 'Dossier 2')}`,
+    move_quick_3: `Déplacer → ${esc(quickFolders[2]?.name ?? 'Dossier 3')}`,
+    delete_current: 'Supprimer le fichier courant',
+    move_current: 'Déplacer le fichier courant',
+    seg_in: 'Marquer point IN (segment)',
+    seg_out: 'Confirmer segment OUT',
+    open_export: 'Ouvrir la fenêtre Exporter',
+    nav_up: 'Curseur ↑',
+    nav_down: 'Curseur ↓',
+    nav_enter: 'Ouvrir',
+    nav_back: 'Dossier parent',
+  };
+  const renderLayer = (title, mapObj) => {
+    const rows = Object.entries(mapObj).map(([bi, act]) => {
+      const btn = LABEL[+bi] ?? `Btn ${bi}`;
+      const lbl = ACTION_LABEL[act] ?? act;
+      return `<div class="gp-row"><span class="gp-btn-badge">${btn}</span><span class="gp-action">${lbl}</span></div>`;
+    }).join('');
+    return `<div class="gp-layer-title">${title}</div>${rows}`;
+  };
+  const renderFixed = (title, rows) => {
+    const html = rows.map(([btn, lbl]) =>
+      `<div class="gp-row"><span class="gp-btn-badge">${btn}</span><span class="gp-action">${lbl}</span></div>`
+    ).join('');
+    return `<div class="gp-layer-title">${title}</div>${html}`;
+  };
+  body.innerHTML = [
+    renderLayer('Base (joueur)', { ...GP_DEFAULT_MAPPING.player_base, ...GP_DEFAULT_MAPPING.base }),
+    renderLayer('L1 (joueur)', GP_DEFAULT_MAPPING.l1),
+    renderLayer('R1 (joueur)', GP_DEFAULT_MAPPING.r1),
+    renderLayer('L1 + R1', GP_DEFAULT_MAPPING.lr),
+    renderFixed('Browser (sans lecteur)', [
+      ['D↑ / D↓', 'Curseur ↑ / ↓'],
+      ['A', 'Ouvrir'],
+      ['B', 'Dossier parent'],
+      ['Start', 'Paramètres'],
+    ]),
+    renderFixed('Paramètres ouverts', [
+      ['D↑ / D↓', 'Défiler ↑ / ↓'],
+      ['B / Start', 'Fermer les paramètres'],
+    ]),
+    renderFixed('Dialogue de suppression', [
+      ['A', 'Confirmer la suppression'],
+      ['B', 'Annuler'],
+    ]),
+    renderFixed('Dialogue de déplacement', [
+      ['D↑ / D↓', 'Naviguer dans les dossiers'],
+      ['A', 'Choisir le dossier sélectionné'],
+      ['B', 'Annuler'],
+    ]),
+    renderFixed('Dialogue Export segments', [
+      ['D↑ / D↓', 'Naviguer dans les dossiers'],
+      ['A', 'Sélectionner le dossier destination'],
+      ['Y', 'Confirmer l\'export'],
+      ['B', 'Annuler'],
+    ]),
+    `<div class="gp-layer-title">Analogique</div>
+     <div class="gp-row"><span class="gp-btn-badge">LS-X</span><span class="gp-action">Scrubbing (seek)</span></div>
+     <div class="gp-row"><span class="gp-btn-badge">RS-Y</span><span class="gp-action">Volume</span></div>`,
+  ].join('');
+  document.getElementById('gp-overlay').classList.add('open');
+}
+
+function closeGpOverlay() {
+  document.getElementById('gp-overlay').classList.remove('open');
+}
+
+installStandaloneShellHooks();
+registerServiceWorker();
 init();
 </script>
 </body>

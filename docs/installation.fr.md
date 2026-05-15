@@ -160,6 +160,8 @@ environment:
 
 L'application sera accessible sur `https://IP_DU_NAS:8000`.
 
+Cela active aussi l'installabilité PWA sur les vrais appareils : les service workers et les invites d'installation standalone exigent du HTTPS (ou `localhost` en développement local).
+
 ### Exemple avec Portainer
 
 Dans l'interface Portainer, crée un stack avec le contenu de `docker-compose.yml` et ajoute / modifie les variables d'environnement selon ton setup.

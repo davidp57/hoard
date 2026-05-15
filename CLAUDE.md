@@ -1,5 +1,10 @@
 # Hoard — Contexte projet
 
+> **[AGENT INSTRUCTION]** Au début de chaque nouveau contexte, lire
+> `.github/copilot-instructions.md` — c'est le fichier d'instructions principal
+> (conventions, workflows commit/PR/release, architecture, langue).
+> `CLAUDE.md` est le contexte projet complémentaire.
+
 ## Origine du projet
 
 Application créée pour remplacer **nPlayer** (iPad, accès SMB au NAS) sur un **laptop Windows 11 tactile**.
