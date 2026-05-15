@@ -2,7 +2,7 @@
 
 ## Présentation
 
-Hoard est un navigateur de fichiers vidéo accessible depuis un navigateur web. Il est conçu pour parcourir un disque réseau (NAS), lire des vidéos directement dans le navigateur et se souvenir de là où tu t'es arrêté.
+Hoard est un navigateur de fichiers média accessible depuis un navigateur web. Il est conçu pour parcourir un disque réseau (NAS), lire des vidéos, visionner des images et archives BD, lire des fichiers audio et des PDF directement dans le navigateur, et se souvenir de là où tu t'es arrêté.
 
 ---
 
@@ -55,6 +55,49 @@ Le modal de déplacement propose deux modes :
 
 - **Dossiers épinglés** : déplacement rapide vers un dossier prédéfini.
 - **📂 Parcourir…** : ouvre un sélecteur qui parcourt toute l'arborescence pour choisir n'importe quel dossier de destination.
+
+---
+
+## Lecteurs alternatifs
+
+En plus des vidéos, Hoard peut ouvrir directement plusieurs types de fichiers :
+
+### Images
+
+Les fichiers JPG, PNG, GIF, WEBP, BMP, TIFF et AVIF s'ouvrent dans une visionneuse intégrée.
+
+- **← / →** (clavier ou boutons) : image précédente / suivante dans le dossier
+- **Bouton ⛶** : bascule entre affichage ajusté à la largeur et plein écran
+- **✕** : ferme la visionneuse
+
+### Archives BD/manga (.cbz, .zip, .cbr)
+
+Les archives d'images s'ouvrent page à page comme une visionneuse.
+
+- Navigation identique à la visionneuse d'images (← / →)
+- La page courante est sauvegardée pour reprendre là où tu t'es arrêté
+- `.cbr` nécessite que `unrar-free` soit installé sur le serveur
+
+### PDF
+
+Les fichiers PDF sont rendus directement dans le navigateur via PDF.js.
+
+- **← / →** : page précédente / suivante
+- **− / +** : dézoomer / zoomer
+- **Bouton ⛶** : bascule entre ajustement à la largeur et taille originale
+- La page courante est sauvegardée
+
+### Audio (.mp3, .flac, .ogg, .m4a, .aac, .wav, .opus)
+
+Les fichiers audio s'ouvrent dans un lecteur minimaliste.
+
+- Barre de progression cliquable
+- Boutons ◀◀ / ▶ / ▶▶ (seek ±10 s, lecture/pause)
+- La position est sauvegardée
+
+### Suivi de progression
+
+L'état **vu / en cours / non vu** fonctionne pour tous les types de médias, pas seulement les vidéos. Le pourcentage est calculé sur la même base (position / durée pour vidéo et audio ; page / total pour PDF et archives).
 
 ---
 

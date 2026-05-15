@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Visionneuse d'images (BL-054)** : les images (JPG, PNG, GIF, WEBP, BMP, TIFF, AVIF) s'ouvrent dans un viewer intégré au panneau player. Navigation précédent/suivant (touches ← / →, boutons), bascule mode « plein écran » / « largeur ajustée ». La progression (index/total) est sauvegardée en base.
+- **Lecteur d'archives BD/manga (BL-055)** : les fichiers `.cbz`, `.zip` et `.cbr` s'ouvrent comme des visionneuses page à page. La liste des images est extraite côté serveur (`/api/archive/list`) ; chaque page est servie à la demande (`/api/archive/image?index=N`). CBR nécessite `rarfile` + `unrar-free`.
+- **Lecteur PDF (BL-056)** : les fichiers `.pdf` sont rendus via PDF.js v4 (ES module, inclus dans `frontend/pdfjs/`). Navigation page par page (← / →), zoom (+/−), mode ajustement largeur / taille originale. La page courante est sauvegardée en base.
+- **Lecteur audio (BL-057)** : les fichiers audio (MP3, FLAC, OGG, M4A, AAC, WAV, OPUS) s'ouvrent dans un player audio minimaliste réutilisant l'élément `<video>` HTML5. Barre de progression cliquable, contrôles lecture/pause et seek ±10s, bouton fermer.
+- **Champ `media_type` dans `/api/files` et `/api/search` (BL-053)** : chaque entrée fichier expose désormais `media_type` (`video`, `image`, `audio`, `pdf`, `archive`, `other`). Le progrès est retourné pour tous les types de médias (pas seulement les vidéos).
+- **Endpoint `/api/file` (BL-053)** : remplace `/api/stream` pour servir tout type de fichier média avec support Range. `/api/stream` est conservé pour compatibilité.
+- **Endpoints `/api/archive/list` et `/api/archive/image` (BL-055)** : liste les images d'une archive et extrait une image à un index donné.
+- **Dépendance `rarfile>=4.0`** ajoutée à `backend/requirements.txt` ; `unrar-free` ajouté à l'image Docker.
+
 ---
 
 ## [v2.1.0] - 2026-05-15

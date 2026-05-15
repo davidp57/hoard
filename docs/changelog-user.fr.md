@@ -6,6 +6,13 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ## [Non publié]
 
+### Nouveautés
+- **Visionneuse d'images** : les photos (JPG, PNG, GIF, WEBP, AVIF…) s'ouvrent directement dans l'interface. Navigation avec les flèches ← / →, bascule entre affichage ajusté et pleine largeur.
+- **Lecteur d'archives BD/manga** : les fichiers `.cbz`, `.zip` et `.cbr` s'ouvrent page à page comme une visionneuse d'images.
+- **Lecteur PDF** : les fichiers PDF s'affichent directement, avec navigation page à page et contrôles de zoom.
+- **Lecteur audio** : les fichiers audio (MP3, FLAC, OGG, M4A, WAV…) se lisent dans un player simplifié avec barre de progression.
+- **Suivi de progression universel** : l'état vu/en cours/non vu est maintenant disponible pour les images, PDF, archives et fichiers audio, pas seulement pour les vidéos.
+
 ---
 
 ## [v2.1.0] — 2026-05-15

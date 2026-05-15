@@ -14,13 +14,14 @@ import tempfile
 import threading
 import time
 import uuid
+import zipfile
 from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import urlparse
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -862,9 +863,56 @@ VIDEO_EXTENSIONS = {
     ".mpeg",
 }
 
+IMAGE_EXTENSIONS = {
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".gif",
+    ".webp",
+    ".bmp",
+    ".tiff",
+    ".tif",
+    ".avif",
+}
+
+AUDIO_EXTENSIONS = {".mp3", ".flac", ".ogg", ".m4a", ".aac", ".wav", ".opus"}
+PDF_EXTENSIONS = {".pdf"}
+ARCHIVE_EXTENSIONS = {".zip", ".cbz", ".cbr"}
+
 
 def is_video(path: Path) -> bool:
     return path.suffix.lower() in VIDEO_EXTENSIONS
+
+
+def is_image(path: Path) -> bool:
+    return path.suffix.lower() in IMAGE_EXTENSIONS
+
+
+def is_audio(path: Path) -> bool:
+    return path.suffix.lower() in AUDIO_EXTENSIONS
+
+
+def is_pdf(path: Path) -> bool:
+    return path.suffix.lower() in PDF_EXTENSIONS
+
+
+def is_archive(path: Path) -> bool:
+    return path.suffix.lower() in ARCHIVE_EXTENSIONS
+
+
+def get_media_type(path: Path) -> str:
+    """Return media_type string for a file path."""
+    if is_video(path):
+        return "video"
+    if is_image(path):
+        return "image"
+    if is_audio(path):
+        return "audio"
+    if is_pdf(path):
+        return "pdf"
+    if is_archive(path):
+        return "archive"
+    return "other"
 
 
 def _safe_int(value):
@@ -1216,17 +1264,19 @@ def list_files(path: str = ""):
     entries = []
     for item, st in items_with_stat:
         rel = to_rel(item)
+        _media_type = get_media_type(item) if item.is_file() else "other"
         entry = {
             "name": item.name,
             "path": rel,
             "is_dir": item.is_dir(),
             "is_video": is_video(item) if item.is_file() else False,
+            "media_type": _media_type,
             "size": st.st_size if item.is_file() else 0,
             "mtime": st.st_mtime,
             "is_quick_folder": rel in qf_paths if item.is_dir() else False,
             "folder_state": get_folder_state(item, progress_map) if item.is_dir() else None,
         }
-        if entry["is_video"]:
+        if _media_type != "other":
             entry["progress"] = get_progress(item)
         entry["tags"] = tags_map.get(rel, [])
         entries.append(entry)
@@ -1274,17 +1324,19 @@ def search_files(q: str, path: str = ""):
         except PermissionError:
             continue
         rel = to_rel(item)
+        _media_type_s = get_media_type(item) if item.is_file() else "other"
         entry = {
             "name": item.name,
             "path": rel,
             "is_dir": item.is_dir(),
             "is_video": is_video(item) if item.is_file() else False,
+            "media_type": _media_type_s,
             "size": st.st_size if item.is_file() else 0,
             "mtime": st.st_mtime,
             "is_quick_folder": rel in qf_paths if item.is_dir() else False,
             "folder_state": None,  # skip get_folder_state to avoid nested rglob in search
         }
-        if entry["is_video"]:
+        if _media_type_s != "other":
             entry["progress"] = get_progress(item)
         entry["tags"] = tags_map_s.get(rel, [])
         entries.append(entry)
@@ -2185,6 +2237,129 @@ def transcode_video(path: str):
         media_type="video/mp4",
         headers={"Cache-Control": "no-cache"},
     )
+
+
+@app.get("/api/file")
+def serve_file(path: str, request: Request):
+    """Serve any media file (image, audio, PDF, video) with Range support."""
+    file = safe_path(path)
+    if not file.exists() or not file.is_file():
+        raise HTTPException(status_code=404)
+
+    file_size = file.stat().st_size
+    mime_type = mimetypes.guess_type(str(file))[0] or "application/octet-stream"
+
+    range_header = request.headers.get("range")
+    if range_header:
+        range_str = range_header.replace("bytes=", "")
+        if "," in range_str:
+            raise HTTPException(status_code=416, detail="Multi-range not supported")
+        parts = range_str.split("-")
+        start = int(parts[0]) if parts[0] else 0
+        end = int(parts[1]) if len(parts) > 1 and parts[1] else file_size - 1
+        if start < 0 or end >= file_size or start > end:
+            raise HTTPException(status_code=416, detail="Range not satisfiable")
+        chunk_size = end - start + 1
+
+        def iter_range():
+            with open(file, "rb") as f:
+                f.seek(start)
+                remaining = chunk_size
+                while remaining > 0:
+                    chunk = f.read(min(65536, remaining))
+                    if not chunk:
+                        break
+                    yield chunk
+                    remaining -= len(chunk)
+
+        headers = {
+            "Content-Range": f"bytes {start}-{end}/{file_size}",
+            "Accept-Ranges": "bytes",
+            "Content-Length": str(chunk_size),
+            "Content-Type": mime_type,
+        }
+        return StreamingResponse(iter_range(), status_code=206, headers=headers)
+
+    def iter_full_file():
+        with open(file, "rb") as f:
+            while chunk := f.read(65536):
+                yield chunk
+
+    return StreamingResponse(
+        iter_full_file(),
+        media_type=mime_type,
+        headers={"Accept-Ranges": "bytes", "Content-Length": str(file_size)},
+    )
+
+
+@app.get("/api/archive/list")
+def archive_list(path: str):
+    """Return ordered list of image names inside a ZIP/CBZ/CBR archive."""
+    file = safe_path(path)
+    if not file.exists() or not file.is_file():
+        raise HTTPException(status_code=404)
+    ext = file.suffix.lower()
+    if ext in {".zip", ".cbz"}:
+        with zipfile.ZipFile(file) as zf:
+            names = sorted(
+                n
+                for n in zf.namelist()
+                if not n.endswith("/") and Path(n).suffix.lower() in IMAGE_EXTENSIONS
+            )
+        return {"count": len(names), "images": names}
+    if ext == ".cbr":
+        try:
+            import rarfile  # noqa: PLC0415
+        except ImportError:
+            raise HTTPException(status_code=501, detail="rarfile not installed") from None
+        try:
+            with rarfile.RarFile(file) as rf:
+                names = sorted(
+                    n for n in rf.namelist() if Path(n).suffix.lower() in IMAGE_EXTENSIONS
+                )
+            return {"count": len(names), "images": names}
+        except Exception as exc:
+            raise HTTPException(status_code=422, detail=f"Cannot read CBR: {exc}") from exc
+    raise HTTPException(status_code=415, detail="Unsupported archive format")
+
+
+@app.get("/api/archive/image")
+def archive_image(path: str, index: int):
+    """Extract and serve the Nth image from a ZIP/CBZ/CBR archive."""
+    file = safe_path(path)
+    if not file.exists() or not file.is_file():
+        raise HTTPException(status_code=404)
+    ext = file.suffix.lower()
+    if ext in {".zip", ".cbz"}:
+        with zipfile.ZipFile(file) as zf:
+            names = sorted(
+                n
+                for n in zf.namelist()
+                if not n.endswith("/") and Path(n).suffix.lower() in IMAGE_EXTENSIONS
+            )
+            if index < 0 or index >= len(names):
+                raise HTTPException(status_code=404, detail="Image index out of range")
+            data = zf.read(names[index])
+            mime = mimetypes.guess_type(names[index])[0] or "image/jpeg"
+        return Response(content=data, media_type=mime)
+    if ext == ".cbr":
+        try:
+            import rarfile  # noqa: PLC0415
+        except ImportError:
+            raise HTTPException(status_code=501, detail="rarfile not installed") from None
+        try:
+            with rarfile.RarFile(file) as rf:
+                names = sorted(
+                    n for n in rf.namelist() if Path(n).suffix.lower() in IMAGE_EXTENSIONS
+                )
+                if index < 0 or index >= len(names):
+                    raise HTTPException(status_code=404, detail="Image index out of range")
+                data = rf.read(names[index])
+                mime = mimetypes.guess_type(names[index])[0] or "image/jpeg"
+            return Response(content=data, media_type=mime)
+        except Exception as exc:
+            raise HTTPException(status_code=422, detail=f"Cannot read CBR: {exc}") from exc
+    raise HTTPException(status_code=415, detail="Unsupported archive format")
 
 
 # Serve frontend

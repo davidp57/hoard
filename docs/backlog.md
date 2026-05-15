@@ -24,21 +24,6 @@ Facteur de marge actuel : **0,40**.
 
 ## Lots actifs
 
-### Lot 8 — Gamepad : correctifs post-recette (~80 min : 65 min Copilot + 15 min gestion)
-
-> Bugs identifiés lors des tests sur SteamDeck (Edge, Docker `develop`, port 8100).
-> BL-046 est un prérequis naturel de BL-045 (si on convertit move-dialog en div dans BL-046, la 2-phase de BL-045 s'appuie sur la nouvelle structure).
-
-| ID | Titre | Prio | Est. | Créé | Démarré | Terminé |
-| --- | --- | --- | --- | --- | --- | --- |
-| BL-046 | Gamepad — delete-dialog et move-dialog cassés en fullscreen | P1 | 25 min | 2026-05-13 | 2026-05-13 | 2026-05-13 |
-| BL-045 | Gamepad — move dialog : ajouter phase de confirmation (A/B) | P1 | 15 min | 2026-05-13 | 2026-05-13 | 2026-05-13 |
-| BL-044 | Gamepad — vidéo démarre en fond sonore après action dialog | P1 | 15 min | 2026-05-13 | 2026-05-13 | 2026-05-13 |
-| BL-043 | Gamepad — curseur remis à zéro après suppression/déplacement/split | P2 | 10 min | 2026-05-13 | 2026-05-13 | 2026-05-13 |
-| BL-052 | Gamepad — curseur à -1 après auto-play post-suppression (régression BL-043) | P1 | 10 min | 2026-05-15 | 2026-05-15 | 2026-05-15 |
-
----
-
 ### Lot 10 — Lecteurs alternatifs : images, archives, PDF, audio (~240 min : 225 min Copilot + 15 min gestion)
 
 > Extension de Hoard aux médias non-vidéo. Le `#player-panel` accueille 4 sous-panels (vidéo, images, PDF, audio).
@@ -47,12 +32,12 @@ Facteur de marge actuel : **0,40**.
 
 | ID | Titre | Prio | Est. | Créé | Démarré | Terminé |
 | --- | --- | --- | --- | --- | --- | --- |
-| BL-053 | Lecteurs — backend socle (media_type, /api/file, archives, CBR) | P1 | 40 min | 2026-05-15 | | |
-| BL-054 | Lecteurs — visionneuse images (dossier + standalone, zoom modes) | P1 | 45 min | 2026-05-15 | | |
-| BL-055 | Lecteurs — archives (.zip / .cbz / .cbr) | P1 | 30 min | 2026-05-15 | | |
-| BL-056 | Lecteurs — lecteur PDF (PDF.js, keyboard/gamepad, progress) | P1 | 60 min | 2026-05-15 | | |
-| BL-057 | Lecteurs — lecteur audio (native, UI dédiée) | P2 | 20 min | 2026-05-15 | | |
-| BL-058 | Lecteurs — tests + intégration | P2 | 30 min | 2026-05-15 | | |
+| BL-053 | Lecteurs — backend socle (media_type, /api/file, archives, CBR) | P1 | 40 min | 2026-05-15 | 2026-05-15 | 2026-05-15 |
+| BL-054 | Lecteurs — visionneuse images (dossier + standalone, zoom modes) | P1 | 45 min | 2026-05-15 | 2026-05-15 | 2026-05-15 |
+| BL-055 | Lecteurs — archives (.zip / .cbz / .cbr) | P1 | 30 min | 2026-05-15 | 2026-05-15 | 2026-05-15 |
+| BL-056 | Lecteurs — lecteur PDF (PDF.js, keyboard/gamepad, progress) | P1 | 60 min | 2026-05-15 | 2026-05-15 | 2026-05-15 |
+| BL-057 | Lecteurs — lecteur audio (native, UI dédiée) | P2 | 20 min | 2026-05-15 | 2026-05-15 | 2026-05-15 |
+| BL-058 | Lecteurs — tests + intégration | P2 | 30 min | 2026-05-15 | 2026-05-15 | 2026-05-15 |
 
 ---
 
@@ -104,63 +89,7 @@ Facteur de marge actuel : **0,40**.
 
 ---
 
-### Lot 9 — Multi-segments : sélection multi-zones et export (~130 min : 115 min Copilot + 15 min gestion)
-
-> Remplace le système IN/OUT → découper par une sélection multi-segments persistée en base.
-> L'utilisateur place autant de paires IN/OUT qu'il veut, puis exporte en N fichiers séparés ou en un seul fichier fusionné (concat lossless FFmpeg).
-> Dépendances internes : BL-049, BL-050 et BL-051 dépendent de BL-047 et BL-048.
-
-| ID | Titre | Prio | Est. | Créé | Démarré | Terminé |
-| --- | --- | --- | --- | --- | --- | --- |
-| BL-047 | Segments — table DB + endpoints CRUD | P1 | 20 min | 2026-05-14 | 2026-05-14 | 2026-05-14 |
-| BL-048 | Segments — export backend (individuel + fusionné) | P1 | 25 min | 2026-05-14 | 2026-05-14 | 2026-05-14 |
-| BL-049 | Segments — UI seekbar + liste chips (frontend) | P1 | 35 min | 2026-05-14 | 2026-05-27 | 2026-05-27 |
-| BL-050 | Segments — modal export + gamepad (frontend) | P1 | 20 min | 2026-05-14 | 2026-05-27 | 2026-05-27 |
-| BL-051 | Segments — tests + nettoyage ancien cut | P2 | 15 min | 2026-05-14 | 2026-05-27 | 2026-05-27 |
-
----
-
 ## Détails
-
-### BL-046 — Gamepad : delete-dialog et move-dialog cassés en fullscreen
-
-- **Dates** : `created=2026-05-13`
-- **Contexte** : testé sur SteamDeck / Edge, Docker `develop` port 8100.
-- **Symptôme** : en mode plein écran natif, les dialogues de suppression et de déplacement s'affichent mais les boutons gamepad n'ont aucun effet (ni A pour confirmer, ni B pour annuler).
-- **Cause racine** : `#delete-dialog` et `#move-dialog` utilisent `<dialog>` + `showModal()`. Sur SteamDeck/Edge en fullscreen natif, les éléments `<dialog>` sont rendus dans le « top layer » du navigateur, mais n'y reçoivent pas les événements correctement — exactement le même bug que `#gp-overlay` (corrigé en convertissant la dialog en `<div>` et en la déplaçant dans `document.fullscreenElement` au `fullscreenchange`). De plus, `document.querySelector('dialog[open]')` peut retourner `null` si l'attribut `open` n'est pas positionné de la même façon sur un `<div>`.
-- **Correction proposée** : convertir `#delete-dialog` et `#move-dialog` de `<dialog>` en `<div>` overlay (même pattern que les autres modals `<div>` de l'app : `display:none` / `display:flex`, `position:fixed`, `z-index`). Adapter `confirmDelete()`, `openMoveModal()`, `closeModal()`. Déplacer les deux divs dans `document.fullscreenElement` lors du `fullscreenchange` (comme `#gp-overlay`). Adapter `_gpDispatch` pour détecter les divs ouverts au lieu de `dialog[open]`.
-- **Attention** : `<dialog>` offre le comportement `Escape` natif et le backdrop — il faudra les recréer explicitement pour la fermeture clavier et le clic backdrop.
-
----
-
-### BL-045 — Gamepad : move dialog — ajouter phase de confirmation (A/B)
-
-- **Dates** : `created=2026-05-13`
-- **Contexte** : dépend de BL-046 (si move-dialog est converti en div dans BL-046, adapter en conséquence).
-- **Symptôme** : dans le move dialog, appuyer sur A avec le gamepad déclenche immédiatement le déplacement du fichier, sans étape de confirmation. Il n'y a pas de bouton « OK » ni « Annuler » dans le flux gamepad.
-- **Cause racine** : `_gpHandleDialog` pour `move-dialog` appelle directement `btns[_gpMoveDlgIdx]?.click()` → `moveToFolder()` sans 2ème phase. Contrairement au `cut-dialog` qui a un `_gpPhase` ('folders' → 'confirm').
-- **Correction proposée** : ajouter une machine à états à 2 phases dans `_gpHandleDialog` pour `move-dialog` (identique à `cut-dialog`) : phase `'folders'` — D↑/↓ navigue les dossiers, A → sélectionne le dossier et passe en phase `'confirm'` en focalisant le bouton Confirmer ; phase `'confirm'` — A exécute le déplacement, B revient en phase `'folders'`. B annule le dialog depuis n'importe quelle phase. Ajouter un bouton « Confirmer » (`id="move-confirm-btn"`) visible dans le HTML du modal, et lui appliquer la classe `.gp-cursor` quand il est focalisé.
-
----
-
-### BL-044 — Gamepad : vidéo démarre en fond sonore après action dialog
-
-- **Dates** : `created=2026-05-13`
-- **Symptôme** : parfois, après avoir confirmé/annulé un dialogue (suppression, déplacement) via le gamepad, une vidéo se met à jouer en arrière-plan — l'audio est audible alors que l'UI affiche la liste et qu'aucune vidéo n'est ouverte par l'utilisateur.
-- **Cause racine** : race condition async. Quand A confirme la suppression, `dlg.close()` s'exécute de façon synchrone, mais `await navigate(currentPath)` est asynchrone. Pendant la fenêtre async (avant que `renderFiles()` remette `_gpCursorIdx = -1`), `_gpCursorIdx` pointe encore un fichier valide et `currentFile = null`. Si A est re-pressé dans cette fenêtre (micro-rebond de bouton, ou l'utilisateur appuie rapidement), `_gpDispatch` ne voit plus de dialog ouvert → chemin browser nav → `nav_enter` → `_gpActivateCursor()` → `playVideo()`. La vidéo démarre mais le player ne s'affiche pas si la navigation a déjà effacé `currentFile`.
-- **Correction proposée** : ajouter un flag `_gpActionCooldown` (timestamp) positionné juste avant tout appel à `navigate()` après une action dialog. Dans `_gpDispatch`, si `Date.now() < _gpActionCooldown`, ignorer tous les inputs sauf les modificateurs. Durée de cooldown : 600 ms (suffisant pour couvrir un `navigate()` normal). Alternative plus simple : réinitialiser `_gpCursorIdx = -1` immédiatement lors du lancement d'une action qui va rafraîchir la liste (avant l'`await`).
-
----
-
-### BL-043 — Gamepad : curseur remis à zéro après suppression/déplacement/split
-
-- **Dates** : `created=2026-05-13`
-- **Symptôme** : après avoir supprimé, déplacé ou découpé un fichier via le gamepad, le curseur de navigation revient au début de la liste (`_gpCursorIdx = -1`). L'utilisateur doit re-parcourir toute la liste depuis le début pour atteindre le fichier suivant.
-- **Comportement attendu** : après l'action, le curseur reste à l'index N (qui pointe maintenant sur le fichier qui était à N+1 avant la suppression, ou reste sur N si N < nouvelle longueur, ou sur le dernier élément sinon).
-- **Cause racine** : `renderFiles()` (ligne ~3039) appelle toujours `_gpCursorIdx = -1`. Toutes les actions fichier appellent `navigate(currentPath)` → `renderFiles()`. Il n'existe aucun mécanisme pour persister ou restaurer le curseur entre deux rendus.
-- **Correction proposée** : avant l'appel à `navigate()` dans les actions delete, move et split (cut), sauvegarder `_gpCursorIdx` dans une variable module `_gpPendingRestoreIdx`. Dans `renderFiles()`, après avoir calculé `_gpRenderedList`, si `_gpPendingRestoreIdx >= 0`, restaurer `_gpCursorIdx = Math.min(_gpPendingRestoreIdx, _gpRenderedList.length - 1)` et appeler `_gpMoveCursor(0)` pour mettre à jour le highlight DOM, puis réinitialiser `_gpPendingRestoreIdx = -1`.
-
----
 
 ### BL-002 — Sort Controls In The File List
 
@@ -224,36 +153,21 @@ Facteur de marge actuel : **0,40**.
 
 > Lots terminés depuis plus de 3 jours → [backlog-archive.md](backlog-archive.md)
 
-### Lot 4 — UI Browser & Player Extensions
+### Lot 9 — Multi-segments : sélection multi-zones et export
 
-- **BL-040** — `created=2026-05-09`, `started=2026-05-09`, `completed=2026-05-09` — Racine de navigation par défaut : colonne `is_default` en base, endpoint `POST /api/home-roots/{id}/set-default`, navigation directe au démarrage et après PIN, indicateur visuel dans les Paramètres. `openRootPicker()` ouvre la browse modal au lieu d'utiliser `currentPath` silencieusement.
+- **BL-047** — `created=2026-05-14`, `started=2026-05-14`, `completed=2026-05-14` — Table `segments` (id, path, seg_in, seg_out) + endpoints CRUD : `GET/POST /api/segments`, `DELETE /api/segments/{id}`. Validation `seg_out > seg_in`.
+- **BL-048** — `created=2026-05-14`, `started=2026-05-14`, `completed=2026-05-14` — Export backend : mode `individual` (N fichiers, `ffmpeg -ss/-t -c copy`) et mode `merged` (concat demuxer lossless). `POST /api/files/export-segments` → job async. Déplace source + export vers destination.
+- **BL-049** — `created=2026-05-14`, `started=2026-05-15`, `completed=2026-05-15` — UI seekbar : marqueurs IN/OUT colorés, fills par segment (palette cyclique), zone hachurée animée. Chips `[hh:mm → hh:mm] ×` dans `#segments-list`. Raccourcis `I` / `O` / `D`. Supprime `cutIn`/`cutOut` et les anciens boutons de découpe.
+- **BL-050** — `created=2026-05-14`, `started=2026-05-15`, `completed=2026-05-15` — Modal export `#export-dialog` : toggle `individual`/`merged`, checkbox `Conserver l'original`, liste dossiers rapides, input destination, bouton Exporter. Gamepad 2 phases. Raccourci `E`/`C`.
+- **BL-051** — `created=2026-05-14`, `started=2026-05-15`, `completed=2026-05-15` — Tests CRUD segments, export, range invalide. Nettoyage `TestCut`. Migration `init_db()` pour `segments`. Ruff ✓.
 
-- **BL-024** — `created=2026-05-09`, `started=2026-05-09`, `completed=2026-05-09` — Support gamepad complet : Gamepad API, 4 couches L1/R1, contrôles lecteur, navigation navigateur, scrubbing analogique, HUD badge, overlay aide, toasts, haptique Chrome, section Paramètres Manette. Backend : clés `gamepad_enabled/deadzone/haptic/mapping` en SQLite.
+### Lot 8 — Gamepad : correctifs post-recette
 
-- **BL-023** — `created=2026-05-09`, `started=2026-05-09`, `completed=2026-05-09` — Liste de dossiers « home » multiples avec gestion backend (`home_roots`) et écran de sélection UI.
-- **BL-009** — `created=2026-04-12`, `started=2026-05-09`, `completed=2026-05-09` — Rafraîchissement auto de la liste toutes les 30 s (onglet visible + vidéo en pause + pas de recherche active).
-- **BL-010** — `created=2026-04-12`, `started=2026-05-09`, `completed=2026-05-09` — Sélecteur de vitesse de lecture (0,5×/1×/1,5×/2×), réinitialisé à chaque ouverture.
-- **BL-016** — `created=2026-04-12`, `started=2026-05-09`, `completed=2026-05-09` — Métadonnées vidéo (codec, résolution, durée, bitrate) via `ffprobe` affichées sous le titre du fichier en cours.
-- **BL-012** — `created=2026-04-12`, `started=2026-05-09`, `completed=2026-05-09` — Recherche récursive dans les noms de fichiers via `GET /api/search`, champ dans la barre de tri.
-- **BL-005** — `created=2026-04-12`, `started=2026-05-09`, `completed=2026-05-09` — Sélecteur de destination libre (parcours de l'arborescence filesystem) dans le modal de déplacement.
-- **BL-007** — `created=2026-04-12`, `started=2026-05-09`, `completed=2026-05-09` — Tags arbitraires sur les fichiers (table `file_tags`), badges dans la liste, barre de filtrage par tag dynamique.
-
-### Lots 1–3
-
-- **BL-026** — `created=2026-05-09`, `started=2026-05-09`, `completed=2026-05-09` — Contrôles plein écran : les boutons skip, les touches clavier et le swipe horizontal affichent désormais tous un toast de seek ; le reveal de la barre de contrôles est limité aux 10 % bas de l'écran ; `mousemove` ne déclenche plus la révélation hors de la zone basse.
-- **BL-021** — `created=2026-05-09`, `started=2026-05-09`, `completed=2026-05-09` — Seek unifié 4 niveaux (`seek_short/medium/long/xlong` configurables), raccourcis clavier étendus (Shift/Ctrl/Alt+←/→, A, M, I/O, C, D, Suppr, S, PageDown/PageUp, ?), et toutes les boîtes de dialogue (déplacement, découpe, suppression, aide) converties en `<dialog>.showModal()` pour rester visibles au-dessus du plein écran natif.
-- **BL-025** — `created=2026-05-09`, `started=2026-05-09`, `completed=2026-05-09` — Icône du bouton aspect ratio remplacée par une icône SVG de cadre distincte, évitant la confusion avec le bouton plein écran.
-- **BL-022** — `created=2026-05-09`, `started=2026-05-09`, `completed=2026-05-09` — Paramètre `transcode_enabled` ajouté (défaut : activé). Quand désactivé, le player utilise toujours `/api/stream` et n'appelle jamais `/api/transcode`.
-- **BL-020** — `created=2026-05-09`, `started=2026-05-09`, `completed=2026-05-09` — Native fullscreen now works on touch-capable desktop browsers (SteamDeck/Firefox): removed the overly-broad `navigator.maxTouchPoints > 0` condition from `toggleFullscreen()`; rely solely on `!document.fullscreenEnabled` to decide between native and faux-fullscreen. iPad/Safari unaffected because `fullscreenEnabled` is already `false` there.
-
-- **BL-014** — `created=2026-04-12`, `started=2026-04-13`, `completed=2026-04-13` — Optional PWA install shell delivered with a manifest, a minimal service worker, standalone-launch polish, and explicit limits so app installability does not imply offline NAS playback.
-- **BL-001** — `created=2026-04-12`, `completed=2026-04-13` — Backlog triage process considered established: ticket states, date fields, and regular backlog updates are now already part of the working workflow.
-- **BL-018** — `created=2026-04-12`, `started=2026-04-13`, `completed=2026-04-13` — Fullscreen controls hitbox follow-up delivered: simple taps on the side zones no longer fall through to centre actions, and only a narrow bottom-centre strip can toggle controls.
-- **BL-017** — `created=2026-04-12`, `started=2026-04-13`, `completed=2026-04-13` — Folder initial sweep UX simplified: the player now exposes a single compact action that saves the current playback position as the folder default start, without the previous inline editor.
-- **BL-019** — `created=2026-04-12`, `started=2026-04-12`, `completed=2026-04-12` — Native playback investigation and first implementation delivered with a bilingual compatibility note, a new `/api/media-info` ffprobe endpoint, and player-side probing via `canPlayType()` plus `MediaCapabilities` before falling back to `/api/transcode`.
-- **BL-101** — `created=2026-04-05`, `started=2026-04-05`, `completed=2026-04-06` — Web video download delivered in v2.0 with a bookmarklet, yt-dlp integration, smart source detection, server-side HTML sniffing fallback, cookie / referer passthrough, and SSRF protection.
-- **BL-102** — `created=2026-04-06`, `started=2026-04-06`, `completed=2026-04-06` — Sequential download queue delivered in v2.0 with live queue modal, active badge, stop / cancel action, two-phase preparation, automatic temporary file cleanup, and download-folder auto-refresh.
-- **BL-103** — `created=2026-04-06`, `started=2026-04-06`, `completed=2026-04-06` — Native HTTPS delivered in v2.0 via `SSL_CERTFILE` / `SSL_KEYFILE`, with Docker and installation documentation.
+- **BL-046** — `created=2026-05-13`, `started=2026-05-13`, `completed=2026-05-13` — `#delete-dialog` et `#move-dialog` convertis de `<dialog>` en `<div>` overlay ; déplacés dans `document.fullscreenElement` au `fullscreenchange`. `_gpDispatch` adapté pour détecter les divs ouverts.
+- **BL-045** — `created=2026-05-13`, `started=2026-05-13`, `completed=2026-05-13` — Machine à états 2 phases pour `move-dialog` (phase `'folders'` → phase `'confirm'`) identique à `cut-dialog`. Bouton `#move-confirm-btn` ajouté.
+- **BL-044** — `created=2026-05-13`, `started=2026-05-13`, `completed=2026-05-13` — Flag `_gpActionCooldown` (600 ms) ajouté avant tout `navigate()` post-dialog. Empêche les inputs parasites pendant le rafraîchissement async de la liste.
+- **BL-043** — `created=2026-05-13`, `started=2026-05-13`, `completed=2026-05-13` — Variable `_gpPendingRestoreIdx` : sauvegardée avant `navigate()`, restaurée dans `renderFiles()` → curseur reste sur le fichier suivant après suppression/déplacement.
+- **BL-052** — `created=2026-05-15`, `started=2026-05-15`, `completed=2026-05-15` — Régression BL-043 : index restauré dans `playVideo()` avant le `renderFiles(entries)` final, pour que le curseur suive la vidéo en cours en mode auto-play fullscreen.
 
 ---
 
@@ -404,132 +318,6 @@ Facteur de marge actuel : **0,40**.
 - **Why**: `backend/main.py` has grown to ~2 000 lines. Navigation and code review are becoming impractical. The file mixes DB setup, streaming logic, yt-dlp queue management, and FastAPI route registration — concerns that can be separated without introducing a layered architecture.
 - **Expected outcome**: extract three sibling modules, keeping `main.py` as the FastAPI entry point (~600–800 lines): `backend/db.py` (init_db, get_db, inline migrations), `backend/stream.py` (streaming endpoint, ffmpeg/transcode pipeline), `backend/download.py` (yt-dlp queue, jobs dict, download endpoints). No behaviour change; all existing tests must pass without modification.
 - **Attention point**: shared globals (`MEDIA_ROOT`, `FFMPEG_BIN`, `FFPROBE_BIN`) must be imported consistently across modules to avoid circular imports. Resolve by defining them in a `backend/config.py` and importing from there.
-
----
-
-### BL-047 — Segments : table DB + endpoints CRUD
-
-- **Dates** : `created=2026-05-14`
-- **Contexte** : socle du Lot 9. Remplace les colonnes `cut_in`/`cut_out` de `progress` par une table dédiée.
-- **Schéma** :
-  ```sql
-  CREATE TABLE IF NOT EXISTS segments (
-      id       INTEGER PRIMARY KEY AUTOINCREMENT,
-      path     TEXT NOT NULL,
-      seg_in   REAL NOT NULL,
-      seg_out  REAL NOT NULL
-  );
-  CREATE INDEX IF NOT EXISTS idx_segments_path ON segments(path);
-  ```
-  Les colonnes `cut_in`/`cut_out` restent dans `progress` (rétrocompatibilité) mais ne sont plus écrites par le nouveau flow.
-- **Endpoints** :
-  - `GET  /api/segments?path=<file>` → liste `[{id, seg_in, seg_out}]` ordonnés par `id ASC`
-  - `POST /api/segments?path=<file>` body `{seg_in, seg_out}` → `{id}` (valide `seg_out > seg_in`)
-  - `DELETE /api/segments/{id}` → supprime le segment par `id` (404 si inconnu)
-- **Modèle Pydantic** : `SegmentCreate(seg_in: float, seg_out: float)`
-- **Attention** : `safe_path()` sur le paramètre `path`. Valider `seg_out > seg_in` (400 sinon).
-
----
-
-### BL-048 — Segments : export backend (individuel + fusionné)
-
-- **Dates** : `created=2026-05-14`
-- **Contexte** : dépend de BL-047. Fournit l'endpoint d'export et deux stratégies FFmpeg.
-- **Endpoint** : `POST /api/files/export-segments?path=<file>`
-  - Body : `{mode: "individual"|"merged", destination: str, keep_original: bool = false}`
-  - Récupère la liste des segments depuis la table `segments` pour ce `path` (erreur 400 si aucun segment)
-  - Lance un job async → retourne `{job_id}`
-- **Mode `individual`** : N jobs FFmpeg successifs (dans le même thread), un par segment :
-  ```
-  ffmpeg -ss <in> -t <dur> -i input -c copy "nom [seg1].ext"
-  ```
-  Nommage : `{stem} [seg{N}]{ext}` (N basé sur la position dans la liste).
-- **Mode `merged`** *(défaut)* : un seul FFmpeg avec le concat demuxer (lossless, codec copy) :
-  ```
-  # filelist.txt
-  file 'input.mp4'
-  inpoint 10.5
-  outpoint 30.2
-  file 'input.mp4'
-  inpoint 45.0
-  outpoint 90.0
-  ```
-  ```
-  ffmpeg -f concat -safe 0 -i filelist.txt -c copy "nom [1-N segments].ext"
-  ```
-  Nommage : `{stem} [{N} segments]{ext}`.
-- **Post-export** : déplace **les deux fichiers** vers `destination` — le fichier exporté (ou les N fichiers en mode individual) ET le fichier source original. C'est le comportement par défaut (`keep_original=false`). Si `keep_original=true`, seul(s) le(s) fichier(s) exporté(s) sont déplacés, l'original reste en place.
-- **Tracking progression** : même pattern que `_run_cut` (stderr `time=` regex, job `status`/`progress`).
-- **Attention** : le concat demuxer requiert que tous les segments soient du même codec. Ajouter un warning dans le toast si le mode merged est demandé sur un fichier transcodé.
-- **Garder** : l'endpoint `/api/files/cut` en place (pas supprimé) mais marqué comme déprécié dans le code.
-
----
-
-### BL-049 — Segments : UI seekbar + liste chips (frontend)
-
-- **Dates** : `created=2026-05-14`
-- **Contexte** : dépend de BL-047. Remplace entièrement le flow `cutIn`/`cutOut` dans le frontend.
-- **État global** :
-  ```js
-  let _pendingIn = null;         // IN posé, attend un OUT
-  let _segments  = [];           // [{id, seg_in, seg_out}, …] chargés depuis DB ou ajoutés localement
-  ```
-- **Flux** :
-  1. `I` → `setPendingIn()` : pose `_pendingIn = video.currentTime`, affiche marqueur bleu sur seekbar, toast « IN marqué »
-  2. `O` → `addSegment()` : POST `/api/segments`, ajoute `{id, seg_in:_pendingIn, seg_out:currentTime}` à `_segments`, remet `_pendingIn = null`, met à jour la seekbar et la liste chips, toast « Segment N ajouté »
-  3. `×` sur une chip → `deleteSegment(id)` : DELETE `/api/segments/{id}`, retire de `_segments`, met à jour l'UI
-  4. Cliquer sur une chip → seek à `seg_in`
-- **Seekbar** : fills colorés par segment (palette cyclique : accent / orange / vert / violet…). Pendant qu'un IN est posé sans OUT, zone hachurée animée entre `_pendingIn` et la tête de lecture courante.
-- **Liste chips** : `<div id="segments-list">` juste sous `#seekbar-wrap`, visible uniquement si `_segments.length > 0`. Chips : `[0:10 → 1:30] ×` — format compact `formatTime()`.
-- **Bouton exporter** : `<button id="segments-export-btn">` dans la barre de contrôle (remplace `#cut-btn`). Label : « Exporter (N) ✂ ». `display:none` si `_segments.length == 0`.
-- **Chargement** : `loadSegments(path)` appelé dans `playVideo()` → GET `/api/segments?path=…` → peuple `_segments` et rafraîchit l'UI.
-- **Raccourcis** : `I` = IN, `O` = OUT/créer segment, `Backspace` (déjà en place pour delete) non utilisé ici → garder `D` pour deleteLastSegment.
-- **Retirer** : variables `cutIn`, `cutOut`, fonctions `setCutPoint`, `clearCutPoints`, `updateCutUI`, boutons `#cut-in-btn`, `#cut-out-btn`, `#cut-clear-btn`, `#cut-btn`, HTML `#cut-seekbar-fill`, `.cut-seekbar-marker`, dialog `#cut-dialog`.
-
----
-
-### BL-050 — Segments : modal export + gamepad (frontend)
-
-- **Dates** : `created=2026-05-14`
-- **Contexte** : dépend de BL-048 et BL-049. Modal d'export remplaçant `#cut-dialog`.
-- **HTML** : `<div id="export-dialog">` overlay (même pattern que les autres modals div).
-  - Toggle `individual` / `merged` *(merged sélectionné par défaut)*
-  - Checkbox `Conserver l'original` (défaut : décoché — déplace l'original ET les fichiers exportés vers destination)
-  - Liste de dossiers rapides (même que cut-dialog)
-  - Input destination libre
-  - Bouton `Exporter`
-- **Fonctions** : `openExportModal()`, `closeExportModal()`, `confirmExport()` → POST `/api/files/export-segments`.
-- **Gamepad** : navigation dans les dossiers rapides + sélection mode + confirmation (même pattern 2-phases que move-dialog/cut-dialog).
-- **Toast** : « ✂ Export N segments en cours… » / « ✂ Export fusionné en cours… »
-- **Raccourci** : `E` ou `C` pour ouvrir le modal (remplace l'ancien `C`).
-
----
-
-### BL-051 — Segments : tests + nettoyage ancien cut
-
-- **Dates** : `created=2026-05-14`
-- **Contexte** : finalise le Lot 9. À faire en dernier.
-- **Tests à ajouter** (`tests/test_api.py`) :
-  - `test_segments_crud` : POST → GET → DELETE, vérifier la liste avant/après
-  - `test_segment_invalid_range` : `seg_out <= seg_in` → 400
-  - `test_export_segments_no_segments` : appel sans segments → 400
-  - `test_export_individual_returns_job_id` (monkeypatch ffmpeg)
-  - `test_export_merged_returns_job_id` (monkeypatch ffmpeg)
-  - `test_export_dest_not_found` → 404
-- **Nettoyage** :
-  - Supprimer les tests `TestCut` obsolètes ou les adapter si `/api/files/cut` est gardé déprécié
-  - Ajouter `ADD COLUMN` migration dans `init_db()` pour la table `segments` si elle n'existe pas (rétrocompat bases existantes)
-  - Vérifier que `ruff check` + `ruff format` passent à zéro warning
-
----
-
-### BL-052 — Gamepad : curseur à -1 après auto-play post-suppression (régression BL-043)
-
-- **Dates** : `created=2026-05-15`
-- **Contexte** : régression introduite lors de l'implémentation de `_autoPlayNextFullscreen` (PR #19). Après une suppression en plein écran, le fichier suivant est lancé via `playVideo()`. À la fin de `playVideo`, `renderFiles(entries)` est appelé alors que `_gpPendingRestoreIdx = -1` (déjà consommé par le `renderFiles` de `navigate`), ce qui déclenche la branche `else { _gpCursorIdx = -1; }` dans `renderFiles`. Résultat : curseur gamepad à -1, commandes buggées, risque de vidéo fantôme (régression BL-044).
-- **Fichiers modifiés** :
-  - `frontend/index.html` — fin de `playVideo()` : ajout de `_gpPendingRestoreIdx = gpIdx` avant `renderFiles(entries)`
-- **Fix** : avant le `renderFiles(entries)` final de `playVideo`, rechercher `entry.path` dans `_gpRenderedList` et stocker l'index dans `_gpPendingRestoreIdx`. Ainsi, `renderFiles` restaure le curseur sur la vidéo en cours de lecture.
 
 ---
 
