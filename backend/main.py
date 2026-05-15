@@ -2323,9 +2323,12 @@ def archive_list(path: str):
                     for n in zf.namelist()
                     if not n.endswith("/") and Path(n).suffix.lower() in IMAGE_EXTENSIONS
                 )
-        except zipfile.BadZipFile as exc:
-            raise HTTPException(status_code=422, detail=f"Cannot read archive: {exc}") from exc
-        return {"count": len(names), "images": names}
+        except zipfile.BadZipFile:
+            if ext != ".cbz":
+                raise HTTPException(status_code=422, detail="Cannot read archive: File is not a zip file")
+            ext = ".cbr"  # some CBZ files are RAR-encoded; fall through to RAR handler
+        else:
+            return {"count": len(names), "images": names}
     if ext == ".cbr":
         try:
             import rarfile  # noqa: PLC0415
@@ -2361,9 +2364,12 @@ def archive_image(path: str, index: int):
                     raise HTTPException(status_code=404, detail="Image index out of range")
                 data = zf.read(names[index])
                 mime = mimetypes.guess_type(names[index])[0] or "image/jpeg"
-        except zipfile.BadZipFile as exc:
-            raise HTTPException(status_code=422, detail=f"Cannot read archive: {exc}") from exc
-        return Response(content=data, media_type=mime)
+        except zipfile.BadZipFile:
+            if ext != ".cbz":
+                raise HTTPException(status_code=422, detail="Cannot read archive: File is not a zip file")
+            ext = ".cbr"  # some CBZ files are RAR-encoded; fall through to RAR handler
+        else:
+            return Response(content=data, media_type=mime)
     if ext == ".cbr":
         try:
             import rarfile  # noqa: PLC0415
