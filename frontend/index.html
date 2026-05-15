@@ -3370,15 +3370,17 @@ function renderEntry(e, i) {
   const meta = e.is_dir ? '' : formatSize(e.size);
   const mt = e.media_type || 'other';
   const hasProgress = !e.is_dir && mt !== 'other' && e.progress && e.progress.duration > 0;
-  const timeLabel = (mt === 'video' || mt === 'audio')
-    ? `${formatTime(e.progress.position)} / ${formatTime(e.progress.duration)}`
-    : `p.\u00a0${Math.round(e.progress.position)} / ${e.progress.duration}`;
-  const progressHtml = hasProgress ? `
+  const progressHtml = hasProgress ? (() => {
+    const timeLabel = (mt === 'video' || mt === 'audio')
+      ? `${formatTime(e.progress.position)} / ${formatTime(e.progress.duration)}`
+      : `p.\u00a0${Math.round(e.progress.position)} / ${e.progress.duration}`;
+    return `
     <div class="progress-bar-wrap">
       <div class="progress-bar-fill" style="width:${e.progress.percent}%"></div>
     </div>
     <div style="margin-top:2px">${e.progress.percent > 0 ? e.progress.percent + '% \u00b7 ' + timeLabel : ''}</div>
-  ` : '';
+  `;
+  })() : '';
 
   const stateClass = !e.is_dir && mt !== 'other' ? getStateClass(e.progress) : (e.folder_state === 'seen' ? 'seen' : (e.folder_state === 'inprogress' ? 'inprogress' : ''));
   const pinBtn = e.is_dir ? `<button class="action-btn ${e.is_quick_folder ? 'pinned' : ''}" onclick="togglePin(${jsStr(e.path)}, ${e.is_quick_folder})" title="${e.is_quick_folder ? 'Retirer' : 'Accès rapide'}">📌</button>` : '';
