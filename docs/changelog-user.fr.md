@@ -6,6 +6,10 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ## [Non publié]
 
+---
+
+## [v2.1.0] — 2026-05-15
+
 ### Nouveautés
 - **Tags sur les fichiers** : ajoutez des étiquettes texte libres à vos fichiers et dossiers (bouton 🏷 dans chaque entrée). Les tags apparaissent comme petits badges dans la liste et un filtre par tag s'affiche automatiquement dans la barre de tri.
 - **Choisir n'importe quel dossier de destination** : le bouton « 📂 Parcourir… » dans la fenêtre de déplacement permet de naviguer dans toute l'arborescence pour choisir où déplacer un fichier.
@@ -24,6 +28,17 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 - **Contrôles plein écran discrets** : le mouvement de la souris ne révèle les contrôles qu'en bas de l'écran (10 %), pour ne pas déranger pendant la lecture.
 - **Option désactiver le transcodage** : nouveau réglage dans Paramètres → Player. Quand il est désactivé, Hoard envoie toujours le flux original sans transcodage — utile si votre NAS est lent ou si votre navigateur lit nativement le format.
 - **Zoom barre de progression en plein écran** : la taille de la fenêtre de zoom sur la barre de progression (visible en plein écran) est maintenant réglable dans Paramètres → 🎬 Player (« Zoom barre plein écran »). Valeur par défaut : 20 %, de 5 % à 50 %.
+- **Indicateur de volume (OSD)** : une barre de volume apparaît en bas à droite du player quand vous modifiez le volume (touches ↑/↓, manette, swipe). Elle affiche l'icône 🔇/🔉/🔊, un niveau visuel et le pourcentage, puis disparaît après 2,5 secondes.
+- **Indicateur de progression en plein écran** : l'affichage de position (coin haut droit) montre le temps restant, une barre de progression globale et une barre zoomée qui indique visuellement où vous en êtes dans le fichier.
+- **Lecture automatique du fichier suivant** : après une suppression, un déplacement ou une découpe du fichier en cours de lecture en mode plein écran, le fichier suivant démarre automatiquement et le plein écran est réactivé.
+- **Découpe multi-segments** : le système de découpe passe à plusieurs segments indépendants. Marquez autant de paires IN/OUT que souhaité avec `I` et `O` (manette : `L1+Y` et `R1+Y`). Les segments validés apparaissent en couleur sur la seekbar. Le bouton `✂ N` ou la touche `E` (`L1+R1+Y` manette) ouvre la modal d'export : choisissez entre exporter les segments séparément ou fusionnés en un seul fichier, indiquez le dossier de destination et optionnellement conservez l'original.
+
+### Corrections
+- **Manette — plein écran sous Firefox** : le bouton Y fonctionne désormais pour basculer en plein écran sous Firefox PC (bascule sur le mode plein écran CSS en cas de restriction navigateur).
+- **Manette — dialogues en plein écran** : les fenêtres Supprimer et Déplacer sont maintenant visibles et utilisables à la manette en mode plein écran natif (SteamDeck, Edge).
+- **Manette — curseur de navigation perdu** : supprimer, déplacer ou découper un fichier ne remet plus le curseur au début de la liste. La position est mémorisée et restaurée après l'action.
+- **Manette — vidéo fantôme** : une pression rapide sur A après confirmation d'une action ne déclenche plus la lecture d'une vidéo en arrière-plan.
+- **Volume — slider non synchronisé** : le curseur de volume se met désormais à jour correctement quelle que soit la façon dont le volume est modifié (manette, swipe tactile, clavier).
 
 ---
 

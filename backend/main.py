@@ -25,8 +25,9 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 # ── Logging ──────────────────────────────────────────────────────────────────
+_log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=getattr(logging, _log_level, logging.INFO),
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 logger = logging.getLogger("hoard")
@@ -1093,7 +1094,7 @@ def safe_path(rel: str) -> Path:
     resolved = (MEDIA_ROOT / rel).resolve()
     media_resolved = MEDIA_ROOT.resolve()
     logger.debug("safe_path: rel=%r resolved=%s media_root=%s", rel, resolved, media_resolved)
-    if not str(resolved).startswith(str(media_resolved)):
+    if not resolved.is_relative_to(media_resolved):
         logger.warning("safe_path DENIED: %s is outside %s", resolved, media_resolved)
         raise HTTPException(status_code=403, detail="Access denied")
     return resolved
@@ -1262,6 +1263,8 @@ def search_files(q: str, path: str = ""):
 
     entries = []
     for item in folder.rglob("*"):
+        if item.is_symlink() and not item.resolve().is_relative_to(MEDIA_ROOT.resolve()):
+            continue
         if item.name.startswith("."):
             continue
         if needle not in item.name.lower():

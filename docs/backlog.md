@@ -14,7 +14,6 @@ Facteur de marge actuel : **0,40**.
 
 | Lot | Estimé Copilot | Réel Copilot | Ratio | Estimé gestion | Réel gestion | Ajustement |
 | --- | --- | --- | --- | --- | --- | --- |
-| Lot 2 — BL-024 Gamepad | 70 min | ~90 min | 1.29 | 15 min | ~15 min | facteur inchangé (0,40) : dépassement lié au review Copilot (7 corrections) |
 | Lot 2 — BL-024 Gamepad | 70 min | ~90 min | 1.29 | 15 min | ~15 min | facteur inchangé (0,40) : dépassement lié au review Copilot (+7 fixes), pas à la complexité initiale |
 
 > - Tickets de finition / tests simples → estimation de référence 3–5 min, pas 10–20 min.
