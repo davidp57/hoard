@@ -132,6 +132,7 @@
     flex-direction: column;
     border-right: 1px solid var(--border);
     background: var(--surface);
+    transition: width 0.2s ease;
   }
 
   #sort-bar {
@@ -867,6 +868,9 @@
   }
   @media (min-width: 701px) {
     #mobile-back { display: none; }
+    /* No media active: file list takes full width */
+    #main:not(.media-active) #filelist-panel { width: 100%; border-right: none; }
+    #main:not(.media-active) #player-panel { display: none; }
   }
 
   /* ── Quick folders ── */
@@ -1253,6 +1257,14 @@
     display: block;
     box-shadow: 0 2px 12px rgba(0,0,0,0.5);
   }
+
+  /* ── Viewer fullscreen overlay (desktop) ── */
+  .viewer-fullscreen {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 100 !important;
+    background: #000 !important;
+  }
 </style>
 </head>
 <body>
@@ -1599,6 +1611,7 @@
         <div id="image-counter">— / —</div>
         <button onclick="imageNav(1)" title="Image suivante (→)">&#x25B6;</button>
         <button onclick="toggleImageMode()" id="image-fit-btn" title="Changer le mode d'affichage">&#x25A3;</button>
+        <button onclick="toggleViewerFullscreen('image-viewer')" id="image-fs-btn" title="Plein écran (F)">&#x26F6;</button>
         <div id="image-title"></div>
         <button onclick="closeImageViewer()" title="Fermer">&#x2715;</button>
       </div>
@@ -1634,6 +1647,7 @@
         <button onclick="pdfZoom(-0.2)" title="Zoom −">−</button>
         <button onclick="pdfZoom(0.2)" title="Zoom +">+</button>
         <button onclick="togglePdfFit()" id="pdf-fit-btn" title="Ajuster la largeur">&#x25A3;</button>
+        <button onclick="toggleViewerFullscreen('pdf-viewer')" id="pdf-fs-btn" title="Plein écran (F)">&#x26F6;</button>
         <div id="pdf-title"></div>
         <button onclick="closePdfViewer()" title="Fermer">&#x2715;</button>
       </div>
@@ -2170,6 +2184,7 @@ function privacyClose() {
   if (saveInterval) { clearInterval(saveInterval); saveInterval = null; }
   currentFile = null;
   currentInitialSweepState = null;
+  _setMediaActive(false);
   document.getElementById('video-container').classList.remove('active');
   document.getElementById('player-empty').style.display = '';
   updateMediaMeta(null);
@@ -3281,14 +3296,19 @@ async function navigate(path) {
   if (si) si.value = '';
   const bar = document.getElementById('tag-filter-bar');
   if (bar) bar.innerHTML = '';
-  // Stop any playing video when changing folder
+  // Stop any active media when changing folder
   if (currentFile) {
     video.pause();
     video.src = '';
     document.getElementById('video-container').classList.remove('active');
+    document.getElementById('image-viewer').classList.remove('active', 'viewer-fullscreen');
+    document.getElementById('audio-player').classList.remove('active');
+    document.getElementById('pdf-viewer').classList.remove('active', 'viewer-fullscreen');
     document.getElementById('player-empty').style.display = '';
     if (saveInterval) { clearInterval(saveInterval); saveInterval = null; }
     currentFile = null;
+    currentViewerMode = null;
+    _setMediaActive(false);
     updateMediaMeta(null);
   }
   currentPath = path;
@@ -3497,6 +3517,16 @@ async function _autoPlayNextFullscreen(navigatePath) {
 }
 
 
+// ── Media panel helpers ───────────────────────────────────────────────────────
+
+function _setMediaActive(active) {
+  document.getElementById('main').classList.toggle('media-active', active);
+}
+
+function toggleViewerFullscreen(id) {
+  document.getElementById(id).classList.toggle('viewer-fullscreen');
+}
+
 // ── Media dispatcher ──────────────────────────────────────────────────────────
 
 function openMedia(idx) {
@@ -3530,6 +3560,7 @@ function openImage(idx) {
   currentViewerMode = 'image';
 
   // Mobile: show player panel
+  _setMediaActive(true);
   document.getElementById('player-panel').classList.add('mobile-active');
   _showOnlyPanel('image-viewer');
 
@@ -3555,6 +3586,7 @@ function openArchive(idx) {
   _imageCurrentIdx = 0;
   currentViewerMode = 'image';
 
+  _setMediaActive(true);
   document.getElementById('player-panel').classList.add('mobile-active');
   _showOnlyPanel('image-viewer');
 
@@ -3611,7 +3643,8 @@ function toggleImageMode() {
 
 function closeImageViewer() {
   currentViewerMode = null;
-  document.getElementById('image-viewer').classList.remove('active');
+  _setMediaActive(false);
+  document.getElementById('image-viewer').classList.remove('active', 'viewer-fullscreen');
   document.getElementById('player-panel').classList.remove('mobile-active');
   document.getElementById('player-empty').style.display = '';
 }
@@ -3624,6 +3657,7 @@ function playAudio(idx) {
   currentFile = entry;
   currentViewerMode = 'audio';
 
+  _setMediaActive(true);
   document.getElementById('player-panel').classList.add('mobile-active');
   _showOnlyPanel('audio-player');
 
@@ -3645,6 +3679,7 @@ function closeAudioPlayer() {
   video.src = '';
   currentFile = null;
   currentViewerMode = null;
+  _setMediaActive(false);
   document.getElementById('audio-player').classList.remove('active');
   document.getElementById('player-panel').classList.remove('mobile-active');
   document.getElementById('player-empty').style.display = '';
@@ -3677,6 +3712,7 @@ async function openPdf(idx) {
   currentFile = entry;
   currentViewerMode = 'pdf';
 
+  _setMediaActive(true);
   document.getElementById('player-panel').classList.add('mobile-active');
   _showOnlyPanel('pdf-viewer');
 
@@ -3754,7 +3790,8 @@ async function togglePdfFit() {
 function closePdfViewer() {
   _pdfDoc = null;
   currentViewerMode = null;
-  document.getElementById('pdf-viewer').classList.remove('active');
+  _setMediaActive(false);
+  document.getElementById('pdf-viewer').classList.remove('active', 'viewer-fullscreen');
   document.getElementById('player-panel').classList.remove('mobile-active');
   document.getElementById('player-empty').style.display = '';
 }
@@ -3765,6 +3802,7 @@ async function playVideo(idx) {
   if (!entry || !entry.is_video) return;
 
   currentFile = entry;
+  _setMediaActive(true);
 
   // Reset segment state for new video
   _pendingIn = null;
@@ -4241,6 +4279,7 @@ function releaseVideoIfCurrent(path) {
     document.getElementById('video-container').classList.remove('active');
     document.getElementById('player-empty').style.display = '';
     currentFile = null;
+    _setMediaActive(false);
     document.getElementById('segments-export-btn').style.display = 'none';
     _pendingIn = null;
     _segments = [];
@@ -4754,15 +4793,24 @@ document.addEventListener('keydown', e => {
     if (document.getElementById('delete-dialog')?.style.display === 'flex') { closeDeleteDialog(); return; }
     if (document.getElementById('move-dialog')?.style.display === 'flex') { closeModal(); return; }
     if (document.getElementById('export-dialog')?.style.display === 'flex') { closeExportModal(); return; }
-    if (currentViewerMode === 'image') { closeImageViewer(); return; }
+    if (currentViewerMode === 'image') {
+      const iv = document.getElementById('image-viewer');
+      if (iv.classList.contains('viewer-fullscreen')) { iv.classList.remove('viewer-fullscreen'); return; }
+      closeImageViewer(); return;
+    }
     if (currentViewerMode === 'audio') { closeAudioPlayer(); return; }
-    if (currentViewerMode === 'pdf') { closePdfViewer(); return; }
+    if (currentViewerMode === 'pdf') {
+      const pv = document.getElementById('pdf-viewer');
+      if (pv.classList.contains('viewer-fullscreen')) { pv.classList.remove('viewer-fullscreen'); return; }
+      closePdfViewer(); return;
+    }
   }
   // Image viewer navigation
   if (currentViewerMode === 'image') {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
     if (e.code === 'ArrowLeft')  { imageNav(-1); return; }
     if (e.code === 'ArrowRight') { imageNav(1);  return; }
+    if (e.code === 'KeyF') { toggleViewerFullscreen('image-viewer'); return; }
     return;
   }
   // PDF viewer navigation
@@ -4772,6 +4820,7 @@ document.addEventListener('keydown', e => {
     if (e.code === 'ArrowRight' || e.code === 'ArrowDown') { pdfNav(1);  return; }
     if (e.code === 'Equal' || e.code === 'NumpadAdd')      { pdfZoom(0.2);  return; }
     if (e.code === 'Minus' || e.code === 'NumpadSubtract') { pdfZoom(-0.2); return; }
+    if (e.code === 'KeyF') { toggleViewerFullscreen('pdf-viewer'); return; }
     return;
   }
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
