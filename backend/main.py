@@ -2325,7 +2325,9 @@ def archive_list(path: str):
                 )
         except zipfile.BadZipFile:
             if ext != ".cbz":
-                raise HTTPException(status_code=422, detail="Cannot read archive: File is not a zip file")
+                raise HTTPException(
+                    status_code=422, detail="Cannot read archive: File is not a zip file"
+                ) from None
             ext = ".cbr"  # some CBZ files are RAR-encoded; fall through to RAR handler
         else:
             return {"count": len(names), "images": names}
@@ -2366,7 +2368,9 @@ def archive_image(path: str, index: int):
                 mime = mimetypes.guess_type(names[index])[0] or "image/jpeg"
         except zipfile.BadZipFile:
             if ext != ".cbz":
-                raise HTTPException(status_code=422, detail="Cannot read archive: File is not a zip file")
+                raise HTTPException(
+                    status_code=422, detail="Cannot read archive: File is not a zip file"
+                ) from None
             ext = ".cbr"  # some CBZ files are RAR-encoded; fall through to RAR handler
         else:
             return Response(content=data, media_type=mime)
