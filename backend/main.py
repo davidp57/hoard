@@ -2251,12 +2251,28 @@ def serve_file(path: str, request: Request):
 
     range_header = request.headers.get("range")
     if range_header:
-        range_str = range_header.replace("bytes=", "")
-        if "," in range_str:
+        raw = range_header.strip()
+        if not raw.lower().startswith("bytes="):
+            raise HTTPException(status_code=416, detail="Range unit not supported")
+        range_spec = raw[6:]  # strip "bytes="
+        if "," in range_spec:
             raise HTTPException(status_code=416, detail="Multi-range not supported")
-        parts = range_str.split("-")
-        start = int(parts[0]) if parts[0] else 0
-        end = int(parts[1]) if len(parts) > 1 and parts[1] else file_size - 1
+        try:
+            lo, hi = range_spec.split("-", 1)
+            if lo == "":
+                # suffix range: bytes=-N  →  last N bytes
+                suffix = int(hi)
+                start = max(0, file_size - suffix)
+                end = file_size - 1
+            elif hi == "":
+                # open-ended range: bytes=N-
+                start = int(lo)
+                end = file_size - 1
+            else:
+                start = int(lo)
+                end = int(hi)
+        except (ValueError, AttributeError):
+            raise HTTPException(status_code=416, detail="Invalid Range header") from None
         if start < 0 or end >= file_size or start > end:
             raise HTTPException(status_code=416, detail="Range not satisfiable")
         chunk_size = end - start + 1
@@ -2300,12 +2316,15 @@ def archive_list(path: str):
         raise HTTPException(status_code=404)
     ext = file.suffix.lower()
     if ext in {".zip", ".cbz"}:
-        with zipfile.ZipFile(file) as zf:
-            names = sorted(
-                n
-                for n in zf.namelist()
-                if not n.endswith("/") and Path(n).suffix.lower() in IMAGE_EXTENSIONS
-            )
+        try:
+            with zipfile.ZipFile(file) as zf:
+                names = sorted(
+                    n
+                    for n in zf.namelist()
+                    if not n.endswith("/") and Path(n).suffix.lower() in IMAGE_EXTENSIONS
+                )
+        except zipfile.BadZipFile as exc:
+            raise HTTPException(status_code=422, detail=f"Cannot read archive: {exc}") from exc
         return {"count": len(names), "images": names}
     if ext == ".cbr":
         try:
@@ -2331,16 +2350,19 @@ def archive_image(path: str, index: int):
         raise HTTPException(status_code=404)
     ext = file.suffix.lower()
     if ext in {".zip", ".cbz"}:
-        with zipfile.ZipFile(file) as zf:
-            names = sorted(
-                n
-                for n in zf.namelist()
-                if not n.endswith("/") and Path(n).suffix.lower() in IMAGE_EXTENSIONS
-            )
-            if index < 0 or index >= len(names):
-                raise HTTPException(status_code=404, detail="Image index out of range")
-            data = zf.read(names[index])
-            mime = mimetypes.guess_type(names[index])[0] or "image/jpeg"
+        try:
+            with zipfile.ZipFile(file) as zf:
+                names = sorted(
+                    n
+                    for n in zf.namelist()
+                    if not n.endswith("/") and Path(n).suffix.lower() in IMAGE_EXTENSIONS
+                )
+                if index < 0 or index >= len(names):
+                    raise HTTPException(status_code=404, detail="Image index out of range")
+                data = zf.read(names[index])
+                mime = mimetypes.guess_type(names[index])[0] or "image/jpeg"
+        except zipfile.BadZipFile as exc:
+            raise HTTPException(status_code=422, detail=f"Cannot read archive: {exc}") from exc
         return Response(content=data, media_type=mime)
     if ext == ".cbr":
         try:

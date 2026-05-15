@@ -67,7 +67,7 @@ En plus des vidéos, Hoard peut ouvrir directement plusieurs types de fichiers :
 Les fichiers JPG, PNG, GIF, WEBP, BMP, TIFF et AVIF s'ouvrent dans une visionneuse intégrée.
 
 - **← / →** (clavier ou boutons) : image précédente / suivante dans le dossier
-- **Bouton ⛶** : bascule entre affichage ajusté à la largeur et plein écran
+- **Bouton ▣** : bascule entre affichage ajusté à la largeur et plein écran
 - **✕** : ferme la visionneuse
 
 ### Archives BD/manga (.cbz, .zip, .cbr)
@@ -84,7 +84,7 @@ Les fichiers PDF sont rendus directement dans le navigateur via PDF.js.
 
 - **← / →** : page précédente / suivante
 - **− / +** : dézoomer / zoomer
-- **Bouton ⛶** : bascule entre ajustement à la largeur et taille originale
+- **Bouton ▣** : bascule entre ajustement à la largeur et taille originale
 - La page courante est sauvegardée
 
 ### Audio (.mp3, .flac, .ogg, .m4a, .aac, .wav, .opus)

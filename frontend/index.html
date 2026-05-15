@@ -1616,9 +1616,9 @@
       </div>
       <div id="audio-time">0:00 / 0:00</div>
       <div id="audio-controls">
-        <button onclick="skip(-cfg.seek_short)" title="-10s">◀◀</button>
+        <button onclick="skip(-cfg.seek_short)" data-seek="seek_short" data-dir="back" title="-10s">◀◀</button>
         <button id="audio-playpause-btn" onclick="togglePlay()">▶</button>
-        <button onclick="skip(cfg.seek_short)" title="+10s">▶▶</button>
+        <button onclick="skip(cfg.seek_short)" data-seek="seek_short" data-dir="fwd" title="+10s">▶▶</button>
       </div>
       <div id="audio-close-bar">
         <button onclick="closeAudioPlayer()">&#x2715; Fermer</button>
@@ -1941,7 +1941,7 @@ function applyCfg(s) {
   cfg.seek_xlong                = parseInt(s.seek_xlong   ?? 120, 10);
   cfg.initial_sweep_seconds     = parseInt(s.initial_sweep_seconds    ?? 0, 10);
   // Sync skip button tooltips with configured seek durations
-  const skipBtns = document.querySelectorAll('#ctrl-row .ctrl-btn[data-seek]');
+  const skipBtns = document.querySelectorAll('[data-seek][data-dir]');
   skipBtns.forEach(btn => {
     const key = btn.dataset.seek;
     const val = cfg[key];
@@ -3370,11 +3370,14 @@ function renderEntry(e, i) {
   const meta = e.is_dir ? '' : formatSize(e.size);
   const mt = e.media_type || 'other';
   const hasProgress = !e.is_dir && mt !== 'other' && e.progress && e.progress.duration > 0;
+  const timeLabel = (mt === 'video' || mt === 'audio')
+    ? `${formatTime(e.progress.position)} / ${formatTime(e.progress.duration)}`
+    : `p.\u00a0${Math.round(e.progress.position)} / ${e.progress.duration}`;
   const progressHtml = hasProgress ? `
     <div class="progress-bar-wrap">
       <div class="progress-bar-fill" style="width:${e.progress.percent}%"></div>
     </div>
-    <div style="margin-top:2px">${e.progress.percent > 0 ? e.progress.percent + '% · ' + formatTime(e.progress.position) + ' / ' + formatTime(e.progress.duration) : ''}</div>
+    <div style="margin-top:2px">${e.progress.percent > 0 ? e.progress.percent + '% \u00b7 ' + timeLabel : ''}</div>
   ` : '';
 
   const stateClass = !e.is_dir && mt !== 'other' ? getStateClass(e.progress) : (e.folder_state === 'seen' ? 'seen' : (e.folder_state === 'inprogress' ? 'inprogress' : ''));
@@ -3538,7 +3541,7 @@ function openImage(idx) {
   document.getElementById('image-title').textContent = entry.name;
   document.getElementById('image-el').src = `${API}/api/file?path=${encodeURIComponent(entry.path)}`;
 
-  saveProgress(entry.path, posInImages, fileEntries.length);
+  saveProgress(entry.path, posInImages + 1, fileEntries.length);
 }
 
 function openArchive(idx) {
@@ -3558,14 +3561,19 @@ function openArchive(idx) {
   iv.classList.add(_imageFitMode);
 
   fetch(`${API}/api/archive/list?path=${encodeURIComponent(entry.path)}`)
-    .then(r => r.json())
+    .then(r => {
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    })
     .then(data => {
       _imageArchiveImages = data.images || [];
       document.getElementById('image-title').textContent = entry.name;
       _loadArchiveImage(0);
-      saveProgress(entry.path, 0, data.count);
     })
-    .catch(() => showToast('Erreur lecture archive'));
+    .catch(() => {
+      showToast('Erreur lecture archive');
+      closeImageViewer();
+    });
 }
 
 function _loadArchiveImage(idx) {
@@ -3574,7 +3582,7 @@ function _loadArchiveImage(idx) {
   document.getElementById('image-counter').textContent = `${idx + 1} / ${_imageArchiveImages.length}`;
   document.getElementById('image-el').src =
     `${API}/api/archive/image?path=${encodeURIComponent(_imageArchivePath)}&index=${idx}`;
-  saveProgress(_imageArchivePath, idx, _imageArchiveImages.length);
+  saveProgress(_imageArchivePath, idx + 1, _imageArchiveImages.length);
 }
 
 function imageNav(delta) {
@@ -3654,7 +3662,7 @@ function updateAudioUI() {
   const pct = (video.currentTime / video.duration) * 100;
   document.getElementById('audio-seekbar-fill').style.width = `${pct}%`;
   document.getElementById('audio-time').textContent =
-    `${fmtTime(video.currentTime)} / ${fmtTime(video.duration)}`;
+    `${formatTime(video.currentTime)} / ${formatTime(video.duration)}`;
   const btn = document.getElementById('audio-playpause-btn');
   if (btn) btn.textContent = video.paused ? '▶' : '⏸';
 }
@@ -3674,8 +3682,14 @@ async function openPdf(idx) {
   document.getElementById('pdf-counter').textContent = '…';
 
   if (!window.pdfjsLib) {
-    document.getElementById('pdf-counter').textContent = 'PDF.js non disponible';
-    return;
+    try {
+      const lib = await import('/pdfjs/pdf.min.js');
+      lib.GlobalWorkerOptions.workerSrc = '/pdfjs/pdf.worker.min.js';
+      window.pdfjsLib = lib;
+    } catch {
+      document.getElementById('pdf-counter').textContent = 'PDF.js non disponible';
+      return;
+    }
   }
 
   try {
