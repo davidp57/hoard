@@ -36,6 +36,7 @@ Facteur de marge actuel : **0,40**.
 | BL-045 | Gamepad — move dialog : ajouter phase de confirmation (A/B) | P1 | 15 min | 2026-05-13 | 2026-05-13 | 2026-05-13 |
 | BL-044 | Gamepad — vidéo démarre en fond sonore après action dialog | P1 | 15 min | 2026-05-13 | 2026-05-13 | 2026-05-13 |
 | BL-043 | Gamepad — curseur remis à zéro après suppression/déplacement/split | P2 | 10 min | 2026-05-13 | 2026-05-13 | 2026-05-13 |
+| BL-052 | Gamepad — curseur à -1 après auto-play post-suppression (régression BL-043) | P1 | 10 min | 2026-05-15 | 2026-05-15 | 2026-05-15 |
 
 ---
 
@@ -503,3 +504,13 @@ Facteur de marge actuel : **0,40**.
   - Supprimer les tests `TestCut` obsolètes ou les adapter si `/api/files/cut` est gardé déprécié
   - Ajouter `ADD COLUMN` migration dans `init_db()` pour la table `segments` si elle n'existe pas (rétrocompat bases existantes)
   - Vérifier que `ruff check` + `ruff format` passent à zéro warning
+
+---
+
+### BL-052 — Gamepad : curseur à -1 après auto-play post-suppression (régression BL-043)
+
+- **Dates** : `created=2026-05-15`
+- **Contexte** : régression introduite lors de l'implémentation de `_autoPlayNextFullscreen` (PR #19). Après une suppression en plein écran, le fichier suivant est lancé via `playVideo()`. À la fin de `playVideo`, `renderFiles(entries)` est appelé alors que `_gpPendingRestoreIdx = -1` (déjà consommé par le `renderFiles` de `navigate`), ce qui déclenche la branche `else { _gpCursorIdx = -1; }` dans `renderFiles`. Résultat : curseur gamepad à -1, commandes buggées, risque de vidéo fantôme (régression BL-044).
+- **Fichiers modifiés** :
+  - `frontend/index.html` — fin de `playVideo()` : ajout de `_gpPendingRestoreIdx = gpIdx` avant `renderFiles(entries)`
+- **Fix** : avant le `renderFiles(entries)` final de `playVideo`, rechercher `entry.path` dans `_gpRenderedList` et stocker l'index dans `_gpPendingRestoreIdx`. Ainsi, `renderFiles` restaure le curseur sur la vidéo en cours de lecture.
