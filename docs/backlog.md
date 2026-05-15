@@ -510,7 +510,7 @@ Facteur de marge actuel : **0,40**.
 ### BL-052 — Gamepad : curseur à -1 après auto-play post-suppression (régression BL-043)
 
 - **Dates** : `created=2026-05-15`
-- **Contexte** : régression introduite lors de l'implémentation de `_autoPlayNextFullscreen` (PR #19). Après une suppression en plein écran, le fichier suivant est lancé via `playVideo()`. À la fin de `playVideo`, `renderFiles(entries)` est appelé alors que `_gpPendingRestoreIdx = -1` (déjà consommé par le `renderFiles` de `navigate`), ce qui déclenche la branche `else { _gpCursorIdx = -1; }` dans `renderFiles`. Résultat : curseur gamepad à -1, commandes buggées, risque de vidéo fantôme (BL-044 regression).
+- **Contexte** : régression introduite lors de l'implémentation de `_autoPlayNextFullscreen` (PR #19). Après une suppression en plein écran, le fichier suivant est lancé via `playVideo()`. À la fin de `playVideo`, `renderFiles(entries)` est appelé alors que `_gpPendingRestoreIdx = -1` (déjà consommé par le `renderFiles` de `navigate`), ce qui déclenche la branche `else { _gpCursorIdx = -1; }` dans `renderFiles`. Résultat : curseur gamepad à -1, commandes buggées, risque de vidéo fantôme (régression BL-044).
 - **Fichiers modifiés** :
   - `frontend/index.html` — fin de `playVideo()` : ajout de `_gpPendingRestoreIdx = gpIdx` avant `renderFiles(entries)`
 - **Fix** : avant le `renderFiles(entries)` final de `playVideo`, rechercher `entry.path` dans `_gpRenderedList` et stocker l'index dans `_gpPendingRestoreIdx`. Ainsi, `renderFiles` restaure le curseur sur la vidéo en cours de lecture.
