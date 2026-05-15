@@ -3614,6 +3614,7 @@ function _loadArchiveImage(idx) {
   if (!_imageArchiveImages.length) return;
   _imageCurrentIdx = idx;
   document.getElementById('image-counter').textContent = `${idx + 1} / ${_imageArchiveImages.length}`;
+  document.getElementById('image-title').textContent = _imageArchiveImages[idx];
   document.getElementById('image-el').src =
     `${API}/api/archive/image?path=${encodeURIComponent(_imageArchivePath)}&index=${idx}`;
   saveProgress(_imageArchivePath, idx + 1, _imageArchiveImages.length);
