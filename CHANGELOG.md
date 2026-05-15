@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [v2.1.0] - 2026-05-15
+
 ### Added
 - **Indicateur de volume (OSD)** : une barre de volume s'affiche en bas à droite du player quand le volume est modifié (touches ↑/↓, manette D-pad, swipe vertical tactile). Elle indique l'icône 🔇/🔉/🔊, un niveau visuel et le pourcentage, puis disparaît automatiquement après 2,5 secondes. Remplace les toasts éphémères volume gamepad et swipe tactile.
 - **Indicateur de progression en plein écran** : le mini-affichage de position (coin haut droit) remplace le texte `XX / YY` par : temps restant en plus grand, barre de progression globale (fine), et une barre zoomée (×2) qui matérialise le segment de 10 % courant au bon emplacement de la barre globale.

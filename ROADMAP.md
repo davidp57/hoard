@@ -32,7 +32,7 @@
 - [x] HTTPS support: native via `SSL_CERTFILE` / `SSL_KEYFILE` env vars (no reverse proxy needed)
 - [x] SSRF protection on `/api/download` (rejects `file://`, localhost, RFC-1918)
 
-## v1.2 — Player & Sort *(next)*
+## v1.2 — Player & Sort *(done)*
 
 - [x] **Unified multi-level seek** (BL-021): 4 configurable seek durations (short/medium/long/x-long) shared by keyboard shortcuts, touch double-tap zones, and player buttons; extended keyboard shortcut set (M, A, I, O, C, D, Delete, S, PageDown/PageUp, ?); move/cut/delete modals usable in native fullscreen via `<dialog>.showModal()`
 - [ ] **Sort controls** in file list: by name (asc/desc), date modified, size, watch status (BL-002)
@@ -54,6 +54,16 @@
 - [ ] **Subtitle support**: auto-detect `.srt` / `.ass` files in the same folder and offer them as text tracks (BL-008)
 - [x] **Auto-refresh** file list every 30 s when the tab is active and video is paused (BL-009)
 - [x] Display video metadata under the player title (duration, resolution, codec, bitrate) via `ffprobe` (BL-016)
+
+## v2.1 — Multi-Segments & Gamepad Polish *(done)*
+
+- [x] **Multi-segment export** (BL-047–051): replace single IN/OUT cut with multi-segment system; segments stored in SQLite; export individual or merged via FFmpeg lossless concat; full keyboard and gamepad support (`I`/`O`/`E`, `L1+Y`/`R1+Y`/`L1+R1+Y`)
+- [x] **Auto-play next in fullscreen**: after delete/move/cut of the current file in fullscreen, the next file starts automatically and fullscreen is restored
+- [x] **Volume OSD**: on-screen volume bar with icon, level, and percentage; auto-hides after 2.5 s
+- [x] **Fullscreen progress indicator**: zoomed progress bar overlay in native fullscreen (time remaining, global bar, zoomed segment)
+- [x] **Gamepad fullscreen dialogs** (BL-046): delete and move dialogs visible and navigable in native fullscreen on SteamDeck/Edge
+- [x] **Gamepad cursor preservation** (BL-043/052): cursor no longer resets after file actions or auto-play next
+- [x] **Default home root** (BL-040): designate a root as the startup destination; navigate there directly without the root-picker screen
 
 ## v2.0 — Platform
 
