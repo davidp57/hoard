@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Dialogues invisibles en faux-fullscreen (manette)** : les dialogues d'action (suppression, déplacement, export…) avaient `z-index:100`, inférieur au conteneur `faux-fullscreen` (`z-index:200`). Ils sont désormais à `z-index:300` et restent visibles au-dessus de la vidéo. Corrige le bug où la 2e suppression consécutive via manette (LB+RB+B) ne montrait aucun dialogue.
+- **Aide manette (overlay Start) : image agrandie dynamiquement** : le panneau d'aide manette passe de 620 px fixe à 75 vw (dynamique), rendant le diagramme du pad beaucoup plus lisible.
+
 ### Added
 - **Navigation clavier dans les dialogues** : dans les dialogues (suppression, déplacement, export), les flèches ↑/↓ naviguent entre les options, Entrée valide et Échap annule — sans la souris.
 - **Aide raccourcis clavier (`?`)** : la touche `?` ouvre/ferme un panneau listant tous les raccourcis clavier et la navigation dans les dialogues.

@@ -804,7 +804,7 @@
     gap: 8px;
     padding: 20px 20px 16px;
     overflow-y: auto;
-    width: 620px;
+    width: 75vw;
     max-width: 98vw;
     max-height: 90vh;
   }
@@ -1650,7 +1650,7 @@
 </div>
 
 <!-- Download queue modal -->
-<div id="dl-queue-overlay" onclick="_dlQueueOverlayClick(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center">
+<div id="dl-queue-overlay" onclick="_dlQueueOverlayClick(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
   <div id="dl-queue-modal" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:480px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;gap:14px;overflow:hidden">
     <!-- Header row -->
     <div style="display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
@@ -1684,7 +1684,7 @@
 </div>
 
 <!-- Move modal -->
-<div id="move-dialog" onclick="if(event.target===this)closeModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center">
+<div id="move-dialog" onclick="if(event.target===this)closeModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
   <div id="modal">
     <h3>Déplacer vers…</h3>
     <div id="modal-filename"></div>
@@ -1698,7 +1698,7 @@
 </div>
 
 <!-- Browse modal -->
-<div id="browse-overlay" onclick="closeBrowseModal(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center">
+<div id="browse-overlay" onclick="closeBrowseModal(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
   <div id="browse-modal" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:480px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;gap:10px">
     <div id="browse-modal-title" style="font-size:15px;font-weight:700;color:var(--accent)">Choisir le dossier de départ</div>
     <div style="display:flex;gap:6px">
@@ -1716,7 +1716,7 @@
 </div>
 
 <!-- Destination picker modal (free move) -->
-<div id="dest-picker-overlay" onclick="closeDestPicker(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center">
+<div id="dest-picker-overlay" onclick="closeDestPicker(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:480px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;gap:10px">
     <div id="dest-picker-title" style="font-size:15px;font-weight:700;color:var(--accent)">Déplacer vers…</div>
     <div id="dest-picker-crumb" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim);word-break:break-all;min-height:16px"></div>
@@ -1746,7 +1746,7 @@
 </div>
 
 <!-- Cut modal -->
-<div id="export-dialog" onclick="if(event.target===this)closeExportModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center">
+<div id="export-dialog" onclick="if(event.target===this)closeExportModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:440px;max-width:95vw;display:flex;flex-direction:column;gap:14px">
     <div style="font-size:15px;font-weight:700;color:var(--accent)">&#x2702; Exporter les segments</div>
     <div id="export-filename" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim);word-break:break-all"></div>
@@ -1779,7 +1779,7 @@
 <div id="jobs-panel"></div>
 
 <!-- Mkdir modal -->
-<div id="mkdir-overlay" onclick="closeMkdirModal(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center">
+<div id="mkdir-overlay" onclick="closeMkdirModal(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:360px;max-width:95vw;display:flex;flex-direction:column;gap:14px">
     <div style="font-size:15px;font-weight:700;color:var(--accent)">Nouveau dossier</div>
     <input id="mkdir-input" type="text" placeholder="Nom du dossier" autocomplete="off"
@@ -1793,7 +1793,7 @@
 </div>
 
 <!-- Delete confirmation dialog -->
-<div id="delete-dialog" onclick="if(event.target===this)closeDeleteDialog()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center">
+<div id="delete-dialog" onclick="if(event.target===this)closeDeleteDialog()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:340px;max-width:90vw;display:flex;flex-direction:column;gap:14px">
     <div style="font-size:15px;font-weight:700;color:#e55">Supprimer ?</div>
     <div id="delete-dialog-filename" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim);word-break:break-all"></div>
