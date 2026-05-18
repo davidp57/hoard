@@ -200,18 +200,23 @@ Seek progressif dans la vidéo. La **vitesse dépend de la hauteur du doigt** : 
 
 | Touche | Action |
 |--------|--------|
+| `↑ / ↓` *(sans média)* | Déplacer le curseur dans la liste |
+| `↑ / ↓` *(média en cours)* | Volume +/− 10 % |
+| `Entrée` | Ouvrir l'élément sous le curseur |
 | `Espace` | Lecture / Pause |
 | `← / →` | Seek court (10 s par défaut) |
 | `Shift + ← / →` | Seek moyen (30 s par défaut) |
 | `Ctrl + ← / →` | Seek long (60 s par défaut) |
 | `Alt + ← / →` | Seek très long (120 s par défaut) |
-| `↑ / ↓` | Volume +/− 10 % |
 | `F` | Plein écran |
+| `Échap` | Quitter le plein écran — puis fermer le player |
 | `M` | Muet / Son |
+| `[ / ]` | Vitesse − / + (0,5× → 1× → 1,5× → 2×) |
 | `A` | Cycle aspect ratio (Fit / Fill / …) |
-| `PageDown / PageUp` | Vidéo suivante / précédente |
+| `W` | Marquer vu / non vu |
+| `PageDown / PageUp` | Vidéo suivante / précédente dans le dossier |
 | `I / O` | Marquer point IN / OUT |
-| `C` | Ouvrir la fenêtre Couper |
+| `E` | Ouvrir la fenêtre Couper |
 | `D` | Ouvrir la fenêtre Déplacer |
 | `Suppr` | Supprimer le fichier en cours |
 | `S` | Sauvegarder la position initiale du dossier |
@@ -241,6 +246,8 @@ Hoard supporte les manettes de jeu via la **Gamepad API** du navigateur (Xbox, P
 | **D-pad ↑/↓** | Volume ±10% | Fichier précédent/suivant | Aller à 25%/75% | — |
 | **Select** | Paramètres | — | — | — |
 | **Start** | Afficher la carte des boutons | — | — | — |
+| **L3** (clic stick) | Muet / Son | — | — | — |
+| **R3** (clic stick) | Cycle vitesse (0,5× → 1× → 1,5× → 2× → …) | — | — | — |
 | **Stick gauche X** | Scrubbing analogique | — | — | — |
 | **Stick droit Y** | Volume analogique | — | — | — |
 
