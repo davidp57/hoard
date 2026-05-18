@@ -24,6 +24,20 @@ Facteur de marge actuel : **0,40**.
 
 ## Lots actifs
 
+### Lot 11 — Harmonisation commandes clavier / pad / touch (~45 min : 30 min Copilot + 15 min gestion)
+
+> Refonte complète de la cohérence des inputs. Définit un tableau de référence canonique `Commande → Clavier / Pad / Touch` et implémente tous les bindings manquants. Frontend-only, aucune modification backend. Touch non modifié dans ce lot.
+
+| ID | Titre | Prio | Est. | Créé | Démarré | Terminé |
+| --- | --- | --- | --- | --- | --- | --- |
+| BL-059 | Clavier — Esc enrichi (exit fullscreen + fermer player) | P1 | 5 min | 2026-05-18 | | |
+| BL-060 | Clavier — ↑/↓ contextuel (navigation liste / volume) + Enter | P1 | 10 min | 2026-05-18 | | |
+| BL-061 | Clavier — W (toggle watched), [ / ] (vitesse style VLC) | P2 | 5 min | 2026-05-18 | | |
+| BL-062 | Pad — L3 (mute), R3 (cycle vitesse) | P2 | 5 min | 2026-05-18 | | |
+| BL-063 | Help dialog — tableau de référence complet | P2 | 5 min | 2026-05-18 | | |
+
+---
+
 ### Lot 10 — Lecteurs alternatifs : images, archives, PDF, audio (~240 min : 225 min Copilot + 15 min gestion)
 
 > Extension de Hoard aux médias non-vidéo. Le `#player-panel` accueille 4 sous-panels (vidéo, images, PDF, audio).
@@ -77,6 +91,7 @@ Facteur de marge actuel : **0,40**.
 | BL-037 | Frontend — timeout fetch + feedback réseau (AbortController) | P2 | 10 min | 2026-05-09 | | |
 | BL-038 | Gestes tactiles — overlay découverte au premier lancement | P3 | 15 min | 2026-05-09 | | |
 | BL-039 | Accessibilité — aria-label, :focus-visible, contraste text-dim | P3 | 20 min | 2026-05-09 | | |
+| BL-064 | Fix — transcodage forcé malgré l'option désactivée | P1 | 5 min | 2026-05-18 | | |
 
 ---
 
@@ -418,3 +433,77 @@ Facteur de marge actuel : **0,40**.
     - `test_archive_list_cbr` : idem pour CBR (skip si unrar absent)
     - `test_progress_non_video` : sauvegarder/lire progress pour un fichier image
   - Vérifier `ruff check` + `ruff format` à zéro warning
+
+---
+
+### BL-059 — Clavier : Esc enrichi (exit fullscreen + fermer player)
+
+- **Dates** : `created=2026-05-18`
+- **Lot** : Lot 11
+- **Travail** :
+  - Modifier le handler `Escape` dans le keyboard handler (`frontend/index.html`)
+  - Après la cascade existante de fermeture des dialogs (delete, move, export, image, audio, PDF), ajouter :
+    1. Si `isInFullscreen()` → `toggleFullscreen(); return;`
+    2. Si `currentFile !== null` → `privacyClose(); return;`
+  - Résultat : F pour entrer en fullscreen, Esc pour en sortir, Esc une 2e fois pour fermer le player — même comportement que Y puis B au pad
+
+---
+
+### BL-060 — Clavier : ↑/↓ contextuel (navigation liste / volume) + Enter
+
+- **Dates** : `created=2026-05-18`
+- **Lot** : Lot 11
+- **Travail** :
+  - Modifier les handlers `ArrowUp` / `ArrowDown` pour un comportement contextuel :
+    - `currentFile !== null` (player actif) → volume ±10% (comportement actuel, inchangé)
+    - `currentFile === null` (player inactif) → `_gpMoveCursor(-1)` / `_gpMoveCursor(+1)` ; si `_gpCursorIdx === -1`, initialiser au premier item visible ou à l'item actif
+  - Ajouter handler `Enter` : si `_gpCursorIdx >= 0` et `currentFile === null` → `_gpActivateCursor()`
+  - Réutilise le système de curseur existant du gamepad (`.gp-cursor`, `_gpMoveCursor`, `_gpActivateCursor`) — pas de nouveau code de rendu
+
+---
+
+### BL-061 — Clavier : W (toggle watched), [ / ] (vitesse style VLC)
+
+- **Dates** : `created=2026-05-18`
+- **Lot** : Lot 11
+- **Travail** :
+  - Ajouter `KeyW` dans le keyboard handler → déclenche l'action `toggle_watched` (même logique que X au pad), uniquement si `currentFile !== null`
+  - Modifier `cycleSpeed()` pour accepter un paramètre `dir` (+1 par défaut) : `speedIdx = (speedIdx + dir + PLAYBACK_SPEEDS.length) % PLAYBACK_SPEEDS.length`
+  - Ajouter `BracketRight` (`]`) → `cycleSpeed(+1)` et `BracketLeft` (`[`) → `cycleSpeed(-1)`, uniquement si `currentViewerMode === 'video'`
+
+---
+
+### BL-062 — Pad : L3 (mute), R3 (cycle vitesse)
+
+- **Dates** : `created=2026-05-18`
+- **Lot** : Lot 11
+- **Travail** :
+  - Ajouter `10: 'mute'` dans `GP_DEFAULT_MAPPING.base` (L3 = left stick click, actuellement non mappé)
+  - Ajouter `11: 'speed_cycle'` dans `GP_DEFAULT_MAPPING.base` (R3 = right stick click, actuellement non mappé)
+  - Vérifier que les cas `'mute'` et `'speed_cycle'` existent dans `_gpAction()` ; les ajouter si manquants (`cycleSpeed(+1)` pour `speed_cycle`)
+
+---
+
+### BL-063 — Help dialog : tableau de référence complet
+
+- **Dates** : `created=2026-05-18`
+- **Lot** : Lot 11
+- **Travail** :
+  - Mettre à jour le HTML statique de `<dialog id="shortcuts-dialog">` (`frontend/index.html`) pour inclure toutes les nouvelles commandes :
+    - Navigation liste : ↑/↓ (player inactif) + Enter
+    - Esc : exit fullscreen puis fermer player
+    - W : toggle watched
+    - [ / ] : vitesse −/+
+    - Pad L3 : mute, R3 : cycle vitesse
+  - Regrouper les raccourcis par section (Navigation, Lecture, Volume/Vitesse, Player UI, Fichiers)
+
+---
+
+### BL-064 — Fix : transcodage forcé malgré l'option désactivée
+
+- **Dates** : `created=2026-05-18`
+- **Lot** : Lot 6
+- **Type** : bug
+- **Symptôme** : Le toast « Lecture native refusée — transcodage… » s'affiche et le transcodage démarre, même quand « Transcodage activé » est désactivé dans les paramètres.
+- **Cause** : Le handler `video.onerror` (frontend/index.html, ~ligne 3830) bascule inconditionnellement vers `/api/transcode` sans vérifier `cfg.transcode_enabled`. La fonction `choosePlaybackSource()` vérifie bien le flag, mais l'erreur de lecture contourne ce chemin.
+- **Correction** : Ajouter un test `if (!cfg.transcode_enabled)` dans le handler `video.onerror` avant le fallback. Si désactivé, afficher un toast informatif (« Lecture non supportée nativement — activez le transcodage ») et ne pas rediriger vers `/api/transcode`.

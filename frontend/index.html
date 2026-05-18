@@ -3831,6 +3831,10 @@ async function playVideo(idx) {
   video.onerror = () => {
     if (video.error && video.error.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED
         && !video.src.includes('/api/transcode')) {
+      if (!cfg.transcode_enabled) {
+        showToast('⚠ Format non supporté nativement — activez le transcodage dans les paramètres');
+        return;
+      }
       showToast('Lecture native refusée — transcodage…');
       video.src = `${API}/api/transcode?path=${encodeURIComponent(entry.path)}`;
       video.load();
