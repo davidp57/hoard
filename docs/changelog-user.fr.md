@@ -7,6 +7,8 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 ## [Non publié]
 
 ### Nouveautés
+- **Navigation clavier enrichie** : les touches ↑/↓ déplacent le curseur dans la liste quand aucun media n'est actif, et ajustent le volume pendant la lecture. `Entrée` ouvre l'élément sélectionné. `W` bascule l'état vu/non vu. `[` et `]` diminuent ou augmentent la vitesse de lecture (style VLC : 0,5× → 1× → 1,5× → 2×). `Échap` quitte d'abord le plein écran, puis ferme le player.
+- **Manette — L3 / R3** : cliquer le stick gauche (L3) coupe/rétablit le son ; cliquer le stick droit (R3) cycle la vitesse de lecture.
 - **Visionneuse d'images** : les photos (JPG, PNG, GIF, WEBP, AVIF…) s'ouvrent directement dans l'interface. Navigation avec les flèches ← / →, bascule entre affichage ajusté et pleine largeur.
 - **Lecteur d'archives BD/manga** : les fichiers `.cbz`, `.zip` et `.cbr` s'ouvrent page à page comme une visionneuse d'images.
 - **Lecteur PDF** : les fichiers PDF s'affichent directement, avec navigation page à page et contrôles de zoom.

@@ -1816,13 +1816,13 @@
       <tbody>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">↑ / ↓</td><td style="padding:4px 8px">Déplacer le curseur dans la liste <span style="color:var(--text-dim)">(player inactif)</span></td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">Entrée</td><td style="padding:4px 8px">Ouvrir l'élément sélectionné</td></tr>
-        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">PageDown / PageUp</td><td style="padding:4px 8px">Vidéo suivante / précédente dans le dossier</td></tr>
       </tbody>
     </table>
     <div style="font-size:11px;font-weight:700;color:var(--text-dim);margin-top:6px;text-transform:uppercase;letter-spacing:.05em">Lecture</div>
     <table style="width:100%;border-collapse:collapse;font-size:12px">
       <tbody>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">Espace</td><td style="padding:4px 8px">Pause / Lecture</td></tr>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">PageDown / PageUp</td><td style="padding:4px 8px">Vidéo suivante / précédente dans le dossier</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">←  /  →</td><td style="padding:4px 8px">Seek court</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">Shift+← / →</td><td style="padding:4px 8px">Seek moyen</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">Ctrl+← / →</td><td style="padding:4px 8px">Seek long</td></tr>
@@ -3666,6 +3666,7 @@ function toggleImageMode() {
 }
 
 function closeImageViewer() {
+  currentFile = null;
   currentViewerMode = null;
   _setMediaActive(false);
   document.getElementById('image-viewer').classList.remove('active', 'viewer-fullscreen');
@@ -3813,6 +3814,7 @@ async function togglePdfFit() {
 
 function closePdfViewer() {
   _pdfDoc = null;
+  currentFile = null;
   currentViewerMode = null;
   _setMediaActive(false);
   document.getElementById('pdf-viewer').classList.remove('active', 'viewer-fullscreen');
@@ -4877,11 +4879,13 @@ document.addEventListener('keydown', e => {
   if (e.code === 'Space') { e.preventDefault(); togglePlay(); return; }
   if (e.code === 'KeyF') { toggleFullscreen(); return; }
   if (e.code === 'ArrowUp') {
+    e.preventDefault();
     if (currentFile) { setVolume(Math.min(1, video.volume + 0.1)); }
     else             { _gpMoveCursor(-1); }
     return;
   }
   if (e.code === 'ArrowDown') {
+    e.preventDefault();
     if (currentFile) { setVolume(Math.max(0, video.volume - 0.1)); }
     else             { _gpMoveCursor(1); }
     return;
