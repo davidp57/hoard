@@ -1811,21 +1811,46 @@
       <div style="font-size:15px;font-weight:700;color:var(--accent)">⌨ Raccourcis clavier</div>
       <button onclick="document.getElementById('shortcuts-dialog').close()" style="background:none;border:none;color:var(--text-dim);font-size:20px;cursor:pointer;line-height:1">✕</button>
     </div>
+    <div style="font-size:11px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.05em">Navigation dans la liste</div>
     <table style="width:100%;border-collapse:collapse;font-size:12px">
-      <thead><tr style="color:var(--text-dim);text-align:left"><th style="padding:4px 8px">Touche</th><th style="padding:4px 8px">Action</th></tr></thead>
+      <tbody>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">↑ / ↓</td><td style="padding:4px 8px">Déplacer le curseur dans la liste <span style="color:var(--text-dim)">(player inactif)</span></td></tr>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">Entrée</td><td style="padding:4px 8px">Ouvrir l'élément sélectionné</td></tr>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">PageDown / PageUp</td><td style="padding:4px 8px">Vidéo suivante / précédente dans le dossier</td></tr>
+      </tbody>
+    </table>
+    <div style="font-size:11px;font-weight:700;color:var(--text-dim);margin-top:6px;text-transform:uppercase;letter-spacing:.05em">Lecture</div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
       <tbody>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">Espace</td><td style="padding:4px 8px">Pause / Lecture</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">←  /  →</td><td style="padding:4px 8px">Seek court</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">Shift+← / →</td><td style="padding:4px 8px">Seek moyen</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">Ctrl+← / →</td><td style="padding:4px 8px">Seek long</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">Alt+← / →</td><td style="padding:4px 8px">Seek très long</td></tr>
-        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">↑ / ↓</td><td style="padding:4px 8px">Volume +/− 10 %</td></tr>
-        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">F</td><td style="padding:4px 8px">Plein écran</td></tr>
+      </tbody>
+    </table>
+    <div style="font-size:11px;font-weight:700;color:var(--text-dim);margin-top:6px;text-transform:uppercase;letter-spacing:.05em">Volume &amp; Vitesse</div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <tbody>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">↑ / ↓</td><td style="padding:4px 8px">Volume +/− 10 % <span style="color:var(--text-dim)">(player actif)</span></td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">M</td><td style="padding:4px 8px">Muet / Son</td></tr>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">[ / ]</td><td style="padding:4px 8px">Vitesse − / + (0,5× → 1× → 1,5× → 2×)</td></tr>
+      </tbody>
+    </table>
+    <div style="font-size:11px;font-weight:700;color:var(--text-dim);margin-top:6px;text-transform:uppercase;letter-spacing:.05em">Player</div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <tbody>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">F</td><td style="padding:4px 8px">Plein écran</td></tr>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">Échap</td><td style="padding:4px 8px">Quitter plein écran — puis fermer le player</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">A</td><td style="padding:4px 8px">Cycle aspect ratio (Fit / Fill / …)</td></tr>
-        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">PageDown / PageUp</td><td style="padding:4px 8px">Vidéo suivante / précédente</td></tr>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">W</td><td style="padding:4px 8px">Marquer vu / non vu</td></tr>
+      </tbody>
+    </table>
+    <div style="font-size:11px;font-weight:700;color:var(--text-dim);margin-top:6px;text-transform:uppercase;letter-spacing:.05em">Fichiers</div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <tbody>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">I / O</td><td style="padding:4px 8px">Marquer point IN / OUT</td></tr>
-        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">C</td><td style="padding:4px 8px">Ouvrir la fenêtre Couper</td></tr>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">E</td><td style="padding:4px 8px">Ouvrir la fenêtre Couper</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">D</td><td style="padding:4px 8px">Ouvrir la fenêtre Déplacer</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">Suppr</td><td style="padding:4px 8px">Supprimer le fichier en cours</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">S</td><td style="padding:4px 8px">Sauvegarder position initiale du dossier</td></tr>
@@ -4033,8 +4058,8 @@ function toggleVideoFit() {
 
 const PLAYBACK_SPEEDS = [0.5, 1, 1.5, 2];
 let speedIdx = 1; // default 1×
-function cycleSpeed() {
-  speedIdx = (speedIdx + 1) % PLAYBACK_SPEEDS.length;
+function cycleSpeed(dir = 1) {
+  speedIdx = (speedIdx + dir + PLAYBACK_SPEEDS.length) % PLAYBACK_SPEEDS.length;
   const spd = PLAYBACK_SPEEDS[speedIdx];
   video.playbackRate = spd;
   const label = spd === 1 ? '1×' : spd + '×';
@@ -4807,6 +4832,8 @@ document.addEventListener('keydown', e => {
       if (pv.classList.contains('viewer-fullscreen')) { pv.classList.remove('viewer-fullscreen'); return; }
       closePdfViewer(); return;
     }
+    if (isInFullscreen()) { toggleFullscreen(); return; }
+    if (currentFile !== null) { privacyClose(); return; }
   }
   // Keyboard navigation for open dialogs (mirrors gamepad: ↑↓ = navigate, Enter = confirm, Escape already handled above)
   {
@@ -4850,11 +4877,13 @@ document.addEventListener('keydown', e => {
   if (e.code === 'Space') { e.preventDefault(); togglePlay(); return; }
   if (e.code === 'KeyF') { toggleFullscreen(); return; }
   if (e.code === 'ArrowUp') {
-    setVolume(Math.min(1, video.volume + 0.1));
+    if (currentFile) { setVolume(Math.min(1, video.volume + 0.1)); }
+    else             { _gpMoveCursor(-1); }
     return;
   }
   if (e.code === 'ArrowDown') {
-    setVolume(Math.max(0, video.volume - 0.1));
+    if (currentFile) { setVolume(Math.max(0, video.volume - 0.1)); }
+    else             { _gpMoveCursor(1); }
     return;
   }
   // Seek keys — 4 levels via modifier
@@ -4869,10 +4898,15 @@ document.addEventListener('keydown', e => {
     skip(dir * amount);
     return;
   }
-  // Keys below require an active video
+  // File list navigation (when no media is playing)
+  if (e.code === 'Enter' && !currentFile && _gpCursorIdx >= 0) { _gpActivateCursor(); return; }
+  // Keys below require an active media file
   if (!currentFile) return;
   if (e.code === 'KeyM') { toggleMute(); return; }
   if (e.code === 'KeyA') { toggleVideoFit(); return; }
+  if (e.code === 'KeyW') { _gpToggleWatched(); return; }
+  if (e.code === 'BracketLeft')  { cycleSpeed(-1); return; }
+  if (e.code === 'BracketRight') { cycleSpeed(1);  return; }
   if (e.code === 'KeyI') { setPendingIn(); return; }
   if (e.code === 'KeyO') { addSegment(); return; }
   if (e.code === 'KeyE') { openExportModal(); return; }
@@ -4933,6 +4967,8 @@ const GP_DEFAULT_MAPPING = {
     3: 'fullscreen',       // Y
     8: 'open_settings',    // Select
     9: 'open_overlay',      // Start
+    10: 'mute',             // L3
+    11: 'speed_cycle',      // R3
     12: 'seek_back_medium', // D-pad Up  (volume up / base: seek back medium)
     13: 'seek_fwd_medium',  // D-pad Down
     14: 'seek_back_medium', // D-pad Left
@@ -5010,6 +5046,12 @@ function _gpAction(action, gamepad) {
       break;
     case 'toggle_watched':
       if (hasVideo) { _gpToggleWatched(); _gpVibrate(gamepad, 60); }
+      break;
+    case 'mute':
+      if (hasVideo) { toggleMute(); _gpVibrate(gamepad, 40); }
+      break;
+    case 'speed_cycle':
+      if (hasVideo) { cycleSpeed(1); _gpVibrate(gamepad, 40); }
       break;
     case 'fullscreen':
       if (hasVideo) { toggleFullscreen(); }
