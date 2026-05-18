@@ -201,18 +201,23 @@ Progressive seek through the video. **Speed depends on the vertical position of 
 
 | Key | Action |
 |-----|--------|
+| `↑ / ↓` *(no media)* | Move cursor in the file list |
+| `↑ / ↓` *(media playing)* | Volume +/− 10 % |
+| `Enter` | Open the item under the cursor |
 | `Space` | Play / Pause |
 | `← / →` | Short seek (10 s default) |
 | `Shift + ← / →` | Medium seek (30 s default) |
 | `Ctrl + ← / →` | Long seek (60 s default) |
 | `Alt + ← / →` | Extra-long seek (120 s default) |
-| `↑ / ↓` | Volume +/− 10 % |
 | `F` | Fullscreen |
+| `Esc` | Exit fullscreen — then close the player |
 | `M` | Mute / Unmute |
+| `[ / ]` | Speed − / + (0.5× → 1× → 1.5× → 2×) |
 | `A` | Cycle aspect ratio (Fit / Fill / …) |
-| `PageDown / PageUp` | Next / previous video |
+| `W` | Toggle watched / unwatched |
+| `PageDown / PageUp` | Next / previous video in folder |
 | `I / O` | Set IN / OUT marker |
-| `C` | Open Trim window |
+| `E` | Open Trim window |
 | `D` | Open Move window |
 | `Delete` | Delete current file |
 | `S` | Save folder start position |
@@ -242,6 +247,8 @@ Hoard supports game controllers via the browser's **Gamepad API** (Xbox, PlaySta
 | **D-pad ↑/↓** | Volume ±10% | Prev/next file | Jump to 25%/75% | — |
 | **Select** | Open Settings | — | — | — |
 | **Start** | Show button map | — | — | — |
+| **L3** (stick click) | Mute / Unmute | — | — | — |
+| **R3** (stick click) | Cycle speed (0.5× → 1× → 1.5× → 2× → …) | — | — | — |
 | **Left stick X** | Analog scrubbing | — | — | — |
 | **Right stick Y** | Analog volume | — | — | — |
 
