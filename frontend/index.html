@@ -1526,6 +1526,7 @@
       <button class="sort-btn" id="sort-dir-btn" onclick="toggleSortDir()" title="Inverser l'ordre">&#x2193;</button>
       <div id="refresh-indicator" title="Mise à jour en cours…"></div>
       <button class="sort-btn" onclick="openMkdirModal()" title="Nouveau dossier" style="margin-left:4px">&#x2795;</button>
+      <button class="sort-btn" onclick="refreshCurrentFolder()" title="Rafraîchir la liste" id="refresh-btn">&#x21BB;</button>
       <input id="search-input" type="search" placeholder="🔍 Rechercher…" oninput="onSearchInput(this.value)" autocomplete="off">
     </div>
     <div id="tag-filter-bar" class="tag-filter-bar"></div>
@@ -2629,13 +2630,6 @@ async function init() {
   _initDlQueue();
   // Scan for already-connected gamepads (Firefox compat: fires before gamepadconnected)
   _gpScanConnected();
-  // Auto-refresh: re-fetch the current folder every 30 s (stale-while-revalidate,
-  // no flicker). Skipped when the home screen or a video is active and no search is active.
-  setInterval(() => {
-    if (!showingHomeScreen && !document.hidden && !currentFile && !searchQuery) {
-      navigate(currentPath);
-    }
-  }, 30_000);
 
   // 2. Handle bookmarklet redirect: #download?url=...&cookies=...&videoSrc=...&title=...
   if (location.hash.startsWith('#download?')) {
@@ -3311,6 +3305,12 @@ function toggleTagFilter(tag) {
 }
 
 // ── Navigation ────────────────────────────────────────────────────────────────
+async function refreshCurrentFolder() {
+  if (showingHomeScreen) return;
+  dirCache.delete(currentPath);
+  await navigate(currentPath);
+}
+
 async function navigate(path) {
   // Preserve gamepad cursor when refreshing the same folder; reset on folder change
   if (path !== currentPath) { _gpCursorIdx = -1; _gpPendingRestoreIdx = -1; }
