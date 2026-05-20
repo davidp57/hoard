@@ -6,6 +6,10 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ## [Non publié]
 
+---
+
+## [v2.2.0] — 2026-05-20
+
 ### Nouveautés
 - **Navigation clavier enrichie** : les touches ↑/↓ déplacent le curseur dans la liste quand aucun media n'est actif, et ajustent le volume pendant la lecture. `Entrée` ouvre l'élément sélectionné. `W` bascule l'état vu/non vu. `[` et `]` diminuent ou augmentent la vitesse de lecture (style VLC : 0,5× → 1× → 1,5× → 2×). `Échap` quitte d'abord le plein écran, puis ferme le player.
 - **Manette — L3 / R3** : cliquer le stick gauche (L3) coupe/rétablit le son ; cliquer le stick droit (R3) cycle la vitesse de lecture.
@@ -14,6 +18,17 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 - **Lecteur PDF** : les fichiers PDF s'affichent directement, avec navigation page à page et contrôles de zoom.
 - **Lecteur audio** : les fichiers audio (MP3, FLAC, OGG, M4A, WAV…) se lisent dans un player simplifié avec barre de progression.
 - **Suivi de progression universel** : l'état vu/en cours/non vu est maintenant disponible pour les images, PDF, archives et fichiers audio, pas seulement pour les vidéos.
+- **Diagramme interactif de la manette Xbox** : l'overlay d'aide (bouton Start) affiche maintenant un diagramme annoté de la manette avec mise en évidence dynamique des couches LB/RB en temps réel.
+- **Navigation clavier dans les dialogues** : dans les fenêtres de suppression, déplacement et export, utilisez ↑/↓ pour naviguer entre les options, Entrée pour valider et Échap pour annuler.
+- **Aide raccourcis clavier (`?`)** : appuyez sur `?` à tout moment pour afficher/masquer un tableau de tous les raccourcis clavier.
+- **D-pad en maintien** : maintenir une direction du D-pad dans la liste de fichiers provoque un défilement continu rapide (400 ms délai initial, répétition 100 ms).
+- **Bouton Rafraîchir (↻)** : un bouton `↻` dans la barre de tri remplace le rafraîchissement automatique de 30 secondes. La liste se met à jour à la demande, et toujours automatiquement après une suppression, un déplacement ou une découpe.
+
+### Corrections
+- **Transcodage désactivé ignoré** : le player ne respectait pas l'option « Transcodage activé » désactivée dans les Paramètres. Corrigé — un message informatif s'affiche à la place du basculement automatique.
+- **Dialogues d'action invisibles en faux-plein-écran** (manette) : les fenêtres Supprimer, Déplacer et Export étaient masquées derrière la vidéo. Corrigé.
+- **Image d'aide manette tronquée** : le diagramme de manette dans l'overlay d'aide (Start) était bloqué à 620 px fixes. Il s'adapte maintenant à 75 % de la fenêtre.
+- **Curseur manette perdu après rafraîchissement** : le curseur de navigation ne disparaît plus lors d'un rafraîchissement du même dossier (filtre, tri, action fichier).
 
 ---
 

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [v2.2.0] - 2026-05-20
+
 ### Added
 - **Harmonisation commandes clavier / pad / touch (Lot 11)** :
   - **Esc enrichi** : 1er Esc quitte le plein écran vidéo ; 2e Esc ferme le player (équivalent au Y puis B de la manette).
@@ -22,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Transcodage forcé malgré l'option désactivée (BL-064)** : le handler d'erreur vidéo (`video.onerror`) basculait inconditionnellement vers `/api/transcode` sans vérifier le paramètre « Transcodage activé ». L'option désactivée est désormais respectée : un toast informatif s'affiche à la place.
 - **Dialogues invisibles en faux-fullscreen (manette)** : les dialogues d'action (suppression, déplacement, export…) avaient `z-index:100`, inférieur au conteneur `faux-fullscreen` (`z-index:200`). Ils sont désormais à `z-index:300` et restent visibles au-dessus de la vidéo. Corrige le bug où la 2e suppression consécutive via manette (LB+RB+B) ne montrait aucun dialogue.
 - **Aide manette (overlay Start) : image agrandie dynamiquement** : le panneau d'aide manette passe de 620 px fixe à 75 vw (dynamique), rendant le diagramme du pad beaucoup plus lisible.
+- **Curseur manette disparu après rafraîchissement** : `navigate()` sur le même chemin ne réinitialise plus `_gpCursorIdx` — le curseur est conservé sur place. `renderFiles()` maintient aussi le curseur lors des re-renders in-place (filtre, tri).
 
 ### Added
 - **Navigation clavier dans les dialogues** : dans les dialogues (suppression, déplacement, export), les flèches ↑/↓ naviguent entre les options, Entrée valide et Échap annule — sans la souris.
@@ -35,6 +40,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Endpoint `/api/file` (BL-053)** : remplace `/api/stream` pour servir tout type de fichier média avec support Range. `/api/stream` est conservé pour compatibilité.
 - **Endpoints `/api/archive/list` et `/api/archive/image` (BL-055)** : liste les images d'une archive et extrait une image à un index donné.
 - **Dépendance `rarfile>=4.0`** ajoutée à `backend/requirements.txt` ; `unrar-free` ajouté à l'image Docker.
+- **D-pad auto-repeat** : maintenir une direction du D-pad dans le navigateur de fichiers (sans L1/R1, hors lecteur) déclenche la répétition automatique pour un défilement rapide (délai initial 400 ms, répétition 100 ms).
+- **Bouton Rafraîchir (↻)** : bouton de rafraîchissement manuel dans la barre de tri. Vide le cache du dossier courant et recharge la liste.
+
+### Changed
+- **Suppression du rafraîchissement automatique** : le `setInterval` de 30 s est retiré. Les opérations de modification du filesystem (suppression, déplacement, création de dossier, découpe) continuent de rafraîchir la liste automatiquement.
 
 ---
 
@@ -160,6 +170,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - docker-compose service name: `mediabrowser` → `hoard`
 - README rewritten as bilingual entry point
 
-[Unreleased]: https://github.com/davidp57/hoard/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/davidp57/hoard/compare/v2.2.0...HEAD
+[v2.2.0]: https://github.com/davidp57/hoard/compare/v2.1.0...v2.2.0
+[v2.1.0]: https://github.com/davidp57/hoard/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/davidp57/hoard/compare/v1.0.0...v2.0.0
 [1.0.0]: https://github.com/davidp57/hoard/releases/tag/v1.0.0

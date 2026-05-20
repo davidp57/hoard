@@ -30,11 +30,11 @@ Facteur de marge actuel : **0,40**.
 
 | ID | Titre | Prio | Est. | Créé | Démarré | Terminé |
 | --- | --- | --- | --- | --- | --- | --- |
-| BL-059 | Clavier — Esc enrichi (exit fullscreen + fermer player) | P1 | 5 min | 2026-05-18 | | |
-| BL-060 | Clavier — ↑/↓ contextuel (navigation liste / volume) + Enter | P1 | 10 min | 2026-05-18 | | |
-| BL-061 | Clavier — W (toggle watched), [ / ] (vitesse style VLC) | P2 | 5 min | 2026-05-18 | | |
-| BL-062 | Pad — L3 (mute), R3 (cycle vitesse) | P2 | 5 min | 2026-05-18 | | |
-| BL-063 | Help dialog — tableau de référence complet | P2 | 5 min | 2026-05-18 | | |
+| BL-059 | Clavier — Esc enrichi (exit fullscreen + fermer player) | P1 | 5 min | 2026-05-18 | 2026-05-18 | 2026-05-19 |
+| BL-060 | Clavier — ↑/↓ contextuel (navigation liste / volume) + Enter | P1 | 10 min | 2026-05-18 | 2026-05-18 | 2026-05-19 |
+| BL-061 | Clavier — W (toggle watched), [ / ] (vitesse style VLC) | P2 | 5 min | 2026-05-18 | 2026-05-18 | 2026-05-19 |
+| BL-062 | Pad — L3 (mute), R3 (cycle vitesse) | P2 | 5 min | 2026-05-18 | 2026-05-18 | 2026-05-19 |
+| BL-063 | Help dialog — tableau de référence complet | P2 | 5 min | 2026-05-18 | 2026-05-18 | 2026-05-19 |
 
 ---
 
@@ -91,7 +91,7 @@ Facteur de marge actuel : **0,40**.
 | BL-037 | Frontend — timeout fetch + feedback réseau (AbortController) | P2 | 10 min | 2026-05-09 | | |
 | BL-038 | Gestes tactiles — overlay découverte au premier lancement | P3 | 15 min | 2026-05-09 | | |
 | BL-039 | Accessibilité — aria-label, :focus-visible, contraste text-dim | P3 | 20 min | 2026-05-09 | | |
-| BL-064 | Fix — transcodage forcé malgré l'option désactivée | P1 | 5 min | 2026-05-18 | | |
+| BL-064 | Fix — transcodage forcé malgré l'option désactivée | P1 | 5 min | 2026-05-18 | 2026-05-18 | 2026-05-18 |
 
 ---
 
