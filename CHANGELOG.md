@@ -9,6 +9,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v2.2.0] - 2026-05-20
+
+### Added
+- **Harmonisation commandes clavier / pad / touch (Lot 11)** :
+  - **Esc enrichi** : 1er Esc quitte le plein écran vidéo ; 2e Esc ferme le player (équivalent au Y puis B de la manette).
+  - **↑/↓ contextuel** : quand le player est inactif, les flèches ↑/↓ déplacent le curseur dans la liste de fichiers (réutilise le curseur gamepad). Quand le player est actif, comportement volume inchangé.
+  - **Entrée** : valide l'élément sous le curseur liste (quand aucun média en cours).
+  - **W** : bascule l'état vu / non vu du fichier en cours (équivalent au bouton X de la manette).
+  - **[ / ]** : diminue / augmente la vitesse de lecture (0,5× → 1× → 1,5× → 2×, style VLC).
+  - **Manette L3** (clic stick gauche) : mute / son.
+  - **Manette R3** (clic stick droit) : cycle vitesse de lecture.
+  - **Aide clavier (`?`)** : tableau réorganisé par sections (Navigation, Lecture, Volume & Vitesse, Player, Fichiers) avec toutes les nouvelles commandes.
+- **Navigation clavier dans les dialogues** : dans les dialogues (suppression, déplacement, export), les flèches ↑/↓ naviguent entre les options, Entrée valide et Échap annule — sans la souris.
+- **Aide raccourcis clavier (`?`)** : la touche `?` ouvre/ferme un panneau listant tous les raccourcis clavier et la navigation dans les dialogues.
+- **Diagramme manette Xbox dans l'overlay gamepad** : l'overlay manette affiche un SVG de la manette Xbox avec les actions annotées par des lignes de callout. Maintenir **LB** ou **RB** sur la manette physique fait s'afficher le bouton enfoncé (couleur or) et met à jour les callouts en temps réel pour montrer les actions de la couche correspondante (L1, R1 ou L1+R1). Deux onglets contexte permettent de basculer entre la vue Joueur et Browser.
+- **Visionneuse d'images (BL-054)** : les images (JPG, PNG, GIF, WEBP, BMP, TIFF, AVIF) s'ouvrent dans un viewer intégré au panneau player. Navigation précédent/suivant (touches ← / →, boutons), bascule mode « plein écran » / « largeur ajustée ». La progression (index/total) est sauvegardée en base.
+- **Lecteur d'archives BD/manga (BL-055)** : les fichiers `.cbz`, `.zip` et `.cbr` s'ouvrent comme des visionneuses page à page. La liste des images est extraite côté serveur (`/api/archive/list`) ; chaque page est servie à la demande (`/api/archive/image?index=N`). CBR nécessite `rarfile` + `unrar-free`.
+- **Lecteur PDF (BL-056)** : les fichiers `.pdf` sont rendus via PDF.js v4 (ES module, inclus dans `frontend/pdfjs/`). Navigation page par page (← / →), zoom (+/−), mode ajustement largeur / taille originale. La page courante est sauvegardée en base.
+- **Lecteur audio (BL-057)** : les fichiers audio (MP3, FLAC, OGG, M4A, AAC, WAV, OPUS) s'ouvrent dans un player audio minimaliste réutilisant l'élément `<video>` HTML5. Barre de progression cliquable, contrôles lecture/pause et seek ±10s, bouton fermer.
+- **Champ `media_type` dans `/api/files` et `/api/search` (BL-053)** : chaque entrée fichier expose désormais `media_type` (`video`, `image`, `audio`, `pdf`, `archive`, `other`). Le progrès est retourné pour tous les types de médias (pas seulement les vidéos).
+- **Endpoint `/api/file` (BL-053)** : remplace `/api/stream` pour servir tout type de fichier média avec support Range. `/api/stream` est conservé pour compatibilité.
+- **Endpoints `/api/archive/list` et `/api/archive/image` (BL-055)** : liste les images d'une archive et extrait une image à un index donné.
+- **Dépendance `rarfile>=4.0`** ajoutée à `backend/requirements.txt` ; `unrar-free` ajouté à l'image Docker.
+- **D-pad auto-repeat** : maintenir une direction du D-pad dans le navigateur de fichiers (sans L1/R1, hors lecteur) déclenche la répétition automatique pour un défilement rapide (délai initial 400 ms, répétition 100 ms).
+- **Bouton Rafraîchir (↻)** : bouton de rafraîchissement manuel dans la barre de tri. Vide le cache du dossier courant et recharge la liste.
+
+### Changed
+- **Suppression du rafraîchissement automatique** : le `setInterval` de 30 s est retiré. Les opérations de modification du filesystem (suppression, déplacement, création de dossier, découpe) continuent de rafraîchir la liste automatiquement.
+
+### Fixed
+- **Transcodage forcé malgré l'option désactivée (BL-064)** : le handler d'erreur vidéo (`video.onerror`) basculait inconditionnellement vers `/api/transcode` sans vérifier le paramètre « Transcodage activé ». L'option désactivée est désormais respectée : un toast informatif s'affiche à la place.
+- **Dialogues invisibles en faux-fullscreen (manette)** : les dialogues d'action (suppression, déplacement, export…) avaient `z-index:100`, inférieur au conteneur `faux-fullscreen` (`z-index:200`). Ils sont désormais à `z-index:300` et restent visibles au-dessus de la vidéo. Corrige le bug où la 2e suppression consécutive via manette (LB+RB+B) ne montrait aucun dialogue.
+- **Aide manette (overlay Start) : image agrandie dynamiquement** : le panneau d'aide manette passe de 620 px fixe à 75 vw (dynamique), rendant le diagramme du pad beaucoup plus lisible.
+- **Curseur manette disparu après rafraîchissement** : `navigate()` sur le même chemin ne réinitialise plus `_gpCursorIdx` — le curseur est conservé sur place. `renderFiles()` maintient aussi le curseur lors des re-renders in-place (filtre, tri).
+
+---
+
 ## [v2.1.0] - 2026-05-15
 
 ### Added
@@ -131,6 +168,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - docker-compose service name: `mediabrowser` → `hoard`
 - README rewritten as bilingual entry point
 
-[Unreleased]: https://github.com/davidp57/hoard/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/davidp57/hoard/compare/v2.2.0...HEAD
+[v2.2.0]: https://github.com/davidp57/hoard/compare/v2.1.0...v2.2.0
+[v2.1.0]: https://github.com/davidp57/hoard/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/davidp57/hoard/compare/v1.0.0...v2.0.0
 [1.0.0]: https://github.com/davidp57/hoard/releases/tag/v1.0.0

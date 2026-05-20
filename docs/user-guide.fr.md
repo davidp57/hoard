@@ -2,7 +2,7 @@
 
 ## Présentation
 
-Hoard est un navigateur de fichiers vidéo accessible depuis un navigateur web. Il est conçu pour parcourir un disque réseau (NAS), lire des vidéos directement dans le navigateur et se souvenir de là où tu t'es arrêté.
+Hoard est un navigateur de fichiers média accessible depuis un navigateur web. Il est conçu pour parcourir un disque réseau (NAS), lire des vidéos, visionner des images et archives BD, lire des fichiers audio et des PDF directement dans le navigateur, et se souvenir de là où tu t'es arrêté.
 
 ---
 
@@ -55,6 +55,49 @@ Le modal de déplacement propose deux modes :
 
 - **Dossiers épinglés** : déplacement rapide vers un dossier prédéfini.
 - **📂 Parcourir…** : ouvre un sélecteur qui parcourt toute l'arborescence pour choisir n'importe quel dossier de destination.
+
+---
+
+## Lecteurs alternatifs
+
+En plus des vidéos, Hoard peut ouvrir directement plusieurs types de fichiers :
+
+### Images
+
+Les fichiers JPG, PNG, GIF, WEBP, BMP, TIFF et AVIF s'ouvrent dans une visionneuse intégrée.
+
+- **← / →** (clavier ou boutons) : image précédente / suivante dans le dossier
+- **Bouton ▣** : bascule entre affichage ajusté à la largeur et plein écran
+- **✕** : ferme la visionneuse
+
+### Archives BD/manga (.cbz, .zip, .cbr)
+
+Les archives d'images s'ouvrent page à page comme une visionneuse.
+
+- Navigation identique à la visionneuse d'images (← / →)
+- La page courante est sauvegardée pour reprendre là où tu t'es arrêté
+- `.cbr` nécessite que `unrar-free` soit installé sur le serveur
+
+### PDF
+
+Les fichiers PDF sont rendus directement dans le navigateur via PDF.js.
+
+- **← / →** : page précédente / suivante
+- **− / +** : dézoomer / zoomer
+- **Bouton ▣** : bascule entre ajustement à la largeur et taille originale
+- La page courante est sauvegardée
+
+### Audio (.mp3, .flac, .ogg, .m4a, .aac, .wav, .opus)
+
+Les fichiers audio s'ouvrent dans un lecteur minimaliste.
+
+- Barre de progression cliquable
+- Boutons ◀◀ / ▶ / ▶▶ (seek ±10 s, lecture/pause)
+- La position est sauvegardée
+
+### Suivi de progression
+
+L'état **vu / en cours / non vu** fonctionne pour tous les types de médias, pas seulement les vidéos. Le pourcentage est calculé sur la même base (position / durée pour vidéo et audio ; page / total pour PDF et archives).
 
 ---
 
@@ -157,18 +200,23 @@ Seek progressif dans la vidéo. La **vitesse dépend de la hauteur du doigt** : 
 
 | Touche | Action |
 |--------|--------|
+| `↑ / ↓` *(sans média)* | Déplacer le curseur dans la liste |
+| `↑ / ↓` *(média en cours)* | Volume +/− 10 % |
+| `Entrée` | Ouvrir l'élément sous le curseur |
 | `Espace` | Lecture / Pause |
 | `← / →` | Seek court (10 s par défaut) |
 | `Shift + ← / →` | Seek moyen (30 s par défaut) |
 | `Ctrl + ← / →` | Seek long (60 s par défaut) |
 | `Alt + ← / →` | Seek très long (120 s par défaut) |
-| `↑ / ↓` | Volume +/− 10 % |
 | `F` | Plein écran |
+| `Échap` | Quitter le plein écran — puis fermer le player |
 | `M` | Muet / Son |
+| `[ / ]` | Vitesse − / + (0,5× → 1× → 1,5× → 2×) |
 | `A` | Cycle aspect ratio (Fit / Fill / …) |
-| `PageDown / PageUp` | Vidéo suivante / précédente |
+| `W` | Marquer vu / non vu |
+| `PageDown / PageUp` | Vidéo suivante / précédente dans le dossier |
 | `I / O` | Marquer point IN / OUT |
-| `C` | Ouvrir la fenêtre Couper |
+| `E` | Ouvrir la fenêtre Couper |
 | `D` | Ouvrir la fenêtre Déplacer |
 | `Suppr` | Supprimer le fichier en cours |
 | `S` | Sauvegarder la position initiale du dossier |
@@ -198,6 +246,8 @@ Hoard supporte les manettes de jeu via la **Gamepad API** du navigateur (Xbox, P
 | **D-pad ↑/↓** | Volume ±10% | Fichier précédent/suivant | Aller à 25%/75% | — |
 | **Select** | Paramètres | — | — | — |
 | **Start** | Afficher la carte des boutons | — | — | — |
+| **L3** (clic stick) | Muet / Son | — | — | — |
+| **R3** (clic stick) | Cycle vitesse (0,5× → 1× → 1,5× → 2× → …) | — | — | — |
 | **Stick gauche X** | Scrubbing analogique | — | — | — |
 | **Stick droit Y** | Volume analogique | — | — | — |
 

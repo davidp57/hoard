@@ -132,6 +132,7 @@
     flex-direction: column;
     border-right: 1px solid var(--border);
     background: var(--surface);
+    transition: width 0.2s ease;
   }
 
   #sort-bar {
@@ -801,11 +802,11 @@
     flex-direction: column;
     align-items: center;
     gap: 8px;
-    padding: 24px;
+    padding: 20px 20px 16px;
     overflow-y: auto;
-    width: 480px;
-    max-width: 95vw;
-    max-height: 85vh;
+    width: 75vw;
+    max-width: 98vw;
+    max-height: 90vh;
   }
   #gp-overlay h2 {
     color: var(--accent);
@@ -813,35 +814,19 @@
     margin: 0 0 4px 0;
     letter-spacing: .06em;
   }
-  .gp-layer-title {
-    color: var(--text-dim);
-    font-size: 11px;
-    font-family: 'DM Mono', monospace;
-    text-transform: uppercase;
-    letter-spacing: .08em;
-    margin: 10px 0 4px;
+  /* Tab bar for controller layers */
+  .gp-tab-bar { display:flex; gap:4px; flex-wrap:wrap; width:100%; margin-bottom:4px; }
+  .gp-tab {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text-dim); border-radius: 6px; padding: 4px 12px;
+    font-size: 11px; cursor: pointer; font-family: inherit;
   }
-  .gp-row {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-    font-size: 12px;
-    width: 100%;
-    max-width: 420px;
-  }
-  .gp-btn-badge {
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 5px;
-    padding: 2px 7px;
-    font-family: 'DM Mono', monospace;
-    font-size: 11px;
-    min-width: 38px;
-    text-align: center;
-    flex-shrink: 0;
-    color: var(--text);
-  }
-  .gp-action { color: var(--text-mid); flex: 1; }
+  .gp-tab:hover { color: var(--text); border-color: var(--accent); }
+  .gp-tab.active { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 700; }
+  #gp-ctrl-container { width: 100%; display: flex; justify-content: center; align-items: center; }
+  /* Analogue footer */
+  .gp-analog-row { font-size: 10px; color: var(--text-dim); display:flex; gap:12px; justify-content:center; margin-top:6px; }
+  .gp-analog-row span { background:var(--surface2); border:1px solid var(--border); border-radius:4px; padding:2px 8px; }
 
   /* ── Mobile ── */
   @media (max-width: 700px) {
@@ -867,6 +852,9 @@
   }
   @media (min-width: 701px) {
     #mobile-back { display: none; }
+    /* No media active: file list takes full width */
+    #main:not(.media-active) #filelist-panel { width: 100%; border-right: none; }
+    #main:not(.media-active) #player-panel { display: none; }
   }
 
   /* ── Quick folders ── */
@@ -1062,6 +1050,211 @@
     transition: opacity 0.15s;
   }
   #settings-save-btn:hover { opacity: 0.85; }
+
+  /* ── Image viewer ── */
+  #image-viewer {
+    flex: 1;
+    display: none;
+    flex-direction: column;
+    background: #000;
+    overflow: hidden;
+  }
+  #image-viewer.active { display: flex; }
+  #image-nav-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  #image-nav-bar button {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text-mid); font-size: 13px; cursor: pointer;
+    padding: 5px 10px; border-radius: 6px; font-family: inherit;
+  }
+  #image-nav-bar button:hover { border-color: var(--accent); color: var(--accent); }
+  #image-counter {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--text);
+    min-width: 60px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+  #image-title {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--text-mid);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+    min-width: 0;
+    text-align: right;
+  }
+  #image-scroll-area {
+    flex: 1;
+    overflow: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #111;
+  }
+  #image-el {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    display: block;
+    user-select: none;
+  }
+  #image-viewer.fit-width #image-el {
+    max-width: 100%;
+    max-height: none;
+    width: 100%;
+  }
+  #image-viewer.full-page #image-el {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+  }
+
+  /* ── Audio player ── */
+  #audio-player {
+    flex: 1;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #000;
+    padding: 32px 24px;
+    gap: 20px;
+  }
+  #audio-player.active { display: flex; }
+  #audio-icon { font-size: 64px; }
+  #audio-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    text-align: center;
+    max-width: 320px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-family: 'DM Mono', monospace;
+  }
+  #audio-seekbar-wrap {
+    position: relative;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    cursor: pointer;
+    width: 100%;
+    max-width: 400px;
+    touch-action: none;
+  }
+  #audio-seekbar-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 3px;
+    pointer-events: none;
+    width: 0%;
+  }
+  #audio-time {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  #audio-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  #audio-controls button {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text-mid); font-size: 18px; cursor: pointer;
+    padding: 8px 14px; border-radius: 8px; font-family: inherit;
+    transition: all 0.15s;
+  }
+  #audio-controls button:hover { border-color: var(--accent); color: var(--accent); }
+  #audio-playpause-btn { font-size: 22px !important; padding: 10px 18px !important; }
+  #audio-close-bar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  #audio-close-bar button {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text-mid); font-size: 12px; cursor: pointer;
+    padding: 5px 10px; border-radius: 6px; font-family: inherit;
+  }
+  #audio-close-bar button:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ── PDF viewer ── */
+  #pdf-viewer {
+    flex: 1;
+    display: none;
+    flex-direction: column;
+    background: #000;
+    overflow: hidden;
+  }
+  #pdf-viewer.active { display: flex; }
+  #pdf-nav-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  #pdf-nav-bar button {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text-mid); font-size: 13px; cursor: pointer;
+    padding: 5px 10px; border-radius: 6px; font-family: inherit;
+  }
+  #pdf-nav-bar button:hover { border-color: var(--accent); color: var(--accent); }
+  #pdf-counter {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--text);
+    min-width: 60px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+  #pdf-title {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--text-mid);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+    min-width: 0;
+    text-align: right;
+  }
+  #pdf-scroll-area {
+    flex: 1;
+    overflow: auto;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    background: #555;
+    padding: 8px;
+  }
+  #pdf-canvas {
+    display: block;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.5);
+  }
+
+  /* ── Viewer fullscreen overlay (desktop) ── */
+  .viewer-fullscreen {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 100 !important;
+    background: #000 !important;
+  }
 </style>
 </head>
 <body>
@@ -1333,6 +1526,7 @@
       <button class="sort-btn" id="sort-dir-btn" onclick="toggleSortDir()" title="Inverser l'ordre">&#x2193;</button>
       <div id="refresh-indicator" title="Mise à jour en cours…"></div>
       <button class="sort-btn" onclick="openMkdirModal()" title="Nouveau dossier" style="margin-left:4px">&#x2795;</button>
+      <button class="sort-btn" onclick="refreshCurrentFolder()" title="Rafraîchir la liste" id="refresh-btn">&#x21BB;</button>
       <input id="search-input" type="search" placeholder="🔍 Rechercher…" oninput="onSearchInput(this.value)" autocomplete="off">
     </div>
     <div id="tag-filter-bar" class="tag-filter-bar"></div>
@@ -1400,11 +1594,64 @@
         </div>
       </div>
     </div>
+
+    <!-- Image viewer -->
+    <div id="image-viewer">
+      <div id="image-nav-bar">
+        <button onclick="imageNav(-1)" title="Image précédente (←)">&#x25C0;</button>
+        <div id="image-counter">— / —</div>
+        <button onclick="imageNav(1)" title="Image suivante (→)">&#x25B6;</button>
+        <button onclick="toggleImageMode()" id="image-fit-btn" title="Changer le mode d'affichage">&#x25A3;</button>
+        <button onclick="toggleViewerFullscreen('image-viewer')" id="image-fs-btn" title="Plein écran (F)">&#x26F6;</button>
+        <div id="image-title"></div>
+        <button onclick="closeImageViewer()" title="Fermer">&#x2715;</button>
+      </div>
+      <div id="image-scroll-area">
+        <img id="image-el" src="" alt="">
+      </div>
+    </div>
+
+    <!-- Audio player -->
+    <div id="audio-player">
+      <div id="audio-icon">🎵</div>
+      <div id="audio-title"></div>
+      <div id="audio-seekbar-wrap" onclick="audioSeekClick(event)">
+        <div id="audio-seekbar-fill"></div>
+      </div>
+      <div id="audio-time">0:00 / 0:00</div>
+      <div id="audio-controls">
+        <button onclick="skip(-cfg.seek_short)" data-seek="seek_short" data-dir="back" title="-10s">◀◀</button>
+        <button id="audio-playpause-btn" onclick="togglePlay()">▶</button>
+        <button onclick="skip(cfg.seek_short)" data-seek="seek_short" data-dir="fwd" title="+10s">▶▶</button>
+      </div>
+      <div id="audio-close-bar">
+        <button onclick="closeAudioPlayer()">&#x2715; Fermer</button>
+      </div>
+    </div>
+
+    <!-- PDF viewer -->
+    <div id="pdf-viewer">
+      <div id="pdf-nav-bar">
+        <button onclick="pdfNav(-1)" title="Page précédente (←)">&#x25C0;</button>
+        <div id="pdf-counter">— / —</div>
+        <button onclick="pdfNav(1)" title="Page suivante (→)">&#x25B6;</button>
+        <button onclick="pdfZoom(-0.2)" title="Zoom −">−</button>
+        <button onclick="pdfZoom(0.2)" title="Zoom +">+</button>
+        <button onclick="togglePdfFit()" id="pdf-fit-btn" title="Ajuster la largeur">&#x25A3;</button>
+        <button onclick="toggleViewerFullscreen('pdf-viewer')" id="pdf-fs-btn" title="Plein écran (F)">&#x26F6;</button>
+        <div id="pdf-title"></div>
+        <button onclick="closePdfViewer()" title="Fermer">&#x2715;</button>
+      </div>
+      <div id="pdf-scroll-area">
+        <canvas id="pdf-canvas"></canvas>
+      </div>
+    </div>
+
   </div>
 </div>
 
 <!-- Download queue modal -->
-<div id="dl-queue-overlay" onclick="_dlQueueOverlayClick(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center">
+<div id="dl-queue-overlay" onclick="_dlQueueOverlayClick(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
   <div id="dl-queue-modal" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:480px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;gap:14px;overflow:hidden">
     <!-- Header row -->
     <div style="display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
@@ -1438,7 +1685,7 @@
 </div>
 
 <!-- Move modal -->
-<div id="move-dialog" onclick="if(event.target===this)closeModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center">
+<div id="move-dialog" onclick="if(event.target===this)closeModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
   <div id="modal">
     <h3>Déplacer vers…</h3>
     <div id="modal-filename"></div>
@@ -1452,7 +1699,7 @@
 </div>
 
 <!-- Browse modal -->
-<div id="browse-overlay" onclick="closeBrowseModal(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center">
+<div id="browse-overlay" onclick="closeBrowseModal(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
   <div id="browse-modal" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:480px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;gap:10px">
     <div id="browse-modal-title" style="font-size:15px;font-weight:700;color:var(--accent)">Choisir le dossier de départ</div>
     <div style="display:flex;gap:6px">
@@ -1470,7 +1717,7 @@
 </div>
 
 <!-- Destination picker modal (free move) -->
-<div id="dest-picker-overlay" onclick="closeDestPicker(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center">
+<div id="dest-picker-overlay" onclick="closeDestPicker(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:480px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;gap:10px">
     <div id="dest-picker-title" style="font-size:15px;font-weight:700;color:var(--accent)">Déplacer vers…</div>
     <div id="dest-picker-crumb" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim);word-break:break-all;min-height:16px"></div>
@@ -1500,7 +1747,7 @@
 </div>
 
 <!-- Cut modal -->
-<div id="export-dialog" onclick="if(event.target===this)closeExportModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center">
+<div id="export-dialog" onclick="if(event.target===this)closeExportModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:440px;max-width:95vw;display:flex;flex-direction:column;gap:14px">
     <div style="font-size:15px;font-weight:700;color:var(--accent)">&#x2702; Exporter les segments</div>
     <div id="export-filename" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim);word-break:break-all"></div>
@@ -1533,7 +1780,7 @@
 <div id="jobs-panel"></div>
 
 <!-- Mkdir modal -->
-<div id="mkdir-overlay" onclick="closeMkdirModal(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center">
+<div id="mkdir-overlay" onclick="closeMkdirModal(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:360px;max-width:95vw;display:flex;flex-direction:column;gap:14px">
     <div style="font-size:15px;font-weight:700;color:var(--accent)">Nouveau dossier</div>
     <input id="mkdir-input" type="text" placeholder="Nom du dossier" autocomplete="off"
@@ -1547,7 +1794,7 @@
 </div>
 
 <!-- Delete confirmation dialog -->
-<div id="delete-dialog" onclick="if(event.target===this)closeDeleteDialog()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center">
+<div id="delete-dialog" onclick="if(event.target===this)closeDeleteDialog()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:340px;max-width:90vw;display:flex;flex-direction:column;gap:14px">
     <div style="font-size:15px;font-weight:700;color:#e55">Supprimer ?</div>
     <div id="delete-dialog-filename" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim);word-break:break-all"></div>
@@ -1565,25 +1812,58 @@
       <div style="font-size:15px;font-weight:700;color:var(--accent)">⌨ Raccourcis clavier</div>
       <button onclick="document.getElementById('shortcuts-dialog').close()" style="background:none;border:none;color:var(--text-dim);font-size:20px;cursor:pointer;line-height:1">✕</button>
     </div>
+    <div style="font-size:11px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.05em">Navigation dans la liste</div>
     <table style="width:100%;border-collapse:collapse;font-size:12px">
-      <thead><tr style="color:var(--text-dim);text-align:left"><th style="padding:4px 8px">Touche</th><th style="padding:4px 8px">Action</th></tr></thead>
+      <tbody>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">↑ / ↓</td><td style="padding:4px 8px">Déplacer le curseur dans la liste <span style="color:var(--text-dim)">(player inactif)</span></td></tr>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">Entrée</td><td style="padding:4px 8px">Ouvrir l'élément sélectionné</td></tr>
+      </tbody>
+    </table>
+    <div style="font-size:11px;font-weight:700;color:var(--text-dim);margin-top:6px;text-transform:uppercase;letter-spacing:.05em">Lecture</div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
       <tbody>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">Espace</td><td style="padding:4px 8px">Pause / Lecture</td></tr>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">PageDown / PageUp</td><td style="padding:4px 8px">Vidéo suivante / précédente dans le dossier</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">←  /  →</td><td style="padding:4px 8px">Seek court</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">Shift+← / →</td><td style="padding:4px 8px">Seek moyen</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">Ctrl+← / →</td><td style="padding:4px 8px">Seek long</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">Alt+← / →</td><td style="padding:4px 8px">Seek très long</td></tr>
-        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">↑ / ↓</td><td style="padding:4px 8px">Volume +/− 10 %</td></tr>
-        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">F</td><td style="padding:4px 8px">Plein écran</td></tr>
+      </tbody>
+    </table>
+    <div style="font-size:11px;font-weight:700;color:var(--text-dim);margin-top:6px;text-transform:uppercase;letter-spacing:.05em">Volume &amp; Vitesse</div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <tbody>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">↑ / ↓</td><td style="padding:4px 8px">Volume +/− 10 % <span style="color:var(--text-dim)">(player actif)</span></td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">M</td><td style="padding:4px 8px">Muet / Son</td></tr>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">[ / ]</td><td style="padding:4px 8px">Vitesse − / + (0,5× → 1× → 1,5× → 2×)</td></tr>
+      </tbody>
+    </table>
+    <div style="font-size:11px;font-weight:700;color:var(--text-dim);margin-top:6px;text-transform:uppercase;letter-spacing:.05em">Player</div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <tbody>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">F</td><td style="padding:4px 8px">Plein écran</td></tr>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">Échap</td><td style="padding:4px 8px">Quitter plein écran — puis fermer le player</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">A</td><td style="padding:4px 8px">Cycle aspect ratio (Fit / Fill / …)</td></tr>
-        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">PageDown / PageUp</td><td style="padding:4px 8px">Vidéo suivante / précédente</td></tr>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">W</td><td style="padding:4px 8px">Marquer vu / non vu</td></tr>
+      </tbody>
+    </table>
+    <div style="font-size:11px;font-weight:700;color:var(--text-dim);margin-top:6px;text-transform:uppercase;letter-spacing:.05em">Fichiers</div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <tbody>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">I / O</td><td style="padding:4px 8px">Marquer point IN / OUT</td></tr>
-        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">C</td><td style="padding:4px 8px">Ouvrir la fenêtre Couper</td></tr>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">E</td><td style="padding:4px 8px">Ouvrir la fenêtre Couper</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">D</td><td style="padding:4px 8px">Ouvrir la fenêtre Déplacer</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">Suppr</td><td style="padding:4px 8px">Supprimer le fichier en cours</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">S</td><td style="padding:4px 8px">Sauvegarder position initiale du dossier</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">?</td><td style="padding:4px 8px">Afficher / masquer cette aide</td></tr>
+      </tbody>
+    </table>
+    <div style="font-size:11px;font-weight:700;color:var(--text-dim);margin-top:6px;text-transform:uppercase;letter-spacing:.05em">Dans les dialogues (suppression, déplacement, découpage)</div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <tbody>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">↑ / ↓</td><td style="padding:4px 8px">Naviguer entre les options</td></tr>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">Entrée</td><td style="padding:4px 8px">Valider / confirmer</td></tr>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">Échap</td><td style="padding:4px 8px">Annuler / fermer</td></tr>
       </tbody>
     </table>
   </div>
@@ -1631,6 +1911,20 @@ const STANDALONE_DISPLAY_QUERY = '(display-mode: standalone)';
 const SINGLE_TAP_CENTER_MIN_X = 0.35;
 const SINGLE_TAP_CENTER_MAX_X = 0.65;
 const SINGLE_TAP_CONTROLS_MIN_Y = 0.72;
+
+// ── Media viewer state ────────────────────────────────────────────────────────
+let currentViewerMode = null;  // 'video'|'image'|'audio'|'pdf'|null
+let _imageCurrentIdx = 0;
+let _imageIsArchive = false;
+let _imageArchivePath = null;
+let _imageArchiveImages = [];
+let _imageFitMode = 'full-page';  // 'full-page'|'fit-width'
+let _pdfDoc = null;
+let _pdfPage = 1;
+let _pdfTotalPages = 0;
+let _pdfZoom = 1.0;
+let _pdfFitMode = 'fit-width';  // 'fit-width'|'original'
+let _pdfRendering = false;
 
 // ── Settings cache (loaded from backend on init) ─────────────────────────────
 let cfg = {
@@ -1685,7 +1979,7 @@ function applyCfg(s) {
   cfg.seek_xlong                = parseInt(s.seek_xlong   ?? 120, 10);
   cfg.initial_sweep_seconds     = parseInt(s.initial_sweep_seconds    ?? 0, 10);
   // Sync skip button tooltips with configured seek durations
-  const skipBtns = document.querySelectorAll('#ctrl-row .ctrl-btn[data-seek]');
+  const skipBtns = document.querySelectorAll('[data-seek][data-dir]');
   skipBtns.forEach(btn => {
     const key = btn.dataset.seek;
     const val = cfg[key];
@@ -1775,7 +2069,7 @@ function buildMediaCapabilitiesConfig(mediaInfo) {
 }
 
 async function choosePlaybackSource(entry, mediaInfo) {
-  const streamUrl = `${API}/api/stream?path=${encodeURIComponent(entry.path)}`;
+  const streamUrl = `${API}/api/file?path=${encodeURIComponent(entry.path)}`;
   const transcodeUrl = `${API}/api/transcode?path=${encodeURIComponent(entry.path)}`;
 
   if (!cfg.transcode_enabled) {
@@ -1914,6 +2208,7 @@ function privacyClose() {
   if (saveInterval) { clearInterval(saveInterval); saveInterval = null; }
   currentFile = null;
   currentInitialSweepState = null;
+  _setMediaActive(false);
   document.getElementById('video-container').classList.remove('active');
   document.getElementById('player-empty').style.display = '';
   updateMediaMeta(null);
@@ -2335,13 +2630,6 @@ async function init() {
   _initDlQueue();
   // Scan for already-connected gamepads (Firefox compat: fires before gamepadconnected)
   _gpScanConnected();
-  // Auto-refresh: re-fetch the current folder every 30 s (stale-while-revalidate,
-  // no flicker). Skipped when the home screen or a video is active and no search is active.
-  setInterval(() => {
-    if (!showingHomeScreen && !document.hidden && !currentFile && !searchQuery) {
-      navigate(currentPath);
-    }
-  }, 30_000);
 
   // 2. Handle bookmarklet redirect: #download?url=...&cookies=...&videoSrc=...&title=...
   if (location.hash.startsWith('#download?')) {
@@ -3017,7 +3305,16 @@ function toggleTagFilter(tag) {
 }
 
 // ── Navigation ────────────────────────────────────────────────────────────────
+async function refreshCurrentFolder() {
+  if (showingHomeScreen) return;
+  dirCache.delete(currentPath);
+  await navigate(currentPath);
+}
+
 async function navigate(path) {
+  // Preserve gamepad cursor when refreshing the same folder; reset on folder change
+  if (path !== currentPath) { _gpCursorIdx = -1; _gpPendingRestoreIdx = -1; }
+  else if (_gpCursorIdx >= 0) { _gpPendingRestoreIdx = _gpCursorIdx; }
   showingHomeScreen = false;
   searchQuery = '';
   activeTagFilter = null;
@@ -3025,14 +3322,19 @@ async function navigate(path) {
   if (si) si.value = '';
   const bar = document.getElementById('tag-filter-bar');
   if (bar) bar.innerHTML = '';
-  // Stop any playing video when changing folder
+  // Stop any active media when changing folder
   if (currentFile) {
     video.pause();
     video.src = '';
     document.getElementById('video-container').classList.remove('active');
+    document.getElementById('image-viewer').classList.remove('active', 'viewer-fullscreen');
+    document.getElementById('audio-player').classList.remove('active');
+    document.getElementById('pdf-viewer').classList.remove('active', 'viewer-fullscreen');
     document.getElementById('player-empty').style.display = '';
     if (saveInterval) { clearInterval(saveInterval); saveInterval = null; }
     currentFile = null;
+    currentViewerMode = null;
+    _setMediaActive(false);
     updateMediaMeta(null);
   }
   currentPath = path;
@@ -3096,21 +3398,40 @@ function renderBreadcrumb(crumbs) {
   updateHomeBtnState();
 }
 
+function getMediaIcon(e) {
+  if (e.is_dir) {
+    return e.folder_state === 'seen' ? '✅' : (e.folder_state === 'inprogress' ? '📂' : '📁');
+  }
+  const mt = e.media_type || 'other';
+  if (mt === 'video') return getVideoIcon(e.progress);
+  if (mt === 'image') return '📸';
+  if (mt === 'archive') return '📦';
+  if (mt === 'audio') return '🎵';
+  if (mt === 'pdf') return '📄';
+  return '📝';
+}
+
 function renderEntry(e, i) {
-  const dirIcon = e.folder_state === 'seen' ? '✅' : (e.folder_state === 'inprogress' ? '📂' : '📁');
-  const icon = e.is_dir ? dirIcon : (e.is_video ? getVideoIcon(e.progress) : '📄');
+  const icon = getMediaIcon(e);
   const meta = e.is_dir ? '' : formatSize(e.size);
-  const progressHtml = e.is_video && e.progress && e.progress.duration > 0 ? `
+  const mt = e.media_type || 'other';
+  const hasProgress = !e.is_dir && mt !== 'other' && e.progress && e.progress.duration > 0;
+  const progressHtml = hasProgress ? (() => {
+    const timeLabel = (mt === 'video' || mt === 'audio')
+      ? `${formatTime(e.progress.position)} / ${formatTime(e.progress.duration)}`
+      : `p.\u00a0${Math.round(e.progress.position)} / ${e.progress.duration}`;
+    return `
     <div class="progress-bar-wrap">
       <div class="progress-bar-fill" style="width:${e.progress.percent}%"></div>
     </div>
-    <div style="margin-top:2px">${e.progress.percent > 0 ? e.progress.percent + '% · ' + formatTime(e.progress.position) + ' / ' + formatTime(e.progress.duration) : ''}</div>
-  ` : '';
+    <div style="margin-top:2px">${e.progress.percent > 0 ? e.progress.percent + '% \u00b7 ' + timeLabel : ''}</div>
+  `;
+  })() : '';
 
-  const stateClass = e.is_video ? getStateClass(e.progress) : (e.folder_state === 'seen' ? 'seen' : (e.folder_state === 'inprogress' ? 'inprogress' : ''));
+  const stateClass = !e.is_dir && mt !== 'other' ? getStateClass(e.progress) : (e.folder_state === 'seen' ? 'seen' : (e.folder_state === 'inprogress' ? 'inprogress' : ''));
   const pinBtn = e.is_dir ? `<button class="action-btn ${e.is_quick_folder ? 'pinned' : ''}" onclick="togglePin(${jsStr(e.path)}, ${e.is_quick_folder})" title="${e.is_quick_folder ? 'Retirer' : 'Accès rapide'}">📌</button>` : '';
   const tagsHtml = (e.tags && e.tags.length) ? e.tags.map(t => `<span class="tag-badge">${esc(t)}</span>`).join('') : '';
-  const actionsHtml = e.is_video || e.is_dir ? `
+  const actionsHtml = mt !== 'other' || e.is_dir ? `
     <div class="entry-actions" onclick="event.stopPropagation()">
       ${pinBtn}
       <button class="action-btn" onclick="openTagModal(${jsStr(e.path)}, ${jsStr(e.name)})">🏷</button>
@@ -3120,7 +3441,9 @@ function renderEntry(e, i) {
   ` : '';
 
   const activeClass = currentFile && currentFile.path === e.path ? 'active' : '';
-  const clickHandler = e.is_dir ? 'navigate(' + jsStr(e.path) + ')' : (e.is_video ? 'playVideo(' + i + ')' : '');
+  const clickHandler = e.is_dir
+    ? 'navigate(' + jsStr(e.path) + ')'
+    : (mt !== 'other' ? 'openMedia(' + i + ')' : '');
   const qfClass = e.is_quick_folder ? 'qf' : '';
 
   return `
@@ -3155,8 +3478,9 @@ function renderFiles(list) {
   if (_gpPendingRestoreIdx >= 0) {
     _gpCursorIdx = Math.min(_gpPendingRestoreIdx, _gpRenderedList.length - 1);
     _gpPendingRestoreIdx = -1;
-  } else {
-    _gpCursorIdx = -1;
+  } else if (_gpCursorIdx >= 0) {
+    // Preserve cursor on in-place re-renders (filter, sort, tag change, etc.)
+    _gpCursorIdx = Math.min(_gpCursorIdx, _gpRenderedList.length - 1);
   }
 
   let html = '';
@@ -3220,11 +3544,295 @@ async function _autoPlayNextFullscreen(navigatePath) {
 }
 
 
+// ── Media panel helpers ───────────────────────────────────────────────────────
+
+function _setMediaActive(active) {
+  document.getElementById('main').classList.toggle('media-active', active);
+}
+
+function toggleViewerFullscreen(id) {
+  document.getElementById(id).classList.toggle('viewer-fullscreen');
+}
+
+// ── Media dispatcher ──────────────────────────────────────────────────────────
+
+function openMedia(idx) {
+  const entry = entries[idx];
+  if (!entry || entry.is_dir) return;
+  const mt = entry.media_type || 'other';
+  if (mt === 'video') { playVideo(idx); return; }
+  if (mt === 'image') { openImage(idx); return; }
+  if (mt === 'archive') { openArchive(idx); return; }
+  if (mt === 'audio') { playAudio(idx); return; }
+  if (mt === 'pdf') { openPdf(idx); return; }
+}
+
+// ── Image viewer ──────────────────────────────────────────────────────────────
+
+function _showOnlyPanel(id) {
+  document.getElementById('player-empty').style.display = 'none';
+  document.getElementById('video-container').classList.remove('active');
+  document.getElementById('image-viewer').classList.remove('active');
+  document.getElementById('audio-player').classList.remove('active');
+  document.getElementById('pdf-viewer').classList.remove('active');
+  if (id) document.getElementById(id).classList.add('active');
+}
+
+function openImage(idx) {
+  const entry = entries[idx];
+  if (!entry) return;
+  currentFile = entry;
+  _imageIsArchive = false;
+  _imageCurrentIdx = idx;
+  currentViewerMode = 'image';
+
+  // Mobile: show player panel
+  _setMediaActive(true);
+  document.getElementById('player-panel').classList.add('mobile-active');
+  _showOnlyPanel('image-viewer');
+
+  const iv = document.getElementById('image-viewer');
+  iv.classList.remove('fit-width', 'full-page');
+  iv.classList.add(_imageFitMode);
+
+  const fileEntries = entries.filter(e => !e.is_dir && (e.media_type === 'image'));
+  const posInImages = fileEntries.findIndex(e => e.path === entry.path);
+  document.getElementById('image-counter').textContent = `${posInImages + 1} / ${fileEntries.length}`;
+  document.getElementById('image-title').textContent = entry.name;
+  document.getElementById('image-el').src = `${API}/api/file?path=${encodeURIComponent(entry.path)}`;
+
+  saveProgress(entry.path, posInImages + 1, fileEntries.length);
+}
+
+function openArchive(idx) {
+  const entry = entries[idx];
+  if (!entry) return;
+  currentFile = entry;
+  _imageIsArchive = true;
+  _imageArchivePath = entry.path;
+  _imageCurrentIdx = 0;
+  currentViewerMode = 'image';
+
+  _setMediaActive(true);
+  document.getElementById('player-panel').classList.add('mobile-active');
+  _showOnlyPanel('image-viewer');
+
+  const iv = document.getElementById('image-viewer');
+  iv.classList.remove('fit-width', 'full-page');
+  iv.classList.add(_imageFitMode);
+
+  fetch(`${API}/api/archive/list?path=${encodeURIComponent(entry.path)}`)
+    .then(r => {
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    })
+    .then(data => {
+      _imageArchiveImages = data.images || [];
+      document.getElementById('image-title').textContent = entry.name;
+      _loadArchiveImage(0);
+    })
+    .catch(() => {
+      showToast('Erreur lecture archive');
+      closeImageViewer();
+    });
+}
+
+function _loadArchiveImage(idx) {
+  if (!_imageArchiveImages.length) return;
+  _imageCurrentIdx = idx;
+  document.getElementById('image-counter').textContent = `${idx + 1} / ${_imageArchiveImages.length}`;
+  document.getElementById('image-title').textContent = _imageArchiveImages[idx];
+  document.getElementById('image-el').src =
+    `${API}/api/archive/image?path=${encodeURIComponent(_imageArchivePath)}&index=${idx}`;
+  saveProgress(_imageArchivePath, idx + 1, _imageArchiveImages.length);
+}
+
+function imageNav(delta) {
+  if (_imageIsArchive) {
+    const next = _imageCurrentIdx + delta;
+    if (next >= 0 && next < _imageArchiveImages.length) _loadArchiveImage(next);
+    return;
+  }
+  const imageEntries = entries.filter(e => !e.is_dir && e.media_type === 'image');
+  const cur = imageEntries.findIndex(e => e.path === currentFile.path);
+  const next = cur + delta;
+  if (next >= 0 && next < imageEntries.length) {
+    const globalIdx = entries.indexOf(imageEntries[next]);
+    openImage(globalIdx);
+  }
+}
+
+function toggleImageMode() {
+  _imageFitMode = _imageFitMode === 'full-page' ? 'fit-width' : 'full-page';
+  const iv = document.getElementById('image-viewer');
+  iv.classList.remove('fit-width', 'full-page');
+  iv.classList.add(_imageFitMode);
+}
+
+function closeImageViewer() {
+  currentFile = null;
+  currentViewerMode = null;
+  _setMediaActive(false);
+  document.getElementById('image-viewer').classList.remove('active', 'viewer-fullscreen');
+  document.getElementById('player-panel').classList.remove('mobile-active');
+  document.getElementById('player-empty').style.display = '';
+}
+
+// ── Audio player ──────────────────────────────────────────────────────────────
+
+function playAudio(idx) {
+  const entry = entries[idx];
+  if (!entry) return;
+  currentFile = entry;
+  currentViewerMode = 'audio';
+
+  _setMediaActive(true);
+  document.getElementById('player-panel').classList.add('mobile-active');
+  _showOnlyPanel('audio-player');
+
+  document.getElementById('audio-title').textContent = entry.name;
+  const video = document.getElementById('video');
+  video.src = `${API}/api/file?path=${encodeURIComponent(entry.path)}`;
+  if (entry.progress && entry.progress.position > 0) {
+    video.addEventListener('loadedmetadata', function _seek() {
+      video.currentTime = entry.progress.position;
+      video.removeEventListener('loadedmetadata', _seek);
+    });
+  }
+  video.play();
+}
+
+function closeAudioPlayer() {
+  const video = document.getElementById('video');
+  video.pause();
+  video.src = '';
+  currentFile = null;
+  currentViewerMode = null;
+  _setMediaActive(false);
+  document.getElementById('audio-player').classList.remove('active');
+  document.getElementById('player-panel').classList.remove('mobile-active');
+  document.getElementById('player-empty').style.display = '';
+}
+
+function audioSeekClick(ev) {
+  const video = document.getElementById('video');
+  if (!video.duration) return;
+  const rect = document.getElementById('audio-seekbar-wrap').getBoundingClientRect();
+  const pct = Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width));
+  video.currentTime = pct * video.duration;
+}
+
+function updateAudioUI() {
+  const video = document.getElementById('video');
+  if (!video.duration) return;
+  const pct = (video.currentTime / video.duration) * 100;
+  document.getElementById('audio-seekbar-fill').style.width = `${pct}%`;
+  document.getElementById('audio-time').textContent =
+    `${formatTime(video.currentTime)} / ${formatTime(video.duration)}`;
+  const btn = document.getElementById('audio-playpause-btn');
+  if (btn) btn.textContent = video.paused ? '▶' : '⏸';
+}
+
+// ── PDF viewer ────────────────────────────────────────────────────────────────
+
+async function openPdf(idx) {
+  const entry = entries[idx];
+  if (!entry) return;
+  currentFile = entry;
+  currentViewerMode = 'pdf';
+
+  _setMediaActive(true);
+  document.getElementById('player-panel').classList.add('mobile-active');
+  _showOnlyPanel('pdf-viewer');
+
+  document.getElementById('pdf-title').textContent = entry.name;
+  document.getElementById('pdf-counter').textContent = '…';
+
+  if (!window.pdfjsLib) {
+    try {
+      const lib = await import('/pdfjs/pdf.min.js');
+      lib.GlobalWorkerOptions.workerSrc = '/pdfjs/pdf.worker.min.js';
+      window.pdfjsLib = lib;
+    } catch {
+      document.getElementById('pdf-counter').textContent = 'PDF.js non disponible';
+      return;
+    }
+  }
+
+  try {
+    _pdfDoc = await pdfjsLib.getDocument(
+      `${API}/api/file?path=${encodeURIComponent(entry.path)}`
+    ).promise;
+    _pdfTotalPages = _pdfDoc.numPages;
+    _pdfPage = (entry.progress && entry.progress.position > 0)
+      ? Math.round(entry.progress.position) : 1;
+    if (_pdfPage > _pdfTotalPages) _pdfPage = 1;
+    await _renderPdfPage();
+    saveProgress(entry.path, _pdfPage, _pdfTotalPages);
+  } catch (e) {
+    document.getElementById('pdf-counter').textContent = 'Erreur';
+  }
+}
+
+async function _renderPdfPage() {
+  if (!_pdfDoc || _pdfRendering) return;
+  _pdfRendering = true;
+  document.getElementById('pdf-counter').textContent = `${_pdfPage} / ${_pdfTotalPages}`;
+  try {
+    const page = await _pdfDoc.getPage(_pdfPage);
+    const scrollArea = document.getElementById('pdf-scroll-area');
+    let vp;
+    if (_pdfFitMode === 'fit-width') {
+      const targetW = scrollArea.clientWidth - 16;
+      const baseVp = page.getViewport({ scale: 1 });
+      vp = page.getViewport({ scale: (targetW / baseVp.width) * _pdfZoom });
+    } else {
+      vp = page.getViewport({ scale: _pdfZoom });
+    }
+    const canvas = document.getElementById('pdf-canvas');
+    canvas.width = vp.width;
+    canvas.height = vp.height;
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+  } finally {
+    _pdfRendering = false;
+  }
+}
+
+async function pdfNav(delta) {
+  const next = _pdfPage + delta;
+  if (next < 1 || next > _pdfTotalPages) return;
+  _pdfPage = next;
+  await _renderPdfPage();
+  saveProgress(currentFile.path, _pdfPage, _pdfTotalPages);
+}
+
+async function pdfZoom(delta) {
+  _pdfZoom = Math.max(0.4, Math.min(4, _pdfZoom + delta));
+  await _renderPdfPage();
+}
+
+async function togglePdfFit() {
+  _pdfFitMode = _pdfFitMode === 'fit-width' ? 'original' : 'fit-width';
+  await _renderPdfPage();
+}
+
+function closePdfViewer() {
+  _pdfDoc = null;
+  currentFile = null;
+  currentViewerMode = null;
+  _setMediaActive(false);
+  document.getElementById('pdf-viewer').classList.remove('active', 'viewer-fullscreen');
+  document.getElementById('player-panel').classList.remove('mobile-active');
+  document.getElementById('player-empty').style.display = '';
+}
+
+
 async function playVideo(idx) {
   const entry = entries[idx];
   if (!entry || !entry.is_video) return;
 
   currentFile = entry;
+  _setMediaActive(true);
 
   // Reset segment state for new video
   _pendingIn = null;
@@ -3254,6 +3862,10 @@ async function playVideo(idx) {
   video.onerror = () => {
     if (video.error && video.error.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED
         && !video.src.includes('/api/transcode')) {
+      if (!cfg.transcode_enabled) {
+        showToast('⚠ Format non supporté nativement — activez le transcodage dans les paramètres');
+        return;
+      }
       showToast('Lecture native refusée — transcodage…');
       video.src = `${API}/api/transcode?path=${encodeURIComponent(entry.path)}`;
       video.load();
@@ -3331,24 +3943,33 @@ function toggleMute() {
   video.muted = !video.muted;
 }
 
-async function saveProgress() {
-  if (!currentFile || !video.duration) return;
+async function saveProgress(pathOverride, posOverride, durOverride) {
+  // Called with explicit args from image/pdf/archive viewers; otherwise uses video state
+  let file, pos, dur;
+  if (pathOverride !== undefined) {
+    file = { path: pathOverride };
+    pos = posOverride;
+    dur = durOverride;
+  } else {
+    if (!currentFile || !video.duration) return;
+    file = currentFile;
+    pos = video.currentTime;
+    dur = video.duration;
+  }
   // Snapshot locals before any await — currentFile may be nulled by navigate() while we await
-  const file = currentFile;
-  const pos = video.currentTime;
-  const dur = video.duration;
-  await fetch(`${API}/api/progress?path=${encodeURIComponent(file.path)}`, {
+  const filePath = file.path;
+  await fetch(`${API}/api/progress?path=${encodeURIComponent(filePath)}`, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({ position: pos, duration: dur })
   });
   // Refresh entry progress in list
-  const idx = entries.findIndex(e => e.path === file.path);
+  const idx = entries.findIndex(e => e.path === filePath);
   if (idx >= 0) {
     entries[idx].progress = {
       position: pos,
       duration: dur,
-      percent: Math.round(pos / dur * 100 * 10) / 10
+      percent: dur > 0 ? Math.round(pos / dur * 100 * 10) / 10 : 0
     };
     renderFiles(entries);
   }
@@ -3389,6 +4010,7 @@ seekbarWrap.addEventListener('pointerup', e => {
 });
 
 video.addEventListener('timeupdate', () => {
+  if (currentViewerMode === 'audio') { updateAudioUI(); return; }
   if (isSeeking || !video.duration) return;
   const pct = video.currentTime / video.duration * 100;
   seekbarFill.style.width = pct + '%';
@@ -3416,9 +4038,15 @@ video.addEventListener('timeupdate', () => {
   }
 });
 
-video.addEventListener('play', () => { document.getElementById('playpause-btn').textContent = '⏸'; });
-video.addEventListener('pause', () => { document.getElementById('playpause-btn').textContent = '▶'; });
-video.addEventListener('ended', saveProgress);
+video.addEventListener('play', () => {
+  document.getElementById('playpause-btn').textContent = '⏸';
+  if (currentViewerMode === 'audio') updateAudioUI();
+});
+video.addEventListener('pause', () => {
+  document.getElementById('playpause-btn').textContent = '▶';
+  if (currentViewerMode === 'audio') updateAudioUI();
+});
+video.addEventListener('ended', () => saveProgress());
 
 // Touch gestures on video
 let touchStartX = 0, touchStartY = 0, touchStartTime = 0, touchStartVol = 0;
@@ -3436,8 +4064,8 @@ function toggleVideoFit() {
 
 const PLAYBACK_SPEEDS = [0.5, 1, 1.5, 2];
 let speedIdx = 1; // default 1×
-function cycleSpeed() {
-  speedIdx = (speedIdx + 1) % PLAYBACK_SPEEDS.length;
+function cycleSpeed(dir = 1) {
+  speedIdx = (speedIdx + dir + PLAYBACK_SPEEDS.length) % PLAYBACK_SPEEDS.length;
   const spd = PLAYBACK_SPEEDS[speedIdx];
   video.playbackRate = spd;
   const label = spd === 1 ? '1×' : spd + '×';
@@ -3685,6 +4313,7 @@ function releaseVideoIfCurrent(path) {
     document.getElementById('video-container').classList.remove('active');
     document.getElementById('player-empty').style.display = '';
     currentFile = null;
+    _setMediaActive(false);
     document.getElementById('segments-export-btn').style.display = 'none';
     _pendingIn = null;
     _segments = [];
@@ -4198,6 +4827,53 @@ document.addEventListener('keydown', e => {
     if (document.getElementById('delete-dialog')?.style.display === 'flex') { closeDeleteDialog(); return; }
     if (document.getElementById('move-dialog')?.style.display === 'flex') { closeModal(); return; }
     if (document.getElementById('export-dialog')?.style.display === 'flex') { closeExportModal(); return; }
+    if (currentViewerMode === 'image') {
+      const iv = document.getElementById('image-viewer');
+      if (iv.classList.contains('viewer-fullscreen')) { iv.classList.remove('viewer-fullscreen'); return; }
+      closeImageViewer(); return;
+    }
+    if (currentViewerMode === 'audio') { closeAudioPlayer(); return; }
+    if (currentViewerMode === 'pdf') {
+      const pv = document.getElementById('pdf-viewer');
+      if (pv.classList.contains('viewer-fullscreen')) { pv.classList.remove('viewer-fullscreen'); return; }
+      closePdfViewer(); return;
+    }
+    if (isInFullscreen()) { toggleFullscreen(); return; }
+    if (currentFile !== null) { privacyClose(); return; }
+  }
+  // Keyboard navigation for open dialogs (mirrors gamepad: ↑↓ = navigate, Enter = confirm, Escape already handled above)
+  {
+    const kbDlg = _gpOpenModal();
+    if (kbDlg) {
+      if (kbDlg.id === 'shortcuts-dialog') {
+        if (e.key === '?') { kbDlg.close(); return; }
+        return; // Swallow all other keys while shortcuts help is open
+      }
+      if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+        if (e.code === 'ArrowUp')   { e.preventDefault(); _gpHandleDialog(kbDlg, 12, null); return; }
+        if (e.code === 'ArrowDown') { e.preventDefault(); _gpHandleDialog(kbDlg, 13, null); return; }
+        if (e.code === 'Enter')     { e.preventDefault(); _gpHandleDialog(kbDlg, 0, null);  return; }
+      }
+      return; // Swallow all other keys while a dialog is open
+    }
+  }
+  // Image viewer navigation
+  if (currentViewerMode === 'image') {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (e.code === 'ArrowLeft')  { imageNav(-1); return; }
+    if (e.code === 'ArrowRight') { imageNav(1);  return; }
+    if (e.code === 'KeyF') { toggleViewerFullscreen('image-viewer'); return; }
+    return;
+  }
+  // PDF viewer navigation
+  if (currentViewerMode === 'pdf') {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (e.code === 'ArrowLeft' || e.code === 'ArrowUp')    { pdfNav(-1); return; }
+    if (e.code === 'ArrowRight' || e.code === 'ArrowDown') { pdfNav(1);  return; }
+    if (e.code === 'Equal' || e.code === 'NumpadAdd')      { pdfZoom(0.2);  return; }
+    if (e.code === 'Minus' || e.code === 'NumpadSubtract') { pdfZoom(-0.2); return; }
+    if (e.code === 'KeyF') { toggleViewerFullscreen('pdf-viewer'); return; }
+    return;
   }
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
   // Volume controls always bump fullscreen controls
@@ -4207,11 +4883,15 @@ document.addEventListener('keydown', e => {
   if (e.code === 'Space') { e.preventDefault(); togglePlay(); return; }
   if (e.code === 'KeyF') { toggleFullscreen(); return; }
   if (e.code === 'ArrowUp') {
-    setVolume(Math.min(1, video.volume + 0.1));
+    e.preventDefault();
+    if (currentFile) { setVolume(Math.min(1, video.volume + 0.1)); }
+    else             { _gpMoveCursor(-1); }
     return;
   }
   if (e.code === 'ArrowDown') {
-    setVolume(Math.max(0, video.volume - 0.1));
+    e.preventDefault();
+    if (currentFile) { setVolume(Math.max(0, video.volume - 0.1)); }
+    else             { _gpMoveCursor(1); }
     return;
   }
   // Seek keys — 4 levels via modifier
@@ -4226,10 +4906,15 @@ document.addEventListener('keydown', e => {
     skip(dir * amount);
     return;
   }
-  // Keys below require an active video
+  // File list navigation (when no media is playing)
+  if (e.code === 'Enter' && !currentFile && _gpCursorIdx >= 0) { _gpActivateCursor(); return; }
+  // Keys below require an active media file
   if (!currentFile) return;
   if (e.code === 'KeyM') { toggleMute(); return; }
   if (e.code === 'KeyA') { toggleVideoFit(); return; }
+  if (e.code === 'KeyW') { _gpToggleWatched(); return; }
+  if (e.code === 'BracketLeft')  { cycleSpeed(-1); return; }
+  if (e.code === 'BracketRight') { cycleSpeed(1);  return; }
   if (e.code === 'KeyI') { setPendingIn(); return; }
   if (e.code === 'KeyO') { addSegment(); return; }
   if (e.code === 'KeyE') { openExportModal(); return; }
@@ -4238,7 +4923,7 @@ document.addEventListener('keydown', e => {
   if (e.code === 'KeyS') { saveCurrentPositionAsInitialSweep(); return; }
   if (e.code === 'PageDown') { nextVideoInFolder(); return; }
   if (e.code === 'PageUp')   { prevVideoInFolder(); return; }
-  if (e.code === 'Slash' && e.shiftKey) { openShortcutsDialog(); return; }
+  if (e.key === '?') { openShortcutsDialog(); return; }
 });
 
 // ── Dialog helpers ────────────────────────────────────────────────────────────
@@ -4270,7 +4955,9 @@ function prevVideoInFolder() {
 }
 
 function openShortcutsDialog() {
-  document.getElementById('shortcuts-dialog').showModal();
+  const dlg = document.getElementById('shortcuts-dialog');
+  if (dlg.open) { dlg.close(); return; }
+  dlg.showModal();
 }
 
 // ── Gamepad engine ────────────────────────────────────────────────────────────
@@ -4287,7 +4974,9 @@ const GP_DEFAULT_MAPPING = {
     2: 'toggle_watched',   // X
     3: 'fullscreen',       // Y
     8: 'open_settings',    // Select
-    9: 'open_overlay',     // Start
+    9: 'open_overlay',      // Start
+    10: 'mute',             // L3
+    11: 'speed_cycle',      // R3
     12: 'seek_back_medium', // D-pad Up  (volume up / base: seek back medium)
     13: 'seek_fwd_medium',  // D-pad Down
     14: 'seek_back_medium', // D-pad Left
@@ -4336,7 +5025,11 @@ let _gpPollId = null;
 let _gpConnected = {};          // index -> true
 let _gpPrevButtons = {};        // index -> bool[]
 let _gpNavAccum = 0;            // accumulator for left-stick Y cursor navigation
+let _gpNavRepeat = { btn: -1, start: 0, last: 0 }; // D-pad hold-to-repeat state
+const _GP_NAV_INITIAL_MS = 400; // delay before auto-repeat kicks in
+const _GP_NAV_REPEAT_MS  = 100; // interval between repeated moves (~10/s)
 const _GP_SCRUB_THROTTLE_MS = 100;
+let _gpOverlayRerenderFn = null; // set while overlay open: (lb: bool, rb: bool) => void
 let _gpLastScrubTime = 0;
 
 function _gpDeadzone(v) {
@@ -4365,6 +5058,12 @@ function _gpAction(action, gamepad) {
     case 'toggle_watched':
       if (hasVideo) { _gpToggleWatched(); _gpVibrate(gamepad, 60); }
       break;
+    case 'mute':
+      if (hasVideo) { toggleMute(); _gpVibrate(gamepad, 40); }
+      break;
+    case 'speed_cycle':
+      if (hasVideo) { cycleSpeed(1); _gpVibrate(gamepad, 40); }
+      break;
     case 'fullscreen':
       if (hasVideo) { toggleFullscreen(); }
       break;
@@ -4373,6 +5072,9 @@ function _gpAction(action, gamepad) {
       break;
     case 'open_overlay':
       openGpOverlay();
+      break;
+    case 'open_shortcuts':
+      openShortcutsDialog();
       break;
     case 'seek_back_medium':
       if (hasVideo) { skip(-cfg.seek_medium); _gpVibrate(gamepad, 40); }
@@ -4512,10 +5214,10 @@ function _gpMoveCursor(delta) {
 function _gpActivateCursor() {
   if (_gpCursorIdx < 0 || _gpCursorIdx >= _gpRenderedList.length) return;
   const entry = _gpRenderedList[_gpCursorIdx];
-  if (entry.is_video) {
-    playVideo(entries.indexOf(entry));
-  } else {
+  if (entry.is_dir) {
     navigate(entry.path);
+  } else {
+    openMedia(entries.indexOf(entry));
   }
 }
 
@@ -4524,6 +5226,7 @@ function _gpPoll() {
   if (!cfg.gamepad_enabled) { _gpStopPolling(); return; }
 
   const gamepads = navigator.getGamepads();
+  let _ovLb = false, _ovRb = false; // cumulative LB/RB across all gamepads for overlay
   for (const gp of gamepads) {
     if (!gp) continue;
     const idx = gp.index;
@@ -4538,6 +5241,8 @@ function _gpPoll() {
     // Detect modifier buttons (L1=4, R1=5)
     const l1 = cur[4];
     const r1 = cur[5];
+    _ovLb = _ovLb || l1;
+    _ovRb = _ovRb || r1;
 
     // Update HUD
     const hud = document.getElementById('gp-hud');
@@ -4558,7 +5263,27 @@ function _gpPoll() {
     }
     _gpPrevButtons[idx] = prev;
 
-    // Analog sticks — axis assignment depends on gamepad_swap_sticks setting
+    // D-pad hold-to-repeat for list navigation (browser mode, no modifier)
+    if (!currentFile && !l1 && !r1) {
+      const now = performance.now();
+      const heldBtn = [12, 13, 14, 15].find(i => cur[i]);
+      if (heldBtn !== undefined) {
+        if (_gpNavRepeat.btn !== heldBtn) {
+          // New button held — first press already dispatched above
+          _gpNavRepeat = { btn: heldBtn, start: now, last: now };
+        } else if (
+          now - _gpNavRepeat.start >= _GP_NAV_INITIAL_MS &&
+          now - _gpNavRepeat.last  >= _GP_NAV_REPEAT_MS
+        ) {
+          _gpNavRepeat.last = now;
+          _gpDispatch(heldBtn, false, false, gp);
+        }
+      } else {
+        _gpNavRepeat.btn = -1;
+      }
+    } else {
+      _gpNavRepeat.btn = -1;
+    } // axis assignment depends on gamepad_swap_sticks setting
     // Normal : left X = seek, right Y = volume
     // Swapped: right X = seek, left Y = volume
     // Browser navigation (left Y) is unaffected by the swap
@@ -4601,6 +5326,7 @@ function _gpPoll() {
     }
   }
 
+  if (_gpOverlayRerenderFn) _gpOverlayRerenderFn(_ovLb, _ovRb);
   _gpPollId = requestAnimationFrame(_gpPoll);
 }
 
@@ -4621,6 +5347,10 @@ function _gpOpenModal() {
 }
 
 function _gpHandleDialog(dlg, btnIdx, gp) {
+  if (dlg.id === 'shortcuts-dialog') {
+    if (btnIdx === 1 || btnIdx === 9) { dlg.close(); return; } // B or Start = close
+    return;
+  }
   if (dlg.id === 'delete-dialog') {
     if (btnIdx === 0) { // A = confirm delete
       // BL-044: reset cursor immediately to prevent phantom play
@@ -4887,20 +5617,103 @@ function _gpOverlayBackdropClose(e) {
   if (e.target === document.getElementById('gp-overlay')) closeGpOverlay();
 }
 
+// Generates an Xbox-style controller SVG with callout labels for the given button→action map.
+// lbAct / rbAct: true when the LB / RB shift key is physically held.
+function _gpRenderCtrl(map, AL, lbAct = false, rbAct = false) {
+  const lbl = idx => {
+    const k = map[idx];
+    if (!k) return '';
+    const t = AL[k] ?? k;
+    return t.length > 20 ? t.slice(0, 19) + '\u2026' : t;
+  };
+  const circ = (cx, cy, r, fill, sym, sf = '#fff') =>
+    `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${fill}" stroke="#3a3a4a" stroke-width="1.5"/>` +
+    `<text x="${cx}" y="${cy}" font-size="${r > 11 ? 9 : 7}" fill="${sf}" text-anchor="middle" dominant-baseline="middle" font-weight="700">${esc(sym)}</text>`;
+  const wire = (bx, by, lx, ly, txt, side) => {
+    if (!txt) return '';
+    const anchor = side === 'L' ? 'end' : 'start';
+    const tx = side === 'L' ? lx - 3 : lx + 3;
+    return `<line x1="${bx}" y1="${by}" x2="${lx}" y2="${ly}" stroke="#4a4a5e" stroke-width="0.8"/>` +
+           `<text x="${tx}" y="${ly}" font-size="9" fill="#b8b8cc" text-anchor="${anchor}" dominant-baseline="middle">${esc(txt)}</text>`;
+  };
+  // Bumper rendering: "resting" has an amber outline to hint it's a shift key;
+  // "pressed" flips to bright gold fill + inset (y+2, height-2) to simulate a pressed button.
+  const bumper = (x, act, label) => {
+    const fill   = act ? '#c0960a' : '#16140a';
+    const stroke = act ? '#ffd600' : '#9a7a00';
+    const sw     = act ? 2.5       : 1.5;
+    const y      = act ? 22        : 20;
+    const h      = act ? 9         : 13;
+    const tf     = act ? '#000'    : '#9a7a00';
+    return `<rect x="${x}" y="${y}" width="52" height="${h}" rx="5" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>` +
+           `<text x="${x + 26}" y="${y + h / 2}" font-size="8" fill="${tf}" text-anchor="middle" dominant-baseline="middle" pointer-events="none">${label}</text>`;
+  };
+  return `<svg viewBox="0 0 540 222" style="display:block;max-width:100%;max-height:65vh;width:auto;height:auto;margin:0 auto">
+    <!-- Controller body (Xbox-style silhouette) -->
+    <path d="M 185,47 C 150,40 112,68 106,104 C 100,136 108,168 122,190
+             C 135,208 157,216 180,206 C 198,198 212,186 215,178
+             L 325,178 C 328,186 342,198 360,206
+             C 383,216 405,208 418,190
+             C 432,168 440,136 434,104 C 428,68 390,40 355,47
+             C 334,22 306,12 270,12 C 234,12 206,22 185,47 Z"
+      fill="#15152a" stroke="#44445a" stroke-width="2"/>
+    <!-- LB / RB bumpers (shift keys — highlighted when physically held) -->
+    ${bumper(118, lbAct, 'LB')}
+    ${bumper(370, rbAct, 'RB')}
+    <!-- Left stick -->
+    <circle cx="190" cy="124" r="21" fill="#20203c" stroke="#555" stroke-width="1.5"/>
+    <circle cx="190" cy="124" r="13" fill="#181830" stroke="#444" stroke-width="1"/>
+    <!-- Right stick -->
+    <circle cx="318" cy="153" r="21" fill="#20203c" stroke="#555" stroke-width="1.5"/>
+    <circle cx="318" cy="153" r="13" fill="#181830" stroke="#444" stroke-width="1"/>
+    <!-- D-pad -->
+    <rect x="124" y="147" width="16" height="36" rx="3" fill="#2a2a44" stroke="#444"/>
+    <rect x="108" y="158" width="46" height="14" rx="3" fill="#2a2a44" stroke="#444"/>
+    <text x="132" y="151" font-size="9" fill="#666" text-anchor="middle" dominant-baseline="middle">▲</text>
+    <text x="132" y="179" font-size="9" fill="#666" text-anchor="middle" dominant-baseline="middle">▼</text>
+    <text x="113" y="165" font-size="9" fill="#666" text-anchor="middle" dominant-baseline="middle">◀</text>
+    <text x="151" y="165" font-size="9" fill="#666" text-anchor="middle" dominant-baseline="middle">▶</text>
+    <!-- View / Menu small buttons -->
+    ${circ(220, 114, 10, '#22223c', '\u229e', '#777')}
+    ${circ(300, 114, 10, '#22223c', '\u2261', '#777')}
+    <!-- Xbox guide (decorative) -->
+    <circle cx="260" cy="106" r="15" fill="#0e0e20" stroke="#444" stroke-width="2"/>
+    <circle cx="260" cy="106" r="9" fill="#161628" stroke="#333"/>
+    <!-- Face buttons -->
+    ${circ(357, 145, 14, '#1a4820', 'A')}
+    ${circ(382, 121, 14, '#4a1c1c', 'B')}
+    ${circ(332, 121, 14, '#1c1c4a', 'X')}
+    ${circ(357, 97,  14, '#4a3c00', 'Y', '#ffd600')}
+    <!-- Callouts — Left (text at x=102, anchor=end) -->
+    ${wire(118, 26, 102, 26,  lbl(4),  'L')}
+    ${wire(210, 114, 102, 76,  lbl(8),  'L')}
+    ${wire(132, 147, 102, 112, lbl(12), 'L')}
+    ${wire(108, 165, 102, 130, lbl(14), 'L')}
+    ${wire(132, 183, 102, 148, lbl(13), 'L')}
+    ${wire(154, 165, 102, 166, lbl(15), 'L')}
+    <!-- Callouts — Right (text at x=438, anchor=start) -->
+    ${wire(422, 26,  438, 26,  lbl(5), 'R')}
+    ${wire(310, 114, 438, 76,  lbl(9), 'R')}
+    ${wire(371, 97,  438, 97,  lbl(3), 'R')}
+    ${wire(346, 121, 438, 114, lbl(2), 'R')}
+    ${wire(396, 121, 438, 131, lbl(1), 'R')}
+    ${wire(371, 145, 438, 148, lbl(0), 'R')}
+  </svg>`;
+}
 function openGpOverlay() {
   const body = document.getElementById('gp-overlay-body');
-  const LABEL = {
-    0: 'A', 1: 'B', 2: 'X', 3: 'Y',
-    8: 'Select', 9: 'Start',
-    12: 'D↑', 13: 'D↓', 14: 'D←', 15: 'D→',
-  };
-  const ACTION_LABEL = {
+  const browserMap = { 12: 'nav_up', 13: 'nav_down', 14: 'nav_up', 15: 'nav_down',
+                       0: 'nav_enter', 1: 'nav_back', 8: 'open_settings', 9: 'open_overlay' };
+  let ctx = 'player';
+  let prevLb = null, prevRb = null;
+  const AL = {
     play_pause: 'Lecture / Pause',
     close_player: 'Fermer le lecteur',
     toggle_watched: 'Marquer vu / non vu',
     fullscreen: 'Plein écran',
     open_settings: 'Paramètres',
-    open_overlay: 'Cette aide',
+    open_overlay: 'Overlay manette',
+    open_shortcuts: 'Aide raccourcis clavier',
     seek_back_medium: `Reculer ${cfg.seek_medium}s`,
     seek_fwd_medium: `Avancer ${cfg.seek_medium}s`,
     seek_back_long: `Reculer ${cfg.seek_long}s`,
@@ -4931,64 +5744,73 @@ function openGpOverlay() {
     nav_enter: 'Ouvrir',
     nav_back: 'Dossier parent',
   };
-  const renderLayer = (title, mapObj) => {
-    const rows = Object.entries(mapObj).map(([bi, act]) => {
-      const btn = LABEL[+bi] ?? `Btn ${bi}`;
-      const lbl = ACTION_LABEL[act] ?? act;
-      return `<div class="gp-row"><span class="gp-btn-badge">${btn}</span><span class="gp-action">${lbl}</span></div>`;
-    }).join('');
-    return `<div class="gp-layer-title">${title}</div>${rows}`;
+
+  const resolveMap = (lb, rb) => {
+    if (ctx === 'browser') return browserMap;
+    const base = { ...GP_DEFAULT_MAPPING.base, ...GP_DEFAULT_MAPPING.player_base };
+    if (lb && rb) return { ...base, ...GP_DEFAULT_MAPPING.lr };
+    if (lb)       return { ...base, ...GP_DEFAULT_MAPPING.l1 };
+    if (rb)       return { ...base, ...GP_DEFAULT_MAPPING.r1 };
+    return base;
   };
-  const renderFixed = (title, rows) => {
-    const html = rows.map(([btn, lbl]) =>
-      `<div class="gp-row"><span class="gp-btn-badge">${btn}</span><span class="gp-action">${lbl}</span></div>`
+
+  const renderSvg = (lb, rb) => {
+    const c = document.getElementById('gp-ctrl-container');
+    if (c) c.innerHTML = _gpRenderCtrl(resolveMap(lb, rb), AL,
+      lb && ctx === 'player', rb && ctx === 'player');
+  };
+
+  const rebuildBody = () => {
+    const ctxTabs = ['player', 'browser'].map(k =>
+      `<button class="gp-tab${k === ctx ? ' active' : ''}" data-ctx="${k}">${k === 'player' ? '🎮 Joueur' : '📁 Browser'}</button>`
     ).join('');
-    return `<div class="gp-layer-title">${title}</div>${html}`;
+    const hint = ctx === 'player'
+      ? `<div style="font-size:10px;color:var(--text-dim);text-align:center;margin-bottom:2px">Maintenez <b style="color:#ffd600">LB</b> / <b style="color:#ffd600">RB</b> sur la manette pour voir les raccourcis de chaque couche</div>`
+      : '';
+    const analog = ctx === 'player'
+      ? `<div class="gp-analog-row"><span>LS-X → seek</span><span>RS-Y → volume</span></div>`
+      : '';
+    body.innerHTML = `<div class="gp-tab-bar">${ctxTabs}</div>${hint}<div id="gp-ctrl-container"></div>${analog}`;
+    prevLb = null; prevRb = null;
+    renderSvg(false, false);
   };
-  body.innerHTML = [
-    renderLayer('Base (joueur)', { ...GP_DEFAULT_MAPPING.player_base, ...GP_DEFAULT_MAPPING.base }),
-    renderLayer('L1 (joueur)', GP_DEFAULT_MAPPING.l1),
-    renderLayer('R1 (joueur)', GP_DEFAULT_MAPPING.r1),
-    renderLayer('L1 + R1', GP_DEFAULT_MAPPING.lr),
-    renderFixed('Browser (sans lecteur)', [
-      ['D↑ / D↓', 'Curseur ↑ / ↓'],
-      ['A', 'Ouvrir'],
-      ['B', 'Dossier parent'],
-      ['Start', 'Paramètres'],
-    ]),
-    renderFixed('Paramètres ouverts', [
-      ['D↑ / D↓', 'Défiler ↑ / ↓'],
-      ['B / Start', 'Fermer les paramètres'],
-    ]),
-    renderFixed('Dialogue de suppression', [
-      ['A', 'Confirmer la suppression'],
-      ['B', 'Annuler'],
-    ]),
-    renderFixed('Dialogue de déplacement', [
-      ['D↑ / D↓', 'Naviguer dans les dossiers'],
-      ['A', 'Choisir le dossier sélectionné'],
-      ['B', 'Annuler'],
-    ]),
-    renderFixed('Dialogue Export segments', [
-      ['D↑ / D↓', 'Naviguer dans les dossiers'],
-      ['A', 'Sélectionner le dossier destination'],
-      ['Y', 'Confirmer l\'export'],
-      ['B', 'Annuler'],
-    ]),
-    `<div class="gp-layer-title">Analogique</div>
-     <div class="gp-row"><span class="gp-btn-badge">LS-X</span><span class="gp-action">Scrubbing (seek)</span></div>
-     <div class="gp-row"><span class="gp-btn-badge">RS-Y</span><span class="gp-action">Volume</span></div>`,
-  ].join('');
+
+  rebuildBody();
+
+  const handler = e => {
+    const tab = e.target.closest('[data-ctx]');
+    if (!tab) return;
+    ctx = tab.dataset.ctx;
+    rebuildBody();
+  };
+  if (body._gpTabHandler) body.removeEventListener('click', body._gpTabHandler);
+  body._gpTabHandler = handler;
+  body.addEventListener('click', handler);
+
+  // Live update: re-render SVG when LB/RB physical state changes
+  _gpOverlayRerenderFn = (lb, rb) => {
+    if (lb === prevLb && rb === prevRb) return;
+    prevLb = lb; prevRb = rb;
+    renderSvg(lb, rb);
+  };
+
   document.getElementById('gp-overlay').classList.add('open');
 }
 
 function closeGpOverlay() {
+  _gpOverlayRerenderFn = null;
   document.getElementById('gp-overlay').classList.remove('open');
 }
 
 installStandaloneShellHooks();
 registerServiceWorker();
 init();
+</script>
+<script type="module">
+// Load PDF.js v4 as ES module and expose globally
+import * as pdfjsLib from '/pdfjs/pdf.min.js';
+pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdfjs/pdf.worker.min.js';
+window.pdfjsLib = pdfjsLib;
 </script>
 </body>
 </html>
