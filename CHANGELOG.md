@@ -21,14 +21,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Manette L3** (clic stick gauche) : mute / son.
   - **Manette R3** (clic stick droit) : cycle vitesse de lecture.
   - **Aide clavier (`?`)** : tableau réorganisé par sections (Navigation, Lecture, Volume & Vitesse, Player, Fichiers) avec toutes les nouvelles commandes.
-
-### Fixed
-- **Transcodage forcé malgré l'option désactivée (BL-064)** : le handler d'erreur vidéo (`video.onerror`) basculait inconditionnellement vers `/api/transcode` sans vérifier le paramètre « Transcodage activé ». L'option désactivée est désormais respectée : un toast informatif s'affiche à la place.
-- **Dialogues invisibles en faux-fullscreen (manette)** : les dialogues d'action (suppression, déplacement, export…) avaient `z-index:100`, inférieur au conteneur `faux-fullscreen` (`z-index:200`). Ils sont désormais à `z-index:300` et restent visibles au-dessus de la vidéo. Corrige le bug où la 2e suppression consécutive via manette (LB+RB+B) ne montrait aucun dialogue.
-- **Aide manette (overlay Start) : image agrandie dynamiquement** : le panneau d'aide manette passe de 620 px fixe à 75 vw (dynamique), rendant le diagramme du pad beaucoup plus lisible.
-- **Curseur manette disparu après rafraîchissement** : `navigate()` sur le même chemin ne réinitialise plus `_gpCursorIdx` — le curseur est conservé sur place. `renderFiles()` maintient aussi le curseur lors des re-renders in-place (filtre, tri).
-
-### Added
 - **Navigation clavier dans les dialogues** : dans les dialogues (suppression, déplacement, export), les flèches ↑/↓ naviguent entre les options, Entrée valide et Échap annule — sans la souris.
 - **Aide raccourcis clavier (`?`)** : la touche `?` ouvre/ferme un panneau listant tous les raccourcis clavier et la navigation dans les dialogues.
 - **Diagramme manette Xbox dans l'overlay gamepad** : l'overlay manette affiche un SVG de la manette Xbox avec les actions annotées par des lignes de callout. Maintenir **LB** ou **RB** sur la manette physique fait s'afficher le bouton enfoncé (couleur or) et met à jour les callouts en temps réel pour montrer les actions de la couche correspondante (L1, R1 ou L1+R1). Deux onglets contexte permettent de basculer entre la vue Joueur et Browser.
@@ -45,6 +37,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **Suppression du rafraîchissement automatique** : le `setInterval` de 30 s est retiré. Les opérations de modification du filesystem (suppression, déplacement, création de dossier, découpe) continuent de rafraîchir la liste automatiquement.
+
+### Fixed
+- **Transcodage forcé malgré l'option désactivée (BL-064)** : le handler d'erreur vidéo (`video.onerror`) basculait inconditionnellement vers `/api/transcode` sans vérifier le paramètre « Transcodage activé ». L'option désactivée est désormais respectée : un toast informatif s'affiche à la place.
+- **Dialogues invisibles en faux-fullscreen (manette)** : les dialogues d'action (suppression, déplacement, export…) avaient `z-index:100`, inférieur au conteneur `faux-fullscreen` (`z-index:200`). Ils sont désormais à `z-index:300` et restent visibles au-dessus de la vidéo. Corrige le bug où la 2e suppression consécutive via manette (LB+RB+B) ne montrait aucun dialogue.
+- **Aide manette (overlay Start) : image agrandie dynamiquement** : le panneau d'aide manette passe de 620 px fixe à 75 vw (dynamique), rendant le diagramme du pad beaucoup plus lisible.
+- **Curseur manette disparu après rafraîchissement** : `navigate()` sur le même chemin ne réinitialise plus `_gpCursorIdx` — le curseur est conservé sur place. `renderFiles()` maintient aussi le curseur lors des re-renders in-place (filtre, tri).
 
 ---
 

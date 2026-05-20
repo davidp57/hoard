@@ -4046,7 +4046,7 @@ video.addEventListener('pause', () => {
   document.getElementById('playpause-btn').textContent = '▶';
   if (currentViewerMode === 'audio') updateAudioUI();
 });
-video.addEventListener('ended', saveProgress);
+video.addEventListener('ended', () => saveProgress());
 
 // Touch gestures on video
 let touchStartX = 0, touchStartY = 0, touchStartTime = 0, touchStartVol = 0;
@@ -5283,7 +5283,7 @@ function _gpPoll() {
       }
     } else {
       _gpNavRepeat.btn = -1;
-    } — axis assignment depends on gamepad_swap_sticks setting
+    } // axis assignment depends on gamepad_swap_sticks setting
     // Normal : left X = seek, right Y = volume
     // Swapped: right X = seek, left Y = volume
     // Browser navigation (left Y) is unaffected by the swap
