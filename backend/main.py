@@ -19,7 +19,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import urlparse
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -961,6 +961,9 @@ def _infer_bit_depth(stream):
     return None
 
 
+_BROWSER_NATIVE_AUDIO = {"aac", "mp3", "opus", "vorbis", "flac"}
+
+
 def _codec_parameter(codec_name: str | None, codec_tag: str | None) -> str | None:
     codec = (codec_name or "").lower()
     tag = (codec_tag or "").lower()
@@ -970,6 +973,14 @@ def _codec_parameter(codec_name: str | None, codec_tag: str | None) -> str | Non
         return tag if tag in {"hvc1", "hev1"} else "hvc1"
     if codec == "aac":
         return "mp4a.40.2"
+    if codec in {"ac3", "ac-3"}:
+        return "ac-3"
+    if codec in {"eac3", "ec-3"}:
+        return "ec-3"
+    if codec == "mp3":
+        return "mp4a.6B"
+    if codec == "flac":
+        return "flac"
     if codec == "opus":
         return "opus"
     if codec == "vorbis":
@@ -1028,6 +1039,11 @@ def _playback_strategy(
     audio = (audio_codec or "").lower() or None
     if mime_type == "video/mp4" and codec == "h264" and audio in {None, "aac"}:
         return "baseline"
+    # Non-browser-native audio (AC3, EAC3, DTS, TrueHD…) requires the conservative
+    # "fallback" path so the frontend's canPlayType check can detect incompatibility
+    # and route to transcoding.
+    if audio is not None and audio not in _BROWSER_NATIVE_AUDIO:
+        return "fallback"
     if mime_type in {"video/mp4", "video/webm"} and codec in {
         "h264",
         "hevc",
@@ -1119,6 +1135,8 @@ def _read_media_info(file: Path) -> dict:
     combined_codec_params = [video_codec_param] if video_codec_param else []
     if video_codec_param and audio_codec_param:
         combined_codec_params.append(audio_codec_param)
+    audio_codec_name = (audio_stream.get("codec_name") or "").lower() if audio_stream else None
+    audio_native = audio_codec_name is None or audio_codec_name in _BROWSER_NATIVE_AUDIO
     return {
         "path": to_rel(file),
         "container": container,
@@ -1132,6 +1150,7 @@ def _read_media_info(file: Path) -> dict:
             audio_stream.get("codec_name") if audio_stream else None,
         ),
         "content_type": _combine_content_type(mime_type, combined_codec_params),
+        "audio_native": audio_native,
         "video": video_payload,
         "audio": audio_payload,
     }
@@ -1941,6 +1960,7 @@ _SETTINGS_KEYS = {
     "download_folder",  # relative path from MEDIA_ROOT, default 'Downloads'
     "download_cookies_path",  # absolute path to a Netscape cookies.txt file, optional
     "transcode_enabled",  # '1' | '0', default '1'
+    "transcode_audio_only",  # '1' | '0', default '0' — copy video, transcode audio only (lighter)
     "gamepad_enabled",  # '1' | '0', default '1'
     "gamepad_deadzone",  # float 0.0–0.5, default '0.20'
     "gamepad_haptic",  # '1' | '0', default '1'
@@ -1972,6 +1992,7 @@ _SETTINGS_DEFAULTS: dict[str, str] = {
     "download_folder": "Downloads",
     "download_cookies_path": "",
     "transcode_enabled": "1",
+    "transcode_audio_only": "0",
     "gamepad_enabled": "1",
     "gamepad_deadzone": "0.20",
     "gamepad_haptic": "1",
@@ -2022,6 +2043,7 @@ class SettingsPayload(BaseModel):
     download_folder: str | None = None
     download_cookies_path: str | None = None
     transcode_enabled: bool | None = None
+    transcode_audio_only: bool | None = None
     gamepad_enabled: bool | None = None
     gamepad_deadzone: float | None = Field(default=None, ge=0.0, le=0.5)
     gamepad_haptic: bool | None = None
@@ -2101,6 +2123,7 @@ def update_settings(body: SettingsPayload):
             ("gesture_brightness", body.gesture_brightness),
             ("gesture_doubletap", body.gesture_doubletap),
             ("transcode_enabled", body.transcode_enabled),
+            ("transcode_audio_only", body.transcode_audio_only),
             ("gamepad_enabled", body.gamepad_enabled),
             ("gamepad_haptic", body.gamepad_haptic),
             ("gamepad_swap_sticks", body.gamepad_swap_sticks),
@@ -2187,34 +2210,58 @@ def media_info(path: str):
 
 
 @app.get("/api/transcode")
-def transcode_video(path: str):
-    """Transcode to H.264/AAC on-the-fly for unsupported codecs (e.g. H.265)."""
+def transcode_video(path: str, audio_only: bool = Query(False)):
+    """Transcode to H.264/AAC on-the-fly for unsupported codecs (e.g. H.265).
+
+    When audio_only=True, the video stream is copied as-is (no re-encode) and
+    only audio is transcoded to AAC.  This is much lighter on the CPU but
+    requires the browser to support the original video codec (e.g. HEVC on
+    Chrome/Edge with hardware decoding).
+    """
     file = safe_path(path)
     if not file.exists() or not is_video(file):
         raise HTTPException(status_code=404)
     if not FFMPEG_BIN:
         raise HTTPException(status_code=503, detail="FFmpeg not available")
 
-    cmd = [
-        FFMPEG_BIN,
-        "-i",
-        str(file),
-        "-c:v",
-        "libx264",
-        "-preset",
-        "ultrafast",
-        "-crf",
-        "23",
-        "-c:a",
-        "aac",
-        "-b:a",
-        "128k",
-        "-movflags",
-        "frag_keyframe+empty_moov+faststart",
-        "-f",
-        "mp4",
-        "pipe:1",
-    ]
+    if audio_only:
+        cmd = [
+            FFMPEG_BIN,
+            "-i",
+            str(file),
+            "-c:v",
+            "copy",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "192k",
+            "-movflags",
+            "frag_keyframe+empty_moov+faststart",
+            "-f",
+            "mp4",
+            "pipe:1",
+        ]
+    else:
+        cmd = [
+            FFMPEG_BIN,
+            "-i",
+            str(file),
+            "-c:v",
+            "libx264",
+            "-preset",
+            "ultrafast",
+            "-crf",
+            "23",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "128k",
+            "-movflags",
+            "frag_keyframe+empty_moov+faststart",
+            "-f",
+            "mp4",
+            "pipe:1",
+        ]
 
     def iter_transcode():
         proc = subprocess.Popen(
