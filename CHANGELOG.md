@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Audio silencieux pour certaines vidéos** : les fichiers avec audio AC3, EAC3 (Dolby Digital/Plus), DTS ou TrueHD étaient lus sans son car le navigateur ne supporte pas ces codecs nativement. Hoard détecte maintenant ces codecs et route automatiquement vers le transcodage (si activé) ; si le transcodage est désactivé, un avertissement est affiché.
 
 ### Added
-- **Transcodage audio uniquement** : nouveau paramètre "Transcodage audio uniquement" qui copie le flux vidéo tel quel (sans réencodage) et ne réencode que l'audio en AAC. Beaucoup plus léger sur le CPU du NAS. Idéal pour les fichiers MKV/HEVC+EAC3 sur Chrome/Edge (qui supporte HEVC nativement). Si le codec vidéo n'est pas supporté par le navigateur, un message d'erreur explicite est affiché.
+- **Transcodage audio uniquement** : nouveau paramètre "Transcodage audio uniquement" qui copie le flux vidéo tel quel (sans réencodage) et ne réencode que l'audio en AAC. Beaucoup plus léger sur le CPU du NAS. Idéal pour les fichiers MKV/HEVC+EAC3 sur Chrome/Edge (qui supportent HEVC nativement). Si le codec vidéo n'est pas supporté par le navigateur, un message d'erreur explicite est affiché.
 
 ---
 

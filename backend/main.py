@@ -980,7 +980,7 @@ def _codec_parameter(codec_name: str | None, codec_tag: str | None) -> str | Non
     if codec == "mp3":
         return "mp4a.6B"
     if codec == "flac":
-        return "fLaC"
+        return "flac"
     if codec == "opus":
         return "opus"
     if codec == "vorbis":
