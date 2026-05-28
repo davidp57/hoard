@@ -830,6 +830,26 @@ class TestSettings:
         resp = client.get("/api/settings")
         assert resp.json()["transcode_enabled"] == "1"
 
+    def test_transcode_audio_only_default_is_false(self):
+        resp = client.get("/api/settings")
+        assert resp.status_code == 200
+        assert resp.json()["transcode_audio_only"] == "0"
+
+    def test_transcode_audio_only_can_be_enabled(self):
+        resp = client.post("/api/settings", json={"transcode_audio_only": True})
+        assert resp.status_code == 200
+
+        resp = client.get("/api/settings")
+        assert resp.json()["transcode_audio_only"] == "1"
+
+    def test_transcode_audio_only_can_be_disabled(self):
+        client.post("/api/settings", json={"transcode_audio_only": True})
+        resp = client.post("/api/settings", json={"transcode_audio_only": False})
+        assert resp.status_code == 200
+
+        resp = client.get("/api/settings")
+        assert resp.json()["transcode_audio_only"] == "0"
+
     def test_gamepad_enabled_default_is_true(self):
         resp = client.get("/api/settings")
         assert resp.status_code == 200

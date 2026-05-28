@@ -19,7 +19,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import urlparse
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -1960,6 +1960,7 @@ _SETTINGS_KEYS = {
     "download_folder",  # relative path from MEDIA_ROOT, default 'Downloads'
     "download_cookies_path",  # absolute path to a Netscape cookies.txt file, optional
     "transcode_enabled",  # '1' | '0', default '1'
+    "transcode_audio_only",  # '1' | '0', default '0' — copy video, transcode audio only (lighter)
     "gamepad_enabled",  # '1' | '0', default '1'
     "gamepad_deadzone",  # float 0.0–0.5, default '0.20'
     "gamepad_haptic",  # '1' | '0', default '1'
@@ -1991,6 +1992,7 @@ _SETTINGS_DEFAULTS: dict[str, str] = {
     "download_folder": "Downloads",
     "download_cookies_path": "",
     "transcode_enabled": "1",
+    "transcode_audio_only": "0",
     "gamepad_enabled": "1",
     "gamepad_deadzone": "0.20",
     "gamepad_haptic": "1",
@@ -2041,6 +2043,7 @@ class SettingsPayload(BaseModel):
     download_folder: str | None = None
     download_cookies_path: str | None = None
     transcode_enabled: bool | None = None
+    transcode_audio_only: bool | None = None
     gamepad_enabled: bool | None = None
     gamepad_deadzone: float | None = Field(default=None, ge=0.0, le=0.5)
     gamepad_haptic: bool | None = None
@@ -2120,6 +2123,7 @@ def update_settings(body: SettingsPayload):
             ("gesture_brightness", body.gesture_brightness),
             ("gesture_doubletap", body.gesture_doubletap),
             ("transcode_enabled", body.transcode_enabled),
+            ("transcode_audio_only", body.transcode_audio_only),
             ("gamepad_enabled", body.gamepad_enabled),
             ("gamepad_haptic", body.gamepad_haptic),
             ("gamepad_swap_sticks", body.gamepad_swap_sticks),
@@ -2206,34 +2210,58 @@ def media_info(path: str):
 
 
 @app.get("/api/transcode")
-def transcode_video(path: str):
-    """Transcode to H.264/AAC on-the-fly for unsupported codecs (e.g. H.265)."""
+def transcode_video(path: str, audio_only: bool = Query(False)):
+    """Transcode to H.264/AAC on-the-fly for unsupported codecs (e.g. H.265).
+
+    When audio_only=True, the video stream is copied as-is (no re-encode) and
+    only audio is transcoded to AAC.  This is much lighter on the CPU but
+    requires the browser to support the original video codec (e.g. HEVC on
+    Chrome/Edge with hardware decoding).
+    """
     file = safe_path(path)
     if not file.exists() or not is_video(file):
         raise HTTPException(status_code=404)
     if not FFMPEG_BIN:
         raise HTTPException(status_code=503, detail="FFmpeg not available")
 
-    cmd = [
-        FFMPEG_BIN,
-        "-i",
-        str(file),
-        "-c:v",
-        "libx264",
-        "-preset",
-        "ultrafast",
-        "-crf",
-        "23",
-        "-c:a",
-        "aac",
-        "-b:a",
-        "128k",
-        "-movflags",
-        "frag_keyframe+empty_moov+faststart",
-        "-f",
-        "mp4",
-        "pipe:1",
-    ]
+    if audio_only:
+        cmd = [
+            FFMPEG_BIN,
+            "-i",
+            str(file),
+            "-c:v",
+            "copy",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "192k",
+            "-movflags",
+            "frag_keyframe+empty_moov+faststart",
+            "-f",
+            "mp4",
+            "pipe:1",
+        ]
+    else:
+        cmd = [
+            FFMPEG_BIN,
+            "-i",
+            str(file),
+            "-c:v",
+            "libx264",
+            "-preset",
+            "ultrafast",
+            "-crf",
+            "23",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "128k",
+            "-movflags",
+            "frag_keyframe+empty_moov+faststart",
+            "-f",
+            "mp4",
+            "pipe:1",
+        ]
 
     def iter_transcode():
         proc = subprocess.Popen(

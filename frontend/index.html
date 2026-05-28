@@ -1385,6 +1385,10 @@
         <div><div class="s-label">Transcodage activé</div><div class="s-desc">Désactiver pour toujours lire les fichiers directement (plus léger sur le NAS). Attention : peut échouer pour les formats non supportés nativement par le navigateur.</div></div>
         <div class="s-right"><label class="toggle"><input type="checkbox" id="s-transcode-enabled"><div class="toggle-track"></div></label></div>
       </div>
+      <div class="s-row">
+        <div><div class="s-label">Transcodage audio uniquement</div><div class="s-desc">Copie la vidéo telle quelle et ne réencode que l'audio (AAC). Plus léger sur le NAS. Nécessite que le navigateur supporte le codec vidéo d'origine (HEVC sur Chrome/Edge).</div></div>
+        <div class="s-right"><label class="toggle"><input type="checkbox" id="s-transcode-audio-only"><div class="toggle-track"></div></label></div>
+      </div>
     </div>
 
     <!-- Touch gestures -->
@@ -1950,6 +1954,7 @@ let cfg = {
   download_folder: 'Downloads',
   download_cookies_path: '',
   transcode_enabled: true,
+  transcode_audio_only: false,
   gamepad_enabled: true,
   gamepad_deadzone: 0.20,
   gamepad_haptic: true,
@@ -1989,6 +1994,7 @@ function applyCfg(s) {
   cfg.download_folder            = s.download_folder        || 'Downloads';
   cfg.download_cookies_path      = s.download_cookies_path  || '';
   cfg.transcode_enabled          = s.transcode_enabled !== '0' && s.transcode_enabled !== false;
+  cfg.transcode_audio_only       = s.transcode_audio_only === '1' || s.transcode_audio_only === true;
   cfg.gamepad_enabled            = s.gamepad_enabled !== '0' && s.gamepad_enabled !== false;
   cfg.gamepad_deadzone           = parseFloat(s.gamepad_deadzone ?? 0.20);
   cfg.gamepad_haptic             = s.gamepad_haptic !== '0' && s.gamepad_haptic !== false;
@@ -2070,7 +2076,8 @@ function buildMediaCapabilitiesConfig(mediaInfo) {
 
 async function choosePlaybackSource(entry, mediaInfo) {
   const streamUrl = `${API}/api/file?path=${encodeURIComponent(entry.path)}`;
-  const transcodeUrl = `${API}/api/transcode?path=${encodeURIComponent(entry.path)}`;
+  const audioOnlySuffix = cfg.transcode_audio_only ? '&audio_only=true' : '';
+  const transcodeUrl = `${API}/api/transcode?path=${encodeURIComponent(entry.path)}${audioOnlySuffix}`;
 
   if (!cfg.transcode_enabled) {
     if (mediaInfo && mediaInfo.audio_native === false) {
@@ -2822,7 +2829,8 @@ function openSettings() {
   document.getElementById('s-home-desc').textContent   = cfg.home_folder || '(racine)';
   document.getElementById('s-download-folder').value   = cfg.download_folder;
   document.getElementById('s-cookies-path').value      = cfg.download_cookies_path;
-  document.getElementById('s-transcode-enabled').checked = cfg.transcode_enabled;
+  document.getElementById('s-transcode-enabled').checked    = cfg.transcode_enabled;
+  document.getElementById('s-transcode-audio-only').checked = cfg.transcode_audio_only;
   document.getElementById('s-gamepad-enabled').checked  = cfg.gamepad_enabled;
   document.getElementById('s-gamepad-haptic').checked   = cfg.gamepad_haptic;
   document.getElementById('s-gamepad-swap-sticks').checked = cfg.gamepad_swap_sticks;
@@ -2872,6 +2880,7 @@ async function saveSettings() {
     download_folder:           (document.getElementById('s-download-folder').value || 'Downloads').trim(),
     download_cookies_path:     document.getElementById('s-cookies-path').value.trim(),
     transcode_enabled:         document.getElementById('s-transcode-enabled').checked,
+    transcode_audio_only:      document.getElementById('s-transcode-audio-only').checked,
     gamepad_enabled:           document.getElementById('s-gamepad-enabled').checked,
     gamepad_haptic:            document.getElementById('s-gamepad-haptic').checked,
     gamepad_swap_sticks:       document.getElementById('s-gamepad-swap-sticks').checked,
@@ -3871,14 +3880,23 @@ async function playVideo(idx) {
   currentInitialSweepState = initialSweepState;
   refreshInitialSweepAction();
   video.onerror = () => {
-    if (video.error && video.error.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED
-        && !video.src.includes('/api/transcode')) {
+    if (video.error && video.error.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) {
+      if (video.src.includes('audio_only=true')) {
+        // Audio-only transcode failed: the browser cannot decode the video codec.
+        showToast('⚠ Codec vidéo non supporté — désactivez "Transcodage audio uniquement"');
+        return;
+      }
+      if (video.src.includes('/api/transcode')) {
+        // Full transcode already tried — give up.
+        return;
+      }
       if (!cfg.transcode_enabled) {
         showToast('⚠ Format non supporté nativement — activez le transcodage dans les paramètres');
         return;
       }
       showToast('Lecture native refusée — transcodage…');
-      video.src = `${API}/api/transcode?path=${encodeURIComponent(entry.path)}`;
+      const audioOnlySuffix = cfg.transcode_audio_only ? '&audio_only=true' : '';
+      video.src = `${API}/api/transcode?path=${encodeURIComponent(entry.path)}${audioOnlySuffix}`;
       video.load();
       video.onerror = null;
     }
