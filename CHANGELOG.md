@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Audio silencieux pour certaines vidéos** : les fichiers avec audio AC3, EAC3 (Dolby Digital/Plus), DTS ou TrueHD étaient lus sans son car le navigateur ne supporte pas ces codecs nativement. Hoard détecte maintenant ces codecs et route automatiquement vers le transcodage (si activé) ; si le transcodage est désactivé, un avertissement est affiché.
+
 ---
 
 ## [v2.2.0] - 2026-05-20

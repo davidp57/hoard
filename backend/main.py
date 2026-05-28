@@ -961,6 +961,9 @@ def _infer_bit_depth(stream):
     return None
 
 
+_BROWSER_NATIVE_AUDIO = {"aac", "mp3", "opus", "vorbis", "flac"}
+
+
 def _codec_parameter(codec_name: str | None, codec_tag: str | None) -> str | None:
     codec = (codec_name or "").lower()
     tag = (codec_tag or "").lower()
@@ -970,6 +973,14 @@ def _codec_parameter(codec_name: str | None, codec_tag: str | None) -> str | Non
         return tag if tag in {"hvc1", "hev1"} else "hvc1"
     if codec == "aac":
         return "mp4a.40.2"
+    if codec in {"ac3", "ac-3"}:
+        return "ac-3"
+    if codec in {"eac3", "ec-3"}:
+        return "ec-3"
+    if codec == "mp3":
+        return "mp4a.6B"
+    if codec == "flac":
+        return "fLaC"
     if codec == "opus":
         return "opus"
     if codec == "vorbis":
@@ -1028,6 +1039,11 @@ def _playback_strategy(
     audio = (audio_codec or "").lower() or None
     if mime_type == "video/mp4" and codec == "h264" and audio in {None, "aac"}:
         return "baseline"
+    # Non-browser-native audio (AC3, EAC3, DTS, TrueHD…) requires the conservative
+    # "fallback" path so the frontend's canPlayType check can detect incompatibility
+    # and route to transcoding.
+    if audio is not None and audio not in _BROWSER_NATIVE_AUDIO:
+        return "fallback"
     if mime_type in {"video/mp4", "video/webm"} and codec in {
         "h264",
         "hevc",
@@ -1119,6 +1135,8 @@ def _read_media_info(file: Path) -> dict:
     combined_codec_params = [video_codec_param] if video_codec_param else []
     if video_codec_param and audio_codec_param:
         combined_codec_params.append(audio_codec_param)
+    audio_codec_name = (audio_stream.get("codec_name") or "").lower() if audio_stream else None
+    audio_native = audio_codec_name is None or audio_codec_name in _BROWSER_NATIVE_AUDIO
     return {
         "path": to_rel(file),
         "container": container,
@@ -1132,6 +1150,7 @@ def _read_media_info(file: Path) -> dict:
             audio_stream.get("codec_name") if audio_stream else None,
         ),
         "content_type": _combine_content_type(mime_type, combined_codec_params),
+        "audio_native": audio_native,
         "video": video_payload,
         "audio": audio_payload,
     }

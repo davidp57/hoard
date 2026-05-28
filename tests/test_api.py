@@ -510,6 +510,181 @@ class TestMediaInfo:
         assert data["content_type"] == 'video/mp4; codecs="hvc1, mp4a.40.2"'
         assert data["video"]["codec"] == "hevc"
         assert data["video"]["bit_depth"] == 10
+        assert data["audio_native"] is True
+
+    def test_media_info_returns_fallback_strategy_for_ac3_audio(self, video_file, monkeypatch):
+        ffprobe_payload = {
+            "streams": [
+                {
+                    "codec_type": "video",
+                    "codec_name": "h264",
+                    "codec_tag_string": "avc1",
+                    "width": 1920,
+                    "height": 1080,
+                    "bit_rate": "3000000",
+                    "avg_frame_rate": "24/1",
+                    "bits_per_raw_sample": "8",
+                },
+                {
+                    "codec_type": "audio",
+                    "codec_name": "ac3",
+                    "codec_tag_string": "ac-3",
+                    "channels": 6,
+                    "sample_rate": "48000",
+                    "bit_rate": "384000",
+                },
+            ],
+            "format": {
+                "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+                "bit_rate": "3384000",
+                "duration": "90.0",
+            },
+        }
+
+        monkeypatch.setattr(main_mod, "FFPROBE_BIN", "ffprobe")
+        monkeypatch.setattr(
+            main_mod.subprocess,
+            "run",
+            lambda *args, **kwargs: MagicMock(stdout=json.dumps(ffprobe_payload)),
+        )
+
+        resp = client.get(f"/api/media-info?path={video_file}")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["strategy"] == "fallback"
+        assert data["audio_native"] is False
+        assert data["audio"]["codec"] == "ac3"
+        assert data["content_type"] == 'video/mp4; codecs="avc1, ac-3"'
+        assert data["audio"]["content_type"] == 'audio/mp4; codecs="ac-3"'
+
+    def test_media_info_returns_fallback_strategy_for_eac3_audio(self, video_file, monkeypatch):
+        ffprobe_payload = {
+            "streams": [
+                {
+                    "codec_type": "video",
+                    "codec_name": "h264",
+                    "codec_tag_string": "avc1",
+                    "width": 1920,
+                    "height": 1080,
+                    "bit_rate": "3000000",
+                    "avg_frame_rate": "24/1",
+                },
+                {
+                    "codec_type": "audio",
+                    "codec_name": "eac3",
+                    "codec_tag_string": "ec-3",
+                    "channels": 6,
+                    "sample_rate": "48000",
+                    "bit_rate": "256000",
+                },
+            ],
+            "format": {
+                "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+                "bit_rate": "3256000",
+                "duration": "90.0",
+            },
+        }
+
+        monkeypatch.setattr(main_mod, "FFPROBE_BIN", "ffprobe")
+        monkeypatch.setattr(
+            main_mod.subprocess,
+            "run",
+            lambda *args, **kwargs: MagicMock(stdout=json.dumps(ffprobe_payload)),
+        )
+
+        resp = client.get(f"/api/media-info?path={video_file}")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["strategy"] == "fallback"
+        assert data["audio_native"] is False
+        assert data["content_type"] == 'video/mp4; codecs="avc1, ec-3"'
+
+    def test_media_info_returns_fallback_strategy_for_dts_audio(self, video_file, monkeypatch):
+        ffprobe_payload = {
+            "streams": [
+                {
+                    "codec_type": "video",
+                    "codec_name": "h264",
+                    "codec_tag_string": "avc1",
+                    "width": 1920,
+                    "height": 1080,
+                    "bit_rate": "3000000",
+                    "avg_frame_rate": "24/1",
+                },
+                {
+                    "codec_type": "audio",
+                    "codec_name": "dts",
+                    "codec_tag_string": "DTS ",
+                    "channels": 6,
+                    "sample_rate": "48000",
+                    "bit_rate": "1509000",
+                },
+            ],
+            "format": {
+                "format_name": "matroska,webm",
+                "bit_rate": "4509000",
+                "duration": "90.0",
+            },
+        }
+
+        monkeypatch.setattr(main_mod, "FFPROBE_BIN", "ffprobe")
+        monkeypatch.setattr(
+            main_mod.subprocess,
+            "run",
+            lambda *args, **kwargs: MagicMock(stdout=json.dumps(ffprobe_payload)),
+        )
+
+        resp = client.get(f"/api/media-info?path={video_file}")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["strategy"] == "fallback"
+        assert data["audio_native"] is False
+        assert data["audio"]["codec"] == "dts"
+
+    def test_media_info_audio_native_true_for_baseline(self, video_file, monkeypatch):
+        ffprobe_payload = {
+            "streams": [
+                {
+                    "codec_type": "video",
+                    "codec_name": "h264",
+                    "codec_tag_string": "avc1",
+                    "width": 1280,
+                    "height": 720,
+                    "bit_rate": "1500000",
+                    "avg_frame_rate": "30/1",
+                },
+                {
+                    "codec_type": "audio",
+                    "codec_name": "aac",
+                    "codec_tag_string": "mp4a",
+                    "channels": 2,
+                    "sample_rate": "44100",
+                    "bit_rate": "128000",
+                },
+            ],
+            "format": {
+                "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+                "bit_rate": "1628000",
+                "duration": "30.0",
+            },
+        }
+
+        monkeypatch.setattr(main_mod, "FFPROBE_BIN", "ffprobe")
+        monkeypatch.setattr(
+            main_mod.subprocess,
+            "run",
+            lambda *args, **kwargs: MagicMock(stdout=json.dumps(ffprobe_payload)),
+        )
+
+        resp = client.get(f"/api/media-info?path={video_file}")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["strategy"] == "baseline"
+        assert data["audio_native"] is True
 
     def test_media_info_returns_503_without_ffprobe(self, video_file, monkeypatch):
         monkeypatch.setattr(main_mod, "FFPROBE_BIN", "")

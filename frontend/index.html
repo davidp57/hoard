@@ -2073,6 +2073,13 @@ async function choosePlaybackSource(entry, mediaInfo) {
   const transcodeUrl = `${API}/api/transcode?path=${encodeURIComponent(entry.path)}`;
 
   if (!cfg.transcode_enabled) {
+    if (mediaInfo && mediaInfo.audio_native === false) {
+      const codec = (mediaInfo.audio?.codec || 'audio').toUpperCase();
+      return {
+        src: streamUrl, mode: 'stream', reason: 'transcode-disabled',
+        warning: `⚠ Audio ${codec} non supporté — activez le transcodage pour entendre le son`,
+      };
+    }
     return { src: streamUrl, mode: 'stream', reason: 'transcode-disabled' };
   }
 
@@ -2085,6 +2092,10 @@ async function choosePlaybackSource(entry, mediaInfo) {
   }
 
   if (mediaInfo.strategy === 'fallback') {
+    if (mediaInfo.audio_native === false) {
+      return { src: transcodeUrl, mode: 'transcode', reason: 'incompatible-audio' };
+    }
+
     if (!mediaInfo.content_type) {
       return { src: transcodeUrl, mode: 'transcode', reason: 'missing-content-type-fallback' };
     }
@@ -3888,6 +3899,8 @@ async function playVideo(idx) {
   const playbackChoice = await choosePlaybackSource(entry, mediaInfo);
   if (playbackChoice.mode === 'transcode') {
     showToast('Lecture native non confirmée — transcodage…');
+  } else if (playbackChoice.warning) {
+    showToast(playbackChoice.warning);
   }
   video.src = playbackChoice.src;
   resetSpeed();
