@@ -88,7 +88,7 @@ with `setdefault`, so an endpoint may override them if needed.
 
 Set both `HOARD_AUTH_USER` and `HOARD_AUTH_PASS` to require HTTP Basic
 authentication on every request (`require_basic_auth` middleware). When either
-is unset, auth is disabled and behaviour is unchanged. Credentials are compared
+is unset, auth is disabled and behavior is unchanged. Credentials are compared
 in constant time. This is meant for exposing Hoard behind a reverse proxy or
 direct HTTPS without a full account system — use HTTPS so the Basic credentials
 are not sent in clear text.

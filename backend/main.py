@@ -146,7 +146,7 @@ async def add_security_headers(request: Request, call_next):
 
 # Optional HTTP Basic auth, opt-in via env vars. Disabled unless BOTH HOARD_AUTH_USER
 # and HOARD_AUTH_PASS are set — suitable for exposing Hoard behind a reverse proxy
-# or direct HTTPS without building a full account system. When disabled, behaviour
+# or direct HTTPS without building a full account system. When disabled, behavior
 # is unchanged.
 HOARD_AUTH_USER = os.environ.get("HOARD_AUTH_USER", "")
 HOARD_AUTH_PASS = os.environ.get("HOARD_AUTH_PASS", "")
