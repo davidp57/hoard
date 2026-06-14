@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Transcodage audio uniquement** : nouveau paramètre "Transcodage audio uniquement" qui copie le flux vidéo tel quel (sans réencodage) et ne réencode que l'audio en AAC. Beaucoup plus léger sur le CPU du NAS. Idéal pour les fichiers MKV/HEVC+EAC3 sur Chrome/Edge (qui supportent HEVC nativement). Si le codec vidéo n'est pas supporté par le navigateur, un message d'erreur explicite est affiché.
 
 ### Security
+- **En-têtes de sécurité HTTP (BL-029)** : un middleware ajoute `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer` et une `Content-Security-Policy` sur toutes les réponses. La CSP préserve le frontend inline, l'import Google Fonts et les lecteurs média/PDF.js (`blob:`/`data:`).
 - **Validation du chemin de cookies de téléchargement (BL-031)** : le réglage `download_cookies_path` est désormais validé à l'enregistrement (`POST /api/settings`) — le chemin doit être absolu, porter l'extension `.txt`, exister et être lisible, sinon une erreur HTTP 422 explicite est renvoyée. Empêche de pointer yt-dlp vers un fichier arbitraire.
 
 ### Performance

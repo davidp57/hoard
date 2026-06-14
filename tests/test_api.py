@@ -2036,6 +2036,23 @@ class TestCookiesToNetscape:
         assert "token\tabc=def" in result
 
 
+# ── Security headers ──────────────────────────────────────────────────────────
+
+
+class TestSecurityHeaders:
+    def test_headers_present_on_api_response(self):
+        resp = client.get("/api/settings")
+        assert resp.headers["x-content-type-options"] == "nosniff"
+        assert resp.headers["x-frame-options"] == "DENY"
+        assert "default-src 'self'" in resp.headers["content-security-policy"]
+
+    def test_csp_allows_google_fonts_and_blob(self):
+        csp = client.get("/api/settings").headers["content-security-policy"]
+        assert "https://fonts.googleapis.com" in csp
+        assert "https://fonts.gstatic.com" in csp
+        assert "worker-src 'self' blob:" in csp
+
+
 # ── Database schema ─────────────────────────────────────────────────────────
 
 

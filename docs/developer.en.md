@@ -70,6 +70,16 @@ def safe_path(rel: str) -> Path:
     return resolved
 ```
 
+### Security Headers
+
+An HTTP middleware (`add_security_headers`) injects on every response:
+`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
+`Referrer-Policy: no-referrer`, and a `Content-Security-Policy`. The CSP allows
+`'unsafe-inline'` (required by the single-file inline CSS/JS frontend), the
+Google Fonts import (`fonts.googleapis.com` / `fonts.gstatic.com`), and
+`blob:`/`data:` sources used by the media and PDF.js viewers. Headers are set
+with `setdefault`, so an endpoint may override them if needed.
+
 ### API Endpoints
 
 | Method | Route | Description |

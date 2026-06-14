@@ -91,7 +91,7 @@ Facteur de marge actuel : **0,40**.
 | BL-011 | Authentification basique pour exposition hors LAN | P1 | 20 min | 2026-04-12 | | |
 | BL-027 | Streaming — validation Range header (HTTP 416) | P1 | 5 min | 2026-05-09 | 2026-05-15 | 2026-05-15 |
 | BL-028 | safe_path() — bloquer les symlinks dans rglob/iterdir | P1 | 10 min | 2026-05-09 | 2026-05-15 | 2026-05-15 |
-| BL-029 | Security headers HTTP (X-Content-Type-Options, X-Frame-Options) | P1 | 5 min | 2026-05-09 | | |
+| BL-029 | Security headers HTTP (X-Content-Type-Options, X-Frame-Options) | P1 | 5 min | 2026-05-09 | 2026-06-14 | 2026-06-14 |
 | BL-030 | PIN — remplacer SHA-256 sans sel par scrypt | P1 | 10 min | 2026-05-09 | | |
 | BL-031 | download_cookies_path — valider et restreindre le chemin | P1 | 5 min | 2026-05-09 | 2026-06-14 | 2026-06-14 |
 | BL-032 | MEDIA_ROOT global — thread-safety (threading.Lock) | P2 | 10 min | 2026-05-09 | | |
@@ -224,7 +224,8 @@ Facteur de marge actuel : **0,40**.
 
 ### BL-029 — Security HTTP Headers Middleware
 
-- **Dates**: `created=2026-05-09`
+- **Dates**: `created=2026-05-09`, `started=2026-06-14`, `completed=2026-06-14`
+- **Statut**: ✅ Réalisé — middleware `add_security_headers` (`@app.middleware("http")`) posant `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy` et une CSP. CSP calibrée pour ne rien casser : `'unsafe-inline'` (frontend inline), `https://fonts.googleapis.com`/`gstatic.com` (import police ligne 15 de `index.html`), `blob:`/`data:` (lecteurs média + worker PDF.js). Tests : `TestSecurityHeaders`. Doc dev EN+FR mise à jour.
 - **Origine**: revue technique 2026-05-09 — critique.
 - **Why**: no security headers are set. Missing `X-Content-Type-Options: nosniff` enables MIME-sniffing attacks; missing `X-Frame-Options: DENY` allows clickjacking; missing `Content-Security-Policy` reduces defense-in-depth.
 - **Expected outcome**: add a `BaseHTTPMiddleware` that injects at minimum `X-Content-Type-Options`, `X-Frame-Options`, and a minimal CSP (`default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'`) on every response.

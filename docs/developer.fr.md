@@ -70,6 +70,16 @@ def safe_path(rel: str) -> Path:
     return resolved
 ```
 
+### En-têtes de sécurité
+
+Un middleware HTTP (`add_security_headers`) injecte sur chaque réponse :
+`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
+`Referrer-Policy: no-referrer` et une `Content-Security-Policy`. La CSP autorise
+`'unsafe-inline'` (nécessaire au frontend single-file CSS/JS inline), l'import
+Google Fonts (`fonts.googleapis.com` / `fonts.gstatic.com`) et les sources
+`blob:`/`data:` utilisées par les lecteurs média et PDF.js. Les en-têtes sont
+posés avec `setdefault`, donc un endpoint peut les surcharger si besoin.
+
 ### Endpoints API
 
 | Méthode | Route | Description |
