@@ -2036,6 +2036,34 @@ class TestCookiesToNetscape:
         assert "token\tabc=def" in result
 
 
+# ── Database schema ─────────────────────────────────────────────────────────
+
+
+class TestSchema:
+    def _index_names(self):
+        import sqlite3
+
+        from backend.main import DB_PATH
+
+        conn = sqlite3.connect(str(DB_PATH))
+        try:
+            return {
+                r[0]
+                for r in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'index'"
+                ).fetchall()
+            }
+        finally:
+            conn.close()
+
+    def test_progress_active_index_exists(self):
+        # Covering index supporting the /api/files progress-map scan (BL-035).
+        assert "idx_progress_active" in self._index_names()
+
+    def test_segments_path_index_exists(self):
+        assert "idx_segments_path" in self._index_names()
+
+
 # ── /api/search ──────────────────────────────────────────────────────────────
 
 

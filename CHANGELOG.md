@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 - **Validation du chemin de cookies de téléchargement (BL-031)** : le réglage `download_cookies_path` est désormais validé à l'enregistrement (`POST /api/settings`) — le chemin doit être absolu, porter l'extension `.txt`, exister et être lisible, sinon une erreur HTTP 422 explicite est renvoyée. Empêche de pointer yt-dlp vers un fichier arbitraire.
 
+### Performance
+- **Index couvrant sur `progress` (BL-035)** : ajout de `idx_progress_active (duration, position, path)`. La construction de la carte de progression dans `/api/files` et `/api/search` (`WHERE duration > 0`) s'exécute désormais en balayage *index-only*, sans lecture de lignes, sur les bibliothèques volumineuses. (`progress.path` étant déjà clé primaire, un index sur `path` aurait été redondant.)
+
 ---
 
 ## [v2.2.0] - 2026-05-20

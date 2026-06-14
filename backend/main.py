@@ -168,6 +168,14 @@ def init_db():
             )
         """)
         conn.execute("CREATE INDEX IF NOT EXISTS idx_segments_path ON segments(path)")
+        # Covering index for the progress-map scan in /api/files & /api/search
+        # (SELECT path, position, duration ... WHERE duration > 0). progress.path
+        # is already the PRIMARY KEY, so per-path lookups are indexed; this index
+        # lets the whole-table map query run as an index-only range scan, skipping
+        # duration<=0 rows and avoiding row reads on large libraries.
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_progress_active ON progress(duration, position, path)"
+        )
         conn.commit()
 
 

@@ -97,7 +97,7 @@ Facteur de marge actuel : **0,40**.
 | BL-032 | MEDIA_ROOT global — thread-safety (threading.Lock) | P2 | 10 min | 2026-05-09 | | |
 | BL-033 | _jobs — purge TTL des jobs terminés (fuite mémoire) | P2 | 10 min | 2026-05-09 | | |
 | BL-034 | delete/move — inverser ordre FS+DB pour atomicité | P2 | 10 min | 2026-05-09 | | |
-| BL-035 | init_db() — index sur progress.path | P2 | 5 min | 2026-05-09 | | |
+| BL-035 | init_db() — index sur progress.path | P2 | 5 min | 2026-05-09 | 2026-06-14 | 2026-06-14 |
 | BL-036 | Logging — audit trail des opérations sur fichiers *(partiel)* | P2 | 20 min | 2026-05-09 | 2026-05-09 | |
 | BL-037 | Frontend — timeout fetch + feedback réseau (AbortController) | P2 | 10 min | 2026-05-09 | | |
 | BL-038 | Gestes tactiles — overlay découverte au premier lancement | P3 | 15 min | 2026-05-09 | | |
@@ -285,7 +285,8 @@ Facteur de marge actuel : **0,40**.
 
 ### BL-035 — SQLite Index on progress.path
 
-- **Dates**: `created=2026-05-09`
+- **Dates**: `created=2026-05-09`, `started=2026-06-14`, `completed=2026-06-14`
+- **Statut**: ✅ Réalisé avec un écart assumé. `progress.path` est **déjà** la clé primaire (donc déjà indexée) → un `idx_progress_path` aurait été redondant et n'aurait pas aidé : le coût réel vient du balayage complet `SELECT path, position, duration FROM progress WHERE duration > 0` qui construit la carte de progression dans `/api/files`/`/api/search`. Ajout d'un **index couvrant** `idx_progress_active (duration, position, path)` permettant un balayage *index-only* (saute les lignes `duration ≤ 0`, pas de lecture de ligne). Tests : `TestSchema`.
 - **Origine**: revue technique 2026-05-09 — moyen.
 - **Why**: every `/api/files` and `/api/search` call does a full table scan of `progress` to build the progress map. With large libraries this degrades linearly.
 - **Expected outcome**: add `CREATE INDEX IF NOT EXISTS idx_progress_path ON progress(path)` in `init_db()`.
