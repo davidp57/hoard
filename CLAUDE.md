@@ -1,200 +1,316 @@
 # Hoard — Contexte projet
 
-> **[AGENT INSTRUCTION]** Au début de chaque nouveau contexte, lire
-> `.github/copilot-instructions.md` — c'est le fichier d'instructions principal
-> (conventions, workflows commit/PR/release, architecture, langue).
-> `CLAUDE.md` est le contexte projet complémentaire.
+## Origine du projet (le *pourquoi*)
 
-## Origine du projet
-
-Application créée pour remplacer **nPlayer** (iPad, accès SMB au NAS) sur un **laptop Windows 11 tactile**.
+Application créée pour remplacer **nPlayer** (iPad, accès SMB au NAS) sur un
+**laptop Windows 11 tactile**.
 
 Le besoin non couvert par les outils existants (PotPlayer, Jellyfin, Plex, Kodi) :
-- Browser de **filesystem brut** (pas une bibliothèque avec métadonnées)
-- **État de lecture visible dans la liste** : non vu / en cours (% + barre) / vu
-- **Gestion de fichiers intégrée** : déplacer, supprimer
-- **Gestes tactiles** sur le player
-- Tout dans **une seule interface web**, accessible depuis le laptop ET l'iPad
+- Browser de **filesystem brut** (pas une bibliothèque avec métadonnées).
+- **État de lecture visible dans la liste** : non vu / en cours (% + barre) / vu.
+- **Gestion de fichiers intégrée** : déplacer, supprimer, organiser.
+- **Gestes tactiles** sur le player.
+- Tout dans **une seule interface web**, accessible depuis le laptop ET l'iPad.
 
-## Stack technique
+Ce contexte guide les arbitrages produit : on privilégie toujours l'usage
+« je parcours mes fichiers et je reprends ma lecture » plutôt que la logique
+bibliothèque/métadonnées des media centers classiques.
 
-- **Backend** : Python 3.12 + FastAPI + uvicorn
-- **Base de données** : SQLite (via module `sqlite3` natif — pas d'ORM)
-- **Frontend** : HTML/CSS/JS vanilla (un seul fichier `index.html`)
-- **Déploiement** : Docker + docker-compose sur NAS Synology (DSM)
-- **Chemin média** : `/volume1/downloads` sur le NAS → monté en `/media` dans le container
+## Infrastructure NAS (contexte de déploiement)
 
-## Structure du projet
+- **NAS** : Synology avec DSM ; chemin média `/volume1/downloads` → monté `/media` dans le container.
+- **Docker** géré via **Portainer**.
+- **Domaine** : `dpierron.me` (transfert vers Cloudflare).
+- **Reverse proxy** : Synology built-in (subdomain → container).
+- **Autres stacks Docker** sur le même NAS : SteamPulse, DCSServerBot, et d'autres services self-hosted.
+- Cible matérielle : NAS basse puissance → d'où le mode transcodage audio-only et le souci de ne pas saturer le CPU.
+
+---
+
+## Language rules
+
+- **Code and comments**: English only.
+- **Communication with the user**: French only.
+- **Documentation**:
+  - User-facing docs (`user-guide`, `installation`, `getting-started`): **French + English** (paired files `*.fr.md` / `*.en.md`).
+  - Developer / technical docs: **English**.
+  - `CHANGELOG.md`, backlog, release notes: **French**.
+- Update relevant docs in the **same commit** as the code change.
+
+---
+
+## Project Overview
+
+**Hoard** 🐦 is a self-hosted media browser and video player for a Synology NAS.
+Core features: filesystem browser (raw, no metadata library), watch progress tracking (seen / in progress / unseen), integrated HTML5 player with touch gestures, file management (move, delete), configurable settings with optional PIN lock.
+
+## Tech Stack
+
+| Layer        | Technology                                              |
+|-------------|----------------------------------------------------------|
+| Backend     | Python 3.12+, FastAPI, uvicorn                           |
+| Database    | SQLite (via native `sqlite3` — no ORM)                   |
+| Frontend    | Vanilla HTML/CSS/JS — single file `frontend/index.html`  |
+| Deployment  | Docker Compose (Synology NAS target)                     |
+| Testing     | pytest + httpx                                           |
+| Linting     | ruff (lint + format)                                     |
+
+## Development Principles
+
+### Code Quality
+
+- **Code language**: All code (variables, functions, comments, commit messages) MUST be in **English**.
+- **Linting**: `ruff` is the single tool for linting AND formatting Python code. Zero warnings policy.
+- **No mypy** — the project is untyped by design (simplicity first).
+- **No build step** — the frontend is a single `index.html` file; no bundler, no framework.
+- **VS Code integration**: ruff and Pylance report errors directly in VS Code. Fix all reported issues before considering code complete.
+
+### Documentation
+
+Documentation must be kept up to date with every code change. Update in the **same commit** as the code.
+
+| Document | Language | Location | Trigger |
+|---|---|---|---|
+| User docs (user-guide, installation, getting-started) | **FR + EN** | `docs/*.en.md` / `docs/*.fr.md` | Feature added or modified |
+| Developer / technical docs | **EN** | `docs/developer.en.md` | Architecture or API changed |
+| `CHANGELOG.md` | **FR** | root | Every PR merged into `develop` |
+| `docs/changelog-user.fr.md` | **FR** | `docs/` | Every user-visible feature or fix |
+| `docs/backlog.md` | **FR** | `docs/` | Ticket created, progressed, or completed |
+| `ROADMAP.md` | **EN** | root | Lot completed, planned, or reprioritised |
+
+`docs/changelog-user.fr.md` is the end-user changelog (no jargon, plain French). Keep it in sync with `CHANGELOG.md` for every version.
+
+### Architecture Rules
+
+- **Backend** (`backend/main.py`):
+  - Everything lives in a single file — keep it that way unless complexity forces a split.
+  - Routes are thin; helper functions handle logic.
+  - All DB access goes through the `get_db()` context manager (returns a `sqlite3.Connection`).
+  - Use Pydantic models for ALL POST request bodies.
+  - `safe_path()` MUST be called on every user-supplied path to prevent path traversal.
+  - Configuration via environment variables (`MEDIA_ROOT`, `DB_PATH`, `PREDEFINED_FOLDERS`).
+
+- **Frontend** (`frontend/index.html`):
+  - Single file — inline CSS and JS. No external dependencies beyond what the browser provides natively.
+  - Global `cfg` object holds all settings loaded from `/api/settings` at startup.
+  - Touch gesture constants come from `cfg`, never hardcoded.
+  - `localStorage` is only used for `volume` (device-local). Everything else is in the backend DB.
+
+- **Database** (SQLite, native `sqlite3`):
+  - Schema is created on startup via `init_db()` — no migration tool.
+  - Tables: `progress` (watch state), `settings` (key/value), `quick_folders`.
+  - Never use raw string concatenation for SQL — always use parameterised queries.
+
+### Project Structure
 
 ```
 hoard/
 ├── .github/
+│   ├── copilot-instructions.md    # GitHub Copilot instructions (mirror of this file's rules)
 │   └── workflows/
-│       ├── ci.yml               # Lint + tests sur chaque push/PR
-│       └── docker-build.yml     # Build image Docker sur main / tags
+│       ├── ci.yml                 # Lint + tests on every push/PR
+│       └── docker-build.yml       # Build Docker image on main / tags
+├── pyproject.toml                 # pytest + ruff config
+├── requirements-dev.txt           # Dev dependencies (fastapi, uvicorn, pytest, httpx, ruff)
+├── Dockerfile
+├── docker-compose.yml             # Production (Synology)
+├── docker-compose.dev.yml         # Dev override (hot-reload + local volume)
 ├── backend/
-│   ├── main.py              # Toute la logique backend (FastAPI)
+│   ├── main.py                    # All backend logic (FastAPI)
 │   └── requirements.txt
 ├── frontend/
-│   └── index.html           # Toute l'UI (CSS + JS inline)
+│   └── index.html                 # Entire UI (inline CSS + JS)
 ├── tests/
-│   ├── conftest.py          # Fixtures pytest + isolation env (temp dirs)
-│   └── test_api.py          # 31 tests, 99% coverage
-├── docs/                    # Documentation (FR + EN)
-├── docker-compose.yml       # Production (Synology)
-├── docker-compose.dev.yml   # Dev override (hot-reload + volume local)
-├── Dockerfile               # Image non-root + HEALTHCHECK
-├── pyproject.toml           # Config pytest (testpaths, pythonpath) + ruff
-├── requirements-dev.txt     # fastapi + uvicorn + pytest + httpx + ruff
-├── ROADMAP.md               # Milestones v1.1 → v2.0
-├── CLAUDE.md                # Ce fichier
+│   ├── conftest.py                # pytest fixtures + env isolation
+│   └── test_api.py                # API tests via httpx.AsyncClient
+├── docs/                          # Documentation (EN + FR paired files)
+│   ├── user-guide.en.md / user-guide.fr.md
+│   ├── installation.en.md / installation.fr.md
+│   ├── developer.en.md / developer.fr.md
+│   └── getting-started.en.md / getting-started.fr.md
+├── dev-media/                     # Local test media (gitignored)
+├── CLAUDE.md                      # This file — project context + full instructions
+├── ROADMAP.md
 └── README.md
 ```
 
-## Architecture backend (main.py)
+### Git safety rules
 
-### Configuration (variables d'env)
-| Variable | Défaut | Description |
-|---|---|---|
-| `MEDIA_ROOT` | `/media` | Racine des fichiers média dans le container |
-| `PREDEFINED_FOLDERS` | `Vu,A revoir,A supprimer` | Dossiers cibles pour déplacement rapide |
-| `DB_PATH` | `/data/progress.db` | Chemin SQLite |
+- **Never switch branches** (`git checkout`, `git switch`) without asking the user first.
+- **Never push** to any remote without explicit user confirmation.
+- **Never force-push**, reset hard, or delete branches without explicit user confirmation.
+- Always confirm the current branch with `git branch` before committing if there is any doubt.
 
-### Endpoints API
-| Méthode | Route | Description |
-|---|---|---|
-| GET | `/api/config` | Retourne `predefined_folders` |
-| GET | `/api/files?path=` | Liste les fichiers/dossiers d'un chemin relatif |
-| GET | `/api/progress?path=` | Lit la progression d'un fichier |
-| POST | `/api/progress?path=` | Sauvegarde `{position, duration}` |
-| DELETE | `/api/files?path=` | Supprime un fichier ou dossier |
-| POST | `/api/files/move?path=` | Déplace vers `{destination}` (chemin relatif) |
-| POST | `/api/files/move-to?path=` | Déplace vers `{folder}` (dossier prédéfini) |
-| GET | `/api/stream?path=` | Stream vidéo avec support Range (seek) |
+### Commit workflow
 
-### Schéma SQLite
-```sql
-CREATE TABLE progress (
-    path TEXT PRIMARY KEY,    -- chemin relatif depuis MEDIA_ROOT
-    position REAL DEFAULT 0,  -- secondes
-    duration REAL DEFAULT 0,  -- secondes
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-)
-```
+When the user asks to commit, follow these steps **in order** before creating the commit:
 
-### Sécurité
-- `safe_path()` vérifie que tout chemin résolu reste dans `MEDIA_ROOT` (path traversal)
+1. **Tests** — verify existing tests still pass; add or update tests for all new/changed backend behavior.
+2. **Quality checks** — run all checks and fix all issues before proceeding:
+   - `ruff check .`
+   - `ruff format --check .`
+   - `python -m pytest tests/`
+3. **Documentation** — update relevant `docs/*.en.md` and `docs/*.fr.md` files if the change affects user-facing behavior or architecture.
+4. **CHANGELOG** — add an entry under `## [Unreleased]` in `CHANGELOG.md` describing the change.
+5. **Commit** — stage all modified files (code + tests + docs + CHANGELOG) and commit in one clean commit following **Conventional Commits** with scope:
+   - `feat(player): add 4-level seek keyboard shortcuts`
+   - `fix(api): correct path traversal guard on move endpoint`
+   - `chore(deps): upgrade uvicorn to 0.34`
+   - `docs(user-guide): document touch gesture zones`
+   - `test(api): add seek settings defaults test`
 
-## Architecture frontend (index.html)
+### PR preparation workflow
 
-### État de lecture (affichage dans la liste)
-- 🎬 `percent == 0` → non vu (fond neutre)
-- ▶️ `0 < percent < 90` → en cours (fond jaune sombre, barre de progression + %)
-- ✅ `percent >= 90` → vu (fond vert sombre)
+When the user asks to prepare a PR, follow these steps in order:
 
-### Player
-- Tag HTML5 `<video>` natif
-- Streaming via `/api/stream` avec support `Range` (seeking natif)
-- Sauvegarde de position toutes les **5 secondes** via `setInterval`
-- Reprise automatique à la position sauvegardée au chargement
+1. **Tests** — verify existing tests still pass; add or complete tests for all new/changed behavior.
+2. **Documentation** — verify and update all relevant docs (EN + FR).
+3. **Quality checks** — run ruff check, ruff format --check, pytest; fix all issues.
+4. **Temporary PR description** — create a temporary markdown file (`.github/pull_request_description.md`) to help the user fill in the PR on GitHub. This file must **not** be committed.
+   - The PR description **must be written in English**.
+   - Keep it **concise**: one short summary paragraph + a bullet list of key changes.
+5. **Commit** — one clean commit. Do **not** commit the PR description file.
 
-### Gestes tactiles (sur l'élément `<video>`)
-- **Swipe horizontal** → seek (60s / 100px)
-- **Swipe vertical** → volume
-- **Double-tap** → ±10s (gauche/droite)
-- **Tap simple** → pause/play
+### Release workflow
 
-### Raccourcis clavier
-- `Espace` → pause/play
-- `←` / `→` → seek ±10s
-- `↑` / `↓` → volume ±10%
+When the user asks to do a release, follow these steps in order:
 
-### Responsive
-- Desktop (>700px) : layout splitté — liste à gauche (380px), player à droite
-- Mobile (≤700px) : liste plein écran, player en overlay fullscreen
+1. **Propose a version number** — suggest a semver version based on the changes since the last release, and ask the user to confirm before proceeding.
+2. **Write release notes** — draft concise, user-focused release notes **in both English and French**.
+   - Structure: short intro sentence + bullet list of notable changes. No technical jargon.
+   - Present them to the user for confirmation before continuing.
+3. **Bump version** — update `version` in `pyproject.toml`.
+4. **CHANGELOG** — move all entries from `## [Unreleased]` to a new `## [vX.Y.Z] - YYYY-MM-DD` section.
+5. **Quality checks** — run ruff + pytest; fix all issues before proceeding.
+6. **Commit** — one clean commit: `release: vX.Y.Z`.
+7. **Tag** — create an annotated git tag `vX.Y.Z`.
+8. **Push** — ask the user before pushing the commit and tag to GitHub.
 
-## Ce qui est fait (MVP)
+### Commands
 
-- [x] Browser de filesystem avec navigation et breadcrumb
-- [x] Indicateurs visuels vu / en cours / non vu dans la liste
-- [x] Player intégré avec seekbar, contrôles, skip
-- [x] Sauvegarde de position automatique toutes les 5s
-- [x] Reprise automatique à la position sauvegardée
-- [x] Déplacement vers dossiers prédéfinis (modal)
-- [x] Suppression avec confirmation
-- [x] Gestes tactiles sur le player
-- [x] Raccourcis clavier
-- [x] Dockerfile + docker-compose pour Synology
-
-## Ce qui reste à faire (backlog)
-
-### Priorité haute
-- [ ] **Tags arbitraires** sur les fichiers (ex: "à finir", "excellent") — stockés en SQLite, affichés dans la liste
-- [ ] **Déplacement libre** dans l'arborescence (picker de destination dans le filesystem)
-- [ ] **Tri** dans la liste : par nom, date, taille, état de lecture
-
-### Priorité moyenne
-- [ ] **Renommage** de fichiers depuis l'UI
-- [ ] **Rafraîchissement auto** de la liste (détecter les nouveaux fichiers)
-- [ ] **Fullscreen** propre sur le player (bouton + raccourci F)
-- [ ] **Vitesse de lecture** (0.5x, 1x, 1.5x, 2x)
-- [ ] **Sous-titres** (fichiers .srt/.ass dans le même dossier)
-
-### Priorité basse
-- [ ] **Recherche** dans les noms de fichiers
-- [ ] **Authentification** basique (si exposé hors LAN)
-- [ ] **Thème clair** (toggle)
-- [ ] **PWA** (installable sur iPad/laptop)
-
-## Conventions de code
-
-- **Backend** : fonctions courtes, typage Pydantic pour les bodies POST, pas d'ORM
-- **Frontend** : JS vanilla, pas de framework, tout dans `index.html`
-- **Pas de breaking change** sur l'API sans mettre à jour ce fichier
-- Variables CSS dans `:root` pour tous les tokens de couleur
-- Les chemins sont toujours **relatifs à MEDIA_ROOT** dans la DB et l'API
-
-## Développement local
+> **Version policy**: Never change the version number in `pyproject.toml` unless the user has confirmed it.
 
 ```bash
-cd nas-vid-bro
-
-# Créer et activer le venv
-python -m venv .venv
-.venv\Scripts\activate  # Linux/Mac: source .venv/bin/activate
-
-# Install deps (dev)
+# Install dev dependencies
 pip install -r requirements-dev.txt
 
-# Lance avec un dossier vidéo local
-export MEDIA_ROOT=/chemin/vers/videos
-export PREDEFINED_FOLDERS="Vu,A revoir"
-export DB_PATH=/tmp/progress.db
+# Run tests
+python -m pytest tests/ -v
+python -m pytest tests/ --cov=backend    # with coverage
 
+# Lint + format
+ruff check .
+ruff format .
+ruff format --check .                    # CI check (no writes)
+
+# Dev server (activate venv first)
+$env:MEDIA_ROOT = "d:\path\to\videos"
+$env:DB_PATH    = "$env:TEMP\hoard_dev.db"
 uvicorn backend.main:app --reload --port 8000
 # → http://localhost:8000
 
-# Tests
-python -m pytest tests/ -v
+# Docker
+docker compose up --build               # Build & run
+docker compose up -d                    # Run detached
+docker compose -f docker-compose.dev.yml up  # Dev with hot-reload
 ```
 
-## Déploiement Synology
+### Naming Conventions
 
-```bash
-# Sur le NAS (SSH ou via Portainer)
-cd /volume1/docker/hoard
+| Element            | Convention        | Example                   |
+|-------------------|-------------------|---------------------------|
+| Python files      | snake_case        | `main.py`                 |
+| Python functions  | snake_case        | `safe_path()`             |
+| Python constants  | UPPER_SNAKE_CASE  | `MEDIA_ROOT`              |
+| Private helpers   | `_` prefix        | `_read_all_settings()`    |
+| JS functions      | camelCase         | `toggleVideoFit()`        |
+| JS globals        | camelCase         | `cfg`, `currentFile`      |
+| CSS ids/classes   | kebab-case        | `#pin-screen`, `.ctrl-btn`|
+| API endpoints     | kebab-case        | `/api/quick-folders`      |
+| DB tables         | snake_case        | `quick_folders`           |
+| DB columns        | snake_case        | `updated_at`              |
+| Test files        | `test_` prefix    | `test_api.py`             |
 
-# Adapter le volume dans docker-compose.yml :
-# - /volume1/downloads:/media:rw
+---
 
-docker compose up -d --build
-# → http://IP-NAS:8000
+## Git workflow
+
+This project follows **Git Flow**:
+
+- `main` — production-ready releases only
+- `develop` — integration branch, always deployable
+- `feature/*` — new features branched from `develop`
+- `fix/*` — bug fixes branched from `develop`
+- `hotfix/*` — urgent fixes branched from `main`
+- `release/*` — release preparation branched from `develop`
+
+Never commit directly to `main` or `develop`.
+
+### Branch naming
+
+```
+feature/short-description
+fix/short-description
+hotfix/short-description
+release/x.y.z
 ```
 
-## Infrastructure NAS (contexte)
+### Multi-PC workflow
 
-- **NAS** : Synology avec DSM
-- **Docker** géré via **Portainer**
-- **Domaine** : `dpierron.me` (en cours de transfert vers Cloudflare)
-- **Reverse proxy** : Synology built-in (subdomain → container)
-- **Autres stacks Docker** : SteamPulse, DCSServerBot, et d'autres services self-hosted
+Before starting any work on a branch:
+
+```powershell
+git pull --rebase
+```
+
+This avoids non-fast-forward push rejections. If a push is rejected, always use `git pull --rebase` (not `git merge`) before retrying.
+
+---
+
+## Per-change checklist
+
+After every change (feature, fix, refactor), before committing:
+
+1. Add or update tests for changed behavior.
+2. Run the full quality gate (`ruff check .`, `ruff format --check .`, `pytest`).
+3. Zero errors in VS Code (ruff, Pylance).
+4. Update `CHANGELOG.md` (in **French**, under `## [Unreleased]`).
+5. If user-visible: update `docs/changelog-user.fr.md`.
+6. Update `docs/backlog.md` if the change closes or advances a ticket.
+7. Update relevant user docs (EN + FR) or developer docs (EN).
+8. **Bump the patch version** in `pyproject.toml` (e.g. `1.2.3` → `1.2.4`).
+
+---
+
+## Project planning
+
+### Backlog
+
+`docs/backlog.md` is the single source of truth for all tracked work items. Written in **French**.
+
+Work items are grouped into **lots**. Each lot has:
+- A ticket table: `ID | Titre | Prio | Est. | Créé | Démarré | Terminé`
+- A Copilot time estimate displayed in the lot header.
+
+**Estimation rules:**
+- Per ticket: estimate raw implementation time, multiply by the current margin factor (tracked in `docs/backlog.md` under `## Calibration estimations`), round to nearest 5 min.
+- Per lot header: sum of ticket estimates + 15 min user project management.
+- Track actuals in `.dev/timing.md` during implementation; report at end of lot.
+- After each completed lot, compare estimated vs. actual. If the ratio differs from the current factor by more than 20%, adjust and inform the user. Log in the `## Calibration estimations` section of `docs/backlog.md`.
+
+Completed lots older than 3 days → move to `docs/backlog-archive.md`.
+
+### Roadmap
+
+`ROADMAP.md` tracks the delivery plan. Every lot with an agreed target version appears there:
+- Functional lots: one subsection per feature with detail.
+- Technical lots: one-line summary.
+
+Update after completing a lot, planning new lots, or changing priorities.
+
+---
+
+## Communication
+
+Réponses **en français**, concises et directes (le code et les commentaires restent
+en anglais — voir *Language rules* ci-dessus).
