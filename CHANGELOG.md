@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Délai et feedback réseau (BL-037)** : les appels critiques (listing, recherche, sauvegarde de progression, déplacement, suppression) passent par un wrapper `apiFetch` avec timeout (15 s) et affichent un toast en cas de lenteur/erreur réseau, au lieu de rester silencieusement bloqués (utile au réveil du NAS).
 - **Atomicité des opérations fichiers (BL-034)** : la suppression et le déplacement mettent désormais à jour la base **avant** l'opération disque, avec rollback si celle-ci échoue. Plus de lignes de progression/segments orphelines (ou mal réécrites) lorsqu'une suppression/déplacement échoue.
 - **Fuite mémoire des jobs terminés (BL-033)** : les jobs de téléchargement/export en état terminal (`done`/`error`/`cancelled`) sont désormais purgés du store en mémoire après un TTL (par défaut 1 h, configurable via `JOB_TTL_SECONDS`). Évite la croissance illimitée de la mémoire sur un serveur de longue durée.
 - **Audio silencieux pour certaines vidéos** : les fichiers avec audio AC3, EAC3 (Dolby Digital/Plus), DTS ou TrueHD étaient lus sans son car le navigateur ne supporte pas ces codecs nativement. Hoard détecte maintenant ces codecs et route automatiquement vers le transcodage (si activé) ; si le transcodage est désactivé, un avertissement est affiché.

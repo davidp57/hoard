@@ -2471,7 +2471,7 @@ function closeDestPicker(e) {
 
 async function _loadDestPickerDir(relPath) {
   _destPickerPath = relPath;
-  const r = await fetch(`${API}/api/files?path=${encodeURIComponent(relPath)}`).then(r => r.json()).catch(() => null);
+  const r = await apiFetch(`${API}/api/files?path=${encodeURIComponent(relPath)}`).then(r => r.json()).catch(() => null);
   if (!r) { showToast('Erreur'); return; }
   // Crumb
   const crumb = document.getElementById('dest-picker-crumb');
@@ -2509,7 +2509,7 @@ async function moveFileToPath(srcPath, destFolderRel) {
   // Build destination: destFolderRel/filename
   const fileName = srcPath.split('/').pop();
   const destPath = destFolderRel ? `${destFolderRel}/${fileName}` : fileName;
-  const r = await fetch(`${API}/api/files/move?path=${encodeURIComponent(srcPath)}`, {
+  const r = await apiFetch(`${API}/api/files/move?path=${encodeURIComponent(srcPath)}`, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({ destination: destPath }),
@@ -3221,7 +3221,7 @@ async function runSearch() {
   const indicator = document.getElementById('refresh-indicator');
   if (indicator) indicator.classList.add('active');
   try {
-    const r = await fetch(`${API}/api/search?q=${encodeURIComponent(searchQuery)}&path=${encodeURIComponent(currentPath)}`);
+    const r = await apiFetch(`${API}/api/search?q=${encodeURIComponent(searchQuery)}&path=${encodeURIComponent(currentPath)}`);
     if (!r.ok) return;
     const data = await r.json();
     showingHomeScreen = false;
@@ -3378,7 +3378,7 @@ async function navigate(path) {
 
   let data;
   try {
-    const resp = await fetch(`${API}/api/files?path=${encodeURIComponent(path)}`);
+    const resp = await apiFetch(`${API}/api/files?path=${encodeURIComponent(path)}`);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     data = await resp.json();
   } catch (err) {
@@ -3989,7 +3989,7 @@ async function saveProgress(pathOverride, posOverride, durOverride) {
   }
   // Snapshot locals before any await — currentFile may be nulled by navigate() while we await
   const filePath = file.path;
-  await fetch(`${API}/api/progress?path=${encodeURIComponent(filePath)}`, {
+  await apiFetch(`${API}/api/progress?path=${encodeURIComponent(filePath)}`, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({ position: pos, duration: dur })
@@ -4581,7 +4581,7 @@ async function moveToFolder(destPath, destName) {
   }
   releaseVideoIfCurrent(sourcePath);
   closeModal();
-  const resp = await fetch(`${API}/api/files/move?path=${encodeURIComponent(sourcePath)}`, {
+  const resp = await apiFetch(`${API}/api/files/move?path=${encodeURIComponent(sourcePath)}`, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({ destination: destPath })
@@ -4622,7 +4622,7 @@ async function confirmDelete(path, name) {
         _fsReenterFullscreen = true; _fsReenterFullscreenPath = currentPath;
       }
       releaseVideoIfCurrent(path);
-      const doDelete = () => fetch(`${API}/api/files?path=${encodeURIComponent(path)}`, { method: 'DELETE' });
+      const doDelete = () => apiFetch(`${API}/api/files?path=${encodeURIComponent(path)}`, { method: 'DELETE' });
       const resp = await retryOn423(doDelete);
       if (!resp.ok) {
         const msg = resp.status === 423 ? 'Le fichier est encore verrouillé, réessayez dans un instant' : `Erreur : impossible de supprimer (${resp.status})`;
@@ -4717,6 +4717,26 @@ function showToast(msg) {
   t.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// fetch() wrapper with a timeout + user feedback on network failure. Used for
+// the main user actions (listing, search, progress save, move, delete). The NAS
+// can be slow to wake; without a timeout the UI would hang silently. Streaming
+// and job-polling endpoints keep their own logic and do NOT use this wrapper.
+const API_FETCH_TIMEOUT_MS = 15000;
+async function apiFetch(url, opts = {}, timeoutMs = API_FETCH_TIMEOUT_MS) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...opts, signal: ctrl.signal });
+  } catch (err) {
+    showToast(err.name === 'AbortError'
+      ? '⏱️ Délai dépassé — serveur lent ou injoignable'
+      : '⚠️ Erreur réseau — vérifiez la connexion');
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // Fullscreen (faux-fullscreen on touch devices / iOS / PWA)
@@ -5217,7 +5237,7 @@ async function _gpToggleWatched() {
   if (!currentFile || !video.duration) return;
   const isSeen = (currentFile.progress?.percent ?? 0) >= cfg.watched_threshold;
   const newPos = isSeen ? 0 : video.duration * (cfg.watched_threshold / 100);
-  const resp = await fetch(`${API}/api/progress?path=${encodeURIComponent(currentFile.path)}`, {
+  const resp = await apiFetch(`${API}/api/progress?path=${encodeURIComponent(currentFile.path)}`, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({ position: newPos, duration: video.duration }),

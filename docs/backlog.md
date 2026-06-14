@@ -99,7 +99,7 @@ Facteur de marge actuel : **0,40**.
 | BL-034 | delete/move — inverser ordre FS+DB pour atomicité | P2 | 10 min | 2026-05-09 | 2026-06-14 | 2026-06-14 |
 | BL-035 | init_db() — index sur progress.path | P2 | 5 min | 2026-05-09 | 2026-06-14 | 2026-06-14 |
 | BL-036 | Logging — audit trail des opérations sur fichiers | P2 | 20 min | 2026-05-09 | 2026-05-09 | 2026-06-14 |
-| BL-037 | Frontend — timeout fetch + feedback réseau (AbortController) | P2 | 10 min | 2026-05-09 | | |
+| BL-037 | Frontend — timeout fetch + feedback réseau (AbortController) | P2 | 10 min | 2026-05-09 | 2026-06-14 | 2026-06-14 |
 | BL-038 | Gestes tactiles — overlay découverte au premier lancement | P3 | 15 min | 2026-05-09 | | |
 | BL-039 | Accessibilité — aria-label, :focus-visible, contraste text-dim | P3 | 20 min | 2026-05-09 | | |
 | BL-064 | Fix — transcodage forcé malgré l'option désactivée | P1 | 5 min | 2026-05-18 | 2026-05-18 | 2026-05-18 |
@@ -313,7 +313,8 @@ Facteur de marge actuel : **0,40**.
 
 ### BL-037 — Frontend Fetch Timeout + Network Error Feedback
 
-- **Dates**: `created=2026-05-09`
+- **Dates**: `created=2026-05-09`, `started=2026-06-14`, `completed=2026-06-14`
+- **Statut**: ✅ Réalisé — wrapper `apiFetch(url, opts, timeoutMs=15000)` (`AbortController` + `setTimeout`) qui affiche un toast (timeout vs erreur réseau) puis relance l'erreur. Appliqué aux appels critiques : listing (`/api/files`), recherche, sauvegarde de progression, déplacement, suppression. Streaming et polling des jobs conservent leur logique propre. Pas de test (frontend single-file sans harness) ; syntaxe JS validée via `node --check`.
 - **Origine**: revue technique 2026-05-09 — moyen.
 - **Why**: fetch calls have no timeout. If the NAS is waking from sleep or the network is slow, the UI hangs silently with no feedback. Several API calls also swallow errors with `.catch(() => null)` without showing a toast.
 - **Expected outcome**: wrap fetch calls with an `AbortController` + `setTimeout` (15 s default). Replace silent `.catch(() => null)` patterns with error toasts. At minimum cover: directory listing, search, progress save, move, delete.
