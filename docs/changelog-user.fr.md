@@ -7,6 +7,8 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 ## [Non publié]
 
 ### Sécurité
+- **Protection par mot de passe (optionnelle)** : il est désormais possible d'exiger un identifiant et un mot de passe pour accéder à Hoard, pratique si vous l'exposez sur Internet. Cette option s'active lors de l'installation (variables `HOARD_AUTH_USER` / `HOARD_AUTH_PASS`) et reste désactivée par défaut.
+- **Code PIN mieux protégé** : le code PIN est maintenant stocké de façon beaucoup plus sûre (hachage salé). Votre PIN existant continue de fonctionner sans rien changer.
 - **Réglages — chemin du fichier de cookies** : le chemin saisi pour les cookies de téléchargement est maintenant vérifié au moment de l'enregistrement (il doit s'agir d'un fichier `.txt` existant et lisible). Un message clair s'affiche si le chemin est invalide.
 
 ---

@@ -58,6 +58,9 @@ hoard/
 | `SSL_CERTFILE` | *(non défini)* | Chemin vers un fichier de certificat PEM. Quand défini (avec `SSL_KEYFILE`), uvicorn sert le HTTPS nativement. |
 | `SSL_KEYFILE` | *(non défini)* | Chemin vers la clé privée PEM correspondante. |
 | `JOB_TTL_SECONDS` | `3600` | Durée (s) de conservation en mémoire d'un job de téléchargement/export terminé avant purge. |
+| `LOG_LEVEL` | `INFO` | Niveau de log du logger `hoard` (journal d'audit). |
+| `HOARD_AUTH_USER` | *(non défini)* | Identifiant pour l'auth HTTP Basic optionnelle. L'auth n'est active que si celui-ci ET `HOARD_AUTH_PASS` sont définis. |
+| `HOARD_AUTH_PASS` | *(non défini)* | Mot de passe pour l'auth HTTP Basic optionnelle. |
 
 ### Sécurité des chemins
 
@@ -80,6 +83,15 @@ Un middleware HTTP (`add_security_headers`) injecte sur chaque réponse :
 Google Fonts (`fonts.googleapis.com` / `fonts.gstatic.com`) et les sources
 `blob:`/`data:` utilisées par les lecteurs média et PDF.js. Les en-têtes sont
 posés avec `setdefault`, donc un endpoint peut les surcharger si besoin.
+
+### Auth HTTP Basic optionnelle
+
+Définir à la fois `HOARD_AUTH_USER` et `HOARD_AUTH_PASS` impose une
+authentification HTTP Basic sur chaque requête (middleware `require_basic_auth`).
+Si l'une des deux n'est pas définie, l'auth est désactivée et le comportement
+est inchangé. Les identifiants sont comparés en temps constant. Pensé pour
+exposer Hoard derrière un reverse proxy ou en HTTPS direct sans système de
+comptes — utiliser HTTPS pour ne pas transmettre les identifiants en clair.
 
 ### Endpoints API
 

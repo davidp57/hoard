@@ -133,6 +133,7 @@ All configuration is done via **environment variables** in `docker-compose.yml` 
 | `PREDEFINED_FOLDERS` | `Vu,A revoir,A supprimer` | Quick folders (comma-separated) |
 | `SSL_CERTFILE` | *(unset)* | Path to a PEM certificate file. Enables native HTTPS — no reverse proxy needed. |
 | `SSL_KEYFILE` | *(unset)* | Path to the matching PEM private key file. |
+| `HOARD_AUTH_USER` / `HOARD_AUTH_PASS` | *(unset)* | Set both to require HTTP Basic auth on every request. Recommended when exposing Hoard outside your LAN. Use HTTPS so credentials are not sent in clear text. |
 
 ### Enabling HTTPS
 

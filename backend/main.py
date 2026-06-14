@@ -1,3 +1,4 @@
+import base64
 import hashlib
 import hmac
 import ipaddress
@@ -141,6 +142,38 @@ async def add_security_headers(request: Request, call_next):
     for key, value in SECURITY_HEADERS.items():
         response.headers.setdefault(key, value)
     return response
+
+
+# Optional HTTP Basic auth, opt-in via env vars. Disabled unless BOTH HOARD_AUTH_USER
+# and HOARD_AUTH_PASS are set — suitable for exposing Hoard behind a reverse proxy
+# or direct HTTPS without building a full account system. When disabled, behaviour
+# is unchanged.
+HOARD_AUTH_USER = os.environ.get("HOARD_AUTH_USER", "")
+HOARD_AUTH_PASS = os.environ.get("HOARD_AUTH_PASS", "")
+_AUTH_ENABLED = bool(HOARD_AUTH_USER and HOARD_AUTH_PASS)
+
+
+def _check_basic_auth(header: str) -> bool:
+    if not header.startswith("Basic "):
+        return False
+    try:
+        user, _, pwd = base64.b64decode(header[6:]).decode("utf-8").partition(":")
+    except (ValueError, UnicodeDecodeError):
+        return False
+    # Constant-time comparison on both fields (always evaluate both).
+    user_ok = hmac.compare_digest(user, HOARD_AUTH_USER)
+    pass_ok = hmac.compare_digest(pwd, HOARD_AUTH_PASS)
+    return user_ok and pass_ok
+
+
+@app.middleware("http")
+async def require_basic_auth(request: Request, call_next):
+    if not _AUTH_ENABLED or _check_basic_auth(request.headers.get("authorization", "")):
+        return await call_next(request)
+    return Response(
+        status_code=401,
+        headers={"WWW-Authenticate": 'Basic realm="Hoard"'},
+    )
 
 
 # ── DB ────────────────────────────────────────────────────────────────────────

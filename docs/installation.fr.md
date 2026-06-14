@@ -133,6 +133,7 @@ Toute la configuration passe par des **variables d'environnement** dans `docker-
 | `PREDEFINED_FOLDERS` | `Vu,A revoir,A supprimer` | Dossiers rapides (séparés par des virgules) |
 | `SSL_CERTFILE` | *(non défini)* | Chemin vers un fichier de certificat PEM. Active le HTTPS natif — sans reverse proxy. |
 | `SSL_KEYFILE` | *(non défini)* | Chemin vers la clé privée PEM correspondante. |
+| `HOARD_AUTH_USER` / `HOARD_AUTH_PASS` | *(non défini)* | Définir les deux impose une auth HTTP Basic sur chaque requête. Recommandé pour exposer Hoard hors du LAN. Utiliser HTTPS pour ne pas transmettre les identifiants en clair. |
 
 ### Activer le HTTPS
 

@@ -2121,6 +2121,43 @@ class TestDeleteMoveAtomicity:
         assert _progress_position("locked.mp4") == 3
 
 
+# ── Optional HTTP Basic auth (BL-011) ──────────────────────────────────────────
+
+
+class TestBasicAuth:
+    def test_disabled_by_default(self):
+        # No HOARD_AUTH_* env in tests → auth off, normal access.
+        assert client.get("/api/settings").status_code == 200
+
+    def test_check_basic_auth_helper(self, monkeypatch):
+        import base64
+
+        import backend.main as m
+
+        monkeypatch.setattr(m, "HOARD_AUTH_USER", "alice")
+        monkeypatch.setattr(m, "HOARD_AUTH_PASS", "secret")
+        good = "Basic " + base64.b64encode(b"alice:secret").decode()
+        bad = "Basic " + base64.b64encode(b"alice:wrong").decode()
+        assert m._check_basic_auth(good) is True
+        assert m._check_basic_auth(bad) is False
+        assert m._check_basic_auth("") is False
+
+    def test_middleware_challenges_and_allows(self, monkeypatch):
+        import base64
+
+        import backend.main as m
+
+        monkeypatch.setattr(m, "HOARD_AUTH_USER", "alice")
+        monkeypatch.setattr(m, "HOARD_AUTH_PASS", "secret")
+        monkeypatch.setattr(m, "_AUTH_ENABLED", True)
+        resp = client.get("/api/settings")
+        assert resp.status_code == 401
+        assert resp.headers["www-authenticate"].startswith("Basic")
+        token = base64.b64encode(b"alice:secret").decode()
+        resp = client.get("/api/settings", headers={"Authorization": f"Basic {token}"})
+        assert resp.status_code == 200
+
+
 # ── PIN hashing: scrypt (BL-030) ───────────────────────────────────────────────
 
 

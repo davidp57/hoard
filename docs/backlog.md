@@ -88,7 +88,7 @@ Facteur de marge actuel : **0,40**.
 
 | ID | Titre | Prio | Est. | Créé | Démarré | Terminé |
 | --- | --- | --- | --- | --- | --- | --- |
-| BL-011 | Authentification basique pour exposition hors LAN | P1 | 20 min | 2026-04-12 | | |
+| BL-011 | Authentification basique pour exposition hors LAN | P1 | 20 min | 2026-04-12 | 2026-06-14 | 2026-06-14 |
 | BL-027 | Streaming — validation Range header (HTTP 416) | P1 | 5 min | 2026-05-09 | 2026-05-15 | 2026-05-15 |
 | BL-028 | safe_path() — bloquer les symlinks dans rglob/iterdir | P1 | 10 min | 2026-05-09 | 2026-05-15 | 2026-05-15 |
 | BL-029 | Security headers HTTP (X-Content-Type-Options, X-Frame-Options) | P1 | 5 min | 2026-05-09 | 2026-06-14 | 2026-06-14 |
@@ -154,7 +154,8 @@ Facteur de marge actuel : **0,40**.
 
 ### BL-011 — Basic Authentication For External Exposure
 
-- **Dates**: `created=2026-04-12`
+- **Dates**: `created=2026-04-12`, `started=2026-06-14`, `completed=2026-06-14`
+- **Statut**: ✅ Réalisé — auth HTTP Basic **opt-in** via `HOARD_AUTH_USER` + `HOARD_AUTH_PASS` (middleware `require_basic_auth`, helper `_check_basic_auth`, comparaison `hmac.compare_digest`). Désactivée si l'une des deux vars manque → aucune régression (tests inchangés). Choix de design : Basic plutôt qu'un système de comptes, conforme à l'esprit « simple pour le self-hosting » du ticket ; multi-utilisateur (BL-015) reste séparé. Doc dev + installation EN/FR + changelog utilisateur. Tests : `TestBasicAuth`.
 
 - **Why**: HTTPS now exists, but exposure outside the LAN still needs an authentication layer.
 - **Expected outcome**: a simple and safe authentication option for reverse-proxy or direct HTTPS deployments.
