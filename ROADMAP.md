@@ -65,9 +65,18 @@
 - [x] **Gamepad cursor preservation** (BL-043/052): cursor no longer resets after file actions or auto-play next
 - [x] **Default home root** (BL-040): designate a root as the startup destination; navigate there directly without the root-picker screen
 
+## v2.3 — Security, Quality & UX *(done)*
+
+- [x] **Optional HTTP Basic auth** (BL-011): enable via `HOARD_AUTH_USER` / `HOARD_AUTH_PASS`, disabled by default
+- [x] **Hardened PIN hashing** (BL-030): scrypt with per-PIN salt; transparent migration from legacy SHA-256
+- [x] **HTTP security headers** (BL-029): `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, CSP
+- [x] **Audit logging** (BL-036): INFO trail for delete/move/download/settings + client IP, WARNING on failed PIN
+- [x] **Robustness**: `MEDIA_ROOT` thread-safety (BL-032), DB-first delete/move atomicity (BL-034), job-store TTL purge (BL-033), progress-map covering index (BL-035), cookies-path validation (BL-031)
+- [x] **Frontend**: fetch timeout + network feedback (BL-037), accessibility pass (BL-039), touch gesture discovery overlay (BL-038), keyboard-help contrast fix (BL-065)
+
 ## v2.0 — Platform
 
-- [ ] **Basic authentication** (username + password, bcrypt) for LAN-external exposure
+- [x] **Basic authentication** delivered as optional HTTP Basic auth (BL-011) — see v2.3
 - [ ] **Light theme** toggle (persisted in localStorage)
 - [ ] **PWA** manifest + service-worker: installable on iPad / Windows laptop
 - [ ] **Search** across all filenames in MEDIA_ROOT
