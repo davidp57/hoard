@@ -308,6 +308,32 @@ def _job_for_api(job: dict) -> dict:
     return {k: v for k, v in job.items() if not k.startswith("_")}
 
 
+# Terminal job states and the TTL after which they are purged from _jobs to
+# avoid unbounded memory growth on a long-running server.
+_TERMINAL_JOB_STATES = ("done", "error", "cancelled")
+JOB_TTL_SECONDS = int(os.environ.get("JOB_TTL_SECONDS", "3600"))
+
+
+def _purge_old_jobs() -> None:
+    """Drop terminal jobs whose TTL has elapsed.
+
+    The TTL clock starts when a job is *first observed* in a terminal state.
+    Since clients poll the job list frequently this is effectively completion
+    time, and it avoids stamping every status transition across the workers.
+    Active (non-terminal) jobs are never purged.
+    """
+    now = time.monotonic()
+    for job_id in list(_jobs.keys()):
+        job = _jobs.get(job_id)
+        if not job or job.get("status") not in _TERMINAL_JOB_STATES:
+            continue
+        finished = job.get("_finished_at")
+        if finished is None:
+            job["_finished_at"] = now
+        elif now - finished > JOB_TTL_SECONDS:
+            del _jobs[job_id]
+
+
 def _fmt_hms(s: float) -> str:
     s = int(s)
     h, m, sec = s // 3600, (s % 3600) // 60, s % 60
@@ -1619,6 +1645,7 @@ def export_segments(path: str, body: ExportSegmentsRequest):
 
 @app.get("/api/jobs")
 def list_jobs():
+    _purge_old_jobs()
     return [_job_for_api(j) for j in _jobs.values()]
 
 

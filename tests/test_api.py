@@ -2081,6 +2081,48 @@ class TestSchema:
         assert "idx_segments_path" in self._index_names()
 
 
+# ── Job store TTL purge (BL-033) ───────────────────────────────────────────────
+
+
+class TestJobPurge:
+    def test_terminal_job_purged_after_ttl(self):
+        import time
+
+        import backend.main as m
+
+        m._jobs.clear()
+        m._jobs["old"] = {
+            "id": "old",
+            "status": "done",
+            "_finished_at": time.monotonic() - m.JOB_TTL_SECONDS - 1,
+        }
+        m._purge_old_jobs()
+        assert "old" not in m._jobs
+
+    def test_terminal_job_gets_ttl_clock_then_survives(self):
+        import backend.main as m
+
+        m._jobs.clear()
+        m._jobs["fresh"] = {"id": "fresh", "status": "done"}
+        m._purge_old_jobs()  # first sighting: stamps the clock, keeps the job
+        assert "fresh" in m._jobs
+        assert "_finished_at" in m._jobs["fresh"]
+
+    def test_active_job_never_purged(self):
+        import time
+
+        import backend.main as m
+
+        m._jobs.clear()
+        m._jobs["run"] = {
+            "id": "run",
+            "status": "running",
+            "_finished_at": time.monotonic() - m.JOB_TTL_SECONDS - 1,
+        }
+        m._purge_old_jobs()
+        assert "run" in m._jobs
+
+
 # ── MEDIA_ROOT thread-safety (BL-032) ──────────────────────────────────────────
 
 

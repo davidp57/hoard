@@ -57,6 +57,7 @@ hoard/
 | `DB_PATH` | `/data/progress.db` | SQLite database path |
 | `SSL_CERTFILE` | *(unset)* | Path to a PEM certificate file. When set (together with `SSL_KEYFILE`), uvicorn serves HTTPS natively. |
 | `SSL_KEYFILE` | *(unset)* | Path to the matching PEM private key file. |
+| `JOB_TTL_SECONDS` | `3600` | Seconds a terminal download/export job is kept in memory before being purged. |
 
 ### Path Safety
 

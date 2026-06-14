@@ -95,7 +95,7 @@ Facteur de marge actuel : **0,40**.
 | BL-030 | PIN — remplacer SHA-256 sans sel par scrypt | P1 | 10 min | 2026-05-09 | | |
 | BL-031 | download_cookies_path — valider et restreindre le chemin | P1 | 5 min | 2026-05-09 | 2026-06-14 | 2026-06-14 |
 | BL-032 | MEDIA_ROOT global — thread-safety (threading.Lock) | P2 | 10 min | 2026-05-09 | 2026-06-14 | 2026-06-14 |
-| BL-033 | _jobs — purge TTL des jobs terminés (fuite mémoire) | P2 | 10 min | 2026-05-09 | | |
+| BL-033 | _jobs — purge TTL des jobs terminés (fuite mémoire) | P2 | 10 min | 2026-05-09 | 2026-06-14 | 2026-06-14 |
 | BL-034 | delete/move — inverser ordre FS+DB pour atomicité | P2 | 10 min | 2026-05-09 | | |
 | BL-035 | init_db() — index sur progress.path | P2 | 5 min | 2026-05-09 | 2026-06-14 | 2026-06-14 |
 | BL-036 | Logging — audit trail des opérations sur fichiers *(partiel)* | P2 | 20 min | 2026-05-09 | 2026-05-09 | |
@@ -267,7 +267,8 @@ Facteur de marge actuel : **0,40**.
 
 ### BL-033 — Job Store TTL Purge
 
-- **Dates**: `created=2026-05-09`
+- **Dates**: `created=2026-05-09`, `started=2026-06-14`, `completed=2026-06-14`
+- **Statut**: ✅ Réalisé — `_purge_old_jobs()` appelé au début de `GET /api/jobs` (option « déclenché à la lecture »). Les jobs en état terminal reçoivent un `_finished_at` (monotonic) à la première observation, puis sont supprimés après `JOB_TTL_SECONDS` (défaut 3600). Les jobs actifs ne sont jamais purgés. Tests : `TestJobPurge`. Doc dev (env var) EN+FR.
 - **Origine**: revue technique 2026-05-09 — moyen.
 - **Why**: the `_jobs` dict accumulates completed/errored/cancelled download jobs indefinitely. A long-running server will eventually exhaust memory.
 - **Expected outcome**: after each job transitions to a terminal state (`done`, `error`, `cancelled`), schedule its removal after a configurable TTL (default 1 hour). Implement as a simple periodic cleanup triggered on job-list reads or as a background thread.
