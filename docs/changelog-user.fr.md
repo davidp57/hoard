@@ -10,6 +10,7 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 - **Aide clavier lisible** : la fenêtre d'aide (touche `?`) s'affichait en texte sombre sur fond sombre sur PC/Firefox. Elle est de nouveau parfaitement lisible.
 
 ### Améliorations
+- **Accessibilité** : les boutons icône (accueil, réglages, lecture/pause, plein écran…) ont désormais un libellé pour les lecteurs d'écran, la navigation au clavier affiche un contour de focus visible, et le texte gris secondaire est plus contrasté donc plus lisible.
 - **Retour en cas de problème réseau** : si le serveur est lent à répondre (par ex. NAS en veille) ou injoignable, l'application affiche maintenant un message au lieu de rester figée. Les actions concernées : navigation, recherche, reprise de lecture, déplacement et suppression.
 
 ### Sécurité

@@ -101,7 +101,7 @@ Facteur de marge actuel : **0,40**.
 | BL-036 | Logging — audit trail des opérations sur fichiers | P2 | 20 min | 2026-05-09 | 2026-05-09 | 2026-06-14 |
 | BL-037 | Frontend — timeout fetch + feedback réseau (AbortController) | P2 | 10 min | 2026-05-09 | 2026-06-14 | 2026-06-14 |
 | BL-038 | Gestes tactiles — overlay découverte au premier lancement | P3 | 15 min | 2026-05-09 | | |
-| BL-039 | Accessibilité — aria-label, :focus-visible, contraste text-dim | P3 | 20 min | 2026-05-09 | | |
+| BL-039 | Accessibilité — aria-label, :focus-visible, contraste text-dim | P3 | 20 min | 2026-05-09 | 2026-06-14 | 2026-06-14 |
 | BL-064 | Fix — transcodage forcé malgré l'option désactivée | P1 | 5 min | 2026-05-18 | 2026-05-18 | 2026-05-18 |
 | BL-065 | Fix — dialog d'aide clavier illisible (texte noir sur fond foncé, Firefox) | P2 | 5 min | 2026-06-14 | 2026-06-14 | 2026-06-14 |
 
@@ -334,7 +334,8 @@ Facteur de marge actuel : **0,40**.
 
 ### BL-039 — Accessibility: ARIA Labels, Focus Ring, Contrast
 
-- **Dates**: `created=2026-05-09`
+- **Dates**: `created=2026-05-09`, `started=2026-06-14`, `completed=2026-06-14`
+- **Statut**: ✅ Réalisé — (1) `--text-dim` relevé #666 → #8a8a8a (≥ WCAG AA sur fond sombre) ; (2) règle globale `:focus-visible` (contour accent) ; (3) `aria-label` FR sur les contrôles icône principaux : accueil, paramètres, file de téléchargement, lecture/pause (vidéo + audio non couvert), seek ×4, plein écran, et le mute (converti en `role=button` + `tabindex` + handler clavier). Passe ciblée sur les contrôles primaires, pas un audit exhaustif de tous les boutons icône — un audit complet pourra faire l'objet d'un ticket dédié si besoin.
 - **Origine**: revue technique 2026-05-09 — moyen.
 - **Why**: icon-only buttons have no `aria-label`; tabbing through the UI shows no focus indicator (CSS resets `outline`); `--text-dim: #666` on `--surface2: #1e1e21` is ~3:1 contrast ratio, below WCAG AA (4.5:1).
 - **Expected outcome**: add `aria-label` to all interactive elements that lack visible text (home, settings, refresh, play/pause, skip, fullscreen buttons etc.); add a `:focus-visible` outline rule in CSS; raise `--text-dim` to at least `#888` or equivalent passing contrast.
