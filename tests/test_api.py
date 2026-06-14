@@ -771,6 +771,12 @@ class TestSettings:
         resp = client.post("/api/settings", json={"initial_sweep_seconds": 7201})
         assert resp.status_code == 422
 
+    def test_gestures_overlay_seen_persists(self):
+        client.post("/api/settings", json={"gestures_overlay_seen": True})
+        assert client.get("/api/settings").json()["gestures_overlay_seen"] == "1"
+        client.post("/api/settings", json={"gestures_overlay_seen": False})
+        assert client.get("/api/settings").json()["gestures_overlay_seen"] == "0"
+
     def test_cookies_path_accepts_valid_txt_file(self, tmp_path):
         cookies = tmp_path / "cookies.txt"
         cookies.write_text("# Netscape HTTP Cookie File\n")

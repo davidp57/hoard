@@ -162,6 +162,8 @@ La liste de fichiers se met à jour toutes les 30 secondes quand l'onglet est vi
 
 Les gestes fonctionnent directement sur l'image vidéo.
 
+> À la première ouverture d'une vidéo sur un appareil tactile, un court écran d'aide présente les principaux gestes. Touchez **Compris** pour le fermer ; il ne réapparaît plus ensuite.
+
 ### Tap simple
 
 | Zone | Action |

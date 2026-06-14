@@ -2112,6 +2112,7 @@ _SETTINGS_KEYS = {
     "gamepad_swap_sticks",  # '1' | '0', default '0' — swap left/right stick assignments
     "gamepad_mapping",  # JSON string, default '{}' (use built-in defaults)
     "fs_progress_zoom",  # int 5-50, zoom window % for fullscreen progress bar, default 20
+    "gestures_overlay_seen",  # '1' | '0', one-shot touch-gesture discovery overlay flag
 }
 
 _SETTINGS_DEFAULTS: dict[str, str] = {
@@ -2144,6 +2145,7 @@ _SETTINGS_DEFAULTS: dict[str, str] = {
     "gamepad_swap_sticks": "0",
     "gamepad_mapping": "{}",
     "fs_progress_zoom": "20",
+    "gestures_overlay_seen": "0",
 }
 
 
@@ -2177,6 +2179,7 @@ class SettingsPayload(BaseModel):
     gesture_volume: bool | None = None
     gesture_brightness: bool | None = None
     gesture_doubletap: bool | None = None
+    gestures_overlay_seen: bool | None = None
     gesture_edge_pct: int | None = None
     gesture_swipe_threshold: int | None = None
     gesture_swipe_sensitivity: str | None = None
@@ -2336,6 +2339,7 @@ def update_settings(body: SettingsPayload, request: Request):
             ("gesture_volume", body.gesture_volume),
             ("gesture_brightness", body.gesture_brightness),
             ("gesture_doubletap", body.gesture_doubletap),
+            ("gestures_overlay_seen", body.gestures_overlay_seen),
             ("transcode_enabled", body.transcode_enabled),
             ("transcode_audio_only", body.transcode_audio_only),
             ("gamepad_enabled", body.gamepad_enabled),

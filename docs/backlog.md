@@ -100,7 +100,7 @@ Facteur de marge actuel : **0,40**.
 | BL-035 | init_db() — index sur progress.path | P2 | 5 min | 2026-05-09 | 2026-06-14 | 2026-06-14 |
 | BL-036 | Logging — audit trail des opérations sur fichiers | P2 | 20 min | 2026-05-09 | 2026-05-09 | 2026-06-14 |
 | BL-037 | Frontend — timeout fetch + feedback réseau (AbortController) | P2 | 10 min | 2026-05-09 | 2026-06-14 | 2026-06-14 |
-| BL-038 | Gestes tactiles — overlay découverte au premier lancement | P3 | 15 min | 2026-05-09 | | |
+| BL-038 | Gestes tactiles — overlay découverte au premier lancement | P3 | 15 min | 2026-05-09 | 2026-06-14 | 2026-06-14 |
 | BL-039 | Accessibilité — aria-label, :focus-visible, contraste text-dim | P3 | 20 min | 2026-05-09 | 2026-06-14 | 2026-06-14 |
 | BL-064 | Fix — transcodage forcé malgré l'option désactivée | P1 | 5 min | 2026-05-18 | 2026-05-18 | 2026-05-18 |
 | BL-065 | Fix — dialog d'aide clavier illisible (texte noir sur fond foncé, Firefox) | P2 | 5 min | 2026-06-14 | 2026-06-14 | 2026-06-14 |
@@ -324,7 +324,8 @@ Facteur de marge actuel : **0,40**.
 
 ### BL-038 — Touch Gesture Discovery Overlay
 
-- **Dates**: `created=2026-05-09`
+- **Dates**: `created=2026-05-09`, `started=2026-06-14`, `completed=2026-06-14`
+- **Statut**: ✅ Réalisé — overlay `#gesture-help-overlay` affiché par `maybeShowGestureOverlay()` à l'ouverture du player, gardé par `window.matchMedia('(pointer: coarse)')` + `cfg.gesture_enabled` + flag. `dismissGestureOverlay()` persiste `gestures_overlay_seen` via `POST /api/settings`. Nouvelle clé settings backend (defaults/keys/payload/bools) + test `test_gestures_overlay_seen_persists`. Doc : user-guide EN/FR. Pas de test frontend (single-file) ; syntaxe JS validée via `node --check`.
 - **Origine**: revue technique 2026-05-09 — moyen.
 - **Why**: swipe, double-tap, and triple-tap gestures are powerful but completely invisible. New users on touch devices have no way to discover them without reading the external user guide.
 - **Expected outcome**: on first launch (or after a settings reset), display a one-shot modal or translucent overlay on the player area illustrating the main gesture zones (seek zones, volume swipe, double-tap). Dismissible and never shown again (flag stored in settings).
