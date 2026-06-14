@@ -98,7 +98,7 @@ Facteur de marge actuel : **0,40**.
 | BL-033 | _jobs — purge TTL des jobs terminés (fuite mémoire) | P2 | 10 min | 2026-05-09 | 2026-06-14 | 2026-06-14 |
 | BL-034 | delete/move — inverser ordre FS+DB pour atomicité | P2 | 10 min | 2026-05-09 | 2026-06-14 | 2026-06-14 |
 | BL-035 | init_db() — index sur progress.path | P2 | 5 min | 2026-05-09 | 2026-06-14 | 2026-06-14 |
-| BL-036 | Logging — audit trail des opérations sur fichiers *(partiel)* | P2 | 20 min | 2026-05-09 | 2026-05-09 | |
+| BL-036 | Logging — audit trail des opérations sur fichiers | P2 | 20 min | 2026-05-09 | 2026-05-09 | 2026-06-14 |
 | BL-037 | Frontend — timeout fetch + feedback réseau (AbortController) | P2 | 10 min | 2026-05-09 | | |
 | BL-038 | Gestes tactiles — overlay découverte au premier lancement | P3 | 15 min | 2026-05-09 | | |
 | BL-039 | Accessibilité — aria-label, :focus-visible, contraste text-dim | P3 | 20 min | 2026-05-09 | | |
@@ -300,8 +300,8 @@ Facteur de marge actuel : **0,40**.
 
 ### BL-036 — Audit Logging for File Operations
 
-- **Dates**: `created=2026-05-09`, `started=2026-05-09`
-- **Statut**: ⚠️ Partiel. L'infrastructure de logging existe (`logger = logging.getLogger("hoard")`, `backend/main.py` ~34, ajoutée au commit `67f130b` pour debug `safe_path`/home-roots). **Reste à faire** : l'audit trail métier proprement dit — logguer en INFO les opérations `delete_file` / `move_file` / download start/done/failed / settings changed / PIN check failed, avec l'IP client (`Request.client.host`), et le pilotage par `LOG_LEVEL`.
+- **Dates**: `created=2026-05-09`, `started=2026-05-09`, `completed=2026-06-14`
+- **Statut**: ✅ Réalisé. L'infra logger (`logging.getLogger("hoard")` + `LOG_LEVEL`) existait déjà (commit `67f130b`). Ajout de l'audit trail métier via le helper `_client_ip()` : `INFO` sur delete (`file deleted`), move (`file move requested`), download (`download started`/`download completed`) et `settings updated` — avec l'IP cliente ; `WARNING` sur `download failed` et `PIN check failed`. Tests : `TestAuditLogging`.
 - **Origine**: revue technique 2026-05-09 — élevé.
 - **Why**: there is no logging anywhere in `main.py`. Destructive operations (delete, move) leave no trace, making incident investigation impossible on a NAS exposed externally.
 - **Expected outcome**: add `import logging` with a module-level `logger = logging.getLogger("hoard")`. Log at INFO level: file deleted, file moved, download started/completed/failed, settings changed, PIN check failed. Include client IP from `Request.client.host`.

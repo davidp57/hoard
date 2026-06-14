@@ -2121,6 +2121,37 @@ class TestDeleteMoveAtomicity:
         assert _progress_position("locked.mp4") == 3
 
 
+# ── Audit logging (BL-036) ─────────────────────────────────────────────────────
+
+
+class TestAuditLogging:
+    def test_delete_logs_audit_line(self, caplog):
+        import logging
+
+        f = MEDIA_ROOT / "audit.mp4"
+        f.write_bytes(b"\x00" * 8)
+        with caplog.at_level(logging.INFO, logger="hoard"):
+            client.delete("/api/files?path=audit.mp4")
+        assert any("file deleted" in r.getMessage() for r in caplog.records)
+
+    def test_settings_update_logs_audit_line(self, caplog):
+        import logging
+
+        with caplog.at_level(logging.INFO, logger="hoard"):
+            client.post("/api/settings", json={"sort_by": "name"})
+        assert any("settings updated" in r.getMessage() for r in caplog.records)
+
+    def test_wrong_pin_logs_warning(self, caplog):
+        import logging
+
+        client.post("/api/settings", json={"pin": "1234"})
+        with caplog.at_level(logging.WARNING, logger="hoard"):
+            resp = client.post("/api/settings/check-pin", json={"pin": "0000"})
+        assert resp.status_code == 401
+        assert any("PIN check failed" in r.getMessage() for r in caplog.records)
+        client.post("/api/settings", json={"pin": ""})  # cleanup
+
+
 # ── Job store TTL purge (BL-033) ───────────────────────────────────────────────
 
 

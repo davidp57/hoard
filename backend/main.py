@@ -53,6 +53,11 @@ def set_media_root(new_root: Path) -> None:
         MEDIA_ROOT = new_root
 
 
+def _client_ip(request: Request) -> str:
+    """Best-effort client IP for the audit log."""
+    return request.client.host if request.client else "unknown"
+
+
 DB_PATH = Path(os.environ.get("DB_PATH", "/data/progress.db"))
 
 
@@ -844,6 +849,7 @@ def _run_download(
         else:
             job["status"] = "done"
             job["progress"] = 100
+            logger.info("download completed: name=%s", job.get("source_name"))
 
     except Exception as e:
         if cancel_event.is_set():
@@ -859,6 +865,7 @@ def _run_download(
         else:
             job["status"] = "error"
             job["error"] = str(e)
+            logger.warning("download failed: name=%s error=%s", job.get("source_name"), e)
     finally:
         if tmp_cookies_file:
             try:
@@ -1482,7 +1489,7 @@ def save_progress(path: str, body: ProgressUpdate):
 
 
 @app.delete("/api/files")
-def delete_file(path: str):
+def delete_file(path: str, request: Request):
     target = safe_path(path)
     if not target.exists():
         raise HTTPException(status_code=404)
@@ -1507,15 +1514,22 @@ def delete_file(path: str):
             conn.rollback()
             raise HTTPException(status_code=500, detail="Failed to delete file") from e
         conn.commit()
+    logger.info("file deleted: path=%s ip=%s", rel, _client_ip(request))
     return {"ok": True}
 
 
 @app.post("/api/files/move")
-def move_file(path: str, body: MoveRequest):
+def move_file(path: str, body: MoveRequest, request: Request):
     source = safe_path(path)
     destination = safe_path(body.destination)
     if not source.exists():
         raise HTTPException(status_code=404)
+    logger.info(
+        "file move requested: src=%s dest=%s ip=%s",
+        to_rel(source),
+        body.destination,
+        _client_ip(request),
+    )
     job_id = str(uuid.uuid4())
     _jobs[job_id] = {
         "id": job_id,
@@ -1730,9 +1744,10 @@ def _validate_download_url(url: str) -> None:
 
 
 @app.post("/api/download")
-def start_download(body: DownloadRequest):
+def start_download(body: DownloadRequest, request: Request):
     """Start a yt-dlp download in the background and return a job_id."""
     _validate_download_url(body.url)
+    logger.info("download started: url=%s ip=%s", body.url, _client_ip(request))
 
     with get_db() as conn:
         s = _read_all_settings(conn)
@@ -2180,7 +2195,7 @@ def _validate_cookies_path(path: str) -> None:
 
 
 @app.post("/api/settings")
-def update_settings(body: SettingsPayload):
+def update_settings(body: SettingsPayload, request: Request):
     with get_db() as conn:
         if body.media_root is not None:
             new_root = Path(body.media_root)
@@ -2252,11 +2267,12 @@ def update_settings(body: SettingsPayload):
 
         conn.commit()
 
+    logger.info("settings updated: ip=%s", _client_ip(request))
     return {"ok": True}
 
 
 @app.post("/api/settings/check-pin")
-def check_pin(body: dict):
+def check_pin(body: dict, request: Request):
     """Returns {ok: true} if the supplied PIN matches, 401 otherwise."""
     pin = str(body.get("pin", ""))
     with get_db() as conn:
@@ -2267,6 +2283,7 @@ def check_pin(body: dict):
         return {"ok": True}
     if hashlib.sha256(pin.encode()).hexdigest() == stored_hash:
         return {"ok": True}
+    logger.warning("PIN check failed: ip=%s", _client_ip(request))
     raise HTTPException(status_code=401, detail="Wrong PIN")
 
 
