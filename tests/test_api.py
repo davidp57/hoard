@@ -2081,6 +2081,46 @@ class TestSchema:
         assert "idx_segments_path" in self._index_names()
 
 
+# ── Delete / move DB-first atomicity (BL-034) ──────────────────────────────────
+
+
+def _progress_position(rel):
+    import backend.main as m
+
+    with m.get_db() as conn:
+        row = conn.execute("SELECT position FROM progress WHERE path = ?", (rel,)).fetchone()
+    return None if row is None else row["position"]
+
+
+class TestDeleteMoveAtomicity:
+    def test_delete_removes_file_and_progress_row(self):
+        f = MEDIA_ROOT / "todel.mp4"
+        f.write_bytes(b"\x00" * 16)
+        client.post("/api/progress?path=todel.mp4", json={"position": 1, "duration": 2})
+        assert _progress_position("todel.mp4") == 1
+        resp = client.delete("/api/files?path=todel.mp4")
+        assert resp.status_code == 200
+        assert not f.exists()
+        assert _progress_position("todel.mp4") is None
+
+    def test_delete_rolls_back_db_when_fs_fails(self, monkeypatch):
+        import pathlib
+
+        f = MEDIA_ROOT / "locked.mp4"
+        f.write_bytes(b"\x00" * 16)
+        client.post("/api/progress?path=locked.mp4", json={"position": 3, "duration": 6})
+
+        def boom(self):
+            raise PermissionError("locked")
+
+        monkeypatch.setattr(pathlib.Path, "unlink", boom)
+        resp = client.delete("/api/files?path=locked.mp4")
+        assert resp.status_code == 423
+        # FS delete failed → DB must be rolled back, row preserved, file intact.
+        assert f.exists()
+        assert _progress_position("locked.mp4") == 3
+
+
 # ── Job store TTL purge (BL-033) ───────────────────────────────────────────────
 
 

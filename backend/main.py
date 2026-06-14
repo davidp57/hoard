@@ -539,26 +539,31 @@ def _run_move(job_id: str, source: Path, destination: Path) -> None:
     job["status"] = "running"
     final_dest = (destination / source.name) if destination.is_dir() else destination
     final_dest.parent.mkdir(parents=True, exist_ok=True)
-    for attempt in range(5):
-        try:
-            shutil.move(str(source), str(final_dest))
-            break
-        except PermissionError:
-            if attempt < 4:
-                time.sleep(0.6)
-            else:
-                job["status"] = "error"
-                job["error"] = "File is locked by another process"
-                return
-        except Exception as e:
-            job["status"] = "error"
-            job["error"] = str(e)
-            return
     old_rel = to_rel(source)
     new_rel = to_rel(final_dest)
+    # DB-first atomicity: stage the metadata move, perform the filesystem move,
+    # and only commit if it succeeds. Roll back on failure so progress/segments
+    # rows never point at a path the file was not actually moved to.
     with get_db() as conn:
         conn.execute("UPDATE progress SET path = ? WHERE path = ?", (new_rel, old_rel))
         conn.execute("UPDATE segments SET path = ? WHERE path = ?", (new_rel, old_rel))
+        for attempt in range(5):
+            try:
+                shutil.move(str(source), str(final_dest))
+                break
+            except PermissionError:
+                if attempt < 4:
+                    time.sleep(0.6)
+                else:
+                    conn.rollback()
+                    job["status"] = "error"
+                    job["error"] = "File is locked by another process"
+                    return
+            except Exception as e:
+                conn.rollback()
+                job["status"] = "error"
+                job["error"] = str(e)
+                return
         conn.commit()
     job["status"] = "done"
     job["progress"] = 100
@@ -1481,18 +1486,26 @@ def delete_file(path: str):
     target = safe_path(path)
     if not target.exists():
         raise HTTPException(status_code=404)
-    try:
-        if target.is_dir():
-            shutil.rmtree(target)
-        else:
-            target.unlink()
-    except PermissionError:
-        raise HTTPException(status_code=423, detail="File is locked by another process") from None
-    # Clean progress and segments entries
     rel = to_rel(target)
+    # DB-first atomicity: stage the metadata deletion, perform the filesystem
+    # delete, and only commit if it succeeds. If the FS op fails, roll back so
+    # we never leave stale progress/segments rows for a file that still exists.
     with get_db() as conn:
         conn.execute("DELETE FROM progress WHERE path = ?", (rel,))
         conn.execute("DELETE FROM segments WHERE path = ?", (rel,))
+        try:
+            if target.is_dir():
+                shutil.rmtree(target)
+            else:
+                target.unlink()
+        except PermissionError:
+            conn.rollback()
+            raise HTTPException(
+                status_code=423, detail="File is locked by another process"
+            ) from None
+        except OSError as e:
+            conn.rollback()
+            raise HTTPException(status_code=500, detail="Failed to delete file") from e
         conn.commit()
     return {"ok": True}
 

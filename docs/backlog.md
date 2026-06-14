@@ -96,7 +96,7 @@ Facteur de marge actuel : **0,40**.
 | BL-031 | download_cookies_path — valider et restreindre le chemin | P1 | 5 min | 2026-05-09 | 2026-06-14 | 2026-06-14 |
 | BL-032 | MEDIA_ROOT global — thread-safety (threading.Lock) | P2 | 10 min | 2026-05-09 | 2026-06-14 | 2026-06-14 |
 | BL-033 | _jobs — purge TTL des jobs terminés (fuite mémoire) | P2 | 10 min | 2026-05-09 | 2026-06-14 | 2026-06-14 |
-| BL-034 | delete/move — inverser ordre FS+DB pour atomicité | P2 | 10 min | 2026-05-09 | | |
+| BL-034 | delete/move — inverser ordre FS+DB pour atomicité | P2 | 10 min | 2026-05-09 | 2026-06-14 | 2026-06-14 |
 | BL-035 | init_db() — index sur progress.path | P2 | 5 min | 2026-05-09 | 2026-06-14 | 2026-06-14 |
 | BL-036 | Logging — audit trail des opérations sur fichiers *(partiel)* | P2 | 20 min | 2026-05-09 | 2026-05-09 | |
 | BL-037 | Frontend — timeout fetch + feedback réseau (AbortController) | P2 | 10 min | 2026-05-09 | | |
@@ -278,7 +278,8 @@ Facteur de marge actuel : **0,40**.
 
 ### BL-034 — Delete / Move: DB-First Atomicity
 
-- **Dates**: `created=2026-05-09`
+- **Dates**: `created=2026-05-09`, `started=2026-06-14`, `completed=2026-06-14`
+- **Statut**: ✅ Réalisé — `delete_file` et `_run_move` exécutent les `DELETE`/`UPDATE` DB (sans commit) **avant** l'opération FS, puis `commit()` si elle réussit, `rollback()` sinon. Tests : `TestDeleteMoveAtomicity` (happy path + rollback sur `PermissionError`). Note : la migration des lignes pour les fichiers *à l'intérieur* d'un dossier déplacé/supprimé reste hors périmètre (limitation préexistante).
 - **Origine**: revue technique 2026-05-09 — élevé.
 - **Why**: `delete_file` and `move_file` currently delete/move the file on disk first, then update the DB. If the DB write fails, the file is gone but stale progress rows remain, causing permanent inconsistency.
 - **Expected outcome**: reverse the order — update the DB first, then perform the filesystem operation. If the filesystem operation fails, roll back the DB change (wrap both in a try/except with explicit rollback or re-insert).
