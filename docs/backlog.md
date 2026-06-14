@@ -103,7 +103,7 @@ Facteur de marge actuel : **0,40**.
 | BL-038 | Gestes tactiles — overlay découverte au premier lancement | P3 | 15 min | 2026-05-09 | | |
 | BL-039 | Accessibilité — aria-label, :focus-visible, contraste text-dim | P3 | 20 min | 2026-05-09 | | |
 | BL-064 | Fix — transcodage forcé malgré l'option désactivée | P1 | 5 min | 2026-05-18 | 2026-05-18 | 2026-05-18 |
-| BL-065 | Fix — dialog d'aide clavier illisible (texte noir sur fond foncé, Firefox) | P2 | 5 min | 2026-06-14 | | |
+| BL-065 | Fix — dialog d'aide clavier illisible (texte noir sur fond foncé, Firefox) | P2 | 5 min | 2026-06-14 | 2026-06-14 | 2026-06-14 |
 
 ---
 
@@ -545,6 +545,7 @@ Facteur de marge actuel : **0,40**.
 - **Cause** : `<dialog id="shortcuts-dialog">` (`frontend/index.html` ~ligne 1813) : le `<div>` interne a `background:var(--surface)` (#161618, foncé) mais **aucune `color` n'est définie** sur le `<dialog>` ni sur le wrapper. Les cellules de description (`<td>` sans couleur) héritent donc de la couleur par défaut du user-agent stylesheet de Firefox pour `<dialog>` (`CanvasText` ≈ noir), tandis que les en-têtes de section sont en `--text-dim` (#666, gris). Résultat : noir + gris sur fond foncé.
 - **Correction** : Définir une couleur de texte explicite sur le wrapper du dialog, p. ex. `color:var(--text)` (#f0f0f0) sur le `<div>` interne. Vérifier au passage les autres `<dialog>`/overlays pour le même oubli. Optionnel (recoupe BL-039) : relever `--text-dim` au-dessus du seuil WCAG AA pour les en-têtes de section.
 - **Attention** : ne pas casser le rendu des autres thèmes/overlays ; le fix doit rester purement CSS inline cohérent avec l'architecture single-file.
+- **Statut** : ✅ Réalisé — `color:var(--text)` ajouté au wrapper de `#shortcuts-dialog`. Seul `<dialog>` du fichier (delete/move/export/gp-overlay sont des `<div>` héritant correctement). Le relèvement de `--text-dim` est traité dans BL-039.
 
 ---
 

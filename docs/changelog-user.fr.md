@@ -6,6 +6,9 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ## [Non publié]
 
+### Corrections
+- **Aide clavier lisible** : la fenêtre d'aide (touche `?`) s'affichait en texte sombre sur fond sombre sur PC/Firefox. Elle est de nouveau parfaitement lisible.
+
 ### Améliorations
 - **Retour en cas de problème réseau** : si le serveur est lent à répondre (par ex. NAS en veille) ou injoignable, l'application affiche maintenant un message au lieu de rester figée. Les actions concernées : navigation, recherche, reprise de lecture, déplacement et suppression.
 
