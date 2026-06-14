@@ -1,4 +1,5 @@
 import hashlib
+import hmac
 import ipaddress
 import json
 import logging
@@ -2175,6 +2176,54 @@ def get_settings():
     return result
 
 
+# PIN hashing — scrypt with a random per-PIN salt. Parameters tuned for NAS
+# hardware (N=2^14 ≈ 16 MiB working memory per check, fast enough for an
+# occasional PIN entry). Stored format: "scrypt$<salt_hex>$<key_hex>".
+_SCRYPT_N = 2**14
+_SCRYPT_R = 8
+_SCRYPT_P = 1
+_SCRYPT_MAXMEM = 64 * 1024 * 1024
+
+
+def _hash_pin(pin: str) -> str:
+    salt = os.urandom(16)
+    key = hashlib.scrypt(
+        pin.encode(),
+        salt=salt,
+        n=_SCRYPT_N,
+        r=_SCRYPT_R,
+        p=_SCRYPT_P,
+        dklen=32,
+        maxmem=_SCRYPT_MAXMEM,
+    )
+    return f"scrypt${salt.hex()}${key.hex()}"
+
+
+def _verify_pin(pin: str, stored: str) -> bool:
+    """Verify a PIN against the stored hash. Supports the legacy unsalted
+    SHA-256 format for transparent migration to scrypt."""
+    if stored.startswith("scrypt$"):
+        try:
+            _, salt_hex, key_hex = stored.split("$", 2)
+            salt = bytes.fromhex(salt_hex)
+            expected = bytes.fromhex(key_hex)
+        except (ValueError, IndexError):
+            return False
+        key = hashlib.scrypt(
+            pin.encode(),
+            salt=salt,
+            n=_SCRYPT_N,
+            r=_SCRYPT_R,
+            p=_SCRYPT_P,
+            dklen=len(expected),
+            maxmem=_SCRYPT_MAXMEM,
+        )
+        return hmac.compare_digest(key, expected)
+    # Legacy SHA-256 (no salt) — accepted only so the next successful login can
+    # transparently upgrade it to scrypt.
+    return hmac.compare_digest(hashlib.sha256(pin.encode()).hexdigest(), stored)
+
+
 def _validate_cookies_path(path: str) -> None:
     """Validate a user-supplied cookies file path before it is stored.
 
@@ -2210,8 +2259,7 @@ def update_settings(body: SettingsPayload, request: Request):
             if body.pin == "":
                 _write_setting(conn, "pin_hash", "")
             else:
-                h = hashlib.sha256(body.pin.encode()).hexdigest()
-                _write_setting(conn, "pin_hash", h)
+                _write_setting(conn, "pin_hash", _hash_pin(body.pin))
 
         if body.gamepad_mapping is not None:
             try:
@@ -2281,7 +2329,12 @@ def check_pin(body: dict, request: Request):
     if not stored_hash:
         # No PIN set — always OK
         return {"ok": True}
-    if hashlib.sha256(pin.encode()).hexdigest() == stored_hash:
+    if _verify_pin(pin, stored_hash):
+        # Transparently upgrade a legacy unsalted SHA-256 hash to scrypt.
+        if not stored_hash.startswith("scrypt$"):
+            with get_db() as conn:
+                _write_setting(conn, "pin_hash", _hash_pin(pin))
+                conn.commit()
         return {"ok": True}
     logger.warning("PIN check failed: ip=%s", _client_ip(request))
     raise HTTPException(status_code=401, detail="Wrong PIN")

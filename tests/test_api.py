@@ -2121,6 +2121,38 @@ class TestDeleteMoveAtomicity:
         assert _progress_position("locked.mp4") == 3
 
 
+# ── PIN hashing: scrypt (BL-030) ───────────────────────────────────────────────
+
+
+class TestPinHashing:
+    def test_pin_stored_as_scrypt_and_verifies(self):
+        import backend.main as m
+
+        client.post("/api/settings", json={"pin": "4321"})
+        with m.get_db() as conn:
+            row = conn.execute("SELECT value FROM settings WHERE key='pin_hash'").fetchone()
+        assert row["value"].startswith("scrypt$")
+        assert client.post("/api/settings/check-pin", json={"pin": "4321"}).status_code == 200
+        assert client.post("/api/settings/check-pin", json={"pin": "0000"}).status_code == 401
+        client.post("/api/settings", json={"pin": ""})  # cleanup
+
+    def test_legacy_sha256_pin_migrated_on_login(self):
+        import hashlib
+
+        import backend.main as m
+
+        legacy = hashlib.sha256(b"1357").hexdigest()
+        with m.get_db() as conn:
+            m._write_setting(conn, "pin_hash", legacy)
+            conn.commit()
+        # Legacy PIN still verifies and is transparently upgraded.
+        assert client.post("/api/settings/check-pin", json={"pin": "1357"}).status_code == 200
+        with m.get_db() as conn:
+            row = conn.execute("SELECT value FROM settings WHERE key='pin_hash'").fetchone()
+        assert row["value"].startswith("scrypt$")
+        client.post("/api/settings", json={"pin": ""})  # cleanup
+
+
 # ── Audit logging (BL-036) ─────────────────────────────────────────────────────
 
 

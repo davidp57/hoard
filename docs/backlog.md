@@ -92,7 +92,7 @@ Facteur de marge actuel : **0,40**.
 | BL-027 | Streaming — validation Range header (HTTP 416) | P1 | 5 min | 2026-05-09 | 2026-05-15 | 2026-05-15 |
 | BL-028 | safe_path() — bloquer les symlinks dans rglob/iterdir | P1 | 10 min | 2026-05-09 | 2026-05-15 | 2026-05-15 |
 | BL-029 | Security headers HTTP (X-Content-Type-Options, X-Frame-Options) | P1 | 5 min | 2026-05-09 | 2026-06-14 | 2026-06-14 |
-| BL-030 | PIN — remplacer SHA-256 sans sel par scrypt | P1 | 10 min | 2026-05-09 | | |
+| BL-030 | PIN — remplacer SHA-256 sans sel par scrypt | P1 | 10 min | 2026-05-09 | 2026-06-14 | 2026-06-14 |
 | BL-031 | download_cookies_path — valider et restreindre le chemin | P1 | 5 min | 2026-05-09 | 2026-06-14 | 2026-06-14 |
 | BL-032 | MEDIA_ROOT global — thread-safety (threading.Lock) | P2 | 10 min | 2026-05-09 | 2026-06-14 | 2026-06-14 |
 | BL-033 | _jobs — purge TTL des jobs terminés (fuite mémoire) | P2 | 10 min | 2026-05-09 | 2026-06-14 | 2026-06-14 |
@@ -235,7 +235,8 @@ Facteur de marge actuel : **0,40**.
 
 ### BL-030 — PIN Hashing: SHA-256 → scrypt
 
-- **Dates**: `created=2026-05-09`
+- **Dates**: `created=2026-05-09`, `started=2026-06-14`, `completed=2026-06-14`
+- **Statut**: ✅ Réalisé — `_hash_pin()`/`_verify_pin()` avec `hashlib.scrypt` (stdlib), sel aléatoire 16 o, N=2^14/r=8/p=1, format `scrypt$<sel_hex>$<clé_hex>`. Comparaison constante via `hmac.compare_digest`. Migration **transparente** : `_verify_pin` accepte encore l'ancien SHA-256 sans sel, et `check_pin` réécrit le hash en scrypt à la première connexion réussie (pas de re-saisie). Tests : `TestPinHashing`.
 - **Origine**: revue technique 2026-05-09 — élevé.
 - **Why**: PIN is currently hashed with `hashlib.sha256` with no salt. A 4-digit PIN has only 10 000 possibilities; a rainbow table cracks it instantly. A slow KDF is required for any credential storage.
 - **Expected outcome**: replace with `hashlib.scrypt` (stdlib, no new dependency) with a random salt stored alongside the hash in the `settings` table. Existing stored PINs must be migrated gracefully (force re-entry on first login after upgrade).
