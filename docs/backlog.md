@@ -94,7 +94,7 @@ Facteur de marge actuel : **0,40**.
 | BL-029 | Security headers HTTP (X-Content-Type-Options, X-Frame-Options) | P1 | 5 min | 2026-05-09 | 2026-06-14 | 2026-06-14 |
 | BL-030 | PIN — remplacer SHA-256 sans sel par scrypt | P1 | 10 min | 2026-05-09 | | |
 | BL-031 | download_cookies_path — valider et restreindre le chemin | P1 | 5 min | 2026-05-09 | 2026-06-14 | 2026-06-14 |
-| BL-032 | MEDIA_ROOT global — thread-safety (threading.Lock) | P2 | 10 min | 2026-05-09 | | |
+| BL-032 | MEDIA_ROOT global — thread-safety (threading.Lock) | P2 | 10 min | 2026-05-09 | 2026-06-14 | 2026-06-14 |
 | BL-033 | _jobs — purge TTL des jobs terminés (fuite mémoire) | P2 | 10 min | 2026-05-09 | | |
 | BL-034 | delete/move — inverser ordre FS+DB pour atomicité | P2 | 10 min | 2026-05-09 | | |
 | BL-035 | init_db() — index sur progress.path | P2 | 5 min | 2026-05-09 | 2026-06-14 | 2026-06-14 |
@@ -256,7 +256,8 @@ Facteur de marge actuel : **0,40**.
 
 ### BL-032 — MEDIA_ROOT Global Thread Safety
 
-- **Dates**: `created=2026-05-09`
+- **Dates**: `created=2026-05-09`, `started=2026-06-14`, `completed=2026-06-14`
+- **Statut**: ✅ Réalisé — `_media_root_lock` (`threading.Lock`) + accesseurs `get_media_root()` / `set_media_root()`. Les écritures (`reload_media_root`, `POST /api/settings`) passent par le setter ; `safe_path()` capture la racine une fois via `get_media_root()` au lieu de lire `MEDIA_ROOT` deux fois, supprimant la lecture déchirée. Tests : `TestMediaRootThreadSafety`.
 - **Origine**: revue technique 2026-05-09 — élevé.
 - **Why**: `MEDIA_ROOT` is a module-level global mutated by `POST /api/settings` without a lock. A concurrent request in `safe_path()` during the update can read a torn value, potentially allowing path traversal.
 - **Expected outcome**: protect all reads and writes of `MEDIA_ROOT` with a `threading.Lock`. `safe_path()` captures the lock value once at the start of each call.

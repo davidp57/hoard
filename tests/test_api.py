@@ -2081,6 +2081,36 @@ class TestSchema:
         assert "idx_segments_path" in self._index_names()
 
 
+# ── MEDIA_ROOT thread-safety (BL-032) ──────────────────────────────────────────
+
+
+class TestMediaRootThreadSafety:
+    def test_get_set_media_root_roundtrip(self, tmp_path):
+        import backend.main as m
+
+        original = m.get_media_root()
+        try:
+            newdir = tmp_path / "mr"
+            newdir.mkdir()
+            m.set_media_root(newdir)
+            assert m.get_media_root() == newdir
+        finally:
+            m.set_media_root(original)
+
+    def test_safe_path_resolves_against_current_root(self, tmp_path):
+        import backend.main as m
+
+        original = m.get_media_root()
+        try:
+            newdir = tmp_path / "mr2"
+            newdir.mkdir()
+            (newdir / "a.txt").write_text("x")
+            m.set_media_root(newdir)
+            assert m.safe_path("a.txt") == (newdir / "a.txt").resolve()
+        finally:
+            m.set_media_root(original)
+
+
 # ── /api/search ──────────────────────────────────────────────────────────────
 
 

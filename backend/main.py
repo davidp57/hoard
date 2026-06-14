@@ -35,6 +35,24 @@ logger = logging.getLogger("hoard")
 
 # ── Config ────────────────────────────────────────────────────────────────────
 MEDIA_ROOT = Path(os.environ.get("MEDIA_ROOT", "/media"))
+# MEDIA_ROOT can be reassigned at runtime via POST /api/settings. Guard writes
+# with a lock and read through get_media_root() so a concurrent request never
+# sees a torn value mid-update (notably safe_path(), which must resolve against
+# a single consistent root).
+_media_root_lock = threading.Lock()
+
+
+def get_media_root() -> Path:
+    with _media_root_lock:
+        return MEDIA_ROOT
+
+
+def set_media_root(new_root: Path) -> None:
+    global MEDIA_ROOT
+    with _media_root_lock:
+        MEDIA_ROOT = new_root
+
+
 DB_PATH = Path(os.environ.get("DB_PATH", "/data/progress.db"))
 
 
@@ -211,13 +229,12 @@ def init_db():
 
 def reload_media_root():
     """Override MEDIA_ROOT from DB settings if set."""
-    global MEDIA_ROOT
     with get_db() as conn:
         row = conn.execute("SELECT value FROM settings WHERE key='media_root'").fetchone()
     if row:
         candidate = Path(row["value"])
         if candidate.exists() and candidate.is_dir():
-            MEDIA_ROOT = candidate
+            set_media_root(candidate)
 
 
 init_db()
@@ -1196,8 +1213,9 @@ def _read_media_info(file: Path) -> dict:
 
 def safe_path(rel: str) -> Path:
     """Resolve and ensure path stays within MEDIA_ROOT."""
-    resolved = (MEDIA_ROOT / rel).resolve()
-    media_resolved = MEDIA_ROOT.resolve()
+    root = get_media_root()  # capture once: MEDIA_ROOT may change concurrently
+    resolved = (root / rel).resolve()
+    media_resolved = root.resolve()
     logger.debug("safe_path: rel=%r resolved=%s media_root=%s", rel, resolved, media_resolved)
     if not resolved.is_relative_to(media_resolved):
         logger.warning("safe_path DENIED: %s is outside %s", resolved, media_resolved)
@@ -2123,7 +2141,6 @@ def _validate_cookies_path(path: str) -> None:
 
 @app.post("/api/settings")
 def update_settings(body: SettingsPayload):
-    global MEDIA_ROOT
     with get_db() as conn:
         if body.media_root is not None:
             new_root = Path(body.media_root)
@@ -2131,7 +2148,7 @@ def update_settings(body: SettingsPayload):
                 raise HTTPException(
                     status_code=404, detail="Path does not exist or is not a directory"
                 )
-            MEDIA_ROOT = new_root
+            set_media_root(new_root)
             _write_setting(conn, "media_root", str(new_root))
 
         if body.pin is not None:
