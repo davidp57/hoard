@@ -185,6 +185,8 @@ Tout l'état des jobs est conservé en mémoire dans `_jobs : dict[str, dict]`. 
 1. Fichier `cookies.txt` persistant (chemin depuis le paramètre `download_cookies_path`), s'il existe.
 2. Cookies inline du corps de requête, écrits dans un fichier temporaire.
 
+Le paramètre `download_cookies_path` est validé à l'enregistrement via `POST /api/settings` (`_validate_cookies_path()`) : le chemin doit être absolu, se terminer par `.txt`, exister et être lisible, sinon l'enregistrement est rejeté avec un code HTTP 422. Une chaîne vide réinitialise le paramètre. Cela empêche de pointer yt-dlp vers un fichier arbitraire.
+
 **Options yt-dlp utilisées :** `bestvideo+bestaudio/best`, `merge_output_format: mp4`. La sortie est sauvegardée dans le paramètre `download_folder` (relatif à `MEDIA_ROOT`, créé si nécessaire).
 
 ---

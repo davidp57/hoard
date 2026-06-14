@@ -6,6 +6,9 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ## [Non publié]
 
+### Sécurité
+- **Réglages — chemin du fichier de cookies** : le chemin saisi pour les cookies de téléchargement est maintenant vérifié au moment de l'enregistrement (il doit s'agir d'un fichier `.txt` existant et lisible). Un message clair s'affiche si le chemin est invalide.
+
 ---
 
 ## [v2.2.0] — 2026-05-20

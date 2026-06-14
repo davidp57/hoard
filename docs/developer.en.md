@@ -197,6 +197,8 @@ All job state is held in memory in `_jobs: dict[str, dict]`. Fields prefixed wit
 1. Persistent `cookies.txt` file (path from `download_cookies_path` setting), if it exists.
 2. Inline cookies from the request body, written to a temporary file.
 
+The `download_cookies_path` setting is validated when saved via `POST /api/settings` (`_validate_cookies_path()`): the path must be absolute, end with `.txt`, exist as a readable file, otherwise the save is rejected with HTTP 422. An empty string clears the setting. This prevents pointing yt-dlp at an arbitrary file.
+
 **yt-dlp options used:** `bestvideo+bestaudio/best`, `merge_output_format: mp4`. Output is saved to the `download_folder` setting (relative to `MEDIA_ROOT`, created if needed).
 
 ---

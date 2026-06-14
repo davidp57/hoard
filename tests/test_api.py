@@ -771,6 +771,35 @@ class TestSettings:
         resp = client.post("/api/settings", json={"initial_sweep_seconds": 7201})
         assert resp.status_code == 422
 
+    def test_cookies_path_accepts_valid_txt_file(self, tmp_path):
+        cookies = tmp_path / "cookies.txt"
+        cookies.write_text("# Netscape HTTP Cookie File\n")
+        resp = client.post("/api/settings", json={"download_cookies_path": str(cookies)})
+        assert resp.status_code == 200
+        assert resp.json()["ok"] is True
+        # Clear it again so it does not leak into other tests.
+        client.post("/api/settings", json={"download_cookies_path": ""})
+
+    def test_cookies_path_empty_clears_setting(self):
+        resp = client.post("/api/settings", json={"download_cookies_path": ""})
+        assert resp.status_code == 200
+        assert resp.json()["ok"] is True
+
+    def test_cookies_path_rejects_relative_path(self):
+        resp = client.post("/api/settings", json={"download_cookies_path": "cookies.txt"})
+        assert resp.status_code == 422
+
+    def test_cookies_path_rejects_non_txt_extension(self, tmp_path):
+        secret = tmp_path / "secret"
+        secret.write_text("sensitive")
+        resp = client.post("/api/settings", json={"download_cookies_path": str(secret)})
+        assert resp.status_code == 422
+
+    def test_cookies_path_rejects_missing_file(self, tmp_path):
+        missing = tmp_path / "nope.txt"
+        resp = client.post("/api/settings", json={"download_cookies_path": str(missing)})
+        assert resp.status_code == 422
+
     def test_seek_settings_defaults(self):
         resp = client.get("/api/settings")
         assert resp.status_code == 200
@@ -1440,15 +1469,22 @@ class TestDownload:
         # Reset setting so other tests are unaffected
         client.post("/api/settings", json={"download_cookies_path": ""})
 
-    def test_download_settings_persisted(self):
+    def test_download_settings_persisted(self, tmp_path):
+        cookies = tmp_path / "cookies.txt"
+        cookies.write_text("# Netscape HTTP Cookie File\n")
         resp = client.post(
             "/api/settings",
-            json={"download_folder": "WebVideos", "download_cookies_path": "/data/cookies.txt"},
+            json={
+                "download_folder": "WebVideos",
+                "download_cookies_path": str(cookies),
+            },
         )
         assert resp.status_code == 200
         settings = client.get("/api/settings").json()
         assert settings["download_folder"] == "WebVideos"
-        assert settings["download_cookies_path"] == "/data/cookies.txt"
+        assert settings["download_cookies_path"] == str(cookies)
+        # Reset so other tests are unaffected
+        client.post("/api/settings", json={"download_cookies_path": ""})
 
     def test_download_referer_sets_http_headers(self, monkeypatch):
         """When referer is provided, yt-dlp should receive an http_headers dict."""

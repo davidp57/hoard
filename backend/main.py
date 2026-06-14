@@ -2064,6 +2064,25 @@ def get_settings():
     return result
 
 
+def _validate_cookies_path(path: str) -> None:
+    """Validate a user-supplied cookies file path before it is stored.
+
+    The path is later handed to yt-dlp as a ``cookiefile``; without validation any
+    readable file (e.g. ``/etc/passwd``) could be pointed at the downloader. The
+    path must be absolute, carry a ``.txt`` extension, exist as a file, and be
+    readable. Raises HTTP 422 with an explicit message otherwise.
+    """
+    p = Path(path)
+    if not p.is_absolute():
+        raise HTTPException(status_code=422, detail="Cookies path must be absolute")
+    if p.suffix.lower() != ".txt":
+        raise HTTPException(status_code=422, detail="Cookies file must have a .txt extension")
+    if not p.is_file():
+        raise HTTPException(status_code=422, detail="Cookies file does not exist")
+    if not os.access(p, os.R_OK):
+        raise HTTPException(status_code=422, detail="Cookies file is not readable")
+
+
 @app.post("/api/settings")
 def update_settings(body: SettingsPayload):
     global MEDIA_ROOT
@@ -2091,6 +2110,10 @@ def update_settings(body: SettingsPayload):
                 raise HTTPException(
                     status_code=422, detail="gamepad_mapping must be valid JSON"
                 ) from exc
+
+        # Empty string clears the setting; only validate a non-empty path.
+        if body.download_cookies_path:
+            _validate_cookies_path(body.download_cookies_path)
 
         _simple: list[tuple[str, object]] = [
             ("privacy_timeout", body.privacy_timeout),
