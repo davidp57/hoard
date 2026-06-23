@@ -2218,6 +2218,59 @@ class TestRename:
         assert resp.status_code == 403
 
 
+# ── Subtitles (BL-008) ─────────────────────────────────────────────────────────
+
+
+class TestSubtitles:
+    def test_list_matches_sidecars_by_stem(self):
+        (MEDIA_ROOT / "movie.mp4").write_bytes(b"\x00" * 16)
+        (MEDIA_ROOT / "movie.srt").write_text("1\n00:00:01,000 --> 00:00:02,000\nHi\n")
+        (MEDIA_ROOT / "movie.en.srt").write_text("1\n00:00:01,000 --> 00:00:02,000\nHi\n")
+        (MEDIA_ROOT / "other.srt").write_text("x")  # different stem → excluded
+        subs = client.get("/api/subtitles?path=movie.mp4").json()
+        paths = {s["path"] for s in subs}
+        assert "movie.srt" in paths
+        assert "movie.en.srt" in paths
+        assert "other.srt" not in paths
+        labels = {s["label"] for s in subs}
+        assert "en" in labels  # middle segment becomes the label
+
+    def test_serve_srt_converted_to_vtt(self):
+        (MEDIA_ROOT / "s.srt").write_text("1\n00:00:01,000 --> 00:00:04,000\nBonjour\n")
+        resp = client.get("/api/subtitle?path=s.srt")
+        assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("text/vtt")
+        assert resp.text.startswith("WEBVTT")
+        assert "00:00:01.000 --> 00:00:04.000" in resp.text  # comma → dot
+
+    def test_serve_ass_converted_to_vtt_plaintext(self):
+        ass = (
+            "[Events]\n"
+            "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
+            "Dialogue: 0,0:00:01.00,0:00:03.00,Default,,0,0,0,,{\\i1}Hello{\\i0}\\Nworld\n"
+        )
+        (MEDIA_ROOT / "a.ass").write_text(ass)
+        resp = client.get("/api/subtitle?path=a.ass")
+        assert resp.status_code == 200
+        assert resp.text.startswith("WEBVTT")
+        assert "00:00:01.000 --> 00:00:03.000" in resp.text
+        assert "Hello" in resp.text and "world" in resp.text
+        assert "{" not in resp.text  # override tags stripped
+
+    def test_serve_vtt_passthrough(self):
+        (MEDIA_ROOT / "v.vtt").write_text("WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nHey\n")
+        resp = client.get("/api/subtitle?path=v.vtt")
+        assert resp.status_code == 200
+        assert resp.text.startswith("WEBVTT")
+
+    def test_serve_rejects_non_subtitle(self):
+        (MEDIA_ROOT / "note.txt").write_text("hello")
+        assert client.get("/api/subtitle?path=note.txt").status_code == 404
+
+    def test_serve_path_traversal_blocked(self):
+        assert client.get("/api/subtitle?path=../../etc/passwd").status_code == 403
+
+
 # ── Audit logging (BL-036) ─────────────────────────────────────────────────────
 
 

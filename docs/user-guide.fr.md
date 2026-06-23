@@ -215,6 +215,7 @@ Seek progressif dans la vidéo. La **vitesse dépend de la hauteur du doigt** : 
 | `Maj + F` | Vrai plein écran de l'OS (sur PC ; sinon `F11`) |
 | `Échap` | Quitter le plein écran → fermer le player → remonter d'un cran dans l'arborescence |
 | `M` | Muet / Son |
+| `C` | Sous-titres (cycle des pistes / désactivé) |
 | `[ / ]` | Vitesse − / + (0,5× → 1× → 1,5× → 2×) |
 | `A` | Cycle aspect ratio (Fit / Fill / …) |
 | `W` | Marquer vu / non vu |

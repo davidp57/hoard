@@ -216,6 +216,7 @@ Progressive seek through the video. **Speed depends on the vertical position of 
 | `Shift + F` | Real OS fullscreen (on desktop; otherwise use `F11`) |
 | `Esc` | Exit fullscreen → close the player → go up one level in the tree |
 | `M` | Mute / Unmute |
+| `C` | Subtitles (cycle tracks / off) |
 | `[ / ]` | Speed − / + (0.5× → 1× → 1.5× → 2×) |
 | `A` | Cycle aspect ratio (Fit / Fill / …) |
 | `W` | Toggle watched / unwatched |

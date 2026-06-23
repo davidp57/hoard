@@ -74,7 +74,7 @@ Facteur de marge actuel : **0,40**.
 | BL-002 | Tri dans la liste : taille + état de lecture | P2 | 10 min | 2026-04-12 | 2026-06-23 | 2026-06-23 |
 | BL-003 | Marquer manuellement vu / non vu | P2 | 10 min | 2026-04-12 | 2026-05-09 | 2026-05-09 |
 | BL-006 | Renommage de fichiers/dossiers depuis l'UI | P2 | 15 min | 2026-04-12 | 2026-06-23 | 2026-06-23 |
-| BL-008 | Sous-titres (`.srt` / `.ass` dans le même dossier) | P2 | 25 min | 2026-04-12 | | |
+| BL-008 | Sous-titres (`.srt` / `.ass` dans le même dossier) | P2 | 25 min | 2026-04-12 | 2026-06-23 | 2026-06-23 |
 | BL-013 | Thème clair (toggle) | P3 | 20 min | 2026-04-12 | | |
 | BL-066 | Plein écran fenêtré (immersif in-window) par défaut sur desktop | P2 | 15 min | 2026-06-14 | 2026-06-23 | 2026-06-23 |
 | BL-015 | Progression de lecture multi-utilisateur *(dépend de BL-011)* | P2 | 35 min | 2026-04-12 | | |
@@ -147,8 +147,8 @@ Facteur de marge actuel : **0,40**.
 
 ### BL-008 — Subtitle Support
 
-- **Dates**: `created=2026-04-12`
-
+- **Dates**: `created=2026-04-12`, `started=2026-06-23`, `completed=2026-06-23`
+- **Statut**: ✅ Réalisé — `<track>` HTML5 n'accepte que le WebVTT, donc conversion serveur à la volée : `GET /api/subtitles?path=` liste les sidecars (même dossier, radical partagé) ; `GET /api/subtitle?path=` sert le fichier converti (`_srt_to_vtt`, `_ass_to_vtt`, `.vtt` tel quel). Le `.ass` est rendu en texte simple (tags `{\...}` retirés, `\N`→saut de ligne) — choix pragmatique sans dépendance (le rendu ASS complet exigerait une lib WASM). Frontend : `loadSubtitles()`/`cycleSubtitles()`/`clearSubtitles()`, bouton 💬, touche `C`, action manette `subtitles` (L1+A) enfin câblée. Tests : `TestSubtitles` (6 cas). Docs dev + user-guide EN/FR + aide clavier.
 - **Why**: local media folders often contain sidecar subtitle files that are currently ignored.
 - **Expected outcome**: detect `.srt` / `.ass` files in the same folder and expose them as selectable text tracks.
 - **Attention point**: naming conventions and encoding issues need to be handled pragmatically.
