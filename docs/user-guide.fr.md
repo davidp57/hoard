@@ -210,8 +210,9 @@ Seek progressif dans la vidéo. La **vitesse dépend de la hauteur du doigt** : 
 | `Shift + ← / →` | Seek moyen (30 s par défaut) |
 | `Ctrl + ← / →` | Seek long (60 s par défaut) |
 | `Alt + ← / →` | Seek très long (120 s par défaut) |
-| `F` | Plein écran |
-| `Échap` | Quitter le plein écran — puis fermer le player |
+| `F` | Plein écran (fenêtré dans le navigateur sur PC) |
+| `Maj + F` | Vrai plein écran de l'OS (sur PC ; sinon `F11`) |
+| `Échap` | Quitter le plein écran → fermer le player → remonter d'un cran dans l'arborescence |
 | `M` | Muet / Son |
 | `[ / ]` | Vitesse − / + (0,5× → 1× → 1,5× → 2×) |
 | `A` | Cycle aspect ratio (Fit / Fill / …) |

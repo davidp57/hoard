@@ -211,8 +211,9 @@ Progressive seek through the video. **Speed depends on the vertical position of 
 | `Shift + ← / →` | Medium seek (30 s default) |
 | `Ctrl + ← / →` | Long seek (60 s default) |
 | `Alt + ← / →` | Extra-long seek (120 s default) |
-| `F` | Fullscreen |
-| `Esc` | Exit fullscreen — then close the player |
+| `F` | Fullscreen (in-window on desktop) |
+| `Shift + F` | Real OS fullscreen (on desktop; otherwise use `F11`) |
+| `Esc` | Exit fullscreen → close the player → go up one level in the tree |
 | `M` | Mute / Unmute |
 | `[ / ]` | Speed − / + (0.5× → 1× → 1.5× → 2×) |
 | `A` | Cycle aspect ratio (Fit / Fill / …) |

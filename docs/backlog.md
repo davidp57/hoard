@@ -76,7 +76,7 @@ Facteur de marge actuel : **0,40**.
 | BL-006 | Renommage de fichiers/dossiers depuis l'UI | P2 | 15 min | 2026-04-12 | | |
 | BL-008 | Sous-titres (`.srt` / `.ass` dans le même dossier) | P2 | 25 min | 2026-04-12 | | |
 | BL-013 | Thème clair (toggle) | P3 | 20 min | 2026-04-12 | | |
-| BL-066 | Plein écran fenêtré (immersif in-window) par défaut sur desktop | P2 | 15 min | 2026-06-14 | | |
+| BL-066 | Plein écran fenêtré (immersif in-window) par défaut sur desktop | P2 | 15 min | 2026-06-14 | 2026-06-23 | 2026-06-23 |
 | BL-015 | Progression de lecture multi-utilisateur *(dépend de BL-011)* | P2 | 35 min | 2026-04-12 | | |
 
 ---
@@ -566,6 +566,7 @@ Facteur de marge actuel : **0,40**.
   - **Point d'attention principal** : le handler `fullscreenchange` (~4830) déplace `delete-dialog` / `move-dialog` / `export-dialog` / `gp-overlay` dans `document.fullscreenElement` pour qu'ils restent visibles ; ce handler **ne se déclenche pas** en mode fenêtré. Vérifier que ces dialogs/overlays s'affichent bien par-dessus `#video-container.faux-fullscreen` (z-index / position), sinon les rattacher explicitement à l'entrée/sortie du mode fenêtré.
   - Vérifier aussi : masquage auto des contrôles, restauration du curseur gamepad, bascule du label/icône du bouton plein écran.
 - **Attention** : frontend-only, aucune modif backend. Ne pas régresser le fallback existant ni le flux manette.
+- **Statut** : ✅ Réalisé — `toggleFullscreen(opts)` device-aware : entrée en `faux-fullscreen` par défaut sur desktop (`pointer: fine`), vrai `requestFullscreen` si `pointer: coarse` (iPad) ou `opts.forceReal`. `Maj+F` → `toggleFullscreen({forceReal: e.shiftKey})`. Bouton/Y conservent le défaut (fenêtré sur PC). Contrainte « spécial plein écran » satisfaite : auto-play suivant via `isInFullscreen()` (couvre faux), dialogues d'action déjà gérés en faux-fullscreen (commit `d839962`). Aide clavier + user-guide EN/FR à jour. Choix : `Maj+F` plutôt qu'un bouton dédié supplémentaire (toolbar épurée). Syntaxe JS validée.
 
 ---
 
