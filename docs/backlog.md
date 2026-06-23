@@ -71,7 +71,7 @@ Facteur de marge actuel : **0,40**.
 
 | ID | Titre | Prio | Est. | Créé | Démarré | Terminé |
 | --- | --- | --- | --- | --- | --- | --- |
-| BL-002 | Tri dans la liste : taille + état de lecture | P2 | 10 min | 2026-04-12 | | |
+| BL-002 | Tri dans la liste : taille + état de lecture | P2 | 10 min | 2026-04-12 | 2026-06-23 | 2026-06-23 |
 | BL-003 | Marquer manuellement vu / non vu | P2 | 10 min | 2026-04-12 | 2026-05-09 | 2026-05-09 |
 | BL-006 | Renommage de fichiers/dossiers depuis l'UI | P2 | 15 min | 2026-04-12 | | |
 | BL-008 | Sous-titres (`.srt` / `.ass` dans le même dossier) | P2 | 25 min | 2026-04-12 | | |
@@ -121,7 +121,8 @@ Facteur de marge actuel : **0,40**.
 
 ### BL-002 — Sort Controls In The File List
 
-- **Dates**: `created=2026-04-12`
+- **Dates**: `created=2026-04-12`, `started=2026-06-23`, `completed=2026-06-23`
+- **Statut**: ✅ Réalisé — boutons **Taille** et **État** ajoutés à la barre de tri ; `sortedList()` étendu (`size` via `entry.size`, `state` via nouveau `watchStateRank()` qui mappe non-vu/en-cours/vu pour fichiers — `progress.percent` vs `cfg.watched_threshold` — et dossiers — `folder_state`). `updateSortUI()` gère l'état actif des nouveaux boutons. Options ajoutées au sélecteur de tri par défaut des réglages (`#s-sort-by`). Frontend-only (les champs `size`/`progress`/`folder_state` étaient déjà fournis par `/api/files`). Syntaxe JS validée.
 
 - **Why**: the file list already supports sorting by name and modified date, but larger folders still need size and watch-status sorting to make the controls feel complete.
 - **Expected outcome**: extend the existing sort UI so users can sort by name, modified date, size, and watch status, with a clear active state.

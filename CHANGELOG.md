@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Audio silencieux pour certaines vidéos** : les fichiers avec audio AC3, EAC3 (Dolby Digital/Plus), DTS ou TrueHD étaient lus sans son car le navigateur ne supporte pas ces codecs nativement. Hoard détecte maintenant ces codecs et route automatiquement vers le transcodage (si activé) ; si le transcodage est désactivé, un avertissement est affiché.
 
 ### Added
+- **Tri par taille et par état de lecture (BL-002)** : la barre de tri propose désormais, en plus de Date et Nom, un tri par **Taille** et par **État** (non vu / en cours / vu). Le sens (asc/desc) reste configurable, et le tri par défaut est paramétrable dans les réglages.
 - **Aide à la découverte des gestes tactiles (BL-038)** : au premier lancement du player sur un appareil tactile, un overlay présente les principaux gestes (double-tap reculer/avancer, tap pause, glissés bord pour volume/luminosité). Affiché une seule fois (flag `gestures_overlay_seen` persisté), uniquement sur écrans tactiles (`pointer: coarse`).
 - **Transcodage audio uniquement** : nouveau paramètre "Transcodage audio uniquement" qui copie le flux vidéo tel quel (sans réencodage) et ne réencode que l'audio en AAC. Beaucoup plus léger sur le CPU du NAS. Idéal pour les fichiers MKV/HEVC+EAC3 sur Chrome/Edge (qui supportent HEVC nativement). Si le codec vidéo n'est pas supporté par le navigateur, un message d'erreur explicite est affiché.
 

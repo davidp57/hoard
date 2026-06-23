@@ -2087,7 +2087,7 @@ _SETTINGS_KEYS = {
     "privacy_timeout",  # minutes (int), 0 = disabled
     "watched_threshold",  # percent (int), default 90
     "home_folder",  # relative path from MEDIA_ROOT
-    "sort_by",  # 'date' | 'name'
+    "sort_by",  # 'date' | 'name' | 'size' | 'state'
     "sort_dir",  # 'asc' | 'desc'
     "gesture_enabled",  # '1' | '0'
     "gesture_seek",  # '1' | '0'
