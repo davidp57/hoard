@@ -30,7 +30,7 @@ Facteur de marge actuel : **0,40**.
 
 | ID | Titre | Prio | Est. | Créé | Démarré | Terminé |
 | --- | --- | --- | --- | --- | --- | --- |
-| BL-068 | Clavier — Échap = B (remonter d'un cran) + alignement complet sur le D-pad | P2 | 10 min | 2026-06-14 | | |
+| BL-068 | Clavier — Échap = B (remonter d'un cran) + alignement complet sur le D-pad | P2 | 10 min | 2026-06-14 | 2026-06-23 | 2026-06-23 |
 
 ---
 
@@ -602,3 +602,4 @@ Facteur de marge actuel : **0,40**.
   - Vérifier ←/→ en browser (player inactif) : aujourd'hui ils appellent `skip()` sans garde `currentFile` (~4929) → no-op au mieux. Aligner sur le D-pad gauche/droite (pas de rôle de navigation en browser) : ne rien faire si player inactif.
   - Mettre à jour `<dialog id="shortcuts-dialog">` : ligne « Échap → remonter d'un cran (player inactif) ».
 - **Attention** : ne pas casser la cascade Échap existante (fermer dialog/viewer/fullscreen/player garde la priorité) ; `navigateUp()` ne doit s'appliquer qu'en dernier, browser actif et `currentPath` non racine. Frontend-only, aucune modif backend.
+- **Statut** : ✅ Réalisé — `navigateUp()` factorisée et partagée par le case pad `nav_back` et le handler `Escape` (ajout `if (currentPath) { navigateUp(); return; }` en fin de cascade). Flèches ←/→ : ajout d'un garde `if (!currentFile) return;` → sans effet en mode navigation. Aide clavier mise à jour. Syntaxe JS validée (`node --check`). ↑/↓ et Entrée étaient déjà alignés (BL-060).

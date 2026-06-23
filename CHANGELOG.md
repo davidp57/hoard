@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Clavier — Échap remonte d'un cran (BL-068)** : sur PC, quand aucun média n'est ouvert, `Échap` remonte d'un niveau dans l'arborescence (comme le bouton B au pad), via une fonction `navigateUp()` partagée. La cascade existante (fermer dialogue → quitter plein écran → fermer le player) est conservée et prioritaire. Les flèches ←/→ n'ont plus d'effet en mode navigation (alignement sur le D-pad).
+
 ### Removed
 - **Endpoint `/api/stream` (BL-067)** : suppression de l'endpoint de streaming hérité, devenu code mort depuis la migration vers `/api/file` (BL-053). La lecture de tout média passe par `/api/file` (validation Range/416 incluse). Docs mises à jour.
 

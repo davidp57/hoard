@@ -1848,7 +1848,7 @@
     <table style="width:100%;border-collapse:collapse;font-size:12px">
       <tbody>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">F</td><td style="padding:4px 8px">Plein écran</td></tr>
-        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">Échap</td><td style="padding:4px 8px">Quitter plein écran — puis fermer le player</td></tr>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">Échap</td><td style="padding:4px 8px">Quitter plein écran → fermer le player → remonter d'un cran (comme B au pad)</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">A</td><td style="padding:4px 8px">Cycle aspect ratio (Fit / Fill / …)</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">W</td><td style="padding:4px 8px">Marquer vu / non vu</td></tr>
       </tbody>
@@ -4931,6 +4931,8 @@ document.addEventListener('keydown', e => {
     }
     if (isInFullscreen()) { toggleFullscreen(); return; }
     if (currentFile !== null) { privacyClose(); return; }
+    // Browser mode: Escape goes up one level, mirroring the gamepad B button.
+    if (currentPath) { navigateUp(); return; }
   }
   // Keyboard navigation for open dialogs (mirrors gamepad: ↑↓ = navigate, Enter = confirm, Escape already handled above)
   {
@@ -4985,8 +4987,10 @@ document.addEventListener('keydown', e => {
     else             { _gpMoveCursor(1); }
     return;
   }
-  // Seek keys — 4 levels via modifier
+  // Seek keys — 4 levels via modifier. In browser mode (no media playing) the
+  // horizontal arrows have no action, mirroring the D-pad left/right.
   if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
+    if (!currentFile) return;
     e.preventDefault();
     const dir = e.code === 'ArrowLeft' ? -1 : 1;
     let amount;
@@ -5267,9 +5271,15 @@ function _gpAction(action, gamepad) {
       _gpActivateCursor();
       break;
     case 'nav_back':
-      if (currentPath) navigate(currentPath.split('/').slice(0, -1).join('/'));
+      navigateUp();
       break;
   }
+}
+
+// Go up one level in the folder tree (no-op at root). Shared by the gamepad B
+// button (nav_back) and the keyboard Escape handler so both behave identically.
+function navigateUp() {
+  if (currentPath) navigate(currentPath.split('/').slice(0, -1).join('/'));
 }
 
 // ── Gamepad async toggle watched ──────────────────────────────────────────────
