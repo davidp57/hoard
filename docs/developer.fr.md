@@ -57,6 +57,10 @@ hoard/
 | `DB_PATH` | `/data/progress.db` | Chemin SQLite |
 | `SSL_CERTFILE` | *(non défini)* | Chemin vers un fichier de certificat PEM. Quand défini (avec `SSL_KEYFILE`), uvicorn sert le HTTPS nativement. |
 | `SSL_KEYFILE` | *(non défini)* | Chemin vers la clé privée PEM correspondante. |
+| `JOB_TTL_SECONDS` | `3600` | Durée (s) de conservation en mémoire d'un job de téléchargement/export terminé avant purge. |
+| `LOG_LEVEL` | `INFO` | Niveau de log du logger `hoard` (journal d'audit). |
+| `HOARD_AUTH_USER` | *(non défini)* | Identifiant pour l'auth HTTP Basic optionnelle. L'auth n'est active que si celui-ci ET `HOARD_AUTH_PASS` sont définis. |
+| `HOARD_AUTH_PASS` | *(non défini)* | Mot de passe pour l'auth HTTP Basic optionnelle. |
 
 ### Sécurité des chemins
 
@@ -69,6 +73,25 @@ def safe_path(rel: str) -> Path:
         raise HTTPException(400, "Invalid path")
     return resolved
 ```
+
+### En-têtes de sécurité
+
+Un middleware HTTP (`add_security_headers`) injecte sur chaque réponse :
+`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
+`Referrer-Policy: no-referrer` et une `Content-Security-Policy`. La CSP autorise
+`'unsafe-inline'` (nécessaire au frontend single-file CSS/JS inline), l'import
+Google Fonts (`fonts.googleapis.com` / `fonts.gstatic.com`) et les sources
+`blob:`/`data:` utilisées par les lecteurs média et PDF.js. Les en-têtes sont
+posés avec `setdefault`, donc un endpoint peut les surcharger si besoin.
+
+### Auth HTTP Basic optionnelle
+
+Définir à la fois `HOARD_AUTH_USER` et `HOARD_AUTH_PASS` impose une
+authentification HTTP Basic sur chaque requête (middleware `require_basic_auth`).
+Si l'une des deux n'est pas définie, l'auth est désactivée et le comportement
+est inchangé. Les identifiants sont comparés en temps constant. Pensé pour
+exposer Hoard derrière un reverse proxy ou en HTTPS direct sans système de
+comptes — utiliser HTTPS pour ne pas transmettre les identifiants en clair.
 
 ### Endpoints API
 
@@ -184,6 +207,8 @@ Tout l'état des jobs est conservé en mémoire dans `_jobs : dict[str, dict]`. 
 **Ordre de résolution des cookies :**
 1. Fichier `cookies.txt` persistant (chemin depuis le paramètre `download_cookies_path`), s'il existe.
 2. Cookies inline du corps de requête, écrits dans un fichier temporaire.
+
+Le paramètre `download_cookies_path` est validé à l'enregistrement via `POST /api/settings` (`_validate_cookies_path()`) : le chemin doit être absolu, se terminer par `.txt`, exister et être lisible, sinon l'enregistrement est rejeté avec un code HTTP 422. Une chaîne vide réinitialise le paramètre. Cela empêche de pointer yt-dlp vers un fichier arbitraire.
 
 **Options yt-dlp utilisées :** `bestvideo+bestaudio/best`, `merge_output_format: mp4`. La sortie est sauvegardée dans le paramètre `download_folder` (relatif à `MEDIA_ROOT`, créé si nécessaire).
 

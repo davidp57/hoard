@@ -24,6 +24,16 @@ Facteur de marge actuel : **0,40**.
 
 ## Lots actifs
 
+### Lot 12 — Clavier ↔ pad : équivalence navigation arborescence (~25 min : 10 min Copilot + 15 min gestion)
+
+> Suite directe du Lot 11. Sur PC (clavier), les touches de navigation doivent se comporter **exactement** comme le pad directionnel dans le browser : ↑/↓ = D-pad haut/bas, Entrée = A, **Échap = B (remonter d'un cran dans l'arborescence)**. Frontend-only.
+
+| ID | Titre | Prio | Est. | Créé | Démarré | Terminé |
+| --- | --- | --- | --- | --- | --- | --- |
+| BL-068 | Clavier — Échap = B (remonter d'un cran) + alignement complet sur le D-pad | P2 | 10 min | 2026-06-14 | | |
+
+---
+
 ### Lot 11 — Harmonisation commandes clavier / pad / touch (~45 min : 30 min Copilot + 15 min gestion)
 
 > Refonte complète de la cohérence des inputs. Définit un tableau de référence canonique `Commande → Clavier / Pad / Touch` et implémente tous les bindings manquants. Frontend-only, aucune modification backend. Touch non modifié dans ce lot.
@@ -55,52 +65,55 @@ Facteur de marge actuel : **0,40**.
 
 ---
 
-### Lot 5 — Fonctionnalités avancées (~110 min : 95 min Copilot + 15 min gestion)
+### Lot 5 — Fonctionnalités avancées (~125 min : 110 min Copilot + 15 min gestion)
 
 > Dépendance interne : BL-015 dépend de BL-011 (progression multi-utilisateur présuppose une couche d'authentification) — BL-011 est dans le Lot 6 (sécurité) et doit être livré en premier.
 
 | ID | Titre | Prio | Est. | Créé | Démarré | Terminé |
 | --- | --- | --- | --- | --- | --- | --- |
 | BL-002 | Tri dans la liste : taille + état de lecture | P2 | 10 min | 2026-04-12 | | |
-| BL-003 | Marquer manuellement vu / non vu | P2 | 10 min | 2026-04-12 | | |
+| BL-003 | Marquer manuellement vu / non vu | P2 | 10 min | 2026-04-12 | 2026-05-09 | 2026-05-09 |
 | BL-006 | Renommage de fichiers/dossiers depuis l'UI | P2 | 15 min | 2026-04-12 | | |
 | BL-008 | Sous-titres (`.srt` / `.ass` dans le même dossier) | P2 | 25 min | 2026-04-12 | | |
 | BL-013 | Thème clair (toggle) | P3 | 20 min | 2026-04-12 | | |
+| BL-066 | Plein écran fenêtré (immersif in-window) par défaut sur desktop | P2 | 15 min | 2026-06-14 | | |
 | BL-015 | Progression de lecture multi-utilisateur *(dépend de BL-011)* | P2 | 35 min | 2026-04-12 | | |
 
 ---
 
-### Lot 6 — Sécurité, Qualité & UX (~175 min : 160 min Copilot + 15 min gestion)
+### Lot 6 — Sécurité, Qualité & UX (~180 min : 165 min Copilot + 15 min gestion)
 
 > Issu de la revue technique complète du 2026-05-09. Tickets ordonnés par criticité descendante.
 > BL-011 est le prérequis de BL-015 (Lot 5) — livrer ce lot avant le Lot 5.
 
 | ID | Titre | Prio | Est. | Créé | Démarré | Terminé |
 | --- | --- | --- | --- | --- | --- | --- |
-| BL-011 | Authentification basique pour exposition hors LAN | P1 | 20 min | 2026-04-12 | | |
-| BL-027 | Streaming — validation Range header (HTTP 416) | P1 | 5 min | 2026-05-09 | | |
-| BL-028 | safe_path() — bloquer les symlinks dans rglob/iterdir | P1 | 10 min | 2026-05-09 | | |
-| BL-029 | Security headers HTTP (X-Content-Type-Options, X-Frame-Options) | P1 | 5 min | 2026-05-09 | | |
-| BL-030 | PIN — remplacer SHA-256 sans sel par scrypt | P1 | 10 min | 2026-05-09 | | |
-| BL-031 | download_cookies_path — valider et restreindre le chemin | P1 | 5 min | 2026-05-09 | | |
-| BL-032 | MEDIA_ROOT global — thread-safety (threading.Lock) | P2 | 10 min | 2026-05-09 | | |
-| BL-033 | _jobs — purge TTL des jobs terminés (fuite mémoire) | P2 | 10 min | 2026-05-09 | | |
-| BL-034 | delete/move — inverser ordre FS+DB pour atomicité | P2 | 10 min | 2026-05-09 | | |
-| BL-035 | init_db() — index sur progress.path | P2 | 5 min | 2026-05-09 | | |
-| BL-036 | Logging — audit trail des opérations sur fichiers | P2 | 20 min | 2026-05-09 | | |
-| BL-037 | Frontend — timeout fetch + feedback réseau (AbortController) | P2 | 10 min | 2026-05-09 | | |
-| BL-038 | Gestes tactiles — overlay découverte au premier lancement | P3 | 15 min | 2026-05-09 | | |
-| BL-039 | Accessibilité — aria-label, :focus-visible, contraste text-dim | P3 | 20 min | 2026-05-09 | | |
+| BL-011 | Authentification basique pour exposition hors LAN | P1 | 20 min | 2026-04-12 | 2026-06-14 | 2026-06-14 |
+| BL-027 | Streaming — validation Range header (HTTP 416) | P1 | 5 min | 2026-05-09 | 2026-05-15 | 2026-05-15 |
+| BL-028 | safe_path() — bloquer les symlinks dans rglob/iterdir | P1 | 10 min | 2026-05-09 | 2026-05-15 | 2026-05-15 |
+| BL-029 | Security headers HTTP (X-Content-Type-Options, X-Frame-Options) | P1 | 5 min | 2026-05-09 | 2026-06-14 | 2026-06-14 |
+| BL-030 | PIN — remplacer SHA-256 sans sel par scrypt | P1 | 10 min | 2026-05-09 | 2026-06-14 | 2026-06-14 |
+| BL-031 | download_cookies_path — valider et restreindre le chemin | P1 | 5 min | 2026-05-09 | 2026-06-14 | 2026-06-14 |
+| BL-032 | MEDIA_ROOT global — thread-safety (threading.Lock) | P2 | 10 min | 2026-05-09 | 2026-06-14 | 2026-06-14 |
+| BL-033 | _jobs — purge TTL des jobs terminés (fuite mémoire) | P2 | 10 min | 2026-05-09 | 2026-06-14 | 2026-06-14 |
+| BL-034 | delete/move — inverser ordre FS+DB pour atomicité | P2 | 10 min | 2026-05-09 | 2026-06-14 | 2026-06-14 |
+| BL-035 | init_db() — index sur progress.path | P2 | 5 min | 2026-05-09 | 2026-06-14 | 2026-06-14 |
+| BL-036 | Logging — audit trail des opérations sur fichiers | P2 | 20 min | 2026-05-09 | 2026-05-09 | 2026-06-14 |
+| BL-037 | Frontend — timeout fetch + feedback réseau (AbortController) | P2 | 10 min | 2026-05-09 | 2026-06-14 | 2026-06-14 |
+| BL-038 | Gestes tactiles — overlay découverte au premier lancement | P3 | 15 min | 2026-05-09 | 2026-06-14 | 2026-06-14 |
+| BL-039 | Accessibilité — aria-label, :focus-visible, contraste text-dim | P3 | 20 min | 2026-05-09 | 2026-06-14 | 2026-06-14 |
 | BL-064 | Fix — transcodage forcé malgré l'option désactivée | P1 | 5 min | 2026-05-18 | 2026-05-18 | 2026-05-18 |
+| BL-065 | Fix — dialog d'aide clavier illisible (texte noir sur fond foncé, Firefox) | P2 | 5 min | 2026-06-14 | 2026-06-14 | 2026-06-14 |
 
 ---
 
-### Lot 7 — Architecture & Performance (~75 min : 60 min Copilot + 15 min gestion)
+### Lot 7 — Architecture & Performance (~80 min : 65 min Copilot + 15 min gestion)
 
 | ID | Titre | Prio | Est. | Créé | Démarré | Terminé |
 | --- | --- | --- | --- | --- | --- | --- |
 | BL-042 | Transcoding hardware optionnel (VAAPI/NVENC) | P2 | 25 min | 2026-05-10 | | |
 | BL-041 | Découpage de main.py en modules | P3 | 35 min | 2026-05-10 | | |
+| BL-067 | Cleanup — supprimer l'endpoint `/api/stream` mort (legacy) | P3 | 5 min | 2026-06-14 | | |
 
 ---
 
@@ -116,8 +129,9 @@ Facteur de marge actuel : **0,40**.
 
 ### BL-003 — Manual Watched / Unwatched Toggle
 
-- **Dates**: `created=2026-04-12`
-
+- **Dates**: `created=2026-04-12`, `started=2026-05-09`, `completed=2026-05-09`
+- **Statut**: ✅ Réalisé incidemment dans le commit `810f039` (BL-024 gamepad). Action `toggle_watched` disponible au pad (X) et au clavier (W) — `frontend/index.html` (~5089).
+- **Reste éventuel**: le ticket évoquait aussi une action « depuis la liste » sans ouvrir la vidéo — non couvert. Rouvrir un ticket dédié si ce geste liste est souhaité.
 - **Why**: users sometimes need to fix watch status manually without reopening the video.
 - **Expected outcome**: allow a quick explicit action from the file list or context UI.
 - **Attention point**: define whether the action resets stored playback position or only the seen threshold state.
@@ -140,7 +154,8 @@ Facteur de marge actuel : **0,40**.
 
 ### BL-011 — Basic Authentication For External Exposure
 
-- **Dates**: `created=2026-04-12`
+- **Dates**: `created=2026-04-12`, `started=2026-06-14`, `completed=2026-06-14`
+- **Statut**: ✅ Réalisé — auth HTTP Basic **opt-in** via `HOARD_AUTH_USER` + `HOARD_AUTH_PASS` (middleware `require_basic_auth`, helper `_check_basic_auth`, comparaison `hmac.compare_digest`). Désactivée si l'une des deux vars manque → aucune régression (tests inchangés). Choix de design : Basic plutôt qu'un système de comptes, conforme à l'esprit « simple pour le self-hosting » du ticket ; multi-utilisateur (BL-015) reste séparé. Doc dev + installation EN/FR + changelog utilisateur. Tests : `TestBasicAuth`.
 
 - **Why**: HTTPS now exists, but exposure outside the LAN still needs an authentication layer.
 - **Expected outcome**: a simple and safe authentication option for reverse-proxy or direct HTTPS deployments.
@@ -188,7 +203,8 @@ Facteur de marge actuel : **0,40**.
 
 ### BL-027 — Streaming Range Header Validation
 
-- **Dates**: `created=2026-05-09`
+- **Dates**: `created=2026-05-09`, `started=2026-05-15`, `completed=2026-05-15`
+- **Statut**: ✅ Réalisé dans le commit `213c452` (Lot 10 readers) sur `/api/file` — `backend/main.py` (~2303-2324) : rejet 416 pour unit non supportée, multi-range, range inversé/hors bornes. L'endpoint actif est `/api/file` ; l'ancien `/api/stream` n'est plus appelé par le frontend (code mort, parse Range naïf) → nettoyage suivi par **BL-067**.
 - **Origine**: revue technique 2026-05-09 — critique.
 - **Why**: the Range header parser in `/api/stream` does not validate that `start <= end` or that values are within file bounds. An inverted or out-of-bounds range can cause a 500 or unexpected behavior. Multi-range requests (`bytes=0-100,200-300`) are not handled and crash the parser.
 - **Expected outcome**: return HTTP 416 (Range Not Satisfiable) for any malformed, inverted, or out-of-bounds range; ignore unsupported multi-range syntax gracefully.
@@ -198,7 +214,8 @@ Facteur de marge actuel : **0,40**.
 
 ### BL-028 — safe_path() Symlink Escape Fix
 
-- **Dates**: `created=2026-05-09`
+- **Dates**: `created=2026-05-09`, `started=2026-05-15`, `completed=2026-05-15`
+- **Statut**: ✅ Réalisé dans le commit `4c0a6e2` — `backend/main.py` (~1335) : `if item.is_symlink() and not item.resolve().is_relative_to(MEDIA_ROOT.resolve())` → les symlinks qui échappent à `MEDIA_ROOT` sont exclus des listings.
 - **Origine**: revue technique 2026-05-09 — critique.
 - **Why**: `folder.rglob("*")` and `folder.iterdir()` follow symlinks by default. A symlink inside `MEDIA_ROOT` pointing to `/etc` passes `safe_path()` (which only checks the root) and exposes system files in directory listings.
 - **Expected outcome**: for every item discovered by rglob/iterdir, skip symlinks or verify `item.resolve().is_relative_to(MEDIA_ROOT)` before including it in any response or operation.
@@ -208,7 +225,8 @@ Facteur de marge actuel : **0,40**.
 
 ### BL-029 — Security HTTP Headers Middleware
 
-- **Dates**: `created=2026-05-09`
+- **Dates**: `created=2026-05-09`, `started=2026-06-14`, `completed=2026-06-14`
+- **Statut**: ✅ Réalisé — middleware `add_security_headers` (`@app.middleware("http")`) posant `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy` et une CSP. CSP calibrée pour ne rien casser : `'unsafe-inline'` (frontend inline), `https://fonts.googleapis.com`/`gstatic.com` (import police ligne 15 de `index.html`), `blob:`/`data:` (lecteurs média + worker PDF.js). Tests : `TestSecurityHeaders`. Doc dev EN+FR mise à jour.
 - **Origine**: revue technique 2026-05-09 — critique.
 - **Why**: no security headers are set. Missing `X-Content-Type-Options: nosniff` enables MIME-sniffing attacks; missing `X-Frame-Options: DENY` allows clickjacking; missing `Content-Security-Policy` reduces defense-in-depth.
 - **Expected outcome**: add a `BaseHTTPMiddleware` that injects at minimum `X-Content-Type-Options`, `X-Frame-Options`, and a minimal CSP (`default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'`) on every response.
@@ -218,7 +236,8 @@ Facteur de marge actuel : **0,40**.
 
 ### BL-030 — PIN Hashing: SHA-256 → scrypt
 
-- **Dates**: `created=2026-05-09`
+- **Dates**: `created=2026-05-09`, `started=2026-06-14`, `completed=2026-06-14`
+- **Statut**: ✅ Réalisé — `_hash_pin()`/`_verify_pin()` avec `hashlib.scrypt` (stdlib), sel aléatoire 16 o, N=2^14/r=8/p=1, format `scrypt$<sel_hex>$<clé_hex>`. Comparaison constante via `hmac.compare_digest`. Migration **transparente** : `_verify_pin` accepte encore l'ancien SHA-256 sans sel, et `check_pin` réécrit le hash en scrypt à la première connexion réussie (pas de re-saisie). Tests : `TestPinHashing`.
 - **Origine**: revue technique 2026-05-09 — élevé.
 - **Why**: PIN is currently hashed with `hashlib.sha256` with no salt. A 4-digit PIN has only 10 000 possibilities; a rainbow table cracks it instantly. A slow KDF is required for any credential storage.
 - **Expected outcome**: replace with `hashlib.scrypt` (stdlib, no new dependency) with a random salt stored alongside the hash in the `settings` table. Existing stored PINs must be migrated gracefully (force re-entry on first login after upgrade).
@@ -228,7 +247,8 @@ Facteur de marge actuel : **0,40**.
 
 ### BL-031 — download_cookies_path Path Restriction
 
-- **Dates**: `created=2026-05-09`
+- **Dates**: `created=2026-05-09`, `started=2026-06-14`, `completed=2026-06-14`
+- **Statut**: ✅ Réalisé — helper `_validate_cookies_path()` (`backend/main.py`) appelé dans `POST /api/settings` : le chemin doit être absolu, `.txt`, exister et être lisible, sinon HTTP 422. La chaîne vide réinitialise le réglage. Le garde `is_file()` côté downloader (~693) reste en défense en profondeur. Tests : 5 cas ajoutés dans `TestSettings`. La restriction optionnelle à un `COOKIES_DIR` (env var) n'a pas été implémentée (jugée superflue pour l'usage NAS mono-utilisateur ; à rouvrir si besoin).
 - **Origine**: revue technique 2026-05-09 — élevé.
 - **Why**: the `download_cookies_path` setting accepts any absolute path without validation. A malicious or mistaken value like `/etc/passwd` would be passed verbatim to yt-dlp, potentially leaking file contents.
 - **Expected outcome**: validate that the path is absolute, exists, ends with `.txt`, and is readable. Optionally restrict to a configurable safe directory (env var `COOKIES_DIR`).
@@ -238,7 +258,8 @@ Facteur de marge actuel : **0,40**.
 
 ### BL-032 — MEDIA_ROOT Global Thread Safety
 
-- **Dates**: `created=2026-05-09`
+- **Dates**: `created=2026-05-09`, `started=2026-06-14`, `completed=2026-06-14`
+- **Statut**: ✅ Réalisé — `_media_root_lock` (`threading.Lock`) + accesseurs `get_media_root()` / `set_media_root()`. Les écritures (`reload_media_root`, `POST /api/settings`) passent par le setter ; `safe_path()` capture la racine une fois via `get_media_root()` au lieu de lire `MEDIA_ROOT` deux fois, supprimant la lecture déchirée. Tests : `TestMediaRootThreadSafety`.
 - **Origine**: revue technique 2026-05-09 — élevé.
 - **Why**: `MEDIA_ROOT` is a module-level global mutated by `POST /api/settings` without a lock. A concurrent request in `safe_path()` during the update can read a torn value, potentially allowing path traversal.
 - **Expected outcome**: protect all reads and writes of `MEDIA_ROOT` with a `threading.Lock`. `safe_path()` captures the lock value once at the start of each call.
@@ -248,7 +269,8 @@ Facteur de marge actuel : **0,40**.
 
 ### BL-033 — Job Store TTL Purge
 
-- **Dates**: `created=2026-05-09`
+- **Dates**: `created=2026-05-09`, `started=2026-06-14`, `completed=2026-06-14`
+- **Statut**: ✅ Réalisé — `_purge_old_jobs()` appelé au début de `GET /api/jobs` (option « déclenché à la lecture »). Les jobs en état terminal reçoivent un `_finished_at` (monotonic) à la première observation, puis sont supprimés après `JOB_TTL_SECONDS` (défaut 3600). Les jobs actifs ne sont jamais purgés. Tests : `TestJobPurge`. Doc dev (env var) EN+FR.
 - **Origine**: revue technique 2026-05-09 — moyen.
 - **Why**: the `_jobs` dict accumulates completed/errored/cancelled download jobs indefinitely. A long-running server will eventually exhaust memory.
 - **Expected outcome**: after each job transitions to a terminal state (`done`, `error`, `cancelled`), schedule its removal after a configurable TTL (default 1 hour). Implement as a simple periodic cleanup triggered on job-list reads or as a background thread.
@@ -258,7 +280,8 @@ Facteur de marge actuel : **0,40**.
 
 ### BL-034 — Delete / Move: DB-First Atomicity
 
-- **Dates**: `created=2026-05-09`
+- **Dates**: `created=2026-05-09`, `started=2026-06-14`, `completed=2026-06-14`
+- **Statut**: ✅ Réalisé — `delete_file` et `_run_move` exécutent les `DELETE`/`UPDATE` DB (sans commit) **avant** l'opération FS, puis `commit()` si elle réussit, `rollback()` sinon. Tests : `TestDeleteMoveAtomicity` (happy path + rollback sur `PermissionError`). Note : la migration des lignes pour les fichiers *à l'intérieur* d'un dossier déplacé/supprimé reste hors périmètre (limitation préexistante).
 - **Origine**: revue technique 2026-05-09 — élevé.
 - **Why**: `delete_file` and `move_file` currently delete/move the file on disk first, then update the DB. If the DB write fails, the file is gone but stale progress rows remain, causing permanent inconsistency.
 - **Expected outcome**: reverse the order — update the DB first, then perform the filesystem operation. If the filesystem operation fails, roll back the DB change (wrap both in a try/except with explicit rollback or re-insert).
@@ -268,7 +291,8 @@ Facteur de marge actuel : **0,40**.
 
 ### BL-035 — SQLite Index on progress.path
 
-- **Dates**: `created=2026-05-09`
+- **Dates**: `created=2026-05-09`, `started=2026-06-14`, `completed=2026-06-14`
+- **Statut**: ✅ Réalisé avec un écart assumé. `progress.path` est **déjà** la clé primaire (donc déjà indexée) → un `idx_progress_path` aurait été redondant et n'aurait pas aidé : le coût réel vient du balayage complet `SELECT path, position, duration FROM progress WHERE duration > 0` qui construit la carte de progression dans `/api/files`/`/api/search`. Ajout d'un **index couvrant** `idx_progress_active (duration, position, path)` permettant un balayage *index-only* (saute les lignes `duration ≤ 0`, pas de lecture de ligne). Tests : `TestSchema`.
 - **Origine**: revue technique 2026-05-09 — moyen.
 - **Why**: every `/api/files` and `/api/search` call does a full table scan of `progress` to build the progress map. With large libraries this degrades linearly.
 - **Expected outcome**: add `CREATE INDEX IF NOT EXISTS idx_progress_path ON progress(path)` in `init_db()`.
@@ -278,7 +302,8 @@ Facteur de marge actuel : **0,40**.
 
 ### BL-036 — Audit Logging for File Operations
 
-- **Dates**: `created=2026-05-09`
+- **Dates**: `created=2026-05-09`, `started=2026-05-09`, `completed=2026-06-14`
+- **Statut**: ✅ Réalisé. L'infra logger (`logging.getLogger("hoard")` + `LOG_LEVEL`) existait déjà (commit `67f130b`). Ajout de l'audit trail métier via le helper `_client_ip()` : `INFO` sur delete (`file deleted`), move (`file move requested`), download (`download started`/`download completed`) et `settings updated` — avec l'IP cliente ; `WARNING` sur `download failed` et `PIN check failed`. Tests : `TestAuditLogging`.
 - **Origine**: revue technique 2026-05-09 — élevé.
 - **Why**: there is no logging anywhere in `main.py`. Destructive operations (delete, move) leave no trace, making incident investigation impossible on a NAS exposed externally.
 - **Expected outcome**: add `import logging` with a module-level `logger = logging.getLogger("hoard")`. Log at INFO level: file deleted, file moved, download started/completed/failed, settings changed, PIN check failed. Include client IP from `Request.client.host`.
@@ -288,7 +313,8 @@ Facteur de marge actuel : **0,40**.
 
 ### BL-037 — Frontend Fetch Timeout + Network Error Feedback
 
-- **Dates**: `created=2026-05-09`
+- **Dates**: `created=2026-05-09`, `started=2026-06-14`, `completed=2026-06-14`
+- **Statut**: ✅ Réalisé — wrapper `apiFetch(url, opts, timeoutMs=15000)` (`AbortController` + `setTimeout`) qui affiche un toast (timeout vs erreur réseau) puis relance l'erreur. Appliqué aux appels critiques : listing (`/api/files`), recherche, sauvegarde de progression, déplacement, suppression. Streaming et polling des jobs conservent leur logique propre. Pas de test (frontend single-file sans harness) ; syntaxe JS validée via `node --check`.
 - **Origine**: revue technique 2026-05-09 — moyen.
 - **Why**: fetch calls have no timeout. If the NAS is waking from sleep or the network is slow, the UI hangs silently with no feedback. Several API calls also swallow errors with `.catch(() => null)` without showing a toast.
 - **Expected outcome**: wrap fetch calls with an `AbortController` + `setTimeout` (15 s default). Replace silent `.catch(() => null)` patterns with error toasts. At minimum cover: directory listing, search, progress save, move, delete.
@@ -298,7 +324,8 @@ Facteur de marge actuel : **0,40**.
 
 ### BL-038 — Touch Gesture Discovery Overlay
 
-- **Dates**: `created=2026-05-09`
+- **Dates**: `created=2026-05-09`, `started=2026-06-14`, `completed=2026-06-14`
+- **Statut**: ✅ Réalisé — overlay `#gesture-help-overlay` affiché par `maybeShowGestureOverlay()` à l'ouverture du player, gardé par `window.matchMedia('(pointer: coarse)')` + `cfg.gesture_enabled` + flag. `dismissGestureOverlay()` persiste `gestures_overlay_seen` via `POST /api/settings`. Nouvelle clé settings backend (defaults/keys/payload/bools) + test `test_gestures_overlay_seen_persists`. Doc : user-guide EN/FR. Pas de test frontend (single-file) ; syntaxe JS validée via `node --check`.
 - **Origine**: revue technique 2026-05-09 — moyen.
 - **Why**: swipe, double-tap, and triple-tap gestures are powerful but completely invisible. New users on touch devices have no way to discover them without reading the external user guide.
 - **Expected outcome**: on first launch (or after a settings reset), display a one-shot modal or translucent overlay on the player area illustrating the main gesture zones (seek zones, volume swipe, double-tap). Dismissible and never shown again (flag stored in settings).
@@ -308,7 +335,8 @@ Facteur de marge actuel : **0,40**.
 
 ### BL-039 — Accessibility: ARIA Labels, Focus Ring, Contrast
 
-- **Dates**: `created=2026-05-09`
+- **Dates**: `created=2026-05-09`, `started=2026-06-14`, `completed=2026-06-14`
+- **Statut**: ✅ Réalisé — (1) `--text-dim` relevé #666 → #8a8a8a (≥ WCAG AA sur fond sombre) ; (2) règle globale `:focus-visible` (contour accent) ; (3) `aria-label` FR sur les contrôles icône principaux : accueil, paramètres, file de téléchargement, lecture/pause (vidéo + audio non couvert), seek ×4, plein écran, et le mute (converti en `role=button` + `tabindex` + handler clavier). Passe ciblée sur les contrôles primaires, pas un audit exhaustif de tous les boutons icône — un audit complet pourra faire l'objet d'un ticket dédié si besoin.
 - **Origine**: revue technique 2026-05-09 — moyen.
 - **Why**: icon-only buttons have no `aria-label`; tabbing through the UI shows no focus indicator (CSS resets `outline`); `--text-dim: #666` on `--surface2: #1e1e21` is ~3:1 contrast ratio, below WCAG AA (4.5:1).
 - **Expected outcome**: add `aria-label` to all interactive elements that lack visible text (home, settings, refresh, play/pause, skip, fullscreen buttons etc.); add a `:focus-visible` outline rule in CSS; raise `--text-dim` to at least `#888` or equivalent passing contrast.
@@ -507,3 +535,69 @@ Facteur de marge actuel : **0,40**.
 - **Symptôme** : Le toast « Lecture native refusée — transcodage… » s'affiche et le transcodage démarre, même quand « Transcodage activé » est désactivé dans les paramètres.
 - **Cause** : Le handler `video.onerror` (frontend/index.html, ~ligne 3830) bascule inconditionnellement vers `/api/transcode` sans vérifier `cfg.transcode_enabled`. La fonction `choosePlaybackSource()` vérifie bien le flag, mais l'erreur de lecture contourne ce chemin.
 - **Correction** : Ajouter un test `if (!cfg.transcode_enabled)` dans le handler `video.onerror` avant le fallback. Si désactivé, afficher un toast informatif (« Lecture non supportée nativement — activez le transcodage ») et ne pas rediriger vers `/api/transcode`.
+
+---
+
+### BL-065 — Fix : dialog d'aide clavier illisible (Firefox)
+
+- **Dates** : `created=2026-06-14`
+- **Lot** : Lot 6
+- **Type** : bug (contraste / lisibilité)
+- **Symptôme** : Sur PC (Firefox), ouvrir l'aide clavier (touche `?`) affiche un texte gris et noir sur fond gris foncé → quasiment illisible.
+- **Cause** : `<dialog id="shortcuts-dialog">` (`frontend/index.html` ~ligne 1813) : le `<div>` interne a `background:var(--surface)` (#161618, foncé) mais **aucune `color` n'est définie** sur le `<dialog>` ni sur le wrapper. Les cellules de description (`<td>` sans couleur) héritent donc de la couleur par défaut du user-agent stylesheet de Firefox pour `<dialog>` (`CanvasText` ≈ noir), tandis que les en-têtes de section sont en `--text-dim` (#666, gris). Résultat : noir + gris sur fond foncé.
+- **Correction** : Définir une couleur de texte explicite sur le wrapper du dialog, p. ex. `color:var(--text)` (#f0f0f0) sur le `<div>` interne. Vérifier au passage les autres `<dialog>`/overlays pour le même oubli. Optionnel (recoupe BL-039) : relever `--text-dim` au-dessus du seuil WCAG AA pour les en-têtes de section.
+- **Attention** : ne pas casser le rendu des autres thèmes/overlays ; le fix doit rester purement CSS inline cohérent avec l'architecture single-file.
+- **Statut** : ✅ Réalisé — `color:var(--text)` ajouté au wrapper de `#shortcuts-dialog`. Seul `<dialog>` du fichier (delete/move/export/gp-overlay sont des `<div>` héritant correctement). Le relèvement de `--text-dim` est traité dans BL-039.
+
+---
+
+### BL-066 — Plein écran fenêtré (immersif in-window) par défaut sur desktop
+
+- **Dates** : `created=2026-06-14`
+- **Lot** : Lot 5
+- **Type** : feature (UX player)
+- **Why** : sur PC, `F` / le bouton plein écran déclenchent le vrai plein écran OS (Fullscreen API). Un mode « immersif fenêtré » — vidéo qui remplit la fenêtre Firefox + UI masquée, sans sortir de la fenêtre — est souvent préférable au quotidien ; l'utilisateur garde `F11` (Firefox) pour un vrai plein écran OS.
+- **Acquis** : la brique existe déjà — `toggleFullscreen()` (`frontend/index.html` ~4799) gère une classe CSS `faux-fullscreen` (position fixe plein cadre + masquage UI), aujourd'hui utilisée seulement comme *fallback* (API indisponible, ou refus Firefox+manette). `isInFullscreen()` (~4728) retourne déjà `true` pour `faux-fullscreen`.
+- **Expected outcome** :
+  - **Desktop (`pointer: fine`)** : `F` / bouton player / `Y` pad → activent le mode **fenêtré** (`faux-fullscreen`) par défaut. Ajouter `Shift+F` (et conserver/ajouter une affordance bouton) → **vrai** plein écran OS (`requestFullscreen`) pour qui le veut sans passer par `F11`.
+  - **Tactile (`pointer: coarse`, iPad)** : comportement **inchangé** → vrai plein écran (pas de `F11` sur iPad). Détecter via `window.matchMedia('(pointer: coarse)')`.
+- **Contrainte clé (demande utilisateur)** : tout le comportement « spécial plein écran » doit fonctionner à l'identique en mode fenêtré.
+  - Auto-play du fichier suivant après suppression/déplacement : déjà OK, conditionné par `isInFullscreen()` (~4507, ~4579, ~4621) qui couvre `faux-fullscreen`.
+  - **Point d'attention principal** : le handler `fullscreenchange` (~4830) déplace `delete-dialog` / `move-dialog` / `export-dialog` / `gp-overlay` dans `document.fullscreenElement` pour qu'ils restent visibles ; ce handler **ne se déclenche pas** en mode fenêtré. Vérifier que ces dialogs/overlays s'affichent bien par-dessus `#video-container.faux-fullscreen` (z-index / position), sinon les rattacher explicitement à l'entrée/sortie du mode fenêtré.
+  - Vérifier aussi : masquage auto des contrôles, restauration du curseur gamepad, bascule du label/icône du bouton plein écran.
+- **Attention** : frontend-only, aucune modif backend. Ne pas régresser le fallback existant ni le flux manette.
+
+---
+
+### BL-067 — Cleanup : supprimer l'endpoint `/api/stream` mort (legacy)
+
+- **Dates** : `created=2026-06-14`
+- **Lot** : Lot 7
+- **Type** : cleanup (code mort)
+- **Why** : depuis le refactoring des lecteurs (BL-053, Lot 10), le frontend ne fait plus aucun appel à `/api/stream` — tout passe par `/api/file` et `/api/transcode`. L'endpoint `/api/stream` (`backend/main.py` ~2155) subsiste donc comme code mort, et c'est le seul à garder le parse Range naïf (sans la validation 416 ajoutée par BL-027).
+- **Travail** :
+  - Confirmer l'absence totale de référence à `/api/stream` (frontend, docs, tests).
+  - Supprimer la route `@app.get("/api/stream")` et son handler.
+  - Vérifier qu'aucune doc (`docs/developer.*.md`) ne le référence encore ; mettre à jour le cas échéant.
+  - `ruff check` + `pytest` au vert.
+- **Attention** : si une raison de rétro-compatibilité externe existe (lien direct, marque-page), la documenter avant suppression ; sinon retirer franchement.
+
+---
+
+### BL-068 — Clavier : Échap = B (remonter d'un cran) + alignement complet sur le D-pad
+
+- **Dates** : `created=2026-06-14`
+- **Lot** : Lot 12
+- **Type** : feature (harmonisation inputs) — suite du Lot 11
+- **Why** : sur PC (Firefox, clavier), les touches de navigation doivent reproduire **à l'identique** le pad directionnel quand on parcourt l'arborescence : flèches = D-pad, Entrée = A, Échap = B. Le besoin déclencheur : **Échap doit remonter d'un cran dans l'arborescence** (comme B), ce qui n'arrive pas aujourd'hui.
+- **État actuel** (`frontend/index.html`) :
+  - ↑/↓ (player inactif) → `_gpMoveCursor(∓1)` ✅ équivaut au D-pad (BL-060, ~4916-4926)
+  - Entrée → `_gpActivateCursor()` ✅ équivaut à A / `nav_enter` (BL-060, ~4941)
+  - **Échap** (~4855-4874) : ferme dialogs/viewers → sort du fullscreen → ferme le player ; **mais si le player est inactif, ne fait rien** → manque l'équivalent de B / `nav_back`.
+  - Le pad dispose déjà de `nav_back` (~5209-5211) : `navigate(currentPath.split('/').slice(0, -1).join('/'))`.
+- **Travail** :
+  - Extraire une fonction `navigateUp()` à partir du corps du case `nav_back` du pad, et l'appeler des deux côtés (pad + clavier) pour garantir l'équivalence et éviter la duplication.
+  - Dans le handler `Escape`, **après** la cascade existante (dialogs, viewers, fullscreen, `privacyClose`), ajouter en dernier ressort : `if (!currentFile && currentPath) { navigateUp(); return; }`.
+  - Vérifier ←/→ en browser (player inactif) : aujourd'hui ils appellent `skip()` sans garde `currentFile` (~4929) → no-op au mieux. Aligner sur le D-pad gauche/droite (pas de rôle de navigation en browser) : ne rien faire si player inactif.
+  - Mettre à jour `<dialog id="shortcuts-dialog">` : ligne « Échap → remonter d'un cran (player inactif) ».
+- **Attention** : ne pas casser la cascade Échap existante (fermer dialog/viewer/fullscreen/player garde la priorité) ; `navigateUp()` ne doit s'appliquer qu'en dernier, browser actif et `currentPath` non racine. Frontend-only, aucune modif backend.

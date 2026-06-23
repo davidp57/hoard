@@ -163,6 +163,8 @@ The file list refreshes automatically every 30 seconds when the tab is visible, 
 
 Gestures work directly on the video image.
 
+> The first time you open a video on a touch device, a short help screen introduces the main gestures. Tap **Compris** (Got it) to dismiss it; it will not appear again.
+
 ### Single Tap
 
 | Area | Action |

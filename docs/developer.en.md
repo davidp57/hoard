@@ -57,6 +57,10 @@ hoard/
 | `DB_PATH` | `/data/progress.db` | SQLite database path |
 | `SSL_CERTFILE` | *(unset)* | Path to a PEM certificate file. When set (together with `SSL_KEYFILE`), uvicorn serves HTTPS natively. |
 | `SSL_KEYFILE` | *(unset)* | Path to the matching PEM private key file. |
+| `JOB_TTL_SECONDS` | `3600` | Seconds a terminal download/export job is kept in memory before being purged. |
+| `LOG_LEVEL` | `INFO` | Logging level for the `hoard` logger (audit trail). |
+| `HOARD_AUTH_USER` | *(unset)* | Username for optional HTTP Basic auth. Auth is enabled only when both this and `HOARD_AUTH_PASS` are set. |
+| `HOARD_AUTH_PASS` | *(unset)* | Password for optional HTTP Basic auth. |
 
 ### Path Safety
 
@@ -69,6 +73,25 @@ def safe_path(rel: str) -> Path:
         raise HTTPException(400, "Invalid path")
     return resolved
 ```
+
+### Security Headers
+
+An HTTP middleware (`add_security_headers`) injects on every response:
+`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
+`Referrer-Policy: no-referrer`, and a `Content-Security-Policy`. The CSP allows
+`'unsafe-inline'` (required by the single-file inline CSS/JS frontend), the
+Google Fonts import (`fonts.googleapis.com` / `fonts.gstatic.com`), and
+`blob:`/`data:` sources used by the media and PDF.js viewers. Headers are set
+with `setdefault`, so an endpoint may override them if needed.
+
+### Optional HTTP Basic Auth
+
+Set both `HOARD_AUTH_USER` and `HOARD_AUTH_PASS` to require HTTP Basic
+authentication on every request (`require_basic_auth` middleware). When either
+is unset, auth is disabled and behavior is unchanged. Credentials are compared
+in constant time. This is meant for exposing Hoard behind a reverse proxy or
+direct HTTPS without a full account system — use HTTPS so the Basic credentials
+are not sent in clear text.
 
 ### API Endpoints
 
@@ -196,6 +219,8 @@ All job state is held in memory in `_jobs: dict[str, dict]`. Fields prefixed wit
 **Cookie resolution order:**
 1. Persistent `cookies.txt` file (path from `download_cookies_path` setting), if it exists.
 2. Inline cookies from the request body, written to a temporary file.
+
+The `download_cookies_path` setting is validated when saved via `POST /api/settings` (`_validate_cookies_path()`): the path must be absolute, end with `.txt`, exist as a readable file, otherwise the save is rejected with HTTP 422. An empty string clears the setting. This prevents pointing yt-dlp at an arbitrary file.
 
 **yt-dlp options used:** `bestvideo+bestaudio/best`, `merge_output_format: mp4`. Output is saved to the `download_folder` setting (relative to `MEDIA_ROOT`, created if needed).
 

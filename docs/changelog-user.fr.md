@@ -6,6 +6,21 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ## [Non publié]
 
+### Corrections
+- **Aide clavier lisible** : la fenêtre d'aide (touche `?`) s'affichait en texte sombre sur fond sombre sur PC/Firefox. Elle est de nouveau parfaitement lisible.
+
+### Nouveautés
+- **Aide aux gestes tactiles** : la première fois que vous ouvrez une vidéo sur un écran tactile, un petit guide montre les gestes disponibles (double-tap pour avancer/reculer, tap pour mettre en pause, glissé pour le volume et la luminosité). Il ne s'affiche qu'une seule fois.
+
+### Améliorations
+- **Accessibilité** : les boutons icône (accueil, réglages, lecture/pause, plein écran…) ont désormais un libellé pour les lecteurs d'écran, la navigation au clavier affiche un contour de focus visible, et le texte gris secondaire est plus contrasté donc plus lisible.
+- **Retour en cas de problème réseau** : si le serveur est lent à répondre (par ex. NAS en veille) ou injoignable, l'application affiche maintenant un message au lieu de rester figée. Les actions concernées : navigation, recherche, reprise de lecture, déplacement et suppression.
+
+### Sécurité
+- **Protection par mot de passe (optionnelle)** : il est désormais possible d'exiger un identifiant et un mot de passe pour accéder à Hoard, pratique si vous l'exposez sur Internet. Cette option s'active lors de l'installation (variables `HOARD_AUTH_USER` / `HOARD_AUTH_PASS`) et reste désactivée par défaut.
+- **Code PIN mieux protégé** : le code PIN est maintenant stocké de façon beaucoup plus sûre (hachage salé). Votre PIN existant continue de fonctionner sans rien changer.
+- **Réglages — chemin du fichier de cookies** : le chemin saisi pour les cookies de téléchargement est maintenant vérifié au moment de l'enregistrement (il doit s'agir d'un fichier `.txt` existant et lisible). Un message clair s'affiche si le chemin est invalide.
+
 ---
 
 ## [v2.2.0] — 2026-05-20

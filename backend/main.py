@@ -1,4 +1,6 @@
+import base64
 import hashlib
+import hmac
 import ipaddress
 import json
 import logging
@@ -35,6 +37,29 @@ logger = logging.getLogger("hoard")
 
 # ── Config ────────────────────────────────────────────────────────────────────
 MEDIA_ROOT = Path(os.environ.get("MEDIA_ROOT", "/media"))
+# MEDIA_ROOT can be reassigned at runtime via POST /api/settings. Guard writes
+# with a lock and read through get_media_root() so a concurrent request never
+# sees a torn value mid-update (notably safe_path(), which must resolve against
+# a single consistent root).
+_media_root_lock = threading.Lock()
+
+
+def get_media_root() -> Path:
+    with _media_root_lock:
+        return MEDIA_ROOT
+
+
+def set_media_root(new_root: Path) -> None:
+    global MEDIA_ROOT
+    with _media_root_lock:
+        MEDIA_ROOT = new_root
+
+
+def _client_ip(request: Request) -> str:
+    """Best-effort client IP for the audit log."""
+    return request.client.host if request.client else "unknown"
+
+
 DB_PATH = Path(os.environ.get("DB_PATH", "/data/progress.db"))
 
 
@@ -87,6 +112,68 @@ VERSION = "1.0.0"
 
 app = FastAPI(title="Hoard", version=VERSION)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+# Security headers applied to every response. The CSP keeps the single-file
+# inline CSS/JS frontend working ('unsafe-inline'), allows the Google Fonts
+# import used by the UI, and permits blob:/data: sources needed by the media
+# and PDF.js viewers.
+_CSP = (
+    "default-src 'self'; "
+    "script-src 'self' 'unsafe-inline'; "
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+    "font-src 'self' https://fonts.gstatic.com; "
+    "img-src 'self' data: blob:; "
+    "media-src 'self' blob:; "
+    "worker-src 'self' blob:; "
+    "connect-src 'self'; "
+    "frame-ancestors 'none'"
+)
+SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+    "Content-Security-Policy": _CSP,
+}
+
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    for key, value in SECURITY_HEADERS.items():
+        response.headers.setdefault(key, value)
+    return response
+
+
+# Optional HTTP Basic auth, opt-in via env vars. Disabled unless BOTH HOARD_AUTH_USER
+# and HOARD_AUTH_PASS are set — suitable for exposing Hoard behind a reverse proxy
+# or direct HTTPS without building a full account system. When disabled, behavior
+# is unchanged.
+HOARD_AUTH_USER = os.environ.get("HOARD_AUTH_USER", "")
+HOARD_AUTH_PASS = os.environ.get("HOARD_AUTH_PASS", "")
+_AUTH_ENABLED = bool(HOARD_AUTH_USER and HOARD_AUTH_PASS)
+
+
+def _check_basic_auth(header: str) -> bool:
+    if not header.startswith("Basic "):
+        return False
+    try:
+        user, _, pwd = base64.b64decode(header[6:]).decode("utf-8").partition(":")
+    except (ValueError, UnicodeDecodeError):
+        return False
+    # Constant-time comparison on both fields (always evaluate both).
+    user_ok = hmac.compare_digest(user, HOARD_AUTH_USER)
+    pass_ok = hmac.compare_digest(pwd, HOARD_AUTH_PASS)
+    return user_ok and pass_ok
+
+
+@app.middleware("http")
+async def require_basic_auth(request: Request, call_next):
+    if not _AUTH_ENABLED or _check_basic_auth(request.headers.get("authorization", "")):
+        return await call_next(request)
+    return Response(
+        status_code=401,
+        headers={"WWW-Authenticate": 'Basic realm="Hoard"'},
+    )
 
 
 # ── DB ────────────────────────────────────────────────────────────────────────
@@ -168,18 +255,25 @@ def init_db():
             )
         """)
         conn.execute("CREATE INDEX IF NOT EXISTS idx_segments_path ON segments(path)")
+        # Covering index for the progress-map scan in /api/files & /api/search
+        # (SELECT path, position, duration ... WHERE duration > 0). progress.path
+        # is already the PRIMARY KEY, so per-path lookups are indexed; this index
+        # lets the whole-table map query run as an index-only range scan, skipping
+        # duration<=0 rows and avoiding row reads on large libraries.
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_progress_active ON progress(duration, position, path)"
+        )
         conn.commit()
 
 
 def reload_media_root():
     """Override MEDIA_ROOT from DB settings if set."""
-    global MEDIA_ROOT
     with get_db() as conn:
         row = conn.execute("SELECT value FROM settings WHERE key='media_root'").fetchone()
     if row:
         candidate = Path(row["value"])
         if candidate.exists() and candidate.is_dir():
-            MEDIA_ROOT = candidate
+            set_media_root(candidate)
 
 
 init_db()
@@ -251,6 +345,32 @@ _download_task_queue: _queue_module.Queue = _queue_module.Queue()
 def _job_for_api(job: dict) -> dict:
     """Return a JSON-serialisable view of a job (strips private _ keys)."""
     return {k: v for k, v in job.items() if not k.startswith("_")}
+
+
+# Terminal job states and the TTL after which they are purged from _jobs to
+# avoid unbounded memory growth on a long-running server.
+_TERMINAL_JOB_STATES = ("done", "error", "cancelled")
+JOB_TTL_SECONDS = int(os.environ.get("JOB_TTL_SECONDS", "3600"))
+
+
+def _purge_old_jobs() -> None:
+    """Drop terminal jobs whose TTL has elapsed.
+
+    The TTL clock starts when a job is *first observed* in a terminal state.
+    Since clients poll the job list frequently this is effectively completion
+    time, and it avoids stamping every status transition across the workers.
+    Active (non-terminal) jobs are never purged.
+    """
+    now = time.monotonic()
+    for job_id in list(_jobs.keys()):
+        job = _jobs.get(job_id)
+        if not job or job.get("status") not in _TERMINAL_JOB_STATES:
+            continue
+        finished = job.get("_finished_at")
+        if finished is None:
+            job["_finished_at"] = now
+        elif now - finished > JOB_TTL_SECONDS:
+            del _jobs[job_id]
 
 
 def _fmt_hms(s: float) -> str:
@@ -458,26 +578,31 @@ def _run_move(job_id: str, source: Path, destination: Path) -> None:
     job["status"] = "running"
     final_dest = (destination / source.name) if destination.is_dir() else destination
     final_dest.parent.mkdir(parents=True, exist_ok=True)
-    for attempt in range(5):
-        try:
-            shutil.move(str(source), str(final_dest))
-            break
-        except PermissionError:
-            if attempt < 4:
-                time.sleep(0.6)
-            else:
-                job["status"] = "error"
-                job["error"] = "File is locked by another process"
-                return
-        except Exception as e:
-            job["status"] = "error"
-            job["error"] = str(e)
-            return
     old_rel = to_rel(source)
     new_rel = to_rel(final_dest)
+    # DB-first atomicity: stage the metadata move, perform the filesystem move,
+    # and only commit if it succeeds. Roll back on failure so progress/segments
+    # rows never point at a path the file was not actually moved to.
     with get_db() as conn:
         conn.execute("UPDATE progress SET path = ? WHERE path = ?", (new_rel, old_rel))
         conn.execute("UPDATE segments SET path = ? WHERE path = ?", (new_rel, old_rel))
+        for attempt in range(5):
+            try:
+                shutil.move(str(source), str(final_dest))
+                break
+            except PermissionError:
+                if attempt < 4:
+                    time.sleep(0.6)
+                else:
+                    conn.rollback()
+                    job["status"] = "error"
+                    job["error"] = "File is locked by another process"
+                    return
+            except Exception as e:
+                conn.rollback()
+                job["status"] = "error"
+                job["error"] = str(e)
+                return
         conn.commit()
     job["status"] = "done"
     job["progress"] = 100
@@ -758,6 +883,7 @@ def _run_download(
         else:
             job["status"] = "done"
             job["progress"] = 100
+            logger.info("download completed: name=%s", job.get("source_name"))
 
     except Exception as e:
         if cancel_event.is_set():
@@ -773,6 +899,7 @@ def _run_download(
         else:
             job["status"] = "error"
             job["error"] = str(e)
+            logger.warning("download failed: name=%s error=%s", job.get("source_name"), e)
     finally:
         if tmp_cookies_file:
             try:
@@ -1158,8 +1285,9 @@ def _read_media_info(file: Path) -> dict:
 
 def safe_path(rel: str) -> Path:
     """Resolve and ensure path stays within MEDIA_ROOT."""
-    resolved = (MEDIA_ROOT / rel).resolve()
-    media_resolved = MEDIA_ROOT.resolve()
+    root = get_media_root()  # capture once: MEDIA_ROOT may change concurrently
+    resolved = (root / rel).resolve()
+    media_resolved = root.resolve()
     logger.debug("safe_path: rel=%r resolved=%s media_root=%s", rel, resolved, media_resolved)
     if not resolved.is_relative_to(media_resolved):
         logger.warning("safe_path DENIED: %s is outside %s", resolved, media_resolved)
@@ -1395,32 +1523,47 @@ def save_progress(path: str, body: ProgressUpdate):
 
 
 @app.delete("/api/files")
-def delete_file(path: str):
+def delete_file(path: str, request: Request):
     target = safe_path(path)
     if not target.exists():
         raise HTTPException(status_code=404)
-    try:
-        if target.is_dir():
-            shutil.rmtree(target)
-        else:
-            target.unlink()
-    except PermissionError:
-        raise HTTPException(status_code=423, detail="File is locked by another process") from None
-    # Clean progress and segments entries
     rel = to_rel(target)
+    # DB-first atomicity: stage the metadata deletion, perform the filesystem
+    # delete, and only commit if it succeeds. If the FS op fails, roll back so
+    # we never leave stale progress/segments rows for a file that still exists.
     with get_db() as conn:
         conn.execute("DELETE FROM progress WHERE path = ?", (rel,))
         conn.execute("DELETE FROM segments WHERE path = ?", (rel,))
+        try:
+            if target.is_dir():
+                shutil.rmtree(target)
+            else:
+                target.unlink()
+        except PermissionError:
+            conn.rollback()
+            raise HTTPException(
+                status_code=423, detail="File is locked by another process"
+            ) from None
+        except OSError as e:
+            conn.rollback()
+            raise HTTPException(status_code=500, detail="Failed to delete file") from e
         conn.commit()
+    logger.info("file deleted: path=%s ip=%s", rel, _client_ip(request))
     return {"ok": True}
 
 
 @app.post("/api/files/move")
-def move_file(path: str, body: MoveRequest):
+def move_file(path: str, body: MoveRequest, request: Request):
     source = safe_path(path)
     destination = safe_path(body.destination)
     if not source.exists():
         raise HTTPException(status_code=404)
+    logger.info(
+        "file move requested: src=%s dest=%s ip=%s",
+        to_rel(source),
+        body.destination,
+        _client_ip(request),
+    )
     job_id = str(uuid.uuid4())
     _jobs[job_id] = {
         "id": job_id,
@@ -1563,6 +1706,7 @@ def export_segments(path: str, body: ExportSegmentsRequest):
 
 @app.get("/api/jobs")
 def list_jobs():
+    _purge_old_jobs()
     return [_job_for_api(j) for j in _jobs.values()]
 
 
@@ -1634,9 +1778,10 @@ def _validate_download_url(url: str) -> None:
 
 
 @app.post("/api/download")
-def start_download(body: DownloadRequest):
+def start_download(body: DownloadRequest, request: Request):
     """Start a yt-dlp download in the background and return a job_id."""
     _validate_download_url(body.url)
+    logger.info("download started: url=%s ip=%s", body.url, _client_ip(request))
 
     with get_db() as conn:
         s = _read_all_settings(conn)
@@ -1967,6 +2112,7 @@ _SETTINGS_KEYS = {
     "gamepad_swap_sticks",  # '1' | '0', default '0' — swap left/right stick assignments
     "gamepad_mapping",  # JSON string, default '{}' (use built-in defaults)
     "fs_progress_zoom",  # int 5-50, zoom window % for fullscreen progress bar, default 20
+    "gestures_overlay_seen",  # '1' | '0', one-shot touch-gesture discovery overlay flag
 }
 
 _SETTINGS_DEFAULTS: dict[str, str] = {
@@ -1999,6 +2145,7 @@ _SETTINGS_DEFAULTS: dict[str, str] = {
     "gamepad_swap_sticks": "0",
     "gamepad_mapping": "{}",
     "fs_progress_zoom": "20",
+    "gestures_overlay_seen": "0",
 }
 
 
@@ -2032,6 +2179,7 @@ class SettingsPayload(BaseModel):
     gesture_volume: bool | None = None
     gesture_brightness: bool | None = None
     gesture_doubletap: bool | None = None
+    gestures_overlay_seen: bool | None = None
     gesture_edge_pct: int | None = None
     gesture_swipe_threshold: int | None = None
     gesture_swipe_sensitivity: str | None = None
@@ -2064,9 +2212,75 @@ def get_settings():
     return result
 
 
+# PIN hashing — scrypt with a random per-PIN salt. Parameters tuned for NAS
+# hardware (N=2^14 ≈ 16 MiB working memory per check, fast enough for an
+# occasional PIN entry). Stored format: "scrypt$<salt_hex>$<key_hex>".
+_SCRYPT_N = 2**14
+_SCRYPT_R = 8
+_SCRYPT_P = 1
+_SCRYPT_MAXMEM = 64 * 1024 * 1024
+
+
+def _hash_pin(pin: str) -> str:
+    salt = os.urandom(16)
+    key = hashlib.scrypt(
+        pin.encode(),
+        salt=salt,
+        n=_SCRYPT_N,
+        r=_SCRYPT_R,
+        p=_SCRYPT_P,
+        dklen=32,
+        maxmem=_SCRYPT_MAXMEM,
+    )
+    return f"scrypt${salt.hex()}${key.hex()}"
+
+
+def _verify_pin(pin: str, stored: str) -> bool:
+    """Verify a PIN against the stored hash. Supports the legacy unsalted
+    SHA-256 format for transparent migration to scrypt."""
+    if stored.startswith("scrypt$"):
+        try:
+            _, salt_hex, key_hex = stored.split("$", 2)
+            salt = bytes.fromhex(salt_hex)
+            expected = bytes.fromhex(key_hex)
+        except (ValueError, IndexError):
+            return False
+        key = hashlib.scrypt(
+            pin.encode(),
+            salt=salt,
+            n=_SCRYPT_N,
+            r=_SCRYPT_R,
+            p=_SCRYPT_P,
+            dklen=len(expected),
+            maxmem=_SCRYPT_MAXMEM,
+        )
+        return hmac.compare_digest(key, expected)
+    # Legacy SHA-256 (no salt) — accepted only so the next successful login can
+    # transparently upgrade it to scrypt.
+    return hmac.compare_digest(hashlib.sha256(pin.encode()).hexdigest(), stored)
+
+
+def _validate_cookies_path(path: str) -> None:
+    """Validate a user-supplied cookies file path before it is stored.
+
+    The path is later handed to yt-dlp as a ``cookiefile``; without validation any
+    readable file (e.g. ``/etc/passwd``) could be pointed at the downloader. The
+    path must be absolute, carry a ``.txt`` extension, exist as a file, and be
+    readable. Raises HTTP 422 with an explicit message otherwise.
+    """
+    p = Path(path)
+    if not p.is_absolute():
+        raise HTTPException(status_code=422, detail="Cookies path must be absolute")
+    if p.suffix.lower() != ".txt":
+        raise HTTPException(status_code=422, detail="Cookies file must have a .txt extension")
+    if not p.is_file():
+        raise HTTPException(status_code=422, detail="Cookies file does not exist")
+    if not os.access(p, os.R_OK):
+        raise HTTPException(status_code=422, detail="Cookies file is not readable")
+
+
 @app.post("/api/settings")
-def update_settings(body: SettingsPayload):
-    global MEDIA_ROOT
+def update_settings(body: SettingsPayload, request: Request):
     with get_db() as conn:
         if body.media_root is not None:
             new_root = Path(body.media_root)
@@ -2074,15 +2288,14 @@ def update_settings(body: SettingsPayload):
                 raise HTTPException(
                     status_code=404, detail="Path does not exist or is not a directory"
                 )
-            MEDIA_ROOT = new_root
+            set_media_root(new_root)
             _write_setting(conn, "media_root", str(new_root))
 
         if body.pin is not None:
             if body.pin == "":
                 _write_setting(conn, "pin_hash", "")
             else:
-                h = hashlib.sha256(body.pin.encode()).hexdigest()
-                _write_setting(conn, "pin_hash", h)
+                _write_setting(conn, "pin_hash", _hash_pin(body.pin))
 
         if body.gamepad_mapping is not None:
             try:
@@ -2091,6 +2304,10 @@ def update_settings(body: SettingsPayload):
                 raise HTTPException(
                     status_code=422, detail="gamepad_mapping must be valid JSON"
                 ) from exc
+
+        # Empty string clears the setting; only validate a non-empty path.
+        if body.download_cookies_path:
+            _validate_cookies_path(body.download_cookies_path)
 
         _simple: list[tuple[str, object]] = [
             ("privacy_timeout", body.privacy_timeout),
@@ -2122,6 +2339,7 @@ def update_settings(body: SettingsPayload):
             ("gesture_volume", body.gesture_volume),
             ("gesture_brightness", body.gesture_brightness),
             ("gesture_doubletap", body.gesture_doubletap),
+            ("gestures_overlay_seen", body.gestures_overlay_seen),
             ("transcode_enabled", body.transcode_enabled),
             ("transcode_audio_only", body.transcode_audio_only),
             ("gamepad_enabled", body.gamepad_enabled),
@@ -2134,11 +2352,12 @@ def update_settings(body: SettingsPayload):
 
         conn.commit()
 
+    logger.info("settings updated: ip=%s", _client_ip(request))
     return {"ok": True}
 
 
 @app.post("/api/settings/check-pin")
-def check_pin(body: dict):
+def check_pin(body: dict, request: Request):
     """Returns {ok: true} if the supplied PIN matches, 401 otherwise."""
     pin = str(body.get("pin", ""))
     with get_db() as conn:
@@ -2147,8 +2366,14 @@ def check_pin(body: dict):
     if not stored_hash:
         # No PIN set — always OK
         return {"ok": True}
-    if hashlib.sha256(pin.encode()).hexdigest() == stored_hash:
+    if _verify_pin(pin, stored_hash):
+        # Transparently upgrade a legacy unsalted SHA-256 hash to scrypt.
+        if not stored_hash.startswith("scrypt$"):
+            with get_db() as conn:
+                _write_setting(conn, "pin_hash", _hash_pin(pin))
+                conn.commit()
         return {"ok": True}
+    logger.warning("PIN check failed: ip=%s", _client_ip(request))
     raise HTTPException(status_code=401, detail="Wrong PIN")
 
 

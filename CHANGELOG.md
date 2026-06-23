@@ -8,10 +8,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Lisibilité de l'aide clavier (BL-065)** : la fenêtre d'aide (`?`) était illisible sur PC/Firefox (texte sombre sur fond sombre car le `<dialog>` héritait de la couleur de texte par défaut du navigateur). Couleur de texte désormais explicite.
+- **Délai et feedback réseau (BL-037)** : les appels critiques (listing, recherche, sauvegarde de progression, déplacement, suppression) passent par un wrapper `apiFetch` avec timeout (15 s) et affichent un toast en cas de lenteur/erreur réseau, au lieu de rester silencieusement bloqués (utile au réveil du NAS).
+- **Atomicité des opérations fichiers (BL-034)** : la suppression et le déplacement mettent désormais à jour la base **avant** l'opération disque, avec rollback si celle-ci échoue. Plus de lignes de progression/segments orphelines (ou mal réécrites) lorsqu'une suppression/déplacement échoue.
+- **Fuite mémoire des jobs terminés (BL-033)** : les jobs de téléchargement/export en état terminal (`done`/`error`/`cancelled`) sont désormais purgés du store en mémoire après un TTL (par défaut 1 h, configurable via `JOB_TTL_SECONDS`). Évite la croissance illimitée de la mémoire sur un serveur de longue durée.
 - **Audio silencieux pour certaines vidéos** : les fichiers avec audio AC3, EAC3 (Dolby Digital/Plus), DTS ou TrueHD étaient lus sans son car le navigateur ne supporte pas ces codecs nativement. Hoard détecte maintenant ces codecs et route automatiquement vers le transcodage (si activé) ; si le transcodage est désactivé, un avertissement est affiché.
 
 ### Added
+- **Aide à la découverte des gestes tactiles (BL-038)** : au premier lancement du player sur un appareil tactile, un overlay présente les principaux gestes (double-tap reculer/avancer, tap pause, glissés bord pour volume/luminosité). Affiché une seule fois (flag `gestures_overlay_seen` persisté), uniquement sur écrans tactiles (`pointer: coarse`).
 - **Transcodage audio uniquement** : nouveau paramètre "Transcodage audio uniquement" qui copie le flux vidéo tel quel (sans réencodage) et ne réencode que l'audio en AAC. Beaucoup plus léger sur le CPU du NAS. Idéal pour les fichiers MKV/HEVC+EAC3 sur Chrome/Edge (qui supportent HEVC nativement). Si le codec vidéo n'est pas supporté par le navigateur, un message d'erreur explicite est affiché.
+
+### Security
+- **Authentification HTTP Basic optionnelle (BL-011)** : définir `HOARD_AUTH_USER` et `HOARD_AUTH_PASS` impose une authentification Basic sur toutes les requêtes. Désactivée par défaut (comportement inchangé). Pensée pour l'exposition hors LAN derrière un reverse proxy / HTTPS, sans système de comptes.
+- **Hachage du PIN avec scrypt (BL-030)** : le PIN est désormais haché avec `scrypt` (sel aléatoire par PIN, format `scrypt$sel$clé`) au lieu d'un SHA-256 sans sel. Les anciens PIN SHA-256 sont migrés de façon transparente lors de la première connexion réussie (aucune re-saisie requise).
+- **Journal d'audit des opérations (BL-036)** : journalisation `INFO` des suppressions, déplacements, démarrages/fins/échecs de téléchargement et modifications de réglages (avec l'IP cliente), et `WARNING` sur échec de vérification du PIN. Niveau pilotable via `LOG_LEVEL`.
+- **Thread-safety de `MEDIA_ROOT` (BL-032)** : les accès au `MEDIA_ROOT` global (modifiable via `POST /api/settings`) passent par un verrou et `get_media_root()`. `safe_path()` capture la racine une seule fois par appel, éliminant une lecture incohérente possible pendant une mise à jour concurrente (risque de contournement du contrôle de chemin).
+- **En-têtes de sécurité HTTP (BL-029)** : un middleware ajoute `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer` et une `Content-Security-Policy` sur toutes les réponses. La CSP préserve le frontend inline, l'import Google Fonts et les lecteurs média/PDF.js (`blob:`/`data:`).
+- **Validation du chemin de cookies de téléchargement (BL-031)** : le réglage `download_cookies_path` est désormais validé à l'enregistrement (`POST /api/settings`) — le chemin doit être absolu, porter l'extension `.txt`, exister et être lisible, sinon une erreur HTTP 422 explicite est renvoyée. Empêche de pointer yt-dlp vers un fichier arbitraire.
+
+### Accessibility
+- **Accessibilité (BL-039)** : `aria-label` (en français) ajoutés sur les boutons icône principaux (accueil, paramètres, file de téléchargement, lecture/pause, seek, plein écran, muet), indicateur de focus clavier (`:focus-visible`), et contraste de `--text-dim` relevé (#666 → #8a8a8a) pour respecter le seuil WCAG AA sur fond sombre.
+
+### Performance
+- **Index couvrant sur `progress` (BL-035)** : ajout de `idx_progress_active (duration, position, path)`. La construction de la carte de progression dans `/api/files` et `/api/search` (`WHERE duration > 0`) s'exécute désormais en balayage *index-only*, sans lecture de lignes, sur les bibliothèques volumineuses. (`progress.path` étant déjà clé primaire, un index sur `path` aurait été redondant.)
 
 ---
 

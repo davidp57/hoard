@@ -771,6 +771,41 @@ class TestSettings:
         resp = client.post("/api/settings", json={"initial_sweep_seconds": 7201})
         assert resp.status_code == 422
 
+    def test_gestures_overlay_seen_persists(self):
+        client.post("/api/settings", json={"gestures_overlay_seen": True})
+        assert client.get("/api/settings").json()["gestures_overlay_seen"] == "1"
+        client.post("/api/settings", json={"gestures_overlay_seen": False})
+        assert client.get("/api/settings").json()["gestures_overlay_seen"] == "0"
+
+    def test_cookies_path_accepts_valid_txt_file(self, tmp_path):
+        cookies = tmp_path / "cookies.txt"
+        cookies.write_text("# Netscape HTTP Cookie File\n")
+        resp = client.post("/api/settings", json={"download_cookies_path": str(cookies)})
+        assert resp.status_code == 200
+        assert resp.json()["ok"] is True
+        # Clear it again so it does not leak into other tests.
+        client.post("/api/settings", json={"download_cookies_path": ""})
+
+    def test_cookies_path_empty_clears_setting(self):
+        resp = client.post("/api/settings", json={"download_cookies_path": ""})
+        assert resp.status_code == 200
+        assert resp.json()["ok"] is True
+
+    def test_cookies_path_rejects_relative_path(self):
+        resp = client.post("/api/settings", json={"download_cookies_path": "cookies.txt"})
+        assert resp.status_code == 422
+
+    def test_cookies_path_rejects_non_txt_extension(self, tmp_path):
+        secret = tmp_path / "secret"
+        secret.write_text("sensitive")
+        resp = client.post("/api/settings", json={"download_cookies_path": str(secret)})
+        assert resp.status_code == 422
+
+    def test_cookies_path_rejects_missing_file(self, tmp_path):
+        missing = tmp_path / "nope.txt"
+        resp = client.post("/api/settings", json={"download_cookies_path": str(missing)})
+        assert resp.status_code == 422
+
     def test_seek_settings_defaults(self):
         resp = client.get("/api/settings")
         assert resp.status_code == 200
@@ -1440,15 +1475,22 @@ class TestDownload:
         # Reset setting so other tests are unaffected
         client.post("/api/settings", json={"download_cookies_path": ""})
 
-    def test_download_settings_persisted(self):
+    def test_download_settings_persisted(self, tmp_path):
+        cookies = tmp_path / "cookies.txt"
+        cookies.write_text("# Netscape HTTP Cookie File\n")
         resp = client.post(
             "/api/settings",
-            json={"download_folder": "WebVideos", "download_cookies_path": "/data/cookies.txt"},
+            json={
+                "download_folder": "WebVideos",
+                "download_cookies_path": str(cookies),
+            },
         )
         assert resp.status_code == 200
         settings = client.get("/api/settings").json()
         assert settings["download_folder"] == "WebVideos"
-        assert settings["download_cookies_path"] == "/data/cookies.txt"
+        assert settings["download_cookies_path"] == str(cookies)
+        # Reset so other tests are unaffected
+        client.post("/api/settings", json={"download_cookies_path": ""})
 
     def test_download_referer_sets_http_headers(self, monkeypatch):
         """When referer is provided, yt-dlp should receive an http_headers dict."""
@@ -1998,6 +2040,263 @@ class TestCookiesToNetscape:
         # Values containing '=' should be preserved (partition only splits on first =)
         result = _cookies_to_netscape("token=abc=def", "example.com")
         assert "token\tabc=def" in result
+
+
+# ── Security headers ──────────────────────────────────────────────────────────
+
+
+class TestSecurityHeaders:
+    def test_headers_present_on_api_response(self):
+        resp = client.get("/api/settings")
+        assert resp.headers["x-content-type-options"] == "nosniff"
+        assert resp.headers["x-frame-options"] == "DENY"
+        assert "default-src 'self'" in resp.headers["content-security-policy"]
+
+    def test_csp_allows_google_fonts_and_blob(self):
+        csp = client.get("/api/settings").headers["content-security-policy"]
+        assert "https://fonts.googleapis.com" in csp
+        assert "https://fonts.gstatic.com" in csp
+        assert "worker-src 'self' blob:" in csp
+
+
+# ── Database schema ─────────────────────────────────────────────────────────
+
+
+class TestSchema:
+    def _index_names(self):
+        import sqlite3
+
+        from backend.main import DB_PATH
+
+        conn = sqlite3.connect(str(DB_PATH))
+        try:
+            return {
+                r[0]
+                for r in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'index'"
+                ).fetchall()
+            }
+        finally:
+            conn.close()
+
+    def test_progress_active_index_exists(self):
+        # Covering index supporting the /api/files progress-map scan (BL-035).
+        assert "idx_progress_active" in self._index_names()
+
+    def test_segments_path_index_exists(self):
+        assert "idx_segments_path" in self._index_names()
+
+
+# ── Delete / move DB-first atomicity (BL-034) ──────────────────────────────────
+
+
+def _progress_position(rel):
+    import backend.main as m
+
+    with m.get_db() as conn:
+        row = conn.execute("SELECT position FROM progress WHERE path = ?", (rel,)).fetchone()
+    return None if row is None else row["position"]
+
+
+class TestDeleteMoveAtomicity:
+    def test_delete_removes_file_and_progress_row(self):
+        f = MEDIA_ROOT / "todel.mp4"
+        f.write_bytes(b"\x00" * 16)
+        client.post("/api/progress?path=todel.mp4", json={"position": 1, "duration": 2})
+        assert _progress_position("todel.mp4") == 1
+        resp = client.delete("/api/files?path=todel.mp4")
+        assert resp.status_code == 200
+        assert not f.exists()
+        assert _progress_position("todel.mp4") is None
+
+    def test_delete_rolls_back_db_when_fs_fails(self, monkeypatch):
+        import pathlib
+
+        f = MEDIA_ROOT / "locked.mp4"
+        f.write_bytes(b"\x00" * 16)
+        client.post("/api/progress?path=locked.mp4", json={"position": 3, "duration": 6})
+
+        def boom(self):
+            raise PermissionError("locked")
+
+        monkeypatch.setattr(pathlib.Path, "unlink", boom)
+        resp = client.delete("/api/files?path=locked.mp4")
+        assert resp.status_code == 423
+        # FS delete failed → DB must be rolled back, row preserved, file intact.
+        assert f.exists()
+        assert _progress_position("locked.mp4") == 3
+
+
+# ── Optional HTTP Basic auth (BL-011) ──────────────────────────────────────────
+
+
+class TestBasicAuth:
+    def test_disabled_by_default(self):
+        # No HOARD_AUTH_* env in tests → auth off, normal access.
+        assert client.get("/api/settings").status_code == 200
+
+    def test_check_basic_auth_helper(self, monkeypatch):
+        import base64
+
+        import backend.main as m
+
+        monkeypatch.setattr(m, "HOARD_AUTH_USER", "alice")
+        monkeypatch.setattr(m, "HOARD_AUTH_PASS", "secret")
+        good = "Basic " + base64.b64encode(b"alice:secret").decode()
+        bad = "Basic " + base64.b64encode(b"alice:wrong").decode()
+        assert m._check_basic_auth(good) is True
+        assert m._check_basic_auth(bad) is False
+        assert m._check_basic_auth("") is False
+
+    def test_middleware_challenges_and_allows(self, monkeypatch):
+        import base64
+
+        import backend.main as m
+
+        monkeypatch.setattr(m, "HOARD_AUTH_USER", "alice")
+        monkeypatch.setattr(m, "HOARD_AUTH_PASS", "secret")
+        monkeypatch.setattr(m, "_AUTH_ENABLED", True)
+        resp = client.get("/api/settings")
+        assert resp.status_code == 401
+        assert resp.headers["www-authenticate"].startswith("Basic")
+        token = base64.b64encode(b"alice:secret").decode()
+        resp = client.get("/api/settings", headers={"Authorization": f"Basic {token}"})
+        assert resp.status_code == 200
+
+
+# ── PIN hashing: scrypt (BL-030) ───────────────────────────────────────────────
+
+
+class TestPinHashing:
+    def test_pin_stored_as_scrypt_and_verifies(self):
+        import backend.main as m
+
+        client.post("/api/settings", json={"pin": "4321"})
+        with m.get_db() as conn:
+            row = conn.execute("SELECT value FROM settings WHERE key='pin_hash'").fetchone()
+        assert row["value"].startswith("scrypt$")
+        assert client.post("/api/settings/check-pin", json={"pin": "4321"}).status_code == 200
+        assert client.post("/api/settings/check-pin", json={"pin": "0000"}).status_code == 401
+        client.post("/api/settings", json={"pin": ""})  # cleanup
+
+    def test_legacy_sha256_pin_migrated_on_login(self):
+        import hashlib
+
+        import backend.main as m
+
+        legacy = hashlib.sha256(b"1357").hexdigest()
+        with m.get_db() as conn:
+            m._write_setting(conn, "pin_hash", legacy)
+            conn.commit()
+        # Legacy PIN still verifies and is transparently upgraded.
+        assert client.post("/api/settings/check-pin", json={"pin": "1357"}).status_code == 200
+        with m.get_db() as conn:
+            row = conn.execute("SELECT value FROM settings WHERE key='pin_hash'").fetchone()
+        assert row["value"].startswith("scrypt$")
+        client.post("/api/settings", json={"pin": ""})  # cleanup
+
+
+# ── Audit logging (BL-036) ─────────────────────────────────────────────────────
+
+
+class TestAuditLogging:
+    def test_delete_logs_audit_line(self, caplog):
+        import logging
+
+        f = MEDIA_ROOT / "audit.mp4"
+        f.write_bytes(b"\x00" * 8)
+        with caplog.at_level(logging.INFO, logger="hoard"):
+            client.delete("/api/files?path=audit.mp4")
+        assert any("file deleted" in r.getMessage() for r in caplog.records)
+
+    def test_settings_update_logs_audit_line(self, caplog):
+        import logging
+
+        with caplog.at_level(logging.INFO, logger="hoard"):
+            client.post("/api/settings", json={"sort_by": "name"})
+        assert any("settings updated" in r.getMessage() for r in caplog.records)
+
+    def test_wrong_pin_logs_warning(self, caplog):
+        import logging
+
+        client.post("/api/settings", json={"pin": "1234"})
+        with caplog.at_level(logging.WARNING, logger="hoard"):
+            resp = client.post("/api/settings/check-pin", json={"pin": "0000"})
+        assert resp.status_code == 401
+        assert any("PIN check failed" in r.getMessage() for r in caplog.records)
+        client.post("/api/settings", json={"pin": ""})  # cleanup
+
+
+# ── Job store TTL purge (BL-033) ───────────────────────────────────────────────
+
+
+class TestJobPurge:
+    def test_terminal_job_purged_after_ttl(self):
+        import time
+
+        import backend.main as m
+
+        m._jobs.clear()
+        m._jobs["old"] = {
+            "id": "old",
+            "status": "done",
+            "_finished_at": time.monotonic() - m.JOB_TTL_SECONDS - 1,
+        }
+        m._purge_old_jobs()
+        assert "old" not in m._jobs
+
+    def test_terminal_job_gets_ttl_clock_then_survives(self):
+        import backend.main as m
+
+        m._jobs.clear()
+        m._jobs["fresh"] = {"id": "fresh", "status": "done"}
+        m._purge_old_jobs()  # first sighting: stamps the clock, keeps the job
+        assert "fresh" in m._jobs
+        assert "_finished_at" in m._jobs["fresh"]
+
+    def test_active_job_never_purged(self):
+        import time
+
+        import backend.main as m
+
+        m._jobs.clear()
+        m._jobs["run"] = {
+            "id": "run",
+            "status": "running",
+            "_finished_at": time.monotonic() - m.JOB_TTL_SECONDS - 1,
+        }
+        m._purge_old_jobs()
+        assert "run" in m._jobs
+
+
+# ── MEDIA_ROOT thread-safety (BL-032) ──────────────────────────────────────────
+
+
+class TestMediaRootThreadSafety:
+    def test_get_set_media_root_roundtrip(self, tmp_path):
+        import backend.main as m
+
+        original = m.get_media_root()
+        try:
+            newdir = tmp_path / "mr"
+            newdir.mkdir()
+            m.set_media_root(newdir)
+            assert m.get_media_root() == newdir
+        finally:
+            m.set_media_root(original)
+
+    def test_safe_path_resolves_against_current_root(self, tmp_path):
+        import backend.main as m
+
+        original = m.get_media_root()
+        try:
+            newdir = tmp_path / "mr2"
+            newdir.mkdir()
+            (newdir / "a.txt").write_text("x")
+            m.set_media_root(newdir)
+            assert m.safe_path("a.txt") == (newdir / "a.txt").resolve()
+        finally:
+            m.set_media_root(original)
 
 
 # ── /api/search ──────────────────────────────────────────────────────────────
