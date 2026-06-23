@@ -5004,10 +5004,11 @@ document.addEventListener('keydown', e => {
     return;
   }
   // Seek keys — 4 levels via modifier. In browser mode (no media playing) the
-  // horizontal arrows have no action, mirroring the D-pad left/right.
+  // horizontal arrows have no action, mirroring the D-pad left/right. We still
+  // preventDefault so they stay a true no-op (no page scroll), not a fall-through.
   if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
-    if (!currentFile) return;
     e.preventDefault();
+    if (!currentFile) return;
     const dir = e.code === 'ArrowLeft' ? -1 : 1;
     let amount;
     if (e.altKey)        amount = cfg.seek_xlong;
