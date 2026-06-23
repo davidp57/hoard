@@ -73,7 +73,7 @@ Facteur de marge actuel : **0,40**.
 | --- | --- | --- | --- | --- | --- | --- |
 | BL-002 | Tri dans la liste : taille + état de lecture | P2 | 10 min | 2026-04-12 | 2026-06-23 | 2026-06-23 |
 | BL-003 | Marquer manuellement vu / non vu | P2 | 10 min | 2026-04-12 | 2026-05-09 | 2026-05-09 |
-| BL-006 | Renommage de fichiers/dossiers depuis l'UI | P2 | 15 min | 2026-04-12 | | |
+| BL-006 | Renommage de fichiers/dossiers depuis l'UI | P2 | 15 min | 2026-04-12 | 2026-06-23 | 2026-06-23 |
 | BL-008 | Sous-titres (`.srt` / `.ass` dans le même dossier) | P2 | 25 min | 2026-04-12 | | |
 | BL-013 | Thème clair (toggle) | P3 | 20 min | 2026-04-12 | | |
 | BL-066 | Plein écran fenêtré (immersif in-window) par défaut sur desktop | P2 | 15 min | 2026-06-14 | 2026-06-23 | 2026-06-23 |
@@ -139,8 +139,8 @@ Facteur de marge actuel : **0,40**.
 
 ### BL-006 — Rename From The UI
 
-- **Dates**: `created=2026-04-12`
-
+- **Dates**: `created=2026-04-12`, `started=2026-06-23`, `completed=2026-06-23`
+- **Statut**: ✅ Réalisé — endpoint `POST /api/files/rename` (`RenameRequest.new_name`) : `safe_path` sur source ET destination, nom validé (pas de `/`,`\`,NUL, ni `.`/`..`), collision → 409, atomicité DB-first (rollback si échec FS). Helper `_migrate_path_prefix()` migre `progress`/`segments` du chemin **et de tous les descendants** pour le renommage de dossier (substr, pas de LIKE → pas de souci avec `_`/`%`). Frontend : bouton ✏ par entrée + raccourci `R` (cible = fichier en cours ou curseur), modal `#rename-overlay`, appel via `apiFetch`, resync `currentFile` si on renomme la vidéo en cours. Tests : `TestRename` (6 cas, dont migration dossier+enfants). Docs dev + user-guide EN/FR + aide clavier.
 - **Why**: file cleanup often requires quick renaming without opening SMB or another file manager.
 - **Expected outcome**: rename files and folders safely from the web UI.
 - **Attention point**: path safety and collision handling must stay explicit and predictable.

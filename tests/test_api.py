@@ -2171,6 +2171,52 @@ class TestPinHashing:
         client.post("/api/settings", json={"pin": ""})  # cleanup
 
 
+# ── Rename (BL-006) ────────────────────────────────────────────────────────────
+
+
+class TestRename:
+    def test_rename_file_migrates_progress(self):
+        f = MEDIA_ROOT / "old.mp4"
+        f.write_bytes(b"\x00" * 16)
+        client.post("/api/progress?path=old.mp4", json={"position": 4, "duration": 8})
+        resp = client.post("/api/files/rename?path=old.mp4", json={"new_name": "new.mp4"})
+        assert resp.status_code == 200
+        assert not f.exists()
+        assert (MEDIA_ROOT / "new.mp4").exists()
+        assert _progress_position("old.mp4") is None
+        assert _progress_position("new.mp4") == 4
+
+    def test_rename_folder_migrates_children(self):
+        d = MEDIA_ROOT / "season"
+        d.mkdir()
+        (d / "ep1.mp4").write_bytes(b"\x00" * 16)
+        client.post("/api/progress?path=season/ep1.mp4", json={"position": 2, "duration": 10})
+        resp = client.post("/api/files/rename?path=season", json={"new_name": "saison"})
+        assert resp.status_code == 200
+        assert (MEDIA_ROOT / "saison" / "ep1.mp4").exists()
+        assert _progress_position("season/ep1.mp4") is None
+        assert _progress_position("saison/ep1.mp4") == 2
+
+    def test_rename_collision_409(self):
+        (MEDIA_ROOT / "a.mp4").write_bytes(b"\x00" * 8)
+        (MEDIA_ROOT / "b.mp4").write_bytes(b"\x00" * 8)
+        resp = client.post("/api/files/rename?path=a.mp4", json={"new_name": "b.mp4"})
+        assert resp.status_code == 409
+
+    def test_rename_invalid_name_400(self):
+        (MEDIA_ROOT / "c.mp4").write_bytes(b"\x00" * 8)
+        resp = client.post("/api/files/rename?path=c.mp4", json={"new_name": "sub/d.mp4"})
+        assert resp.status_code == 400
+
+    def test_rename_not_found_404(self):
+        resp = client.post("/api/files/rename?path=ghost.mp4", json={"new_name": "x.mp4"})
+        assert resp.status_code == 404
+
+    def test_rename_path_traversal_blocked(self):
+        resp = client.post("/api/files/rename?path=../../etc/passwd", json={"new_name": "x"})
+        assert resp.status_code == 403
+
+
 # ── Audit logging (BL-036) ─────────────────────────────────────────────────────
 
 

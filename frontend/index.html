@@ -1803,6 +1803,20 @@
   </div>
 </div>
 
+<!-- Rename modal -->
+<div id="rename-overlay" onclick="closeRenameModal(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
+  <div style="background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:12px;padding:24px;width:360px;max-width:95vw;display:flex;flex-direction:column;gap:14px">
+    <div style="font-size:15px;font-weight:700;color:var(--accent)">Renommer</div>
+    <input id="rename-input" type="text" placeholder="Nouveau nom" autocomplete="off"
+      style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Mono',monospace;font-size:13px;padding:9px 12px;outline:none;width:100%;box-sizing:border-box"
+      onkeydown="if(event.key==='Enter')confirmRename();else if(event.key==='Escape')closeRenameModal()">
+    <div style="display:flex;gap:8px">
+      <button onclick="confirmRename()" style="flex:1;background:var(--accent);color:#000;border:none;padding:10px;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">Renommer</button>
+      <button onclick="closeRenameModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:10px 16px;border-radius:8px;cursor:pointer;font-family:inherit">Annuler</button>
+    </div>
+  </div>
+</div>
+
 <!-- Delete confirmation dialog -->
 <div id="delete-dialog" onclick="if(event.target===this)closeDeleteDialog()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:340px;max-width:90vw;display:flex;flex-direction:column;gap:14px">
@@ -1863,6 +1877,7 @@
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">I / O</td><td style="padding:4px 8px">Marquer point IN / OUT</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">E</td><td style="padding:4px 8px">Ouvrir la fenêtre Couper</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">D</td><td style="padding:4px 8px">Ouvrir la fenêtre Déplacer</td></tr>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">R</td><td style="padding:4px 8px">Renommer (fichier en cours ou élément sélectionné)</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">Suppr</td><td style="padding:4px 8px">Supprimer le fichier en cours</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">S</td><td style="padding:4px 8px">Sauvegarder position initiale du dossier</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">?</td><td style="padding:4px 8px">Afficher / masquer cette aide</td></tr>
@@ -3498,6 +3513,7 @@ function renderEntry(e, i) {
       ${pinBtn}
       <button class="action-btn" onclick="openTagModal(${jsStr(e.path)}, ${jsStr(e.name)})">🏷</button>
       <button class="action-btn" onclick="openMoveModal(${jsStr(e.path)}, ${jsStr(e.name)})">↗</button>
+      <button class="action-btn" onclick="openRenameModal(${jsStr(e.path)}, ${jsStr(e.name)})" aria-label="Renommer">✏</button>
       <button class="action-btn danger" onclick="confirmDelete(${jsStr(e.path)}, ${jsStr(e.name)})">🗑</button>
     </div>
   ` : '';
@@ -4726,6 +4742,48 @@ async function confirmMkdir() {
   }
 }
 
+// ── Rename (BL-006) ─────────────────────────────────────────────────────────
+let _renameTargetPath = null;
+function openRenameModal(path, name) {
+  if (!path) return;
+  _renameTargetPath = path;
+  document.getElementById('rename-overlay').style.display = 'flex';
+  const input = document.getElementById('rename-input');
+  input.value = name || path.split('/').pop();
+  setTimeout(() => { input.focus(); input.select(); }, 50);
+}
+
+function closeRenameModal(e) {
+  if (e && e.target !== document.getElementById('rename-overlay')) return;
+  document.getElementById('rename-overlay').style.display = 'none';
+}
+
+async function confirmRename() {
+  const newName = document.getElementById('rename-input').value.trim();
+  if (!newName || !_renameTargetPath) return;
+  const path = _renameTargetPath;
+  document.getElementById('rename-overlay').style.display = 'none';
+  const resp = await apiFetch(`${API}/api/files/rename?path=${encodeURIComponent(path)}`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ new_name: newName }),
+  }).catch(() => null);
+  if (!resp) return;  // network error: apiFetch already showed a toast
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    showToast(`Erreur : ${err.detail || resp.status}`);
+    return;
+  }
+  // If the renamed item is the one currently playing, keep currentFile in sync.
+  if (currentFile && currentFile.path === path) {
+    const data = await resp.json().catch(() => ({}));
+    if (data.path) { currentFile.path = data.path; currentFile.name = newName; }
+  }
+  showToast(`Renommé en « ${newName} »`);
+  dirCache.delete(currentPath);
+  await navigate(currentPath);
+}
+
 // ── Utils ─────────────────────────────────────────────────────────────────────
 function formatTime(s) {
   if (!s || isNaN(s)) return '0:00';
@@ -5046,6 +5104,12 @@ document.addEventListener('keydown', e => {
   }
   // File list navigation (when no media is playing)
   if (e.code === 'Enter' && !currentFile && _gpCursorIdx >= 0) { _gpActivateCursor(); return; }
+  // Rename (BL-006): the playing file, or the browser cursor target.
+  if (e.code === 'KeyR') {
+    const t = currentFile ?? (_gpCursorIdx >= 0 ? _gpRenderedList[_gpCursorIdx] : null);
+    if (t) openRenameModal(t.path, t.name);
+    return;
+  }
   // Keys below require an active media file
   if (!currentFile) return;
   if (e.code === 'KeyM') { toggleMute(); return; }

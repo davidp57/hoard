@@ -306,6 +306,10 @@ class MkdirRequest(BaseModel):
     name: str  # folder name only (no slashes)
 
 
+class RenameRequest(BaseModel):
+    new_name: str  # new base name only (no slashes)
+
+
 class HomeRootRequest(BaseModel):
     name: str  # display name
     path: str  # relative path from MEDIA_ROOT
@@ -1594,6 +1598,45 @@ def make_directory(path: str, body: MkdirRequest):
         raise HTTPException(status_code=409, detail="Already exists")
     new_dir.mkdir()
     return {"ok": True}
+
+
+def _migrate_path_prefix(conn, table: str, old_rel: str, new_rel: str) -> None:
+    """Rewrite stored paths after a rename: the entry itself and, when it is a
+    folder, every descendant (prefix match). `table` is a trusted literal.
+    Uses substr equality (not LIKE) so '_' / '%' in names are not wildcards."""
+    conn.execute(f"UPDATE {table} SET path = ? WHERE path = ?", (new_rel, old_rel))
+    conn.execute(
+        f"UPDATE {table} SET path = ? || substr(path, ?) WHERE substr(path, 1, ?) = ?",
+        (new_rel, len(old_rel) + 1, len(old_rel) + 1, old_rel + "/"),
+    )
+
+
+@app.post("/api/files/rename")
+def rename_path(path: str, body: RenameRequest, request: Request):
+    source = safe_path(path)
+    if not source.exists():
+        raise HTTPException(status_code=404)
+    new_name = body.new_name.strip()
+    if not new_name or any(c in new_name for c in ("/", "\\", "\0")) or new_name in (".", ".."):
+        raise HTTPException(status_code=400, detail="Invalid name")
+    dest = safe_path(to_rel(source.parent / new_name))  # defense-in-depth re-check
+    if dest.exists():
+        raise HTTPException(status_code=409, detail="A file with that name already exists")
+    old_rel = to_rel(source)
+    new_rel = to_rel(dest)
+    # DB-first atomicity (BL-034 pattern): migrate metadata, then rename on disk,
+    # rolling back the DB if the filesystem op fails.
+    with get_db() as conn:
+        _migrate_path_prefix(conn, "progress", old_rel, new_rel)
+        _migrate_path_prefix(conn, "segments", old_rel, new_rel)
+        try:
+            source.rename(dest)
+        except OSError as e:
+            conn.rollback()
+            raise HTTPException(status_code=500, detail="Rename failed") from e
+        conn.commit()
+    logger.info("renamed: %s -> %s ip=%s", old_rel, new_rel, _client_ip(request))
+    return {"ok": True, "path": new_rel}
 
 
 # ── Cut / Jobs ────────────────────────────────────────────────────────────────

@@ -103,6 +103,7 @@ are not sent in clear text.
 | DELETE | `/api/files?path=` | Delete a file or folder |
 | POST | `/api/files/move?path=` | Move to `{destination}` (relative path) |
 | POST | `/api/files/mkdir` | Create a folder `{path}` |
+| POST | `/api/files/rename?path=` | Rename to `{new_name}` (base name only); migrates progress/segments, including folder descendants |
 | POST | `/api/files/cut` | Cut video via ffmpeg `{path, start, end, output}` |
 | GET | `/api/segments?path=` | List segments for a file (ordered by creation) |
 | POST | `/api/segments?path=` | Add a segment `{seg_in, seg_out}` → `{id}` |
