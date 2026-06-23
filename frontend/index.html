@@ -1592,7 +1592,8 @@
           <div id="volume-wrap">
             <span role="button" tabindex="0" aria-label="Muet / son" style="font-size:16px;cursor:pointer" onclick="toggleMute()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleMute();}">🔊</span>
             <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="1" oninput="setVolume(this.value)">
-          </div>          <button class="ctrl-btn" id="fullscreen-btn" onclick="toggleFullscreen()" title="Plein écran (F)" aria-label="Plein écran">&#x26F6;</button>
+          </div>          <button class="ctrl-btn" id="subs-btn" onclick="cycleSubtitles()" title="Sous-titres (C)" aria-label="Sous-titres">💬</button>
+          <button class="ctrl-btn" id="fullscreen-btn" onclick="toggleFullscreen()" title="Plein écran (F)" aria-label="Plein écran">&#x26F6;</button>
           <button class="ctrl-btn" id="speed-btn" onclick="cycleSpeed()" title="Vitesse de lecture">1×</button>
           <button class="ctrl-btn" id="fit-btn" onclick="toggleVideoFit()" title="Fit / Fill">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1859,6 +1860,7 @@
       <tbody>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">↑ / ↓</td><td style="padding:4px 8px">Volume +/− 10 % <span style="color:var(--text-dim)">(player actif)</span></td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">M</td><td style="padding:4px 8px">Muet / Son</td></tr>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">C</td><td style="padding:4px 8px">Sous-titres (cycle pistes / désactivé)</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">[ / ]</td><td style="padding:4px 8px">Vitesse − / + (0,5× → 1× → 1,5× → 2×)</td></tr>
       </tbody>
     </table>
@@ -3404,6 +3406,7 @@ async function navigate(path) {
   if (currentFile) {
     video.pause();
     video.src = '';
+    clearSubtitles();
     document.getElementById('video-container').classList.remove('active');
     document.getElementById('image-viewer').classList.remove('active', 'viewer-fullscreen');
     document.getElementById('audio-player').classList.remove('active');
@@ -3905,6 +3908,50 @@ function closePdfViewer() {
   document.getElementById('player-empty').style.display = '';
 }
 
+// ── Subtitles (BL-008) ───────────────────────────────────────────────────────
+// Sidecar .srt/.ass are detected by the backend and served as WebVTT <track>s.
+let _subtitleTracks = [];   // [{label, path}]
+let _subtitleIdx = -1;      // -1 = off
+
+function clearSubtitles() {
+  document.getElementById('video').querySelectorAll('track').forEach(t => t.remove());
+  _subtitleTracks = [];
+  _subtitleIdx = -1;
+}
+
+async function loadSubtitles(videoPath) {
+  clearSubtitles();
+  let list = [];
+  try {
+    const r = await apiFetch(`${API}/api/subtitles?path=${encodeURIComponent(videoPath)}`);
+    if (r.ok) list = await r.json();
+  } catch { return; }  // network error toast already shown by apiFetch
+  if (!Array.isArray(list) || !list.length) return;
+  const v = document.getElementById('video');
+  _subtitleTracks = list;
+  list.forEach((s, i) => {
+    const tr = document.createElement('track');
+    tr.kind = 'subtitles';
+    tr.label = s.label || `Piste ${i + 1}`;
+    tr.src = `${API}/api/subtitle?path=${encodeURIComponent(s.path)}`;
+    v.appendChild(tr);
+  });
+  // Start disabled; the user turns them on by cycling.
+  setTimeout(() => { for (const t of v.textTracks) t.mode = 'disabled'; }, 0);
+}
+
+function cycleSubtitles() {
+  if (!_subtitleTracks.length) { showToast('Aucun sous-titre disponible'); return; }
+  const v = document.getElementById('video');
+  _subtitleIdx = (_subtitleIdx + 1 >= _subtitleTracks.length) ? -1 : _subtitleIdx + 1;
+  for (let i = 0; i < v.textTracks.length; i++) {
+    v.textTracks[i].mode = (i === _subtitleIdx) ? 'showing' : 'disabled';
+  }
+  showToast(_subtitleIdx < 0
+    ? 'Sous-titres désactivés'
+    : `Sous-titres : ${_subtitleTracks[_subtitleIdx].label}`);
+}
+
 
 async function playVideo(idx) {
   const entry = entries[idx];
@@ -3982,6 +4029,7 @@ async function playVideo(idx) {
   }
   video.src = playbackChoice.src;
   resetSpeed();
+  loadSubtitles(entry.path);
   updateMediaMeta(mediaInfo);
 
   // Auto-save every 5s
@@ -4400,6 +4448,7 @@ function releaseVideoIfCurrent(path) {
   if (currentFile && currentFile.path === path) {
     video.pause();
     video.src = '';  // releases the file lock on Windows
+    clearSubtitles();
     resetFullscreenPlaybackUI();
     document.getElementById('video-container').classList.remove('active');
     document.getElementById('player-empty').style.display = '';
@@ -5116,6 +5165,7 @@ document.addEventListener('keydown', e => {
   // Keys below require an active media file
   if (!currentFile) return;
   if (e.code === 'KeyM') { toggleMute(); return; }
+  if (e.code === 'KeyC') { cycleSubtitles(); return; }
   if (e.code === 'KeyA') { toggleVideoFit(); return; }
   if (e.code === 'KeyW') { _gpToggleWatched(); return; }
   if (e.code === 'BracketLeft')  { cycleSpeed(-1); return; }
@@ -5330,8 +5380,7 @@ function _gpAction(action, gamepad) {
       if (hasVideo) { toggleVideoFit(); }
       break;
     case 'subtitles':
-      // no-op until BL-008
-      showToast('Sous-titres : non disponible');
+      cycleSubtitles();
       break;
     case 'move_quick_1':
       if (hasVideo && quickFolders[0]) {

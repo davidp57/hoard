@@ -1009,6 +1009,9 @@ IMAGE_EXTENSIONS = {
 AUDIO_EXTENSIONS = {".mp3", ".flac", ".ogg", ".m4a", ".aac", ".wav", ".opus"}
 PDF_EXTENSIONS = {".pdf"}
 ARCHIVE_EXTENSIONS = {".zip", ".cbz", ".cbr"}
+# Sidecar subtitle formats. Browsers' <track> only accepts WebVTT, so .srt/.ass
+# are converted to VTT on the fly when served (see /api/subtitle).
+SUBTITLE_EXTENSIONS = {".srt", ".ass", ".ssa", ".vtt"}
 
 
 def is_video(path: Path) -> bool:
@@ -1644,6 +1647,95 @@ def rename_path(path: str, body: RenameRequest, request: Request):
         conn.commit()
     logger.info("renamed: %s -> %s ip=%s", old_rel, new_rel, _client_ip(request))
     return {"ok": True, "path": new_rel}
+
+
+# ── Subtitles ───────────────────────────────────────────────────────────────
+# Browsers' <track> element only accepts WebVTT, so sidecar .srt/.ass files are
+# converted to VTT on the fly. .ass styling is dropped (plain text), which is the
+# pragmatic dependency-free option (full ASS rendering would need a WASM library).
+
+
+def _srt_to_vtt(text: str) -> str:
+    # SRT differs from VTT only by the ',' millisecond separator and the header.
+    body = re.sub(r"(\d{2}:\d{2}:\d{2}),(\d{3})", r"\1.\2", text.strip())
+    return "WEBVTT\n\n" + body
+
+
+def _ass_time_to_vtt(t: str) -> str:
+    # ASS time is H:MM:SS.cc (centiseconds) → VTT HH:MM:SS.mmm.
+    h, m, rest = t.strip().split(":")
+    s, _, cs = rest.partition(".")
+    ms = int((cs + "00")[:2]) * 10
+    return f"{int(h):02d}:{int(m):02d}:{int(s):02d}.{ms:03d}"
+
+
+def _ass_to_vtt(text: str) -> str:
+    fmt: list[str] | None = None
+    cues: list[str] = ["WEBVTT", ""]
+    in_events = False
+    for line in text.splitlines():
+        s = line.strip()
+        if s.startswith("[") and s.endswith("]"):
+            in_events = s.lower() == "[events]"
+            continue
+        if not in_events:
+            continue
+        key, _, value = s.partition(":")
+        key = key.strip().lower()
+        if key == "format":
+            fmt = [f.strip().lower() for f in value.split(",")]
+        elif key == "dialogue" and fmt:
+            parts = value.split(",", len(fmt) - 1)
+            row = {fmt[i]: (parts[i] if i < len(parts) else "") for i in range(len(fmt))}
+            start, end, txt = row.get("start"), row.get("end"), row.get("text", "")
+            if not start or not end:
+                continue
+            txt = re.sub(r"\{[^}]*\}", "", txt)  # strip override tags
+            txt = txt.replace("\\N", "\n").replace("\\n", "\n").replace("\\h", " ").strip()
+            if not txt:
+                continue
+            try:
+                cues.append(f"{_ass_time_to_vtt(start)} --> {_ass_time_to_vtt(end)}")
+            except (ValueError, IndexError):
+                continue
+            cues.append(txt)
+            cues.append("")
+    return "\n".join(cues)
+
+
+@app.get("/api/subtitles")
+def list_subtitles(path: str):
+    """List sidecar subtitle files for a video (same folder, sharing its stem)."""
+    video = safe_path(path)
+    if not video.exists():
+        raise HTTPException(status_code=404)
+    stem = video.stem
+    subs = []
+    for item in sorted(video.parent.iterdir()):
+        if not item.is_file() or item.suffix.lower() not in SUBTITLE_EXTENSIONS:
+            continue
+        if item.stem != stem and not item.name.startswith(stem + "."):
+            continue
+        mid = item.name[len(stem) :].rsplit(".", 1)[0].strip(". ")
+        subs.append({"label": mid or item.suffix.lstrip(".").upper(), "path": to_rel(item)})
+    return subs
+
+
+@app.get("/api/subtitle")
+def serve_subtitle(path: str):
+    """Serve a sidecar subtitle converted to WebVTT (so <track> can use it)."""
+    f = safe_path(path)
+    if not f.is_file() or f.suffix.lower() not in SUBTITLE_EXTENSIONS:
+        raise HTTPException(status_code=404)
+    raw = f.read_text(encoding="utf-8", errors="replace")
+    ext = f.suffix.lower()
+    if ext == ".vtt":
+        vtt = raw if raw.lstrip().startswith("WEBVTT") else "WEBVTT\n\n" + raw
+    elif ext == ".srt":
+        vtt = _srt_to_vtt(raw)
+    else:  # .ass / .ssa
+        vtt = _ass_to_vtt(raw)
+    return Response(content=vtt, media_type="text/vtt")
 
 
 # ── Cut / Jobs ────────────────────────────────────────────────────────────────
