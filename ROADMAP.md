@@ -74,6 +74,12 @@
 - [x] **Robustness**: `MEDIA_ROOT` thread-safety (BL-032), DB-first delete/move atomicity (BL-034), job-store TTL purge (BL-033), progress-map covering index (BL-035), cookies-path validation (BL-031)
 - [x] **Frontend**: fetch timeout + network feedback (BL-037), accessibility pass (BL-039), touch gesture discovery overlay (BL-038), keyboard-help contrast fix (BL-065)
 
+## v2.3 — Player desktop UX polish *(done)*
+
+- [x] **Windowed fullscreen by default on desktop** (BL-066): `F` = in-window immersive fullscreen, `Shift+F` = real OS fullscreen; touch devices keep the real API
+- [x] **Escape goes up one level** (BL-068): keyboard navigation mirrors the gamepad (Esc = B / `nav_back`), shared `navigateUp()`
+- [x] **Remove dead `/api/stream` endpoint** (BL-067): playback fully consolidated on `/api/file`
+
 ## v2.0 — Platform
 
 - [x] **Basic authentication** delivered as optional HTTP Basic auth (BL-011) — see v2.3
