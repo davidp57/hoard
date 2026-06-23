@@ -119,7 +119,7 @@ are not sent in clear text.
 | GET | `/api/settings` | Read user settings |
 | POST | `/api/settings` | Save user settings |
 | GET | `/api/media-info?path=` | Read on-demand playback metadata via ffprobe |
-| GET | `/api/stream?path=` | HTTP video stream with `Range` support (native seeking) |
+| GET | `/api/file?path=` | Serve any media file (video/image/audio/PDF) with `Range` support (native seeking) |
 | GET | `/api/transcode?path=` | Transcoded stream via ffmpeg |
 | POST | `/api/download` | Download a web video via yt-dlp `{url, cookies?, referer?, title?}` |
 | POST | `/api/jobs/{job_id}/cancel` | Cancel a pending or running download job |
@@ -133,7 +133,7 @@ The frontend applies a layered decision ladder:
 
 1. `video.canPlayType()` against the combined container/codecs MIME string.
 2. `navigator.mediaCapabilities.decodingInfo()` when the browser exposes it and the metadata is complete enough.
-3. `/api/stream` by default for the safe baseline and for `probe` formats such as HEVC-in-MP4, even if browser capability APIs stay conservative.
+3. `/api/file` by default for the safe baseline and for `probe` formats such as HEVC-in-MP4, even if browser capability APIs stay conservative.
 4. `/api/transcode` immediately only for explicit `fallback` formats, or later when native playback still fails at load time.
 
 See `docs/native-playback.en.md` for the compatibility matrix and the implemented strategy.

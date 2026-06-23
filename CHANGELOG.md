@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+- **Endpoint `/api/stream` (BL-067)** : suppression de l'endpoint de streaming hérité, devenu code mort depuis la migration vers `/api/file` (BL-053). La lecture de tout média passe par `/api/file` (validation Range/416 incluse). Docs mises à jour.
+
 ### Fixed
 - **Lisibilité de l'aide clavier (BL-065)** : la fenêtre d'aide (`?`) était illisible sur PC/Firefox (texte sombre sur fond sombre car le `<dialog>` héritait de la couleur de texte par défaut du navigateur). Couleur de texte désormais explicite.
 - **Délai et feedback réseau (BL-037)** : les appels critiques (listing, recherche, sauvegarde de progression, déplacement, suppression) passent par un wrapper `apiFetch` avec timeout (15 s) et affichent un toast en cas de lenteur/erreur réseau, au lieu de rester silencieusement bloqués (utile au réveil du NAS).

@@ -113,7 +113,7 @@ Facteur de marge actuel : **0,40**.
 | --- | --- | --- | --- | --- | --- | --- |
 | BL-042 | Transcoding hardware optionnel (VAAPI/NVENC) | P2 | 25 min | 2026-05-10 | | |
 | BL-041 | Découpage de main.py en modules | P3 | 35 min | 2026-05-10 | | |
-| BL-067 | Cleanup — supprimer l'endpoint `/api/stream` mort (legacy) | P3 | 5 min | 2026-06-14 | | |
+| BL-067 | Cleanup — supprimer l'endpoint `/api/stream` mort (legacy) | P3 | 5 min | 2026-06-14 | 2026-06-23 | 2026-06-23 |
 
 ---
 
@@ -581,6 +581,7 @@ Facteur de marge actuel : **0,40**.
   - Vérifier qu'aucune doc (`docs/developer.*.md`) ne le référence encore ; mettre à jour le cas échéant.
   - `ruff check` + `pytest` au vert.
 - **Attention** : si une raison de rétro-compatibilité externe existe (lien direct, marque-page), la documenter avant suppression ; sinon retirer franchement.
+- **Statut** : ✅ Réalisé — route `@app.get("/api/stream")` + handler `stream_video` supprimés. Classe de tests `TestStream` retirée (couverture équivalente déjà fournie par les tests `/api/file` : range 206, multi-range, 404, traversal). Docs mises à jour (developer EN/FR, native-playback EN/FR, user-guide EN/FR) pour pointer vers `/api/file`. **Écart d'estimation** : 5 min prévus, mais les références oubliées dans tests + 6 fichiers de doc ont allongé le ticket.
 
 ---
 
