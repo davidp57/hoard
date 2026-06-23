@@ -2203,9 +2203,10 @@ class TestRename:
         resp = client.post("/api/files/rename?path=a.mp4", json={"new_name": "b.mp4"})
         assert resp.status_code == 409
 
-    def test_rename_invalid_name_400(self):
+    @pytest.mark.parametrize("new_name", ["sub/d.mp4", "a\\b.mp4", ".", "..", "   ", ""])
+    def test_rename_invalid_name_400(self, new_name):
         (MEDIA_ROOT / "c.mp4").write_bytes(b"\x00" * 8)
-        resp = client.post("/api/files/rename?path=c.mp4", json={"new_name": "sub/d.mp4"})
+        resp = client.post("/api/files/rename?path=c.mp4", json={"new_name": new_name})
         assert resp.status_code == 400
 
     def test_rename_not_found_404(self):

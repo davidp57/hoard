@@ -1600,14 +1600,22 @@ def make_directory(path: str, body: MkdirRequest):
     return {"ok": True}
 
 
-def _migrate_path_prefix(conn, table: str, old_rel: str, new_rel: str) -> None:
+def _migrate_renamed_paths(conn, old_rel: str, new_rel: str) -> None:
     """Rewrite stored paths after a rename: the entry itself and, when it is a
-    folder, every descendant (prefix match). `table` is a trusted literal.
-    Uses substr equality (not LIKE) so '_' / '%' in names are not wildcards."""
-    conn.execute(f"UPDATE {table} SET path = ? WHERE path = ?", (new_rel, old_rel))
+    folder, every descendant (prefix match). Uses substr equality (not LIKE) so
+    '_' / '%' in names are not treated as wildcards. Table names are literal
+    (no string interpolation) to keep the queries parameterised and injection-safe."""
+    tail_start = len(old_rel) + 1
+    prefix = old_rel + "/"
+    conn.execute("UPDATE progress SET path = ? WHERE path = ?", (new_rel, old_rel))
     conn.execute(
-        f"UPDATE {table} SET path = ? || substr(path, ?) WHERE substr(path, 1, ?) = ?",
-        (new_rel, len(old_rel) + 1, len(old_rel) + 1, old_rel + "/"),
+        "UPDATE progress SET path = ? || substr(path, ?) WHERE substr(path, 1, ?) = ?",
+        (new_rel, tail_start, tail_start, prefix),
+    )
+    conn.execute("UPDATE segments SET path = ? WHERE path = ?", (new_rel, old_rel))
+    conn.execute(
+        "UPDATE segments SET path = ? || substr(path, ?) WHERE substr(path, 1, ?) = ?",
+        (new_rel, tail_start, tail_start, prefix),
     )
 
 
@@ -1627,8 +1635,7 @@ def rename_path(path: str, body: RenameRequest, request: Request):
     # DB-first atomicity (BL-034 pattern): migrate metadata, then rename on disk,
     # rolling back the DB if the filesystem op fails.
     with get_db() as conn:
-        _migrate_path_prefix(conn, "progress", old_rel, new_rel)
-        _migrate_path_prefix(conn, "segments", old_rel, new_rel)
+        _migrate_renamed_paths(conn, old_rel, new_rel)
         try:
             source.rename(dest)
         except OSError as e:

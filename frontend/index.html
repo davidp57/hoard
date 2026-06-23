@@ -2327,6 +2327,7 @@ function sortedList(list) {
       cmp = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
     } else if (sortBy === 'size') {
       cmp = (a.size || 0) - (b.size || 0);
+      if (cmp === 0) cmp = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
     } else if (sortBy === 'state') {
       cmp = watchStateRank(a) - watchStateRank(b);
       if (cmp === 0) cmp = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
@@ -4756,6 +4757,7 @@ function openRenameModal(path, name) {
 function closeRenameModal(e) {
   if (e && e.target !== document.getElementById('rename-overlay')) return;
   document.getElementById('rename-overlay').style.display = 'none';
+  _renameTargetPath = null;
 }
 
 async function confirmRename() {
@@ -4763,6 +4765,7 @@ async function confirmRename() {
   if (!newName || !_renameTargetPath) return;
   const path = _renameTargetPath;
   document.getElementById('rename-overlay').style.display = 'none';
+  _renameTargetPath = null;
   const resp = await apiFetch(`${API}/api/files/rename?path=${encodeURIComponent(path)}`, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
