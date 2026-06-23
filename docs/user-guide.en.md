@@ -211,8 +211,9 @@ Progressive seek through the video. **Speed depends on the vertical position of 
 | `Shift + ← / →` | Medium seek (30 s default) |
 | `Ctrl + ← / →` | Long seek (60 s default) |
 | `Alt + ← / →` | Extra-long seek (120 s default) |
-| `F` | Fullscreen |
-| `Esc` | Exit fullscreen — then close the player |
+| `F` | Fullscreen (in-window on desktop) |
+| `Shift + F` | Real OS fullscreen (on desktop; otherwise use `F11`) |
+| `Esc` | Exit fullscreen → close the player → go up one level in the tree |
 | `M` | Mute / Unmute |
 | `[ / ]` | Speed − / + (0.5× → 1× → 1.5× → 2×) |
 | `A` | Cycle aspect ratio (Fit / Fill / …) |
@@ -332,7 +333,7 @@ All downloads are tracked in a central queue accessible from the **📥** button
 | Setting | Description |
 |---------|-------------|
 | **Seek durations** | Four configurable levels in **Settings → Player**: short (default 10 s), medium (30 s), long (60 s), extra-long (120 s). Used by skip buttons, keyboard shortcuts, and double-taps. |
-| **Enable transcoding** | When disabled, Hoard always serves the original stream (`/api/stream`) without calling the transcoder. Useful if your NAS is slow or your browser can play the format natively. |
+| **Enable transcoding** | When disabled, Hoard always serves the original file (`/api/file`) without calling the transcoder. Useful if your NAS is slow or your browser can play the format natively. |
 | **Default initial sweep** | Start brand-new videos at N seconds instead of 0. Applies only when the file has no saved progress yet. `0` disables it globally. |
 | **Home roots** | Named root folders shown on the home screen. Add or remove them in **Settings → Home roots**. |
 | **Download folder** | Target folder, relative to `MEDIA_ROOT` (default: `Downloads`). Created automatically if it does not exist. |

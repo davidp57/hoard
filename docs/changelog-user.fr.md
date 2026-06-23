@@ -9,6 +9,10 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 ### Corrections
 - **Aide clavier lisible** : la fenêtre d'aide (touche `?`) s'affichait en texte sombre sur fond sombre sur PC/Firefox. Elle est de nouveau parfaitement lisible.
 
+### Améliorations
+- **Plein écran plus souple sur PC** : la touche `F` (et le bouton plein écran) affiche maintenant la vidéo en plein cadre **dans la fenêtre du navigateur** (interface masquée), sans passer en plein écran système. Pour un vrai plein écran, utilise `Maj+F` (ou `F11`). Sur iPad/tablette, rien ne change.
+- **Touche Échap plus pratique** : sur PC, quand aucune vidéo n'est ouverte, `Échap` remonte d'un dossier dans l'arborescence (comme le bouton B de la manette).
+
 ### Nouveautés
 - **Aide aux gestes tactiles** : la première fois que vous ouvrez une vidéo sur un écran tactile, un petit guide montre les gestes disponibles (double-tap pour avancer/reculer, tap pour mettre en pause, glissé pour le volume et la luminosité). Il ne s'affiche qu'une seule fois.
 

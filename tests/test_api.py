@@ -386,34 +386,9 @@ class TestMoveFile:
         assert resp.json()["position"] == 30
 
 
-# ── /api/stream ───────────────────────────────────────────────────────────────
-
-
-class TestStream:
-    def test_stream_returns_200(self, video_file):
-        resp = client.get(f"/api/stream?path={video_file}")
-        assert resp.status_code == 200
-        assert "video" in resp.headers["content-type"]
-
-    def test_stream_range_returns_206(self, video_file):
-        resp = client.get(f"/api/stream?path={video_file}", headers={"Range": "bytes=0-99"})
-        assert resp.status_code == 206
-        assert resp.headers["content-range"].startswith("bytes 0-99/")
-        assert len(resp.content) == 100
-
-    def test_stream_not_found(self):
-        resp = client.get("/api/stream?path=ghost.mp4")
-        assert resp.status_code == 404
-
-    def test_stream_non_video_rejected(self):
-        txt = MEDIA_ROOT / "readme.txt"
-        txt.write_text("hello")
-        resp = client.get("/api/stream?path=readme.txt")
-        assert resp.status_code == 404
-
-    def test_stream_path_traversal_blocked(self):
-        resp = client.get("/api/stream?path=../../etc/passwd")
-        assert resp.status_code == 403
+# Note: the legacy /api/stream endpoint was removed (BL-067). Playback of any
+# media file now goes through /api/file — see TestFile (range, multi-range,
+# 404 and path-traversal coverage).
 
 
 class TestMediaInfo:

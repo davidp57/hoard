@@ -210,8 +210,9 @@ Seek progressif dans la vidéo. La **vitesse dépend de la hauteur du doigt** : 
 | `Shift + ← / →` | Seek moyen (30 s par défaut) |
 | `Ctrl + ← / →` | Seek long (60 s par défaut) |
 | `Alt + ← / →` | Seek très long (120 s par défaut) |
-| `F` | Plein écran |
-| `Échap` | Quitter le plein écran — puis fermer le player |
+| `F` | Plein écran (fenêtré dans le navigateur sur PC) |
+| `Maj + F` | Vrai plein écran de l'OS (sur PC ; sinon `F11`) |
+| `Échap` | Quitter le plein écran → fermer le player → remonter d'un cran dans l'arborescence |
 | `M` | Muet / Son |
 | `[ / ]` | Vitesse − / + (0,5× → 1× → 1,5× → 2×) |
 | `A` | Cycle aspect ratio (Fit / Fill / …) |
@@ -331,7 +332,7 @@ Tous les téléchargements sont regroupés dans une file centrale accessible dep
 | Paramètre | Description |
 |-----------|-------------|
 | **Durées de seek** | Quatre niveaux configurables dans **Paramètres → Player** : court (défaut 10 s), moyen (30 s), long (60 s), très long (120 s). Utilisés par les boutons, les raccourcis clavier et les double-taps. |
-| **Activer le transcodage** | Quand désactivé, Hoard envoie toujours le flux original (`/api/stream`) sans appeler le transcodeur. Utile si votre NAS est lent ou si votre navigateur lit nativement le format. |
+| **Activer le transcodage** | Quand désactivé, Hoard envoie toujours le fichier original (`/api/file`) sans appeler le transcodeur. Utile si votre NAS est lent ou si votre navigateur lit nativement le format. |
 | **Initial sweep par défaut** | Démarre les vidéos neuves à N secondes au lieu de 0. S'applique seulement si le fichier n'a aucune progression enregistrée. `0` le désactive globalement. |
 | **Dossiers home** | Liste de dossiers nommés affichés sur l'écran d'accueil. Ajouter/supprimer dans **Paramètres → Dossiers home**. |
 | **Dossier de téléchargement** | Dossier cible, relatif à `MEDIA_ROOT` (défaut : `Downloads`). Créé automatiquement s'il n'existe pas. |

@@ -30,7 +30,7 @@ Facteur de marge actuel : **0,40**.
 
 | ID | Titre | Prio | Est. | Créé | Démarré | Terminé |
 | --- | --- | --- | --- | --- | --- | --- |
-| BL-068 | Clavier — Échap = B (remonter d'un cran) + alignement complet sur le D-pad | P2 | 10 min | 2026-06-14 | | |
+| BL-068 | Clavier — Échap = B (remonter d'un cran) + alignement complet sur le D-pad | P2 | 10 min | 2026-06-14 | 2026-06-23 | 2026-06-23 |
 
 ---
 
@@ -76,7 +76,7 @@ Facteur de marge actuel : **0,40**.
 | BL-006 | Renommage de fichiers/dossiers depuis l'UI | P2 | 15 min | 2026-04-12 | | |
 | BL-008 | Sous-titres (`.srt` / `.ass` dans le même dossier) | P2 | 25 min | 2026-04-12 | | |
 | BL-013 | Thème clair (toggle) | P3 | 20 min | 2026-04-12 | | |
-| BL-066 | Plein écran fenêtré (immersif in-window) par défaut sur desktop | P2 | 15 min | 2026-06-14 | | |
+| BL-066 | Plein écran fenêtré (immersif in-window) par défaut sur desktop | P2 | 15 min | 2026-06-14 | 2026-06-23 | 2026-06-23 |
 | BL-015 | Progression de lecture multi-utilisateur *(dépend de BL-011)* | P2 | 35 min | 2026-04-12 | | |
 
 ---
@@ -113,7 +113,7 @@ Facteur de marge actuel : **0,40**.
 | --- | --- | --- | --- | --- | --- | --- |
 | BL-042 | Transcoding hardware optionnel (VAAPI/NVENC) | P2 | 25 min | 2026-05-10 | | |
 | BL-041 | Découpage de main.py en modules | P3 | 35 min | 2026-05-10 | | |
-| BL-067 | Cleanup — supprimer l'endpoint `/api/stream` mort (legacy) | P3 | 5 min | 2026-06-14 | | |
+| BL-067 | Cleanup — supprimer l'endpoint `/api/stream` mort (legacy) | P3 | 5 min | 2026-06-14 | 2026-06-23 | 2026-06-23 |
 
 ---
 
@@ -566,6 +566,7 @@ Facteur de marge actuel : **0,40**.
   - **Point d'attention principal** : le handler `fullscreenchange` (~4830) déplace `delete-dialog` / `move-dialog` / `export-dialog` / `gp-overlay` dans `document.fullscreenElement` pour qu'ils restent visibles ; ce handler **ne se déclenche pas** en mode fenêtré. Vérifier que ces dialogs/overlays s'affichent bien par-dessus `#video-container.faux-fullscreen` (z-index / position), sinon les rattacher explicitement à l'entrée/sortie du mode fenêtré.
   - Vérifier aussi : masquage auto des contrôles, restauration du curseur gamepad, bascule du label/icône du bouton plein écran.
 - **Attention** : frontend-only, aucune modif backend. Ne pas régresser le fallback existant ni le flux manette.
+- **Statut** : ✅ Réalisé — `toggleFullscreen(opts)` device-aware : entrée en `faux-fullscreen` par défaut sur desktop (`pointer: fine`), vrai `requestFullscreen` si `pointer: coarse` (iPad) ou `opts.forceReal`. `Maj+F` → `toggleFullscreen({forceReal: e.shiftKey})`. Bouton/Y conservent le défaut (fenêtré sur PC). Contrainte « spécial plein écran » satisfaite : auto-play suivant via `isInFullscreen()` (couvre faux), dialogues d'action déjà gérés en faux-fullscreen (commit `d839962`). Aide clavier + user-guide EN/FR à jour. Choix : `Maj+F` plutôt qu'un bouton dédié supplémentaire (toolbar épurée). Syntaxe JS validée.
 
 ---
 
@@ -581,6 +582,7 @@ Facteur de marge actuel : **0,40**.
   - Vérifier qu'aucune doc (`docs/developer.*.md`) ne le référence encore ; mettre à jour le cas échéant.
   - `ruff check` + `pytest` au vert.
 - **Attention** : si une raison de rétro-compatibilité externe existe (lien direct, marque-page), la documenter avant suppression ; sinon retirer franchement.
+- **Statut** : ✅ Réalisé — route `@app.get("/api/stream")` + handler `stream_video` supprimés. Classe de tests `TestStream` retirée (couverture équivalente déjà fournie par les tests `/api/file` : range 206, multi-range, 404, traversal). Docs mises à jour (developer EN/FR, native-playback EN/FR, user-guide EN/FR) pour pointer vers `/api/file`. **Écart d'estimation** : 5 min prévus, mais les références oubliées dans tests + 6 fichiers de doc ont allongé le ticket.
 
 ---
 
@@ -601,3 +603,4 @@ Facteur de marge actuel : **0,40**.
   - Vérifier ←/→ en browser (player inactif) : aujourd'hui ils appellent `skip()` sans garde `currentFile` (~4929) → no-op au mieux. Aligner sur le D-pad gauche/droite (pas de rôle de navigation en browser) : ne rien faire si player inactif.
   - Mettre à jour `<dialog id="shortcuts-dialog">` : ligne « Échap → remonter d'un cran (player inactif) ».
 - **Attention** : ne pas casser la cascade Échap existante (fermer dialog/viewer/fullscreen/player garde la priorité) ; `navigateUp()` ne doit s'appliquer qu'en dernier, browser actif et `currentPath` non racine. Frontend-only, aucune modif backend.
+- **Statut** : ✅ Réalisé — `navigateUp()` factorisée et partagée par le case pad `nav_back` et le handler `Escape` (ajout `if (currentPath) { navigateUp(); return; }` en fin de cascade). Flèches ←/→ : ajout d'un garde `if (!currentFile) return;` → sans effet en mode navigation. Aide clavier mise à jour. Syntaxe JS validée (`node --check`). ↑/↓ et Entrée étaient déjà alignés (BL-060).

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Plein écran fenêtré par défaut sur PC (BL-066)** : sur desktop, `F` et le bouton plein écran passent désormais en mode **immersif dans la fenêtre** (vidéo plein cadre + UI masquée, sans quitter le navigateur) ; `Maj+F` déclenche le vrai plein écran de l'OS. Sur tablette/tactile (iPad), le comportement est inchangé (vrai plein écran). Toutes les actions « spéciales plein écran » (lecture auto du suivant, dialogues supprimer/déplacer, etc.) fonctionnent à l'identique en mode fenêtré.
+- **Clavier — Échap remonte d'un cran (BL-068)** : sur PC, quand aucun média n'est ouvert, `Échap` remonte d'un niveau dans l'arborescence (comme le bouton B au pad), via une fonction `navigateUp()` partagée. La cascade existante (fermer dialogue → quitter plein écran → fermer le player) est conservée et prioritaire. Les flèches ←/→ n'ont plus d'effet en mode navigation (alignement sur le D-pad).
+
+### Removed
+- **Endpoint `/api/stream` (BL-067)** : suppression de l'endpoint de streaming hérité, devenu code mort depuis la migration vers `/api/file` (BL-053). La lecture de tout média passe par `/api/file` (validation Range/416 incluse). Docs mises à jour.
+
 ### Fixed
 - **Lisibilité de l'aide clavier (BL-065)** : la fenêtre d'aide (`?`) était illisible sur PC/Firefox (texte sombre sur fond sombre car le `<dialog>` héritait de la couleur de texte par défaut du navigateur). Couleur de texte désormais explicite.
 - **Délai et feedback réseau (BL-037)** : les appels critiques (listing, recherche, sauvegarde de progression, déplacement, suppression) passent par un wrapper `apiFetch` avec timeout (15 s) et affichent un toast en cas de lenteur/erreur réseau, au lieu de rester silencieusement bloqués (utile au réveil du NAS).

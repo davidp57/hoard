@@ -115,7 +115,7 @@ comptes — utiliser HTTPS pour ne pas transmettre les identifiants en clair.
 | GET | `/api/settings` | Lit les paramètres utilisateur |
 | POST | `/api/settings` | Sauvegarde les paramètres |
 | GET | `/api/media-info?path=` | Lit à la demande les métadonnées de lecture via ffprobe |
-| GET | `/api/stream?path=` | Stream HTTP avec support `Range` (seeking natif) |
+| GET | `/api/file?path=` | Sert n'importe quel fichier média (vidéo/image/audio/PDF) avec support `Range` (seeking natif) |
 | GET | `/api/transcode?path=` | Stream transcodé via ffmpeg |
 | POST | `/api/download` | Télécharge une vidéo web via yt-dlp `{url, cookies?, referer?, title?}` |
 | POST | `/api/jobs/{job_id}/cancel` | Annule un job de téléchargement en attente ou en cours |
@@ -129,7 +129,7 @@ Le frontend applique une échelle de décision :
 
 1. `video.canPlayType()` sur la chaîne MIME combinant conteneur et codecs.
 2. `navigator.mediaCapabilities.decodingInfo()` quand le navigateur l'expose et que les métadonnées sont assez complètes.
-3. `/api/stream` par défaut pour la base sûre et pour les formats `probe` comme HEVC dans MP4, même si les API de capacité du navigateur restent prudentes.
+3. `/api/file` par défaut pour la base sûre et pour les formats `probe` comme HEVC dans MP4, même si les API de capacité du navigateur restent prudentes.
 4. `/api/transcode` immédiatement seulement pour les formats `fallback` explicites, ou ensuite quand la lecture native échoue malgré tout au chargement réel.
 
 Voir `docs/native-playback.fr.md` pour la matrice de compatibilité et la stratégie désormais implémentée.

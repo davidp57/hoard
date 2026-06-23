@@ -1847,8 +1847,8 @@
     <div style="font-size:11px;font-weight:700;color:var(--text-dim);margin-top:6px;text-transform:uppercase;letter-spacing:.05em">Player</div>
     <table style="width:100%;border-collapse:collapse;font-size:12px">
       <tbody>
-        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">F</td><td style="padding:4px 8px">Plein écran</td></tr>
-        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">Échap</td><td style="padding:4px 8px">Quitter plein écran — puis fermer le player</td></tr>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">F</td><td style="padding:4px 8px">Plein écran (fenêtré sur PC) <span style="color:var(--text-dim)">— Maj+F pour le vrai plein écran</span></td></tr>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">Échap</td><td style="padding:4px 8px">Quitter plein écran → fermer le player → remonter d'un cran (comme B au pad)</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">A</td><td style="padding:4px 8px">Cycle aspect ratio (Fit / Fill / …)</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">W</td><td style="padding:4px 8px">Marquer vu / non vu</td></tr>
       </tbody>
@@ -4856,28 +4856,43 @@ function syncFullscreenUI() {
   }
 }
 
-function toggleFullscreen() {
-  const useFaux = !document.fullscreenEnabled || typeof videoContainer.requestFullscreen !== 'function';
+// Fullscreen toggle. Default per device: on desktop (fine pointer) we use the
+// in-window "faux-fullscreen" (immersive within the browser window) — the user
+// can press F11 for a real OS fullscreen. On touch devices (iPad: no F11) we
+// use the real Fullscreen API. Shift+F (opts.forceReal) forces the real API on
+// desktop. Everything that depends on fullscreen state goes through
+// isInFullscreen(), which covers faux-fullscreen too, so behavior is identical.
+function toggleFullscreen(opts = {}) {
+  // Already in a fullscreen state → exit whichever is active.
   if (videoContainer.classList.contains('faux-fullscreen')) {
     videoContainer.classList.remove('faux-fullscreen');
     syncFullscreenUI();
-  } else if (document.fullscreenElement === videoContainer) {
+    return;
+  }
+  if (document.fullscreenElement === videoContainer) {
     document.exitFullscreen();
-  } else if (useFaux) {
+    return;
+  }
+  // Entering: pick windowed vs real.
+  const realAvailable =
+    document.fullscreenEnabled && typeof videoContainer.requestFullscreen === 'function';
+  const coarsePointer = !!window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+  const wantReal = realAvailable && (opts.forceReal === true || coarsePointer);
+  if (!wantReal) {
     videoContainer.classList.add('faux-fullscreen');
     syncFullscreenUI();
-  } else {
-    videoContainer.requestFullscreen().catch(err => {
-      if (err.name === 'NotAllowedError') {
-        // Browser requires a direct user gesture (e.g. Firefox + gamepad polling).
-        // Fall back to CSS faux-fullscreen so the gamepad Y button still works.
-        videoContainer.classList.add('faux-fullscreen');
-        syncFullscreenUI();
-      } else {
-        console.warn('requestFullscreen failed:', err);
-      }
-    });
+    return;
   }
+  videoContainer.requestFullscreen().catch(err => {
+    if (err.name === 'NotAllowedError') {
+      // Browser requires a direct user gesture (e.g. Firefox + gamepad polling).
+      // Fall back to CSS faux-fullscreen so the gamepad Y button still works.
+      videoContainer.classList.add('faux-fullscreen');
+      syncFullscreenUI();
+    } else {
+      console.warn('requestFullscreen failed:', err);
+    }
+  });
 }
 
 document.addEventListener('fullscreenchange', () => {
@@ -4931,6 +4946,8 @@ document.addEventListener('keydown', e => {
     }
     if (isInFullscreen()) { toggleFullscreen(); return; }
     if (currentFile !== null) { privacyClose(); return; }
+    // Browser mode: Escape goes up one level, mirroring the gamepad B button.
+    if (currentPath) { navigateUp(); return; }
   }
   // Keyboard navigation for open dialogs (mirrors gamepad: ↑↓ = navigate, Enter = confirm, Escape already handled above)
   {
@@ -4972,7 +4989,8 @@ document.addEventListener('keydown', e => {
     bumpFullscreenControlsIdle();
   }
   if (e.code === 'Space') { e.preventDefault(); togglePlay(); return; }
-  if (e.code === 'KeyF') { toggleFullscreen(); return; }
+  // F = in-window fullscreen (desktop default); Shift+F = real OS fullscreen.
+  if (e.code === 'KeyF') { toggleFullscreen({ forceReal: e.shiftKey }); return; }
   if (e.code === 'ArrowUp') {
     e.preventDefault();
     if (currentFile) { setVolume(Math.min(1, video.volume + 0.1)); }
@@ -4985,9 +5003,12 @@ document.addEventListener('keydown', e => {
     else             { _gpMoveCursor(1); }
     return;
   }
-  // Seek keys — 4 levels via modifier
+  // Seek keys — 4 levels via modifier. In browser mode (no media playing) the
+  // horizontal arrows have no action, mirroring the D-pad left/right. We still
+  // preventDefault so they stay a true no-op (no page scroll), not a fall-through.
   if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
     e.preventDefault();
+    if (!currentFile) return;
     const dir = e.code === 'ArrowLeft' ? -1 : 1;
     let amount;
     if (e.altKey)        amount = cfg.seek_xlong;
@@ -5267,9 +5288,15 @@ function _gpAction(action, gamepad) {
       _gpActivateCursor();
       break;
     case 'nav_back':
-      if (currentPath) navigate(currentPath.split('/').slice(0, -1).join('/'));
+      navigateUp();
       break;
   }
+}
+
+// Go up one level in the folder tree (no-op at root). Shared by the gamepad B
+// button (nav_back) and the keyboard Escape handler so both behave identically.
+function navigateUp() {
+  if (currentPath) navigate(currentPath.split('/').slice(0, -1).join('/'));
 }
 
 // ── Gamepad async toggle watched ──────────────────────────────────────────────

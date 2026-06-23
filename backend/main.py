@@ -2377,55 +2377,6 @@ def check_pin(body: dict, request: Request):
     raise HTTPException(status_code=401, detail="Wrong PIN")
 
 
-@app.get("/api/stream")
-def stream_video(path: str, request: Request):
-    file = safe_path(path)
-    if not file.exists() or not is_video(file):
-        raise HTTPException(status_code=404)
-
-    file_size = file.stat().st_size
-    mime_type = mimetypes.guess_type(str(file))[0] or "video/mp4"
-
-    range_header = request.headers.get("range")
-    if range_header:
-        start, end = 0, file_size - 1
-        range_str = range_header.replace("bytes=", "")
-        parts = range_str.split("-")
-        start = int(parts[0]) if parts[0] else 0
-        end = int(parts[1]) if parts[1] else file_size - 1
-        chunk_size = end - start + 1
-
-        def iter_file():
-            with open(file, "rb") as f:
-                f.seek(start)
-                remaining = chunk_size
-                while remaining > 0:
-                    chunk = f.read(min(65536, remaining))
-                    if not chunk:
-                        break
-                    yield chunk
-                    remaining -= len(chunk)
-
-        headers = {
-            "Content-Range": f"bytes {start}-{end}/{file_size}",
-            "Accept-Ranges": "bytes",
-            "Content-Length": str(chunk_size),
-            "Content-Type": mime_type,
-        }
-        return StreamingResponse(iter_file(), status_code=206, headers=headers)
-
-    def iter_full():
-        with open(file, "rb") as f:
-            while chunk := f.read(65536):
-                yield chunk
-
-    return StreamingResponse(
-        iter_full(),
-        media_type=mime_type,
-        headers={"Accept-Ranges": "bytes", "Content-Length": str(file_size)},
-    )
-
-
 @app.get("/api/media-info")
 def media_info(path: str):
     file = safe_path(path)
