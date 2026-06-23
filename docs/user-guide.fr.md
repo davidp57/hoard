@@ -47,6 +47,7 @@ La barre de filtrage apparaît automatiquement dès qu'un dossier contient au mo
 | **▶ Lire** | Ouvre la vidéo dans le player |
 | **🏷 Tags** | Ouvre le modal de gestion des tags |
 | **📁 Déplacer** | Ouvre le modal de déplacement (dossiers épinglés + sélecteur libre) |
+| **✏ Renommer** | Ouvre la fenêtre de renommage (touche `R`) |
 | **🗑 Supprimer** | Supprime le fichier après confirmation |
 
 ### Déplacer vers un dossier quelconque
@@ -221,6 +222,7 @@ Seek progressif dans la vidéo. La **vitesse dépend de la hauteur du doigt** : 
 | `I / O` | Marquer point IN / OUT |
 | `E` | Ouvrir la fenêtre Couper |
 | `D` | Ouvrir la fenêtre Déplacer |
+| `R` | Renommer (fichier en cours ou élément sélectionné) |
 | `Suppr` | Supprimer le fichier en cours |
 | `S` | Sauvegarder la position initiale du dossier |
 | `?` | Afficher / masquer l'aide clavier |

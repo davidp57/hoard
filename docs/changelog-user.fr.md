@@ -14,6 +14,8 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 - **Touche Échap plus pratique** : sur PC, quand aucune vidéo n'est ouverte, `Échap` remonte d'un dossier dans l'arborescence (comme le bouton B de la manette).
 
 ### Nouveautés
+- **Renommer fichiers et dossiers** : un bouton ✏ apparaît sur chaque élément de la liste (ou appuie sur `R`) pour le renommer directement depuis Hoard, sans passer par un autre outil. Renommer un dossier conserve la progression de lecture des vidéos qu'il contient.
+- **Trier par taille ou par état** : en plus de Date et Nom, tu peux désormais trier la liste par taille de fichier ou par état de lecture (non vu / en cours / vu).
 - **Aide aux gestes tactiles** : la première fois que vous ouvrez une vidéo sur un écran tactile, un petit guide montre les gestes disponibles (double-tap pour avancer/reculer, tap pour mettre en pause, glissé pour le volume et la luminosité). Il ne s'affiche qu'une seule fois.
 
 ### Améliorations

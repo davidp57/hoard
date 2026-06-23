@@ -48,6 +48,7 @@ The tag filter bar appears automatically as soon as a folder contains at least o
 | **▶ Play** | Opens the video in the player |
 | **🏷 Tags** | Opens the tag management modal |
 | **📁 Move** | Opens the move modal (pinned folders + free-pick browser) |
+| **✏ Rename** | Opens the rename dialog (`R` key) |
 | **🗑 Delete** | Deletes the file after confirmation |
 
 ### Moving to Any Folder
@@ -222,6 +223,7 @@ Progressive seek through the video. **Speed depends on the vertical position of 
 | `I / O` | Set IN / OUT marker |
 | `E` | Open Trim window |
 | `D` | Open Move window |
+| `R` | Rename (current file or selected entry) |
 | `Delete` | Delete current file |
 | `S` | Save folder start position |
 | `?` | Show / hide keyboard help |

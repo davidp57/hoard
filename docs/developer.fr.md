@@ -103,6 +103,7 @@ comptes — utiliser HTTPS pour ne pas transmettre les identifiants en clair.
 | DELETE | `/api/files?path=` | Supprime un fichier ou dossier |
 | POST | `/api/files/move?path=` | Déplace vers `{destination}` (chemin relatif) |
 | POST | `/api/files/mkdir` | Crée un dossier `{path}` |
+| POST | `/api/files/rename?path=` | Renomme en `{new_name}` (nom seul) ; migre progress/segments, descendants de dossier inclus |
 | POST | `/api/files/cut` | Découpe vidéo via ffmpeg `{path, start, end, output}` |
 | GET | `/api/jobs` | État des jobs background en cours (découpes ffmpeg, téléchargements) |
 | GET | `/api/quick-folders` | Liste les dossiers épinglés |

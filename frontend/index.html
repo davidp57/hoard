@@ -1328,6 +1328,8 @@
           <select class="s-select" id="s-sort-by">
             <option value="date">Date</option>
             <option value="name">Nom</option>
+            <option value="size">Taille</option>
+            <option value="state">État de lecture</option>
           </select>
           <select class="s-select" id="s-sort-dir">
             <option value="desc">Décroissant</option>
@@ -1529,6 +1531,8 @@
     <div id="sort-bar">
       <button class="sort-btn" id="sort-date-btn" onclick="setSortBy('date')">Date</button>
       <button class="sort-btn" id="sort-name-btn" onclick="setSortBy('name')">Nom</button>
+      <button class="sort-btn" id="sort-size-btn" onclick="setSortBy('size')">Taille</button>
+      <button class="sort-btn" id="sort-state-btn" onclick="setSortBy('state')">État</button>
       <button class="sort-btn" id="sort-dir-btn" onclick="toggleSortDir()" title="Inverser l'ordre">&#x2193;</button>
       <div id="refresh-indicator" title="Mise à jour en cours…"></div>
       <button class="sort-btn" onclick="openMkdirModal()" title="Nouveau dossier" style="margin-left:4px">&#x2795;</button>
@@ -1799,6 +1803,20 @@
   </div>
 </div>
 
+<!-- Rename modal -->
+<div id="rename-overlay" onclick="closeRenameModal(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
+  <div style="background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:12px;padding:24px;width:360px;max-width:95vw;display:flex;flex-direction:column;gap:14px">
+    <div style="font-size:15px;font-weight:700;color:var(--accent)">Renommer</div>
+    <input id="rename-input" type="text" placeholder="Nouveau nom" autocomplete="off"
+      style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Mono',monospace;font-size:13px;padding:9px 12px;outline:none;width:100%;box-sizing:border-box"
+      onkeydown="if(event.key==='Enter')confirmRename();else if(event.key==='Escape')closeRenameModal()">
+    <div style="display:flex;gap:8px">
+      <button onclick="confirmRename()" style="flex:1;background:var(--accent);color:#000;border:none;padding:10px;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">Renommer</button>
+      <button onclick="closeRenameModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:10px 16px;border-radius:8px;cursor:pointer;font-family:inherit">Annuler</button>
+    </div>
+  </div>
+</div>
+
 <!-- Delete confirmation dialog -->
 <div id="delete-dialog" onclick="if(event.target===this)closeDeleteDialog()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:340px;max-width:90vw;display:flex;flex-direction:column;gap:14px">
@@ -1859,6 +1877,7 @@
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">I / O</td><td style="padding:4px 8px">Marquer point IN / OUT</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">E</td><td style="padding:4px 8px">Ouvrir la fenêtre Couper</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">D</td><td style="padding:4px 8px">Ouvrir la fenêtre Déplacer</td></tr>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">R</td><td style="padding:4px 8px">Renommer (fichier en cours ou élément sélectionné)</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">Suppr</td><td style="padding:4px 8px">Supprimer le fichier en cours</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">S</td><td style="padding:4px 8px">Sauvegarder position initiale du dossier</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">?</td><td style="padding:4px 8px">Afficher / masquer cette aide</td></tr>
@@ -2292,6 +2311,8 @@ function toggleSortDir() {
 function updateSortUI() {
   document.getElementById('sort-date-btn').classList.toggle('active', sortBy === 'date');
   document.getElementById('sort-name-btn').classList.toggle('active', sortBy === 'name');
+  document.getElementById('sort-size-btn').classList.toggle('active', sortBy === 'size');
+  document.getElementById('sort-state-btn').classList.toggle('active', sortBy === 'state');
   const dirBtn = document.getElementById('sort-dir-btn');
   dirBtn.textContent = sortDir === 'desc' ? '\u2193' : '\u2191';
   dirBtn.title = sortDir === 'desc' ? 'Plus récent / A→Z : cliquer pour inverser' : 'Plus ancien / Z→A : cliquer pour inverser';
@@ -2304,12 +2325,33 @@ function sortedList(list) {
     let cmp = 0;
     if (sortBy === 'name') {
       cmp = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+    } else if (sortBy === 'size') {
+      cmp = (a.size || 0) - (b.size || 0);
+      if (cmp === 0) cmp = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+    } else if (sortBy === 'state') {
+      cmp = watchStateRank(a) - watchStateRank(b);
+      if (cmp === 0) cmp = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
     } else {
       cmp = (a.mtime || 0) - (b.mtime || 0);
     }
     return sortDir === 'desc' ? -cmp : cmp;
   });
   return { pinned, rest };
+}
+
+// Watch-state rank for sorting: 0 = unseen, 1 = in progress, 2 = seen.
+// Folders use their aggregated folder_state; files use their progress percent
+// against the configured watched threshold.
+function watchStateRank(e) {
+  if (e.is_dir) {
+    if (e.folder_state === 'seen') return 2;
+    if (e.folder_state === 'inprogress') return 1;
+    return 0;
+  }
+  const pct = e.progress?.percent ?? 0;
+  if (pct >= cfg.watched_threshold) return 2;
+  if (pct > 0) return 1;
+  return 0;
 }
 
 function updateHomeBtnState() {
@@ -3472,6 +3514,7 @@ function renderEntry(e, i) {
       ${pinBtn}
       <button class="action-btn" onclick="openTagModal(${jsStr(e.path)}, ${jsStr(e.name)})">🏷</button>
       <button class="action-btn" onclick="openMoveModal(${jsStr(e.path)}, ${jsStr(e.name)})">↗</button>
+      <button class="action-btn" onclick="openRenameModal(${jsStr(e.path)}, ${jsStr(e.name)})" aria-label="Renommer">✏</button>
       <button class="action-btn danger" onclick="confirmDelete(${jsStr(e.path)}, ${jsStr(e.name)})">🗑</button>
     </div>
   ` : '';
@@ -4700,6 +4743,50 @@ async function confirmMkdir() {
   }
 }
 
+// ── Rename (BL-006) ─────────────────────────────────────────────────────────
+let _renameTargetPath = null;
+function openRenameModal(path, name) {
+  if (!path) return;
+  _renameTargetPath = path;
+  document.getElementById('rename-overlay').style.display = 'flex';
+  const input = document.getElementById('rename-input');
+  input.value = name || path.split('/').pop();
+  setTimeout(() => { input.focus(); input.select(); }, 50);
+}
+
+function closeRenameModal(e) {
+  if (e && e.target !== document.getElementById('rename-overlay')) return;
+  document.getElementById('rename-overlay').style.display = 'none';
+  _renameTargetPath = null;
+}
+
+async function confirmRename() {
+  const newName = document.getElementById('rename-input').value.trim();
+  if (!newName || !_renameTargetPath) return;
+  const path = _renameTargetPath;
+  document.getElementById('rename-overlay').style.display = 'none';
+  _renameTargetPath = null;
+  const resp = await apiFetch(`${API}/api/files/rename?path=${encodeURIComponent(path)}`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ new_name: newName }),
+  }).catch(() => null);
+  if (!resp) return;  // network error: apiFetch already showed a toast
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    showToast(`Erreur : ${err.detail || resp.status}`);
+    return;
+  }
+  // If the renamed item is the one currently playing, keep currentFile in sync.
+  if (currentFile && currentFile.path === path) {
+    const data = await resp.json().catch(() => ({}));
+    if (data.path) { currentFile.path = data.path; currentFile.name = newName; }
+  }
+  showToast(`Renommé en « ${newName} »`);
+  dirCache.delete(currentPath);
+  await navigate(currentPath);
+}
+
 // ── Utils ─────────────────────────────────────────────────────────────────────
 function formatTime(s) {
   if (!s || isNaN(s)) return '0:00';
@@ -5020,6 +5107,12 @@ document.addEventListener('keydown', e => {
   }
   // File list navigation (when no media is playing)
   if (e.code === 'Enter' && !currentFile && _gpCursorIdx >= 0) { _gpActivateCursor(); return; }
+  // Rename (BL-006): the playing file, or the browser cursor target.
+  if (e.code === 'KeyR') {
+    const t = currentFile ?? (_gpCursorIdx >= 0 ? _gpRenderedList[_gpCursorIdx] : null);
+    if (t) openRenameModal(t.path, t.name);
+    return;
+  }
   // Keys below require an active media file
   if (!currentFile) return;
   if (e.code === 'KeyM') { toggleMute(); return; }
