@@ -350,6 +350,18 @@ class TestGallery:
         entry = next(e for e in client.get("/api/files").json()["entries"] if e["name"] == "gp")
         assert entry["media_type"] == "gallery"
 
+    def test_passengers_with_few_images_is_not_gallery(self):
+        # Passenger count must not influence detection: it relies on image_count > 3.
+        for i in range(2):
+            _make_image(f"gp_mixed/p{i}.jpg")
+        (MEDIA_ROOT / "gp_mixed" / "doc.pdf").write_bytes(b"%PDF-1.4")
+        (MEDIA_ROOT / "gp_mixed" / "notes.txt").write_text("notes")
+        (MEDIA_ROOT / "gp_mixed" / "audio.mp3").write_bytes(b"ID3")
+        entry = next(
+            e for e in client.get("/api/files").json()["entries"] if e["name"] == "gp_mixed"
+        )
+        assert entry["media_type"] == "other"
+
     def test_gallery_list_includes_passengers_in_order(self):
         _make_image("mix/01.jpg")
         _make_image("mix/03.jpg")

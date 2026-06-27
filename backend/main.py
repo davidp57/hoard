@@ -2767,8 +2767,9 @@ def serve_file(path: str, request: Request):
 def gallery_list(path: str):
     """Return the ordered, flattened sequence of a gallery folder.
 
-    Items are served by ``/api/file``. Each item is ``{"path", "type"}`` so the
-    sequence can later include non-image passengers; for now only images are listed.
+    Items are served by ``/api/file`` and shaped as ``{"path", "type"}``. The sequence
+    contains images plus non-image *passengers* (``pdf``/``audio``/``archive``/``text``)
+    at their ordered position; unsupported files are skipped.
     """
     folder = safe_path(path)
     if not folder.exists() or not folder.is_dir():
@@ -2778,22 +2779,48 @@ def gallery_list(path: str):
 
 
 THUMBNAIL_WIDTH = 320
+THUMBNAIL_TIMEOUT_SECONDS = 15
+THUMBNAIL_MAX_BYTES = 50 * 1024 * 1024  # 50 MiB — reject oversized inputs for thumbnailing
 
 
 def _ffmpeg_thumbnail(*, file: Path | None = None, data: bytes | None = None) -> bytes:
     """Generate a downscaled JPEG thumbnail via ffmpeg, from a file path or raw bytes
-    (stdin). Shared by image and archive-image thumbnails. No cache."""
+    (stdin). Shared by image and archive-image thumbnails. No cache.
+
+    Guarded against resource exhaustion: oversized inputs are rejected (413) and the
+    ffmpeg call is bounded by a timeout (504).
+    """
     if not FFMPEG_BIN:
         raise HTTPException(status_code=503, detail="ffmpeg not available")
+    if data is not None:
+        if len(data) > THUMBNAIL_MAX_BYTES:
+            raise HTTPException(status_code=413, detail="Input too large for thumbnailing")
+    elif file is not None:
+        try:
+            if file.stat().st_size > THUMBNAIL_MAX_BYTES:
+                raise HTTPException(status_code=413, detail="File too large for thumbnailing")
+        except OSError:
+            pass
     input_arg = str(file) if file is not None else "pipe:0"
     cmd = [FFMPEG_BIN, "-v", "error", "-i", input_arg]
     if file is not None:
         cmd.insert(1, "-nostdin")
     cmd += ["-vf", f"scale={THUMBNAIL_WIDTH}:-2", "-frames:v", "1", "-f", "mjpeg", "pipe:1"]
     try:
-        completed = subprocess.run(cmd, check=True, capture_output=True, shell=False, input=data)
+        # cmd is a fixed flag list; only FFMPEG_BIN (resolved binary) and a safe_path-
+        # validated file path / "pipe:0" vary. shell=False, no user-controlled tokens.
+        completed = subprocess.run(  # nosemgrep: dangerous-subprocess-use-audit
+            cmd,
+            check=True,
+            capture_output=True,
+            shell=False,
+            input=data,
+            timeout=THUMBNAIL_TIMEOUT_SECONDS,
+        )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=503, detail="ffmpeg not available") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise HTTPException(status_code=504, detail="Thumbnail generation timed out") from exc
     except subprocess.CalledProcessError as exc:
         raise HTTPException(status_code=422, detail="Could not generate thumbnail") from exc
     if not completed.stdout:
