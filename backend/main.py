@@ -2792,6 +2792,12 @@ def gallery_list(path: str):
 THUMBNAIL_WIDTH = 320
 THUMBNAIL_TIMEOUT_SECONDS = 15
 THUMBNAIL_MAX_BYTES = 50 * 1024 * 1024  # 50 MiB — reject oversized inputs for thumbnailing
+# Hard cap on concurrent ffmpeg thumbnail processes. Spawning one ffmpeg per thumbnail
+# could saturate a low-power NAS (and exhaust the threadpool); requests beyond the cap
+# fail fast with 503 instead of piling up. The frontend serves browser-downscaled full
+# images for the strip, so these endpoints are a lightweight fallback, not the hot path.
+THUMBNAIL_MAX_CONCURRENCY = 2
+_thumbnail_slots = threading.BoundedSemaphore(THUMBNAIL_MAX_CONCURRENCY)
 
 
 def _ffmpeg_thumbnail(*, file: Path | None = None, data: bytes | None = None) -> bytes:
@@ -2817,6 +2823,8 @@ def _ffmpeg_thumbnail(*, file: Path | None = None, data: bytes | None = None) ->
     if file is not None:
         cmd.insert(1, "-nostdin")
     cmd += ["-vf", f"scale={THUMBNAIL_WIDTH}:-2", "-frames:v", "1", "-f", "mjpeg", "pipe:1"]
+    if not _thumbnail_slots.acquire(blocking=False):
+        raise HTTPException(status_code=503, detail="Thumbnail service busy")
     try:
         # cmd is a fixed flag list; only FFMPEG_BIN (resolved binary) and a safe_path-
         # validated file path / "pipe:0" vary. shell=False, no user-controlled tokens.
@@ -2834,6 +2842,8 @@ def _ffmpeg_thumbnail(*, file: Path | None = None, data: bytes | None = None) ->
         raise HTTPException(status_code=504, detail="Thumbnail generation timed out") from exc
     except subprocess.CalledProcessError as exc:
         raise HTTPException(status_code=422, detail="Could not generate thumbnail") from exc
+    finally:
+        _thumbnail_slots.release()
     if not completed.stdout:
         raise HTTPException(status_code=422, detail="Empty thumbnail")
     return completed.stdout

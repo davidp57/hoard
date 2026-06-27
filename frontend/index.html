@@ -3968,7 +3968,9 @@ function _buildThumbStrip() {
       cell.onclick = () => _loadArchiveImage(i);
       const img = document.createElement('img');
       img.alt = '';
-      cell.dataset.src = `${API}/api/archive/thumbnail?path=${encodeURIComponent(_imageArchivePath)}&index=${i}`;
+      img.decoding = 'async';
+      // Full image, downscaled by the browser (no server-side ffmpeg → no NAS CPU storm).
+      cell.dataset.src = `${API}/api/archive/image?path=${encodeURIComponent(_imageArchivePath)}&index=${i}`;
       cell.appendChild(img);
       _thumbObserver.observe(cell);
     } else {
@@ -3978,9 +3980,11 @@ function _buildThumbStrip() {
       if (it.type === 'image') {
         const img = document.createElement('img');
         img.alt = '';
-        cell.dataset.src = `${API}/api/thumbnail?path=${encodeURIComponent(it.path)}`;
+        img.decoding = 'async';
+        // Full image, downscaled by the browser (no server-side ffmpeg → no NAS CPU storm).
+        cell.dataset.src = `${API}/api/file?path=${encodeURIComponent(it.path)}`;
         cell.appendChild(img);
-        _thumbObserver.observe(cell);  // lazy-load only image thumbnails
+        _thumbObserver.observe(cell);  // lazy-load only when scrolled into view
       } else {
         const ico = document.createElement('div');
         ico.className = 'gthumb-ico';

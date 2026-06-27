@@ -146,10 +146,13 @@ the other gallery support and share the same viewer.
 
 Non-image files inside a gallery are **passengers** (PDF/audio/archive/text): they
 keep their position in the sequence and are previewed (PDF first page and text are
-rendered client-side; others show an icon). Unsupported files are skipped. Thumbnails
-for the strip are generated on the fly via ffmpeg (`/api/thumbnail`,
-`/api/archive/thumbnail`) with no cache; the main image loads immediately and
-thumbnails load lazily.
+rendered client-side; others show an icon). Unsupported files are skipped. The
+thumbnail strip serves the **full images, downscaled by the browser** (`/api/file` /
+`/api/archive/image`), lazily (only when scrolled into view) — this keeps thumbnailing
+off the NAS CPU. The ffmpeg thumbnail endpoints (`/api/thumbnail`,
+`/api/archive/thumbnail`) remain as a lightweight fallback, hard-capped at
+`THUMBNAIL_MAX_CONCURRENCY` concurrent processes (excess requests get 503), but are not
+on the gallery hot path.
 
 ### Native Playback Versus Transcode
 

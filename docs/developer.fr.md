@@ -143,10 +143,12 @@ l'autre support de galerie et partagent la même visionneuse.
 
 Les fichiers non-image d'une galerie sont des **passagers** (PDF/audio/archive/texte) :
 ils gardent leur position dans la séquence et reçoivent un aperçu (1ʳᵉ page PDF et texte
-rendus côté client ; icône sinon). Les fichiers non pris en charge sont ignorés. Les
-vignettes de la barre sont générées à la volée via ffmpeg (`/api/thumbnail`,
-`/api/archive/thumbnail`), sans cache ; l'image principale s'affiche immédiatement et
-les vignettes se chargent paresseusement.
+rendus côté client ; icône sinon). Les fichiers non pris en charge sont ignorés. La
+barre de vignettes sert les **images complètes, réduites par le navigateur**
+(`/api/file` / `/api/archive/image`), paresseusement (seulement au défilement) — ce qui
+sort la génération de vignettes du CPU du NAS. Les endpoints ffmpeg (`/api/thumbnail`,
+`/api/archive/thumbnail`) restent un repli léger, plafonnés à `THUMBNAIL_MAX_CONCURRENCY`
+process simultanés (au-delà : 503), mais ne sont plus sur le chemin critique des galeries.
 
 ### Lecture native versus transcodage
 
