@@ -1,6 +1,6 @@
 # Lot FEAT-GALLERY — Galeries d'images (dossier comme média opaque)
 
-Status: ⬜ ready
+Status: 🔄 in-progress
 Branch: feature/gallery → PR → develop
 
 ## Problem Statement

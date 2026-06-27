@@ -1957,6 +1957,9 @@ let _imageCurrentIdx = 0;
 let _imageIsArchive = false;
 let _imageArchivePath = null;
 let _imageArchiveImages = [];
+let _imageIsGallery = false;      // true when viewing a folder-gallery
+let _galleryItems = [];           // [{path, type}] flattened gallery sequence
+let _galleryPath = null;          // folder rel path (resume anchor)
 let _imageFitMode = 'full-page';  // 'full-page'|'fit-width'
 let _pdfDoc = null;
 let _pdfPage = 1;
@@ -2344,8 +2347,13 @@ function sortedList(list) {
 // Watch-state rank for sorting: 0 = unseen, 1 = in progress, 2 = seen.
 // Folders use their aggregated folder_state; files use their progress percent
 // against the configured watched threshold.
+// A gallery is a folder (is_dir) read as a single media (media_type 'gallery').
+function isGallery(e) {
+  return e.is_dir && e.media_type === 'gallery';
+}
+
 function watchStateRank(e) {
-  if (e.is_dir) {
+  if (e.is_dir && !isGallery(e)) {
     if (e.folder_state === 'seen') return 2;
     if (e.folder_state === 'inprogress') return 1;
     return 0;
@@ -3480,6 +3488,7 @@ function renderBreadcrumb(crumbs) {
 }
 
 function getMediaIcon(e) {
+  if (isGallery(e)) return '\u{1F5BC}\u{FE0F}';  // 🖼️
   if (e.is_dir) {
     return e.folder_state === 'seen' ? '✅' : (e.folder_state === 'inprogress' ? '📂' : '📁');
   }
@@ -3496,7 +3505,8 @@ function renderEntry(e, i) {
   const icon = getMediaIcon(e);
   const meta = e.is_dir ? '' : formatSize(e.size);
   const mt = e.media_type || 'other';
-  const hasProgress = !e.is_dir && mt !== 'other' && e.progress && e.progress.duration > 0;
+  const gal = isGallery(e);
+  const hasProgress = (gal || (!e.is_dir && mt !== 'other')) && e.progress && e.progress.duration > 0;
   const progressHtml = hasProgress ? (() => {
     const timeLabel = (mt === 'video' || mt === 'audio')
       ? `${formatTime(e.progress.position)} / ${formatTime(e.progress.duration)}`
@@ -3509,7 +3519,7 @@ function renderEntry(e, i) {
   `;
   })() : '';
 
-  const stateClass = !e.is_dir && mt !== 'other' ? getStateClass(e.progress) : (e.folder_state === 'seen' ? 'seen' : (e.folder_state === 'inprogress' ? 'inprogress' : ''));
+  const stateClass = (gal || (!e.is_dir && mt !== 'other')) ? getStateClass(e.progress) : (e.folder_state === 'seen' ? 'seen' : (e.folder_state === 'inprogress' ? 'inprogress' : ''));
   const pinBtn = e.is_dir ? `<button class="action-btn ${e.is_quick_folder ? 'pinned' : ''}" onclick="togglePin(${jsStr(e.path)}, ${e.is_quick_folder})" title="${e.is_quick_folder ? 'Retirer' : 'Accès rapide'}">📌</button>` : '';
   const tagsHtml = (e.tags && e.tags.length) ? e.tags.map(t => `<span class="tag-badge">${esc(t)}</span>`).join('') : '';
   const actionsHtml = mt !== 'other' || e.is_dir ? `
@@ -3523,9 +3533,11 @@ function renderEntry(e, i) {
   ` : '';
 
   const activeClass = currentFile && currentFile.path === e.path ? 'active' : '';
-  const clickHandler = e.is_dir
-    ? 'navigate(' + jsStr(e.path) + ')'
-    : (mt !== 'other' ? 'openMedia(' + i + ')' : '');
+  const clickHandler = gal
+    ? 'openGallery(' + i + ')'
+    : (e.is_dir
+      ? 'navigate(' + jsStr(e.path) + ')'
+      : (mt !== 'other' ? 'openMedia(' + i + ')' : ''));
   const qfClass = e.is_quick_folder ? 'qf' : '';
 
   return `
@@ -3729,7 +3741,58 @@ function _loadArchiveImage(idx) {
   saveProgress(_imageArchivePath, idx + 1, _imageArchiveImages.length);
 }
 
+// ── Gallery (image folder read as a single media) ───────────────────────────────
+
+function openGallery(idx) {
+  const entry = entries[idx];
+  if (!entry) return;
+  currentFile = entry;
+  _imageIsArchive = false;
+  _imageIsGallery = true;
+  _galleryPath = entry.path;
+  _galleryItems = [];
+  currentViewerMode = 'image';
+
+  _setMediaActive(true);
+  document.getElementById('player-panel').classList.add('mobile-active');
+  _showOnlyPanel('image-viewer');
+
+  const iv = document.getElementById('image-viewer');
+  iv.classList.remove('fit-width', 'full-page');
+  iv.classList.add(_imageFitMode);
+
+  fetch(`${API}/api/gallery/list?path=${encodeURIComponent(entry.path)}`)
+    .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+    .then(data => {
+      _galleryItems = data.items || [];
+      if (!_galleryItems.length) { showToast('Galerie vide'); closeImageViewer(); return; }
+      // Resume: folder progress stores position = page index (1-based).
+      let startIdx = 0;
+      const p = entry.progress;
+      if (p && p.has_saved_progress && p.position > 0) {
+        startIdx = Math.min(Math.max(Math.round(p.position) - 1, 0), _galleryItems.length - 1);
+      }
+      _loadGalleryImage(startIdx);
+    })
+    .catch(() => { showToast('Erreur lecture galerie'); closeImageViewer(); });
+}
+
+function _loadGalleryImage(idx) {
+  if (!_galleryItems.length) return;
+  _imageCurrentIdx = idx;
+  const it = _galleryItems[idx];
+  document.getElementById('image-counter').textContent = `${idx + 1} / ${_galleryItems.length}`;
+  document.getElementById('image-title').textContent = it.path.split('/').pop();
+  document.getElementById('image-el').src = `${API}/api/file?path=${encodeURIComponent(it.path)}`;
+  saveProgress(_galleryPath, idx + 1, _galleryItems.length);
+}
+
 function imageNav(delta) {
+  if (_imageIsGallery) {
+    const next = _imageCurrentIdx + delta;
+    if (next >= 0 && next < _galleryItems.length) _loadGalleryImage(next);
+    return;
+  }
   if (_imageIsArchive) {
     const next = _imageCurrentIdx + delta;
     if (next >= 0 && next < _imageArchiveImages.length) _loadArchiveImage(next);
@@ -3754,6 +3817,9 @@ function toggleImageMode() {
 function closeImageViewer() {
   currentFile = null;
   currentViewerMode = null;
+  _imageIsGallery = false;
+  _galleryItems = [];
+  _galleryPath = null;
   _setMediaActive(false);
   document.getElementById('image-viewer').classList.remove('active', 'viewer-fullscreen');
   document.getElementById('player-panel').classList.remove('mobile-active');

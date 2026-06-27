@@ -266,6 +266,92 @@ class TestListFiles:
         assert entry["folder_state"] == "seen"
 
 
+# ── Galleries (image folder as a single media) ──────────────────────────────────
+
+
+def _make_image(rel_path: str) -> None:
+    """Create a dummy image file (content irrelevant for detection/listing)."""
+    p = MEDIA_ROOT / rel_path
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_bytes(b"\xff\xd8\xff\xe0" + b"\x00" * 32)
+
+
+class TestGallery:
+    def test_folder_with_images_is_gallery(self):
+        for i in range(4):
+            _make_image(f"album/p{i}.jpg")
+        entry = next(e for e in client.get("/api/files").json()["entries"] if e["name"] == "album")
+        assert entry["is_dir"] is True
+        assert entry["media_type"] == "gallery"
+        assert "progress" in entry
+
+    def test_three_images_is_not_gallery(self):
+        for i in range(3):
+            _make_image(f"few/p{i}.jpg")
+        entry = next(e for e in client.get("/api/files").json()["entries"] if e["name"] == "few")
+        assert entry["media_type"] == "other"
+        assert entry["folder_state"] == "new"
+
+    def test_folder_with_video_is_not_gallery(self):
+        for i in range(4):
+            _make_image(f"mixed/p{i}.jpg")
+        (MEDIA_ROOT / "mixed" / "clip.mp4").write_bytes(b"\x00" * 16)
+        entry = next(e for e in client.get("/api/files").json()["entries"] if e["name"] == "mixed")
+        assert entry["media_type"] == "other"
+
+    def test_images_counted_recursively(self):
+        _make_image("scan/a.jpg")
+        _make_image("scan/b.jpg")
+        _make_image("scan/sub/c.jpg")
+        _make_image("scan/sub/d.jpg")
+        entry = next(e for e in client.get("/api/files").json()["entries"] if e["name"] == "scan")
+        assert entry["media_type"] == "gallery"
+
+    def test_gallery_list_order_depth_first(self):
+        _make_image("book/couverture.jpg")
+        _make_image("book/Chapitre-01/page-1.jpg")
+        _make_image("book/Chapitre-01/page-2.jpg")
+        _make_image("book/Chapitre-02/page-1.jpg")
+        items = client.get("/api/gallery/list?path=book").json()["items"]
+        paths = [it["path"] for it in items]
+        assert paths == [
+            "book/couverture.jpg",
+            "book/Chapitre-01/page-1.jpg",
+            "book/Chapitre-01/page-2.jpg",
+            "book/Chapitre-02/page-1.jpg",
+        ]
+        assert all(it["type"] == "image" for it in items)
+
+    def test_gallery_list_natural_sort(self):
+        for n in (1, 2, 10):
+            _make_image(f"pages/page-{n}.jpg")
+        _make_image("pages/page-3.jpg")
+        paths = [it["path"] for it in client.get("/api/gallery/list?path=pages").json()["items"]]
+        assert paths == [
+            "pages/page-1.jpg",
+            "pages/page-2.jpg",
+            "pages/page-3.jpg",
+            "pages/page-10.jpg",
+        ]
+
+    def test_gallery_progress_anchored_on_folder(self):
+        for i in range(4):
+            _make_image(f"g/p{i}.jpg")
+        client.post("/api/progress?path=g", json={"position": 2.0, "duration": 4.0})
+        entry = next(e for e in client.get("/api/files").json()["entries"] if e["name"] == "g")
+        assert entry["progress"]["position"] == 2.0
+        assert entry["progress"]["duration"] == 4.0
+        assert entry["progress"]["percent"] == 50.0
+
+    def test_gallery_list_not_found(self):
+        resp = client.get("/api/gallery/list?path=nope")
+        assert resp.status_code == 404
+
+    def test_gallery_list_path_traversal_blocked(self):
+        resp = client.get("/api/gallery/list?path=../../etc")
+        assert resp.status_code == 403
+
+
 # ── /api/progress ─────────────────────────────────────────────────────────────
 
 

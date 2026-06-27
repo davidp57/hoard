@@ -1378,6 +1378,62 @@ def get_folder_state(folder: Path, progress_map: dict) -> str:
     return "new"
 
 
+def _natural_key(name: str):
+    """Sort key for natural (numeric-aware) ordering: 'page-2' < 'page-10'."""
+    return [int(tok) if tok.isdigit() else tok.lower() for tok in re.split(r"(\d+)", name)]
+
+
+def is_gallery(folder: Path) -> bool:
+    """A gallery folder has (recursively) more than 3 images and no video at all.
+
+    Sub-folders are allowed; non-image, non-video files are tolerated (passengers).
+    Returns early as soon as a video is found.
+    """
+    image_count = 0
+    for f in folder.rglob("*"):
+        if f.is_symlink() and not f.resolve().is_relative_to(MEDIA_ROOT.resolve()):
+            continue
+        if not f.is_file() or f.name.startswith("."):
+            continue
+        if is_video(f):
+            return False
+        if is_image(f):
+            image_count += 1
+    return image_count > 3
+
+
+def gallery_sequence(folder: Path) -> list[Path]:
+    """Ordered image paths of a gallery: depth-first, current-level files before
+    sub-folders, natural sort at each level. (Passengers are added in a later slice.)
+    """
+    items: list[Path] = []
+
+    def walk(d: Path) -> None:
+        files: list[Path] = []
+        subdirs: list[Path] = []
+        try:
+            children = list(d.iterdir())
+        except PermissionError:
+            return
+        for c in children:
+            if c.name.startswith("."):
+                continue
+            if c.is_symlink() and not c.resolve().is_relative_to(MEDIA_ROOT.resolve()):
+                continue
+            if c.is_file():
+                files.append(c)
+            elif c.is_dir():
+                subdirs.append(c)
+        files.sort(key=lambda p: _natural_key(p.name))
+        subdirs.sort(key=lambda p: _natural_key(p.name))
+        items.extend(f for f in files if is_image(f))
+        for sd in subdirs:
+            walk(sd)
+
+    walk(folder)
+    return items
+
+
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 
@@ -1418,17 +1474,27 @@ def list_files(path: str = ""):
     entries = []
     for item, st in items_with_stat:
         rel = to_rel(item)
-        _media_type = get_media_type(item) if item.is_file() else "other"
+        is_directory = item.is_dir()
+        folder_state = None
+        if item.is_file():
+            _media_type = get_media_type(item)
+        elif is_gallery(item):
+            # A gallery folder behaves like a media: it carries its own progress
+            # percent instead of an aggregated folder_state.
+            _media_type = "gallery"
+        else:
+            _media_type = "other"
+            folder_state = get_folder_state(item, progress_map)
         entry = {
             "name": item.name,
             "path": rel,
-            "is_dir": item.is_dir(),
+            "is_dir": is_directory,
             "is_video": is_video(item) if item.is_file() else False,
             "media_type": _media_type,
             "size": st.st_size if item.is_file() else 0,
             "mtime": st.st_mtime,
-            "is_quick_folder": rel in qf_paths if item.is_dir() else False,
-            "folder_state": get_folder_state(item, progress_map) if item.is_dir() else None,
+            "is_quick_folder": rel in qf_paths if is_directory else False,
+            "folder_state": folder_state,
         }
         if _media_type != "other":
             entry["progress"] = get_progress(item)
@@ -2671,6 +2737,20 @@ def serve_file(path: str, request: Request):
         media_type=mime_type,
         headers={"Accept-Ranges": "bytes", "Content-Length": str(file_size)},
     )
+
+
+@app.get("/api/gallery/list")
+def gallery_list(path: str):
+    """Return the ordered, flattened sequence of a gallery folder.
+
+    Items are served by ``/api/file``. Each item is ``{"path", "type"}`` so the
+    sequence can later include non-image passengers; for now only images are listed.
+    """
+    folder = safe_path(path)
+    if not folder.exists() or not folder.is_dir():
+        raise HTTPException(status_code=404)
+    items = [{"path": to_rel(p), "type": "image"} for p in gallery_sequence(folder)]
+    return {"count": len(items), "items": items}
 
 
 @app.get("/api/archive/list")
