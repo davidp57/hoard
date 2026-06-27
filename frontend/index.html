@@ -1121,6 +1121,33 @@
     max-height: 100%;
     width: auto;
   }
+  /* Gallery thumbnail strip (seek bar for image folders) */
+  #gallery-thumbs {
+    display: none;
+    flex-shrink: 0;
+    gap: 4px;
+    height: 84px;
+    padding: 6px 8px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    overflow-x: auto;
+    overflow-y: hidden;
+    align-items: center;
+  }
+  #image-viewer.has-thumbs #gallery-thumbs { display: flex; }
+  .gthumb {
+    position: relative;
+    flex-shrink: 0;
+    width: 56px;
+    height: 72px;
+    border: 2px solid transparent;
+    border-radius: 4px;
+    overflow: hidden;
+    cursor: pointer;
+    background: var(--surface2);
+  }
+  .gthumb.active { border-color: var(--accent); }
+  .gthumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
   /* ── Audio player ── */
   #audio-player {
@@ -1620,6 +1647,7 @@
       <div id="image-scroll-area">
         <img id="image-el" src="" alt="">
       </div>
+      <div id="gallery-thumbs"></div>
     </div>
 
     <!-- Audio player -->
@@ -1960,6 +1988,7 @@ let _imageArchiveImages = [];
 let _imageIsGallery = false;      // true when viewing a folder-gallery
 let _galleryItems = [];           // [{path, type}] flattened gallery sequence
 let _galleryPath = null;          // folder rel path (resume anchor)
+let _thumbObserver = null;        // IntersectionObserver for lazy thumbnails
 let _imageFitMode = 'full-page';  // 'full-page'|'fit-width'
 let _pdfDoc = null;
 let _pdfPage = 1;
@@ -3666,7 +3695,7 @@ function openMedia(idx) {
 function _showOnlyPanel(id) {
   document.getElementById('player-empty').style.display = 'none';
   document.getElementById('video-container').classList.remove('active');
-  document.getElementById('image-viewer').classList.remove('active');
+  document.getElementById('image-viewer').classList.remove('active', 'has-thumbs');
   document.getElementById('audio-player').classList.remove('active');
   document.getElementById('pdf-viewer').classList.remove('active');
   if (id) document.getElementById(id).classList.add('active');
@@ -3772,6 +3801,7 @@ function openGallery(idx) {
       if (p && p.has_saved_progress && p.position > 0) {
         startIdx = Math.min(Math.max(Math.round(p.position) - 1, 0), _galleryItems.length - 1);
       }
+      _buildGalleryThumbs();
       _loadGalleryImage(startIdx);
     })
     .catch(() => { showToast('Erreur lecture galerie'); closeImageViewer(); });
@@ -3784,7 +3814,49 @@ function _loadGalleryImage(idx) {
   document.getElementById('image-counter').textContent = `${idx + 1} / ${_galleryItems.length}`;
   document.getElementById('image-title').textContent = it.path.split('/').pop();
   document.getElementById('image-el').src = `${API}/api/file?path=${encodeURIComponent(it.path)}`;
+  _setActiveThumb(idx);
   saveProgress(_galleryPath, idx + 1, _galleryItems.length);
+}
+
+// Build the lazy thumbnail strip (seek bar). Thumbnails load only when scrolled
+// into view, so the main image (served full-size by /api/file) never waits on them.
+function _buildGalleryThumbs() {
+  const bar = document.getElementById('gallery-thumbs');
+  const iv = document.getElementById('image-viewer');
+  bar.innerHTML = '';
+  if (_thumbObserver) { _thumbObserver.disconnect(); _thumbObserver = null; }
+  if (!_imageIsGallery || !_galleryItems.length) { iv.classList.remove('has-thumbs'); return; }
+  iv.classList.add('has-thumbs');
+  _thumbObserver = new IntersectionObserver((obsEntries) => {
+    obsEntries.forEach(en => {
+      if (!en.isIntersecting) return;
+      const cell = en.target;
+      const img = cell.querySelector('img');
+      if (img && !img.src) img.src = `${API}/api/thumbnail?path=${encodeURIComponent(cell.dataset.path)}`;
+      _thumbObserver.unobserve(cell);
+    });
+  }, { root: bar, rootMargin: '300px' });
+  _galleryItems.forEach((it, i) => {
+    const cell = document.createElement('div');
+    cell.className = 'gthumb' + (i === _imageCurrentIdx ? ' active' : '');
+    cell.dataset.index = String(i);
+    cell.dataset.path = it.path;
+    cell.title = it.path.split('/').pop();
+    cell.onclick = () => _loadGalleryImage(i);
+    const img = document.createElement('img');
+    img.alt = '';
+    cell.appendChild(img);
+    bar.appendChild(cell);
+    _thumbObserver.observe(cell);
+  });
+}
+
+function _setActiveThumb(idx) {
+  const bar = document.getElementById('gallery-thumbs');
+  if (!bar) return;
+  bar.querySelectorAll('.gthumb.active').forEach(c => c.classList.remove('active'));
+  const cell = bar.querySelector(`.gthumb[data-index="${idx}"]`);
+  if (cell) { cell.classList.add('active'); cell.scrollIntoView({ inline: 'center', block: 'nearest' }); }
 }
 
 function imageNav(delta) {
@@ -3820,6 +3892,9 @@ function closeImageViewer() {
   _imageIsGallery = false;
   _galleryItems = [];
   _galleryPath = null;
+  if (_thumbObserver) { _thumbObserver.disconnect(); _thumbObserver = null; }
+  document.getElementById('gallery-thumbs').innerHTML = '';
+  document.getElementById('image-viewer').classList.remove('has-thumbs');
   _setMediaActive(false);
   document.getElementById('image-viewer').classList.remove('active', 'viewer-fullscreen');
   document.getElementById('player-panel').classList.remove('mobile-active');

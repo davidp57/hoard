@@ -352,6 +352,40 @@ class TestGallery:
         assert resp.status_code == 403
 
 
+class TestThumbnail:
+    def test_thumbnail_returns_jpeg(self, monkeypatch):
+        _make_image("g/p0.jpg")
+        monkeypatch.setattr(main_mod, "FFMPEG_BIN", "ffmpeg")
+        monkeypatch.setattr(
+            main_mod.subprocess,
+            "run",
+            lambda *args, **kwargs: MagicMock(stdout=b"\xff\xd8\xff\xe0fakejpeg"),
+        )
+        resp = client.get("/api/thumbnail?path=g/p0.jpg")
+        assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("image/")
+        assert resp.content.startswith(b"\xff\xd8")
+
+    def test_thumbnail_404_missing(self):
+        resp = client.get("/api/thumbnail?path=nope.jpg")
+        assert resp.status_code == 404
+
+    def test_thumbnail_415_not_image(self):
+        (MEDIA_ROOT / "note.txt").write_text("hello")
+        resp = client.get("/api/thumbnail?path=note.txt")
+        assert resp.status_code == 415
+
+    def test_thumbnail_503_without_ffmpeg(self, monkeypatch):
+        _make_image("g/p0.jpg")
+        monkeypatch.setattr(main_mod, "FFMPEG_BIN", "")
+        resp = client.get("/api/thumbnail?path=g/p0.jpg")
+        assert resp.status_code == 503
+
+    def test_thumbnail_path_traversal_blocked(self):
+        resp = client.get("/api/thumbnail?path=../../etc/passwd")
+        assert resp.status_code == 403
+
+
 # ── /api/progress ─────────────────────────────────────────────────────────────
 
 

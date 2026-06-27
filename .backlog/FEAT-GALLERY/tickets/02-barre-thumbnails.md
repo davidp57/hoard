@@ -1,6 +1,6 @@
 # BL-070 — Barre de thumbnails (seek)
 
-Status: ⬜ ready
+Status: ✅ done
 Type: feat
 Parent: FEAT-GALLERY ([PRD](../PRD.md))
 Files: `backend/main.py`, `frontend/index.html`, `tests/test_api.py`

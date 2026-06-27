@@ -2753,6 +2753,52 @@ def gallery_list(path: str):
     return {"count": len(items), "items": items}
 
 
+THUMBNAIL_WIDTH = 320
+
+
+@app.get("/api/thumbnail")
+def thumbnail(path: str):
+    """Return a small downscaled JPEG thumbnail for an image, generated on the fly
+    via ffmpeg. No cache: the first gallery image is served full-size by /api/file
+    immediately, and thumbnails are requested lazily by the client.
+    """
+    file = safe_path(path)
+    if not file.exists() or not file.is_file():
+        raise HTTPException(status_code=404)
+    if not is_image(file):
+        raise HTTPException(status_code=415, detail="Not an image")
+    if not FFMPEG_BIN:
+        raise HTTPException(status_code=503, detail="ffmpeg not available")
+    try:
+        completed = subprocess.run(
+            [
+                FFMPEG_BIN,
+                "-nostdin",
+                "-v",
+                "error",
+                "-i",
+                str(file),
+                "-vf",
+                f"scale={THUMBNAIL_WIDTH}:-2",
+                "-frames:v",
+                "1",
+                "-f",
+                "mjpeg",
+                "pipe:1",
+            ],
+            check=True,
+            capture_output=True,
+            shell=False,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=503, detail="ffmpeg not available") from exc
+    except subprocess.CalledProcessError as exc:
+        raise HTTPException(status_code=422, detail="Could not generate thumbnail") from exc
+    if not completed.stdout:
+        raise HTTPException(status_code=422, detail="Empty thumbnail")
+    return Response(content=completed.stdout, media_type="image/jpeg")
+
+
 @app.get("/api/archive/list")
 def archive_list(path: str):
     """Return ordered list of image names inside a ZIP/CBZ/CBR archive."""
