@@ -2642,7 +2642,7 @@ async function moveFileToPath(srcPath, destFolderRel) {
     return;
   }
   showToast(`↗ Déplacé vers ${destFolderRel || 'racine'}`);
-  dirCache.delete(currentPath);
+  dirCache.clear();  // a folder's gallery-ness/state depends on contents → drop all
   navigate(currentPath);
 }
 
@@ -3296,7 +3296,7 @@ async function _pollDlQueue() {
 function _refreshAfterDownload() {
   const dlFolder = (cfg && cfg.download_folder) || 'Downloads';
   if (currentPath === dlFolder) {
-    dirCache.delete(dlFolder);
+    dirCache.clear();
     navigate(dlFolder);
   }
 }
@@ -3449,7 +3449,7 @@ function toggleTagFilter(tag) {
 // ── Navigation ────────────────────────────────────────────────────────────────
 async function refreshCurrentFolder() {
   if (showingHomeScreen) return;
-  dirCache.delete(currentPath);
+  dirCache.clear();  // a folder's gallery-ness/state depends on contents → drop all
   await navigate(currentPath);
 }
 
@@ -3723,8 +3723,19 @@ function openMedia(idx) {
 
 // ── Image viewer ──────────────────────────────────────────────────────────────
 
+// Reset the image/gallery viewer state (used when leaving it for another panel).
+function _resetGalleryViewerState() {
+  if (_thumbObserver) { _thumbObserver.disconnect(); _thumbObserver = null; }
+  const bar = document.getElementById('gallery-thumbs');
+  if (bar) bar.innerHTML = '';
+  _imageIsGallery = false;
+  _imageIsArchive = false;
+}
+
 function _showOnlyPanel(id) {
   document.getElementById('player-empty').style.display = 'none';
+  // Switching to a non-video panel: stop video playback (don't leave audio running).
+  if (id !== 'video-container') { try { video.pause(); } catch { /* no video yet */ } }
   document.getElementById('video-container').classList.remove('active');
   document.getElementById('image-viewer').classList.remove('active', 'has-thumbs');
   document.getElementById('audio-player').classList.remove('active');
@@ -3734,6 +3745,14 @@ function _showOnlyPanel(id) {
   if (_pass) { _pass.style.display = 'none'; _pass.innerHTML = ''; }
   document.getElementById('image-el').style.display = '';
   if (id) document.getElementById(id).classList.add('active');
+}
+
+// Hide image/audio/pdf viewers and reset gallery state when starting a video.
+function _hideAltViewers() {
+  document.getElementById('image-viewer').classList.remove('active', 'viewer-fullscreen', 'has-thumbs');
+  document.getElementById('audio-player').classList.remove('active');
+  document.getElementById('pdf-viewer').classList.remove('active');
+  _resetGalleryViewerState();
 }
 
 function openImage(idx) {
@@ -4006,7 +4025,7 @@ function _galleryRemoveItemLocally(i) {
   _galleryItems.splice(i, 1);
   if (!_galleryItems.length) {
     closeImageViewer();
-    dirCache.delete(currentPath);
+    dirCache.clear();  // a folder's gallery-ness/state depends on contents → drop all
     navigate(currentPath);
     return;
   }
@@ -4303,6 +4322,8 @@ async function playVideo(idx) {
     document.getElementById('player-panel').classList.add('mobile-active');
   }
 
+  _hideAltViewers();           // hide any gallery/image/pdf/audio viewer still open
+  currentViewerMode = 'video';
   document.getElementById('player-empty').style.display = 'none';
   const vc = document.getElementById('video-container');
   vc.classList.add('active');
@@ -4719,7 +4740,7 @@ async function togglePin(path, isPinned) {
     });
   }
   await loadQuickFolders();
-  dirCache.delete(currentPath);
+  dirCache.clear();  // a folder's gallery-ness/state depends on contents → drop all
   await navigate(currentPath);
 }
 
@@ -5003,7 +5024,7 @@ async function pollJob(jobId, refreshPath) {
     statusEl.className = 'job-status done';
     clearInterval(tracked.intervalId);
     if (refreshPath !== null) {
-      dirCache.delete(refreshPath);
+      dirCache.clear();
       if (currentPath === refreshPath) navigate(refreshPath);
     }
     setTimeout(() => tracked.card.remove(), 8000);
@@ -5086,7 +5107,7 @@ async function confirmDelete(path, name) {
       // Restore cursor to same index after re-render (works for gamepad, keyboard, click)
       const _delIdx = _gpRenderedList.findIndex(e => e.path === path);
       if (_delIdx >= 0) _gpPendingRestoreIdx = _delIdx;
-      dirCache.delete(currentPath);
+      dirCache.clear();  // a folder's gallery-ness/state depends on contents → drop all
       await navigate(currentPath);
       resolve();
     };
@@ -5131,7 +5152,7 @@ async function confirmMkdir() {
     showToast(`Erreur : ${err.detail || resp.status}`);
   } else {
     showToast(`Dossier "${name}" créé`);
-    dirCache.delete(currentPath);
+    dirCache.clear();  // a folder's gallery-ness/state depends on contents → drop all
     await navigate(currentPath);
   }
 }
@@ -5176,7 +5197,7 @@ async function confirmRename() {
     if (data.path) { currentFile.path = data.path; currentFile.name = newName; }
   }
   showToast(`Renommé en « ${newName} »`);
-  dirCache.delete(currentPath);
+  dirCache.clear();  // a folder's gallery-ness/state depends on contents → drop all
   await navigate(currentPath);
 }
 
