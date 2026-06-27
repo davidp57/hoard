@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **Galeries — masquage auto de la barre en plein écran** : en plein écran, la barre de navigation et la bande de vignettes de la galerie s'effacent après quelques secondes d'inactivité (comme les contrôles du player vidéo) et réapparaissent au mouvement de la souris / au tap.
 - **Plein écran fenêtré par défaut sur PC (BL-066)** : sur desktop, `F` et le bouton plein écran passent désormais en mode **immersif dans la fenêtre** (vidéo plein cadre + UI masquée, sans quitter le navigateur) ; `Maj+F` déclenche le vrai plein écran de l'OS. Sur tablette/tactile (iPad), le comportement est inchangé (vrai plein écran). Toutes les actions « spéciales plein écran » (lecture auto du suivant, dialogues supprimer/déplacer, etc.) fonctionnent à l'identique en mode fenêtré.
 - **Clavier — Échap remonte d'un cran (BL-068)** : sur PC, quand aucun média n'est ouvert, `Échap` remonte d'un niveau dans l'arborescence (comme le bouton B au pad), via une fonction `navigateUp()` partagée. La cascade existante (fermer dialogue → quitter plein écran → fermer le player) est conservée et prioritaire. Les flèches ←/→ n'ont plus d'effet en mode navigation (alignement sur le D-pad).
 

@@ -1307,6 +1307,18 @@
     z-index: 100 !important;
     background: #000 !important;
   }
+  /* In fullscreen, auto-hide the gallery chrome (nav bar + thumbnail strip) like the
+     video controls; revealed on mouse move / tap (see _galleryChromeReveal). */
+  #image-viewer.viewer-fullscreen #image-nav-bar,
+  #image-viewer.viewer-fullscreen #gallery-thumbs {
+    transition: opacity 0.25s ease;
+  }
+  #image-viewer.viewer-fullscreen.chrome-hidden #image-nav-bar,
+  #image-viewer.viewer-fullscreen.chrome-hidden #gallery-thumbs {
+    opacity: 0;
+    pointer-events: none;
+  }
+  #image-viewer.viewer-fullscreen.chrome-hidden { cursor: none; }
 </style>
 </head>
 <body>
@@ -3690,6 +3702,7 @@ async function _autoPlayNextFullscreen(navigatePath) {
   if (entry.media_type === 'gallery') {
     openGallery(idx);
     document.getElementById('image-viewer').classList.add('viewer-fullscreen');
+    _galleryChromeReveal();
     return;
   }
   await playVideo(idx);
@@ -3705,8 +3718,33 @@ function _setMediaActive(active) {
 }
 
 function toggleViewerFullscreen(id) {
-  document.getElementById(id).classList.toggle('viewer-fullscreen');
+  const el = document.getElementById(id);
+  el.classList.toggle('viewer-fullscreen');
+  if (id === 'image-viewer') {
+    if (el.classList.contains('viewer-fullscreen')) _galleryChromeReveal();
+    else _galleryChromeReset();
+  }
 }
+
+// Auto-hide the gallery chrome (nav bar + thumbnail strip) in fullscreen, like the
+// video controls. Revealed on mouse move / tap, hidden again after a short idle.
+let _galleryChromeTimer = null;
+function _galleryChromeReveal() {
+  const iv = document.getElementById('image-viewer');
+  if (!iv.classList.contains('viewer-fullscreen')) return;
+  iv.classList.remove('chrome-hidden');
+  if (_galleryChromeTimer) clearTimeout(_galleryChromeTimer);
+  _galleryChromeTimer = setTimeout(() => {
+    const v = document.getElementById('image-viewer');
+    if (v.classList.contains('viewer-fullscreen')) v.classList.add('chrome-hidden');
+  }, 2500);
+}
+function _galleryChromeReset() {
+  if (_galleryChromeTimer) { clearTimeout(_galleryChromeTimer); _galleryChromeTimer = null; }
+  document.getElementById('image-viewer').classList.remove('chrome-hidden');
+}
+document.getElementById('image-viewer').addEventListener('mousemove', _galleryChromeReveal);
+document.getElementById('image-viewer').addEventListener('touchstart', _galleryChromeReveal, { passive: true });
 
 // ── Media dispatcher ──────────────────────────────────────────────────────────
 
@@ -3752,6 +3790,7 @@ function _hideAltViewers() {
   document.getElementById('image-viewer').classList.remove('active', 'viewer-fullscreen', 'has-thumbs');
   document.getElementById('audio-player').classList.remove('active');
   document.getElementById('pdf-viewer').classList.remove('active');
+  _galleryChromeReset();
   _resetGalleryViewerState();
 }
 
@@ -4110,6 +4149,7 @@ function closeImageViewer() {
   if (_thumbObserver) { _thumbObserver.disconnect(); _thumbObserver = null; }
   document.getElementById('gallery-thumbs').innerHTML = '';
   document.getElementById('image-viewer').classList.remove('has-thumbs');
+  _galleryChromeReset();
   _setMediaActive(false);
   document.getElementById('image-viewer').classList.remove('active', 'viewer-fullscreen');
   document.getElementById('player-panel').classList.remove('mobile-active');
@@ -5440,7 +5480,7 @@ document.addEventListener('keydown', e => {
     if (document.getElementById('export-dialog')?.style.display === 'flex') { closeExportModal(); return; }
     if (currentViewerMode === 'image') {
       const iv = document.getElementById('image-viewer');
-      if (iv.classList.contains('viewer-fullscreen')) { iv.classList.remove('viewer-fullscreen'); return; }
+      if (iv.classList.contains('viewer-fullscreen')) { iv.classList.remove('viewer-fullscreen'); _galleryChromeReset(); return; }
       closeImageViewer(); return;
     }
     if (currentViewerMode === 'audio') { closeAudioPlayer(); return; }
