@@ -3776,6 +3776,12 @@ let _galleryZoom = 1;
 let _galleryPanX = 0;
 let _galleryPanY = 0;
 const _GALLERY_ZOOM_MAX = 6;
+const _GALLERY_WHEEL_FACTOR = 1.15;     // per wheel notch
+const _GALLERY_KEY_FACTOR = 1.25;       // per +/- keypress
+const _GALLERY_DBLCLICK_ZOOM = 2;       // double-click target zoom
+const _GALLERY_PAN_KEY_STEP = 60;       // px per arrow keypress
+const _GALLERY_GP_ZOOM_RATE = 0.04;     // right-stick zoom per poll frame
+const _GALLERY_GP_PAN_RATE = 16;        // left-stick pan px per poll frame
 
 // Zoom applies only when the viewer actually shows an image (not a passenger preview).
 function _galleryImageZoomActive() {
@@ -3787,10 +3793,13 @@ function _galleryImageZoomActive() {
 function _updateGalleryHud() {
   const hud = document.getElementById('gallery-hud');
   if (!hud) return;
-  const counter = document.getElementById('image-counter').textContent || '';
-  const title = document.getElementById('image-title').textContent || '';
-  const zoom = _galleryZoom > 1 ? `  ·  ${Math.round(_galleryZoom * 100)}%` : '';
-  hud.textContent = `${counter}${zoom}  ·  ${title}`;
+  const parts = [];
+  const counter = document.getElementById('image-counter').textContent.trim();
+  if (counter) parts.push(counter);
+  if (_galleryZoom > 1) parts.push(`${Math.round(_galleryZoom * 100)}%`);
+  const title = document.getElementById('image-title').textContent.trim();
+  if (title) parts.push(title);
+  hud.textContent = parts.join('  ·  ');
 }
 
 function _applyGalleryTransform() {
@@ -3848,13 +3857,13 @@ function _galleryPanBy(dx, dy) {
     const r = area.getBoundingClientRect();
     const ox = e.clientX - r.left - r.width / 2;
     const oy = e.clientY - r.top - r.height / 2;
-    _galleryZoomAt(e.deltaY < 0 ? 1.15 : 1 / 1.15, ox, oy);
+    _galleryZoomAt(e.deltaY < 0 ? _GALLERY_WHEEL_FACTOR : 1 / _GALLERY_WHEEL_FACTOR, ox, oy);
   }, { passive: false });
   area.addEventListener('dblclick', e => {
     if (!_galleryImageZoomActive()) return;
     if (_galleryZoom > 1) { _resetGalleryZoom(); return; }
     const r = area.getBoundingClientRect();
-    _galleryZoomAt(2, e.clientX - r.left - r.width / 2, e.clientY - r.top - r.height / 2);
+    _galleryZoomAt(_GALLERY_DBLCLICK_ZOOM, e.clientX - r.left - r.width / 2, e.clientY - r.top - r.height / 2);
   });
   let drag = null;
   area.addEventListener('mousedown', e => {
@@ -5658,16 +5667,17 @@ document.addEventListener('keydown', e => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
     if (e.code === 'KeyF') { toggleViewerFullscreen('image-viewer'); return; }
     // Zoom (mirrors the PDF viewer): +/- zoom, 0 resets to fit.
-    if (e.code === 'Equal' || e.code === 'NumpadAdd')      { _galleryZoomAt(1.25); return; }
-    if (e.code === 'Minus' || e.code === 'NumpadSubtract') { _galleryZoomAt(1 / 1.25); return; }
+    if (e.code === 'Equal' || e.code === 'NumpadAdd')      { _galleryZoomAt(_GALLERY_KEY_FACTOR); return; }
+    if (e.code === 'Minus' || e.code === 'NumpadSubtract') { _galleryZoomAt(1 / _GALLERY_KEY_FACTOR); return; }
     if (e.code === 'Digit0' || e.code === 'Numpad0')       { _resetGalleryZoom(); return; }
-    // Arrows: pan while zoomed, otherwise navigate between images.
+    // Arrows: pan while zoomed (image moves in the arrow's direction, matching the
+    // mouse drag), otherwise navigate between images.
     if (_galleryZoom > 1) {
-      const STEP = 60;
-      if (e.code === 'ArrowLeft')  { _galleryPanBy(STEP, 0);  return; }
-      if (e.code === 'ArrowRight') { _galleryPanBy(-STEP, 0); return; }
-      if (e.code === 'ArrowUp')    { e.preventDefault(); _galleryPanBy(0, STEP);  return; }
-      if (e.code === 'ArrowDown')  { e.preventDefault(); _galleryPanBy(0, -STEP); return; }
+      const STEP = _GALLERY_PAN_KEY_STEP;
+      if (e.code === 'ArrowLeft')  { _galleryPanBy(-STEP, 0); return; }
+      if (e.code === 'ArrowRight') { _galleryPanBy(STEP, 0);  return; }
+      if (e.code === 'ArrowUp')    { e.preventDefault(); _galleryPanBy(0, -STEP); return; }
+      if (e.code === 'ArrowDown')  { e.preventDefault(); _galleryPanBy(0, STEP);  return; }
     } else {
       if (e.code === 'ArrowLeft')  { imageNav(-1); return; }
       if (e.code === 'ArrowRight') { imageNav(1);  return; }
@@ -6122,8 +6132,8 @@ function _gpPoll() {
         const gx = _gpDeadzone(gp.axes[0] ?? 0);
         const gy = _gpDeadzone(gp.axes[1] ?? 0);
         const gz = _gpDeadzone(gp.axes[3] ?? 0);  // right stick Y: up (negative) = zoom in
-        if (gz) _galleryZoomAt(1 + (-gz) * 0.04);
-        if (_galleryZoom > 1 && (gx || gy)) _galleryPanBy(-gx * 16, -gy * 16);
+        if (gz) _galleryZoomAt(1 + (-gz) * _GALLERY_GP_ZOOM_RATE);
+        if (_galleryZoom > 1 && (gx || gy)) _galleryPanBy(-gx * _GALLERY_GP_PAN_RATE, -gy * _GALLERY_GP_PAN_RATE);
       }
       continue;  // skip the video/browser stick handling below
     }
