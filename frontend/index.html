@@ -5510,6 +5510,12 @@ document.addEventListener('keydown', e => {
       return; // Swallow all other keys while a dialog is open
     }
   }
+  // Help dialog works everywhere (browser, video, image/gallery, pdf, audio), as long
+  // as the target isn't a text field.
+  if (e.key === '?' && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+    openShortcutsDialog();
+    return;
+  }
   // Image viewer navigation
   if (currentViewerMode === 'image') {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
@@ -5593,7 +5599,6 @@ document.addEventListener('keydown', e => {
   if (e.code === 'KeyS') { saveCurrentPositionAsInitialSweep(); return; }
   if (e.code === 'PageDown') { nextVideoInFolder(); return; }
   if (e.code === 'PageUp')   { prevVideoInFolder(); return; }
-  if (e.key === '?') { openShortcutsDialog(); return; }
 });
 
 // ── Dialog helpers ────────────────────────────────────────────────────────────
@@ -5889,7 +5894,9 @@ function _gpMoveCursor(delta) {
 function _gpActivateCursor() {
   if (_gpCursorIdx < 0 || _gpCursorIdx >= _gpRenderedList.length) return;
   const entry = _gpRenderedList[_gpCursorIdx];
-  if (entry.is_dir) {
+  if (isGallery(entry)) {
+    openGallery(entries.indexOf(entry));  // a gallery is a dir but opens like a media
+  } else if (entry.is_dir) {
     navigate(entry.path);
   } else {
     openMedia(entries.indexOf(entry));
