@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Endpoint `/api/stream` (BL-067)** : suppression de l'endpoint de streaming hérité, devenu code mort depuis la migration vers `/api/file` (BL-053). La lecture de tout média passe par `/api/file` (validation Range/416 incluse). Docs mises à jour.
 
 ### Fixed
+- **Version affichée dans l'UI** : le numéro de version venait d'une constante figée (`1.0.0`) côté backend, désynchronisée de `pyproject.toml`. La version est désormais lue depuis `pyproject.toml` (source unique, copié dans l'image Docker), affichée correctement dans l'en-tête et exposée par `/api/settings`.
 - **Lisibilité de l'aide clavier (BL-065)** : la fenêtre d'aide (`?`) était illisible sur PC/Firefox (texte sombre sur fond sombre car le `<dialog>` héritait de la couleur de texte par défaut du navigateur). Couleur de texte désormais explicite.
 - **Délai et feedback réseau (BL-037)** : les appels critiques (listing, recherche, sauvegarde de progression, déplacement, suppression) passent par un wrapper `apiFetch` avec timeout (15 s) et affichent un toast en cas de lenteur/erreur réseau, au lieu de rester silencieusement bloqués (utile au réveil du NAS).
 - **Atomicité des opérations fichiers (BL-034)** : la suppression et le déplacement mettent désormais à jour la base **avant** l'opération disque, avec rollback si celle-ci échoue. Plus de lignes de progression/segments orphelines (ou mal réécrites) lorsqu'une suppression/déplacement échoue.

@@ -2871,3 +2871,15 @@ class TestProgressNonVideo:
         data = client.get("/api/progress?path=manual.pdf").json()
         assert data["position"] == 5
         assert data["duration"] == 20
+
+
+class TestVersion:
+    def test_app_version_matches_pyproject(self):
+        import tomllib
+        from pathlib import Path as _P
+
+        pyproject = _P(main_mod.__file__).resolve().parent.parent / "pyproject.toml"
+        with pyproject.open("rb") as fh:
+            expected = tomllib.load(fh)["project"]["version"]
+        assert main_mod.VERSION == expected != "0.0.0"
+        assert client.get("/api/settings").json()["app_version"] == expected

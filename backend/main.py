@@ -107,8 +107,22 @@ def _resolve_ffprobe() -> str:
 FFMPEG_BIN = _resolve_ffmpeg()
 FFPROBE_BIN = _resolve_ffprobe()
 
+
 # ── App ───────────────────────────────────────────────────────────────────────
-VERSION = "1.0.0"
+def _read_version() -> str:
+    """Single source of truth for the app version: pyproject.toml at the repo root
+    (copied into the Docker image). Falls back to '0.0.0' if unavailable."""
+    try:
+        import tomllib  # noqa: PLC0415 — stdlib (py3.11+)
+
+        pyproject = Path(__file__).resolve().parent.parent / "pyproject.toml"
+        with pyproject.open("rb") as fh:
+            return tomllib.load(fh)["project"]["version"]
+    except Exception:
+        return "0.0.0"
+
+
+VERSION = _read_version()
 
 app = FastAPI(title="Hoard", version=VERSION)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
