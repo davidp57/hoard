@@ -1,7 +1,7 @@
 # Lot FEAT-GALLERY — Galeries d'images (dossier comme média opaque)
 
-Status: 🔄 in-progress
-Branch: feature/gallery → PR → develop
+Status: ✅ done
+Branch: feature/gallery → PR #31 (merged) → develop
 
 ## Problem Statement
 
