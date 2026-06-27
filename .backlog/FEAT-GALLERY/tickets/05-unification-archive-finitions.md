@@ -1,6 +1,6 @@
 # BL-073 — Unification archive↔galerie & finitions
 
-Status: ⬜ ready
+Status: ✅ done
 Type: feat
 Parent: FEAT-GALLERY ([PRD](../PRD.md))
 Files: `frontend/index.html`, `docs/user-guide.en.md`, `docs/user-guide.fr.md`, `docs/developer.en.md`, `docs/developer.fr.md`, `CHANGELOG.md`, `docs/changelog-user.fr.md`

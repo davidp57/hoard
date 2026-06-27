@@ -120,9 +120,32 @@ comptes — utiliser HTTPS pour ne pas transmettre les identifiants en clair.
 | GET | `/api/media-info?path=` | Lit à la demande les métadonnées de lecture via ffprobe |
 | GET | `/api/file?path=` | Sert n'importe quel fichier média (vidéo/image/audio/PDF) avec support `Range` (seeking natif) |
 | GET | `/api/transcode?path=` | Stream transcodé via ffmpeg |
+| GET | `/api/gallery/list?path=` | Séquence ordonnée et aplatie d'une galerie : `{count, items:[{path, type}]}` |
+| GET | `/api/thumbnail?path=` | Vignette JPEG downscalée d'une image, à la volée (ffmpeg, sans cache) |
+| GET | `/api/archive/list?path=` | Noms d'images ordonnés dans une archive ZIP/CBZ/CBR |
+| GET | `/api/archive/image?path=&index=` | Sert la Nᵉ image d'une archive |
+| GET | `/api/archive/thumbnail?path=&index=` | Vignette downscalée de la Nᵉ image d'archive (ffmpeg) |
 | POST | `/api/download` | Télécharge une vidéo web via yt-dlp `{url, cookies?, referer?, title?}` |
 | POST | `/api/jobs/{job_id}/cancel` | Annule un job de téléchargement en attente ou en cours |
 | DELETE | `/api/jobs/{job_id}` | Retire un job terminé/échoué/annulé du store en mémoire |
+
+### Galeries
+
+Un dossier est traité comme une **galerie** — un média unique lu page par page —
+lorsqu'il contient, récursivement, plus de 3 images et aucune vidéo. Les sous-dossiers
+sont autorisés ; la galerie est détectée au dossier le plus haut éligible et son
+arborescence est aplatie en une seule séquence (profondeur d'abord, fichiers du niveau
+courant avant les sous-dossiers, tri naturel). `/api/files` renvoie un tel dossier avec
+`media_type: "gallery"` et sa propre `progress` (la reprise est ancrée sur le chemin du
+dossier : `position` = index de page, `duration` = nombre de pages). Les archives
+(`.cbz`/`.cbr`/`.zip`) sont l'autre support de galerie et partagent la même visionneuse.
+
+Les fichiers non-image d'une galerie sont des **passagers** (PDF/audio/archive/texte) :
+ils gardent leur position dans la séquence et reçoivent un aperçu (1ʳᵉ page PDF et texte
+rendus côté client ; icône sinon). Les fichiers non pris en charge sont ignorés. Les
+vignettes de la barre sont générées à la volée via ffmpeg (`/api/thumbnail`,
+`/api/archive/thumbnail`), sans cache ; l'image principale s'affiche immédiatement et
+les vignettes se chargent paresseusement.
 
 ### Lecture native versus transcodage
 

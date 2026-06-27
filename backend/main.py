@@ -1009,6 +1009,8 @@ IMAGE_EXTENSIONS = {
 AUDIO_EXTENSIONS = {".mp3", ".flac", ".ogg", ".m4a", ".aac", ".wav", ".opus"}
 PDF_EXTENSIONS = {".pdf"}
 ARCHIVE_EXTENSIONS = {".zip", ".cbz", ".cbr"}
+# Text formats shown as gallery passengers (previewed client-side).
+TEXT_EXTENSIONS = {".txt", ".md", ".nfo"}
 # Sidecar subtitle formats. Browsers' <track> only accepts WebVTT, so .srt/.ass
 # are converted to VTT on the fly when served (see /api/subtitle).
 SUBTITLE_EXTENSIONS = {".srt", ".ass", ".ssa", ".vtt"}
@@ -1378,6 +1380,84 @@ def get_folder_state(folder: Path, progress_map: dict) -> str:
     return "new"
 
 
+def _natural_key(name: str):
+    """Sort key for natural (numeric-aware) ordering: 'page-2' < 'page-10'."""
+    return [int(tok) if tok.isdigit() else tok.lower() for tok in re.split(r"(\d+)", name)]
+
+
+def is_gallery(folder: Path) -> bool:
+    """A gallery folder has (recursively) more than 3 images and no video at all.
+
+    Sub-folders are allowed; non-image, non-video files are tolerated (passengers).
+    Returns early as soon as a video is found.
+    """
+    image_count = 0
+    for f in folder.rglob("*"):
+        if f.is_symlink() and not f.resolve().is_relative_to(MEDIA_ROOT.resolve()):
+            continue
+        if not f.is_file() or f.name.startswith("."):
+            continue
+        if is_video(f):
+            return False
+        if is_image(f):
+            image_count += 1
+    return image_count > 3
+
+
+def _gallery_item_type(path: Path) -> str | None:
+    """Type of a gallery item, or None if the file is not shown in a gallery.
+
+    Images are the main content; PDF/audio/archive/text files are 'passengers'.
+    """
+    if is_image(path):
+        return "image"
+    if is_pdf(path):
+        return "pdf"
+    if is_audio(path):
+        return "audio"
+    if is_archive(path):
+        return "archive"
+    if path.suffix.lower() in TEXT_EXTENSIONS:
+        return "text"
+    return None
+
+
+def gallery_sequence(folder: Path) -> list[tuple[Path, str]]:
+    """Ordered gallery items as (path, type): depth-first, current-level files before
+    sub-folders, natural sort at each level. Images plus passengers (PDF/audio/
+    archive/text); other files are skipped.
+    """
+    items: list[tuple[Path, str]] = []
+
+    def walk(d: Path) -> None:
+        files: list[Path] = []
+        subdirs: list[Path] = []
+        try:
+            children = list(d.iterdir())
+        except PermissionError:
+            return
+        for c in children:
+            if c.name.startswith("."):
+                continue
+            if c.is_symlink() and not c.resolve().is_relative_to(MEDIA_ROOT.resolve()):
+                continue
+            if c.is_file():
+                files.append(c)
+            elif c.is_dir():
+                subdirs.append(c)
+        files.sort(key=lambda p: _natural_key(p.name))
+        subdirs.sort(key=lambda p: _natural_key(p.name))
+        for f in files:
+            t = _gallery_item_type(f)
+            if t:
+                items.append((f, t))
+        for sd in subdirs:
+            walk(sd)
+
+    walk(folder)
+    return items
+
+
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 
@@ -1418,17 +1498,27 @@ def list_files(path: str = ""):
     entries = []
     for item, st in items_with_stat:
         rel = to_rel(item)
-        _media_type = get_media_type(item) if item.is_file() else "other"
+        is_directory = item.is_dir()
+        folder_state = None
+        if item.is_file():
+            _media_type = get_media_type(item)
+        elif is_gallery(item):
+            # A gallery folder behaves like a media: it carries its own progress
+            # percent instead of an aggregated folder_state.
+            _media_type = "gallery"
+        else:
+            _media_type = "other"
+            folder_state = get_folder_state(item, progress_map)
         entry = {
             "name": item.name,
             "path": rel,
-            "is_dir": item.is_dir(),
+            "is_dir": is_directory,
             "is_video": is_video(item) if item.is_file() else False,
             "media_type": _media_type,
             "size": st.st_size if item.is_file() else 0,
             "mtime": st.st_mtime,
-            "is_quick_folder": rel in qf_paths if item.is_dir() else False,
-            "folder_state": get_folder_state(item, progress_map) if item.is_dir() else None,
+            "is_quick_folder": rel in qf_paths if is_directory else False,
+            "folder_state": folder_state,
         }
         if _media_type != "other":
             entry["progress"] = get_progress(item)
@@ -2673,6 +2763,85 @@ def serve_file(path: str, request: Request):
     )
 
 
+@app.get("/api/gallery/list")
+def gallery_list(path: str):
+    """Return the ordered, flattened sequence of a gallery folder.
+
+    Items are served by ``/api/file`` and shaped as ``{"path", "type"}``. The sequence
+    contains images plus non-image *passengers* (``pdf``/``audio``/``archive``/``text``)
+    at their ordered position; unsupported files are skipped.
+    """
+    folder = safe_path(path)
+    if not folder.exists() or not folder.is_dir():
+        raise HTTPException(status_code=404)
+    items = [{"path": to_rel(p), "type": t} for p, t in gallery_sequence(folder)]
+    return {"count": len(items), "items": items}
+
+
+THUMBNAIL_WIDTH = 320
+THUMBNAIL_TIMEOUT_SECONDS = 15
+THUMBNAIL_MAX_BYTES = 50 * 1024 * 1024  # 50 MiB — reject oversized inputs for thumbnailing
+
+
+def _ffmpeg_thumbnail(*, file: Path | None = None, data: bytes | None = None) -> bytes:
+    """Generate a downscaled JPEG thumbnail via ffmpeg, from a file path or raw bytes
+    (stdin). Shared by image and archive-image thumbnails. No cache.
+
+    Guarded against resource exhaustion: oversized inputs are rejected (413) and the
+    ffmpeg call is bounded by a timeout (504).
+    """
+    if not FFMPEG_BIN:
+        raise HTTPException(status_code=503, detail="ffmpeg not available")
+    if data is not None:
+        if len(data) > THUMBNAIL_MAX_BYTES:
+            raise HTTPException(status_code=413, detail="Input too large for thumbnailing")
+    elif file is not None:
+        try:
+            if file.stat().st_size > THUMBNAIL_MAX_BYTES:
+                raise HTTPException(status_code=413, detail="File too large for thumbnailing")
+        except OSError:
+            pass
+    input_arg = str(file) if file is not None else "pipe:0"
+    cmd = [FFMPEG_BIN, "-v", "error", "-i", input_arg]
+    if file is not None:
+        cmd.insert(1, "-nostdin")
+    cmd += ["-vf", f"scale={THUMBNAIL_WIDTH}:-2", "-frames:v", "1", "-f", "mjpeg", "pipe:1"]
+    try:
+        # cmd is a fixed flag list; only FFMPEG_BIN (resolved binary) and a safe_path-
+        # validated file path / "pipe:0" vary. shell=False, no user-controlled tokens.
+        completed = subprocess.run(  # nosemgrep: dangerous-subprocess-use-audit
+            cmd,
+            check=True,
+            capture_output=True,
+            shell=False,
+            input=data,
+            timeout=THUMBNAIL_TIMEOUT_SECONDS,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=503, detail="ffmpeg not available") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise HTTPException(status_code=504, detail="Thumbnail generation timed out") from exc
+    except subprocess.CalledProcessError as exc:
+        raise HTTPException(status_code=422, detail="Could not generate thumbnail") from exc
+    if not completed.stdout:
+        raise HTTPException(status_code=422, detail="Empty thumbnail")
+    return completed.stdout
+
+
+@app.get("/api/thumbnail")
+def thumbnail(path: str):
+    """Return a small downscaled JPEG thumbnail for an image, generated on the fly
+    via ffmpeg. No cache: the first gallery image is served full-size by /api/file
+    immediately, and thumbnails are requested lazily by the client.
+    """
+    file = safe_path(path)
+    if not file.exists() or not file.is_file():
+        raise HTTPException(status_code=404)
+    if not is_image(file):
+        raise HTTPException(status_code=415, detail="Not an image")
+    return Response(content=_ffmpeg_thumbnail(file=file), media_type="image/jpeg")
+
+
 @app.get("/api/archive/list")
 def archive_list(path: str):
     """Return ordered list of image names inside a ZIP/CBZ/CBR archive."""
@@ -2712,12 +2881,8 @@ def archive_list(path: str):
     raise HTTPException(status_code=415, detail="Unsupported archive format")
 
 
-@app.get("/api/archive/image")
-def archive_image(path: str, index: int):
-    """Extract and serve the Nth image from a ZIP/CBZ/CBR archive."""
-    file = safe_path(path)
-    if not file.exists() or not file.is_file():
-        raise HTTPException(status_code=404)
+def _archive_image_bytes(file: Path, index: int) -> tuple[bytes, str]:
+    """Return (bytes, mime) for the Nth image inside a ZIP/CBZ/CBR archive."""
     ext = file.suffix.lower()
     if ext in {".zip", ".cbz"}:
         try:
@@ -2729,16 +2894,14 @@ def archive_image(path: str, index: int):
                 )
                 if index < 0 or index >= len(names):
                     raise HTTPException(status_code=404, detail="Image index out of range")
-                data = zf.read(names[index])
-                mime = mimetypes.guess_type(names[index])[0] or "image/jpeg"
+                name = names[index]
+                return zf.read(name), (mimetypes.guess_type(name)[0] or "image/jpeg")
         except zipfile.BadZipFile:
             if ext != ".cbz":
                 raise HTTPException(
                     status_code=422, detail="Cannot read archive: File is not a zip file"
                 ) from None
             ext = ".cbr"  # some CBZ files are RAR-encoded; fall through to RAR handler
-        else:
-            return Response(content=data, media_type=mime)
     if ext == ".cbr":
         try:
             import rarfile  # noqa: PLC0415
@@ -2751,12 +2914,34 @@ def archive_image(path: str, index: int):
                 )
                 if index < 0 or index >= len(names):
                     raise HTTPException(status_code=404, detail="Image index out of range")
-                data = rf.read(names[index])
-                mime = mimetypes.guess_type(names[index])[0] or "image/jpeg"
-            return Response(content=data, media_type=mime)
+                name = names[index]
+                return rf.read(name), (mimetypes.guess_type(name)[0] or "image/jpeg")
+        except HTTPException:
+            raise
         except Exception as exc:
             raise HTTPException(status_code=422, detail=f"Cannot read CBR: {exc}") from exc
     raise HTTPException(status_code=415, detail="Unsupported archive format")
+
+
+@app.get("/api/archive/image")
+def archive_image(path: str, index: int):
+    """Extract and serve the Nth image from a ZIP/CBZ/CBR archive."""
+    file = safe_path(path)
+    if not file.exists() or not file.is_file():
+        raise HTTPException(status_code=404)
+    data, mime = _archive_image_bytes(file, index)
+    return Response(content=data, media_type=mime)
+
+
+@app.get("/api/archive/thumbnail")
+def archive_thumbnail(path: str, index: int):
+    """Return a downscaled thumbnail for the Nth image inside an archive (galleries
+    and archives share one viewer with a thumbnail strip)."""
+    file = safe_path(path)
+    if not file.exists() or not file.is_file():
+        raise HTTPException(status_code=404)
+    data, _ = _archive_image_bytes(file, index)
+    return Response(content=_ffmpeg_thumbnail(data=data), media_type="image/jpeg")
 
 
 # Serve frontend

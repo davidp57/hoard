@@ -72,9 +72,26 @@ JPG, PNG, GIF, WEBP, BMP, TIFF, and AVIF files open in an integrated image viewe
 - **▣ button**: toggle between fit-width and full-page display
 - **✕**: close the viewer
 
+### Galleries (image folders)
+
+A folder containing several images (more than 3) and no video is treated as a
+**gallery**: it shows up in the list as a single media (🖼️ icon, progress bar, watched
+state), and opening it shows the first image right away instead of the file list.
+
+- You read images one after another; the position is saved and resumed on reopen, just
+  like a video.
+- Sub-folders are flattened in order (handy for a scan organized into chapters).
+- A **thumbnail strip** under the image acts as a seek bar: click a thumbnail to jump.
+- With a mouse (desktop), hover a thumbnail to reveal ✕ (delete that image) and › (move
+  that image). With keyboard/gamepad, delete/move act on the **whole gallery** (like a
+  movie), and `W` marks it watched / unwatched.
+- A stray non-image file (PDF, text…) stays accessible as a **passenger**: it keeps its
+  place in the sequence with a preview.
+
 ### Comic/manga archives (.cbz, .zip, .cbr)
 
-Image archives open as a page-by-page viewer.
+Image archives are galleries too: they open page by page in the same viewer, with the
+thumbnail strip.
 
 - Navigation identical to the image viewer (← / →)
 - Current page is saved so you can resume where you left off

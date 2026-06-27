@@ -71,9 +71,28 @@ Les fichiers JPG, PNG, GIF, WEBP, BMP, TIFF et AVIF s'ouvrent dans une visionneu
 - **Bouton ▣** : bascule entre affichage ajusté à la largeur et plein écran
 - **✕** : ferme la visionneuse
 
+### Galeries (dossiers d'images)
+
+Un dossier qui contient plusieurs images (plus de 3) et aucune vidéo est traité comme
+une **galerie** : il apparaît dans la liste comme un média unique (icône 🖼️, barre de
+progression, état vu / en cours / non vu), et l'ouvrir affiche directement la première
+image au lieu de la liste des fichiers.
+
+- On lit les images les unes après les autres ; la position est sauvegardée et reprise
+  à la réouverture, comme pour une vidéo.
+- Les sous-dossiers sont aplatis dans l'ordre (utile pour un scan rangé en chapitres).
+- Une **barre de vignettes** sous l'image sert de navigation : clique une vignette pour
+  y sauter directement.
+- À la souris (ordinateur), survole une vignette pour faire apparaître ✕ (supprimer
+  cette image) et › (déplacer cette image). Au clavier/à la manette, supprimer/déplacer
+  agit sur la **galerie entière** (comme un film), et `W` la marque vue / non vue.
+- Un fichier non-image égaré dans la galerie (PDF, texte…) reste accessible comme
+  **passager** : il garde sa place dans la séquence avec un aperçu.
+
 ### Archives BD/manga (.cbz, .zip, .cbr)
 
-Les archives d'images s'ouvrent page à page comme une visionneuse.
+Les archives d'images sont aussi des galeries : elles s'ouvrent page à page dans la
+même visionneuse, avec la barre de vignettes.
 
 - Navigation identique à la visionneuse d'images (← / →)
 - La page courante est sauvegardée pour reprendre là où tu t'es arrêté

@@ -1,6 +1,6 @@
 # BL-072 — Passagers (fichiers non-image dans une galerie)
 
-Status: ⬜ ready
+Status: ✅ done
 Type: feat
 Parent: FEAT-GALLERY ([PRD](../PRD.md))
 Files: `backend/main.py`, `frontend/index.html`, `tests/test_api.py`
