@@ -75,7 +75,7 @@ Documentation must be kept up to date with every code change. Update in the **sa
 | Developer / technical docs | **EN** | `docs/developer.en.md` | Architecture or API changed |
 | `CHANGELOG.md` | **FR** | root | Every PR merged into `develop` |
 | `docs/changelog-user.fr.md` | **FR** | `docs/` | Every user-visible feature or fix |
-| `docs/backlog.md` | **FR** | `docs/` | Ticket created, progressed, or completed |
+| `.backlog/` (PRD + tickets) | **FR** | `.backlog/<LOT-ID>/` | Ticket created, progressed, or completed |
 | `ROADMAP.md` | **EN** | root | Lot completed, planned, or reprioritised |
 
 `docs/changelog-user.fr.md` is the end-user changelog (no jargon, plain French). Keep it in sync with `CHANGELOG.md` for every version.
@@ -123,11 +123,17 @@ hoard/
 ├── tests/
 │   ├── conftest.py                # pytest fixtures + env isolation
 │   └── test_api.py                # API tests via httpx.AsyncClient
+├── .backlog/                      # Per-lot backlog (scope + status), agent-maintained
+│   ├── README.md                  # Lot index (active + archived)
+│   ├── <LOT-ID>/PRD.md + tickets/ # Active lots
+│   └── archive/<LOT-ID>.md        # Completed lots (compact)
 ├── docs/                          # Documentation (EN + FR paired files)
 │   ├── user-guide.en.md / user-guide.fr.md
 │   ├── installation.en.md / installation.fr.md
 │   ├── developer.en.md / developer.fr.md
-│   └── getting-started.en.md / getting-started.fr.md
+│   ├── getting-started.en.md / getting-started.fr.md
+│   ├── agents/                    # Per-repo skill config (issue-tracker, triage-labels, domain)
+│   └── adr/                       # Architecture decision records
 ├── dev-media/                     # Local test media (gitignored)
 ├── CLAUDE.md                      # This file — project context + full instructions
 ├── ROADMAP.md
@@ -276,7 +282,7 @@ After every change (feature, fix, refactor), before committing:
 3. Zero errors in VS Code (ruff, Pylance).
 4. Update `CHANGELOG.md` (in **French**, under `## [Unreleased]`).
 5. If user-visible: update `docs/changelog-user.fr.md`.
-6. Update `docs/backlog.md` if the change closes or advances a ticket.
+6. Update the relevant `.backlog/<LOT-ID>/` PRD/ticket `Status:` and `.backlog/README.md` if the change closes or advances a ticket.
 7. Update relevant user docs (EN + FR) or developer docs (EN).
 8. **Bump the patch version** in `pyproject.toml` (e.g. `1.2.3` → `1.2.4`).
 
@@ -286,27 +292,45 @@ After every change (feature, fix, refactor), before committing:
 
 ### Backlog
 
-`docs/backlog.md` is the single source of truth for all tracked work items. Written in **French**.
+The backlog lives under `.backlog/` (one directory per active lot, compact archive
+files for completed lots). It is the source of truth for **scope and status**.
+Artifacts are written in **French**. See `docs/agents/issue-tracker.md` for the full
+convention and `.backlog/README.md` for the lot index.
 
-Work items are grouped into **lots**. Each lot has:
-- A ticket table: `ID | Titre | Prio | Est. | Créé | Démarré | Terminé`
-- A Copilot time estimate displayed in the lot header.
-
-**Estimation rules:**
-- Per ticket: estimate raw implementation time, multiply by the current margin factor (tracked in `docs/backlog.md` under `## Calibration estimations`), round to nearest 5 min.
-- Per lot header: sum of ticket estimates + 15 min user project management.
-- Track actuals in `.dev/timing.md` during implementation; report at end of lot.
-- After each completed lot, compare estimated vs. actual. If the ratio differs from the current factor by more than 20%, adjust and inform the user. Log in the `## Calibration estimations` section of `docs/backlog.md`.
-
-Completed lots older than 3 days → move to `docs/backlog-archive.md`.
+- Active lot = `.backlog/<LOT-ID>/PRD.md` + `tickets/<NN>-<slug>.md` (numbered in
+  dependency order, blockers first). LOT-IDs are semantic, uppercase (e.g. `FEAT-ADVANCED`).
+- Ticket IDs keep the historical `BL-NNN` scheme (referenced in commits, CHANGELOG,
+  ROADMAP, docs).
+- Single `Status:` vocabulary (⬜ ready · 🔄 in-progress · 🧑 waiting-human ·
+  ✅ done · 🚫 wontfix) — see `docs/agents/triage-labels.md`.
+- **No estimations**: no time estimates, no calibration table, no `Est.`/`Prio`
+  columns (project decision).
+- One branch / one PR per lot.
+- Completed lots older than 3 days → compact into `.backlog/archive/<LOT-ID>.md` and
+  add a row to `.backlog/README.md`.
 
 ### Roadmap
 
-`ROADMAP.md` tracks the delivery plan. Every lot with an agreed target version appears there:
+`ROADMAP.md` tracks the delivery plan (**sequencing** source of truth). Every lot with
+an agreed target version appears there:
 - Functional lots: one subsection per feature with detail.
 - Technical lots: one-line summary.
 
 Update after completing a lot, planning new lots, or changing priorities.
+
+---
+
+## Agent skills
+
+Per-repo config that makes the Matt Pocock engineering skills (`to-prd`, `to-issues`,
+`triage`) aware of this repo's backlog at runtime. The skills stay globally installed
+and unmodified.
+
+- **Issue tracker** — lots/PRDs/tickets under `.backlog/<LOT-ID>/` (active) and
+  `.backlog/archive/<LOT-ID>.md` (completed). See `docs/agents/issue-tracker.md`.
+- **Triage labels** — single `Status:` vocabulary mapped to Matt's roles. See
+  `docs/agents/triage-labels.md`.
+- **Domain docs** — single-context: `CLAUDE.md` + `docs/adr/`. See `docs/agents/domain.md`.
 
 ---
 
