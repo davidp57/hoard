@@ -1121,6 +1121,30 @@
     max-height: 100%;
     width: auto;
   }
+  /* Gallery zoom / pan */
+  #image-el { transition: transform 0.08s ease-out; transform-origin: center center; }
+  #image-scroll-area.gallery-zoomed { overflow: hidden; cursor: grab; }
+  #image-scroll-area.gallery-panning { cursor: grabbing; }
+  #image-scroll-area.gallery-panning #image-el { transition: none; }
+  /* Fullscreen info HUD — stays visible while the nav bar auto-hides */
+  #gallery-hud {
+    display: none;
+    position: absolute;
+    top: 10px;
+    left: 12px;
+    z-index: 5;
+    max-width: 70%;
+    padding: 4px 10px;
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    font: 12px/1.4 'DM Mono', monospace;
+    border-radius: 6px;
+    pointer-events: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #image-viewer.viewer-fullscreen #gallery-hud { display: block; }
   /* Gallery thumbnail strip (seek bar for image folders) */
   #gallery-thumbs {
     display: none;
@@ -1679,6 +1703,7 @@
         <div id="image-title"></div>
         <button onclick="closeImageViewer()" title="Fermer">&#x2715;</button>
       </div>
+      <div id="gallery-hud"></div>
       <div id="image-scroll-area">
         <img id="image-el" src="" alt="">
         <div id="gallery-passenger"></div>
@@ -3746,6 +3771,121 @@ function _galleryChromeReset() {
 document.getElementById('image-viewer').addEventListener('mousemove', _galleryChromeReveal);
 document.getElementById('image-viewer').addEventListener('touchstart', _galleryChromeReveal, { passive: true });
 
+// ── Gallery zoom / pan (mouse wheel + drag, keyboard +/-/0/arrows, gamepad sticks) ──
+let _galleryZoom = 1;
+let _galleryPanX = 0;
+let _galleryPanY = 0;
+const _GALLERY_ZOOM_MAX = 6;
+const _GALLERY_WHEEL_FACTOR = 1.15;     // per wheel notch
+const _GALLERY_KEY_FACTOR = 1.25;       // per +/- keypress
+const _GALLERY_DBLCLICK_ZOOM = 2;       // double-click target zoom
+const _GALLERY_PAN_KEY_STEP = 60;       // px per arrow keypress
+const _GALLERY_GP_ZOOM_RATE = 0.04;     // right-stick zoom per poll frame
+const _GALLERY_GP_PAN_RATE = 16;        // left-stick pan px per poll frame
+
+// Zoom applies only when the viewer actually shows an image (not a passenger preview).
+function _galleryImageZoomActive() {
+  if (currentViewerMode !== 'image') return false;
+  if (_imageIsGallery) return _galleryItems[_imageCurrentIdx]?.type === 'image';
+  return true; // archive page or single image
+}
+
+function _updateGalleryHud() {
+  const hud = document.getElementById('gallery-hud');
+  if (!hud) return;
+  const parts = [];
+  const counter = document.getElementById('image-counter').textContent.trim();
+  if (counter) parts.push(counter);
+  if (_galleryZoom > 1) parts.push(`${Math.round(_galleryZoom * 100)}%`);
+  const title = document.getElementById('image-title').textContent.trim();
+  if (title) parts.push(title);
+  hud.textContent = parts.join('  ·  ');
+}
+
+function _applyGalleryTransform() {
+  const img = document.getElementById('image-el');
+  img.style.transform = _galleryZoom > 1
+    ? `translate(${_galleryPanX}px, ${_galleryPanY}px) scale(${_galleryZoom})`
+    : '';
+  document.getElementById('image-scroll-area').classList.toggle('gallery-zoomed', _galleryZoom > 1);
+  _updateGalleryHud();
+}
+
+function _resetGalleryZoom() {
+  _galleryZoom = 1; _galleryPanX = 0; _galleryPanY = 0;
+  const img = document.getElementById('image-el');
+  img.style.transform = '';
+  document.getElementById('image-scroll-area').classList.remove('gallery-zoomed', 'gallery-panning');
+  _updateGalleryHud();
+}
+
+function _clampGalleryPan() {
+  const area = document.getElementById('image-scroll-area');
+  const img = document.getElementById('image-el');
+  const maxX = Math.max(0, (img.clientWidth * _galleryZoom - area.clientWidth) / 2);
+  const maxY = Math.max(0, (img.clientHeight * _galleryZoom - area.clientHeight) / 2);
+  _galleryPanX = Math.max(-maxX, Math.min(maxX, _galleryPanX));
+  _galleryPanY = Math.max(-maxY, Math.min(maxY, _galleryPanY));
+}
+
+// Zoom by *factor*, keeping the point at offset (ox,oy) from the area center fixed.
+function _galleryZoomAt(factor, ox = 0, oy = 0) {
+  if (!_galleryImageZoomActive()) return;
+  const z0 = _galleryZoom;
+  const z1 = Math.max(1, Math.min(_GALLERY_ZOOM_MAX, z0 * factor));
+  if (z1 === z0) return;
+  if (z1 === 1) { _resetGalleryZoom(); return; }
+  _galleryPanX = ox - (ox - _galleryPanX) * (z1 / z0);
+  _galleryPanY = oy - (oy - _galleryPanY) * (z1 / z0);
+  _galleryZoom = z1;
+  _clampGalleryPan();
+  _applyGalleryTransform();
+}
+
+function _galleryPanBy(dx, dy) {
+  if (_galleryZoom <= 1) return;
+  _galleryPanX += dx; _galleryPanY += dy;
+  _clampGalleryPan();
+  _applyGalleryTransform();
+}
+
+(() => {
+  const area = document.getElementById('image-scroll-area');
+  area.addEventListener('wheel', e => {
+    if (!_galleryImageZoomActive()) return;
+    e.preventDefault();
+    const r = area.getBoundingClientRect();
+    const ox = e.clientX - r.left - r.width / 2;
+    const oy = e.clientY - r.top - r.height / 2;
+    _galleryZoomAt(e.deltaY < 0 ? _GALLERY_WHEEL_FACTOR : 1 / _GALLERY_WHEEL_FACTOR, ox, oy);
+  }, { passive: false });
+  area.addEventListener('dblclick', e => {
+    if (!_galleryImageZoomActive()) return;
+    if (_galleryZoom > 1) { _resetGalleryZoom(); return; }
+    const r = area.getBoundingClientRect();
+    _galleryZoomAt(_GALLERY_DBLCLICK_ZOOM, e.clientX - r.left - r.width / 2, e.clientY - r.top - r.height / 2);
+  });
+  let drag = null;
+  area.addEventListener('mousedown', e => {
+    if (_galleryZoom <= 1 || !_galleryImageZoomActive()) return;
+    drag = { x: e.clientX, y: e.clientY, px: _galleryPanX, py: _galleryPanY };
+    area.classList.add('gallery-panning');
+    e.preventDefault();
+  });
+  window.addEventListener('mousemove', e => {
+    if (!drag) return;
+    _galleryPanX = drag.px + (e.clientX - drag.x);
+    _galleryPanY = drag.py + (e.clientY - drag.y);
+    _clampGalleryPan();
+    _applyGalleryTransform();
+  });
+  window.addEventListener('mouseup', () => {
+    if (!drag) return;
+    drag = null;
+    area.classList.remove('gallery-panning');
+  });
+})();
+
 // ── Media dispatcher ──────────────────────────────────────────────────────────
 
 function openMedia(idx) {
@@ -3782,6 +3922,7 @@ function _showOnlyPanel(id) {
   const _pass = document.getElementById('gallery-passenger');
   if (_pass) { _pass.style.display = 'none'; _pass.innerHTML = ''; }
   document.getElementById('image-el').style.display = '';
+  _resetGalleryZoom();
   if (id) document.getElementById(id).classList.add('active');
 }
 
@@ -3799,6 +3940,7 @@ function openImage(idx) {
   if (!entry) return;
   currentFile = entry;
   _imageIsArchive = false;
+  _imageIsGallery = false;
   _imageCurrentIdx = idx;
   currentViewerMode = 'image';
 
@@ -3816,6 +3958,7 @@ function openImage(idx) {
   document.getElementById('image-counter').textContent = `${posInImages + 1} / ${fileEntries.length}`;
   document.getElementById('image-title').textContent = entry.name;
   document.getElementById('image-el').src = `${API}/api/file?path=${encodeURIComponent(entry.path)}`;
+  _resetGalleryZoom();
 
   saveProgress(entry.path, posInImages + 1, fileEntries.length);
 }
@@ -3861,6 +4004,7 @@ function _loadArchiveImage(idx) {
   document.getElementById('image-title').textContent = _imageArchiveImages[idx];
   document.getElementById('image-el').src =
     `${API}/api/archive/image?path=${encodeURIComponent(_imageArchivePath)}&index=${idx}`;
+  _resetGalleryZoom();
   _setActiveThumb(idx);
   saveProgress(_imageArchivePath, idx + 1, _imageArchiveImages.length);
 }
@@ -3909,6 +4053,7 @@ function _loadGalleryImage(idx) {
   document.getElementById('image-counter').textContent = `${idx + 1} / ${_galleryItems.length}`;
   document.getElementById('image-title').textContent = it.path.split('/').pop();
   _renderGalleryItem(it);
+  _resetGalleryZoom();
   _setActiveThumb(idx);
   saveProgress(_galleryPath, idx + 1, _galleryItems.length);
 }
@@ -4150,6 +4295,7 @@ function closeImageViewer() {
   document.getElementById('gallery-thumbs').innerHTML = '';
   document.getElementById('image-viewer').classList.remove('has-thumbs');
   _galleryChromeReset();
+  _resetGalleryZoom();
   _setMediaActive(false);
   document.getElementById('image-viewer').classList.remove('active', 'viewer-fullscreen');
   document.getElementById('player-panel').classList.remove('mobile-active');
@@ -5519,9 +5665,23 @@ document.addEventListener('keydown', e => {
   // Image viewer navigation
   if (currentViewerMode === 'image') {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-    if (e.code === 'ArrowLeft')  { imageNav(-1); return; }
-    if (e.code === 'ArrowRight') { imageNav(1);  return; }
     if (e.code === 'KeyF') { toggleViewerFullscreen('image-viewer'); return; }
+    // Zoom (mirrors the PDF viewer): +/- zoom, 0 resets to fit.
+    if (e.code === 'Equal' || e.code === 'NumpadAdd')      { _galleryZoomAt(_GALLERY_KEY_FACTOR); return; }
+    if (e.code === 'Minus' || e.code === 'NumpadSubtract') { _galleryZoomAt(1 / _GALLERY_KEY_FACTOR); return; }
+    if (e.code === 'Digit0' || e.code === 'Numpad0')       { _resetGalleryZoom(); return; }
+    // Arrows: pan while zoomed (image moves in the arrow's direction, matching the
+    // mouse drag), otherwise navigate between images.
+    if (_galleryZoom > 1) {
+      const STEP = _GALLERY_PAN_KEY_STEP;
+      if (e.code === 'ArrowLeft')  { _galleryPanBy(-STEP, 0); return; }
+      if (e.code === 'ArrowRight') { _galleryPanBy(STEP, 0);  return; }
+      if (e.code === 'ArrowUp')    { e.preventDefault(); _galleryPanBy(0, -STEP); return; }
+      if (e.code === 'ArrowDown')  { e.preventDefault(); _galleryPanBy(0, STEP);  return; }
+    } else {
+      if (e.code === 'ArrowLeft')  { imageNav(-1); return; }
+      if (e.code === 'ArrowRight') { imageNav(1);  return; }
+    }
     // Gallery: keyboard delete/move/watched act on the whole gallery (like a video).
     if (_imageIsGallery && currentFile) {
       if (e.code === 'Delete') { confirmDelete(currentFile.path, currentFile.name); return; }
@@ -5966,6 +6126,17 @@ function _gpPoll() {
     } else {
       _gpNavRepeat.btn = -1;
     } // axis assignment depends on gamepad_swap_sticks setting
+    // Gallery viewer: left stick pans, right stick Y zooms (when an image is shown).
+    if (currentViewerMode === 'image') {
+      if (_galleryImageZoomActive()) {
+        const gx = _gpDeadzone(gp.axes[0] ?? 0);
+        const gy = _gpDeadzone(gp.axes[1] ?? 0);
+        const gz = _gpDeadzone(gp.axes[3] ?? 0);  // right stick Y: up (negative) = zoom in
+        if (gz) _galleryZoomAt(1 + (-gz) * _GALLERY_GP_ZOOM_RATE);
+        if (_galleryZoom > 1 && (gx || gy)) _galleryPanBy(-gx * _GALLERY_GP_PAN_RATE, -gy * _GALLERY_GP_PAN_RATE);
+      }
+      continue;  // skip the video/browser stick handling below
+    }
     // Normal : left X = seek, right Y = volume
     // Swapped: right X = seek, left Y = volume
     // Browser navigation (left Y) is unaffected by the swap
