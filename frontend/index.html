@@ -3549,7 +3549,7 @@ function getMediaIcon(e) {
   const mt = e.media_type || 'other';
   if (mt === 'video') return getVideoIcon(e.progress);
   if (mt === 'image') return '📸';
-  if (mt === 'archive') return '📦';
+  if (mt === 'archive') return '\u{1F5BC}\u{FE0F}';  // 🖼️ — an archive is a gallery
   if (mt === 'audio') return '🎵';
   if (mt === 'pdf') return '📄';
   return '📝';
@@ -3787,6 +3787,7 @@ function openArchive(idx) {
     .then(data => {
       _imageArchiveImages = data.images || [];
       document.getElementById('image-title').textContent = entry.name;
+      _buildThumbStrip();
       _loadArchiveImage(0);
     })
     .catch(() => {
@@ -3802,6 +3803,7 @@ function _loadArchiveImage(idx) {
   document.getElementById('image-title').textContent = _imageArchiveImages[idx];
   document.getElementById('image-el').src =
     `${API}/api/archive/image?path=${encodeURIComponent(_imageArchivePath)}&index=${idx}`;
+  _setActiveThumb(idx);
   saveProgress(_imageArchivePath, idx + 1, _imageArchiveImages.length);
 }
 
@@ -3836,7 +3838,7 @@ function openGallery(idx) {
       if (p && p.has_saved_progress && p.position > 0) {
         startIdx = Math.min(Math.max(Math.round(p.position) - 1, 0), _galleryItems.length - 1);
       }
-      _buildGalleryThumbs();
+      _buildThumbStrip();
       _loadGalleryImage(startIdx);
     })
     .catch(() => { showToast('Erreur lecture galerie'); closeImageViewer(); });
@@ -3918,57 +3920,70 @@ async function _renderPassengerText(path) {
   } catch { pass.innerHTML = _passengerFallbackHtml('text', path); }
 }
 
-// Build the lazy thumbnail strip (seek bar). Thumbnails load only when scrolled
-// into view, so the main image (served full-size by /api/file) never waits on them.
-function _buildGalleryThumbs() {
+// Build the lazy thumbnail strip (seek bar), shared by folder-galleries and
+// archives. Thumbnails load only when scrolled into view, so the main image
+// (served full-size) never waits on them.
+function _buildThumbStrip() {
   const bar = document.getElementById('gallery-thumbs');
   const iv = document.getElementById('image-viewer');
   bar.innerHTML = '';
   if (_thumbObserver) { _thumbObserver.disconnect(); _thumbObserver = null; }
-  if (!_imageIsGallery || !_galleryItems.length) { iv.classList.remove('has-thumbs'); return; }
+  const count = _imageIsArchive ? _imageArchiveImages.length
+    : (_imageIsGallery ? _galleryItems.length : 0);
+  if (!count) { iv.classList.remove('has-thumbs'); return; }
   iv.classList.add('has-thumbs');
   _thumbObserver = new IntersectionObserver((obsEntries) => {
     obsEntries.forEach(en => {
       if (!en.isIntersecting) return;
       const cell = en.target;
       const img = cell.querySelector('img');
-      if (img && !img.src) img.src = `${API}/api/thumbnail?path=${encodeURIComponent(cell.dataset.path)}`;
+      if (img && !img.src && cell.dataset.src) img.src = cell.dataset.src;
       _thumbObserver.unobserve(cell);
     });
   }, { root: bar, rootMargin: '300px' });
-  _galleryItems.forEach((it, i) => {
+  for (let i = 0; i < count; i++) {
     const cell = document.createElement('div');
     cell.className = 'gthumb' + (i === _imageCurrentIdx ? ' active' : '');
     cell.dataset.index = String(i);
-    cell.dataset.path = it.path;
-    cell.title = it.path.split('/').pop();
-    cell.onclick = () => _loadGalleryImage(i);
-    if (it.type === 'image') {
+    if (_imageIsArchive) {
+      cell.onclick = () => _loadArchiveImage(i);
       const img = document.createElement('img');
       img.alt = '';
+      cell.dataset.src = `${API}/api/archive/thumbnail?path=${encodeURIComponent(_imageArchivePath)}&index=${i}`;
       cell.appendChild(img);
-      _thumbObserver.observe(cell);  // lazy-load only image thumbnails
+      _thumbObserver.observe(cell);
     } else {
-      const ico = document.createElement('div');
-      ico.className = 'gthumb-ico';
-      ico.textContent = _PASSENGER_ICONS[it.type] || '📄';
-      cell.appendChild(ico);
+      const it = _galleryItems[i];
+      cell.title = it.path.split('/').pop();
+      cell.onclick = () => _loadGalleryImage(i);
+      if (it.type === 'image') {
+        const img = document.createElement('img');
+        img.alt = '';
+        cell.dataset.src = `${API}/api/thumbnail?path=${encodeURIComponent(it.path)}`;
+        cell.appendChild(img);
+        _thumbObserver.observe(cell);  // lazy-load only image thumbnails
+      } else {
+        const ico = document.createElement('div');
+        ico.className = 'gthumb-ico';
+        ico.textContent = _PASSENGER_ICONS[it.type] || '📄';
+        cell.appendChild(ico);
+      }
+      // Per-image management (gallery only; mouse hover, desktop only).
+      const moveBtn = document.createElement('button');
+      moveBtn.className = 'gthumb-act gthumb-mov';
+      moveBtn.textContent = '›';
+      moveBtn.title = 'Déplacer cette image';
+      moveBtn.onclick = (ev) => { ev.stopPropagation(); _galleryMoveImage(Number(cell.dataset.index)); };
+      const delBtn = document.createElement('button');
+      delBtn.className = 'gthumb-act gthumb-del';
+      delBtn.textContent = '✕';
+      delBtn.title = 'Supprimer cette image';
+      delBtn.onclick = (ev) => { ev.stopPropagation(); _galleryDeleteImage(Number(cell.dataset.index)); };
+      cell.appendChild(moveBtn);
+      cell.appendChild(delBtn);
     }
-    // Per-image management (mouse hover, desktop only).
-    const moveBtn = document.createElement('button');
-    moveBtn.className = 'gthumb-act gthumb-mov';
-    moveBtn.textContent = '›';  // ›
-    moveBtn.title = 'Déplacer cette image';
-    moveBtn.onclick = (ev) => { ev.stopPropagation(); _galleryMoveImage(Number(cell.dataset.index)); };
-    const delBtn = document.createElement('button');
-    delBtn.className = 'gthumb-act gthumb-del';
-    delBtn.textContent = '✕';  // ✕
-    delBtn.title = 'Supprimer cette image';
-    delBtn.onclick = (ev) => { ev.stopPropagation(); _galleryDeleteImage(Number(cell.dataset.index)); };
-    cell.appendChild(moveBtn);
-    cell.appendChild(delBtn);
     bar.appendChild(cell);
-  });
+  }
 }
 
 function _setActiveThumb(idx) {
@@ -3997,7 +4012,7 @@ function _galleryRemoveItemLocally(i) {
   }
   let next = (i < _imageCurrentIdx) ? _imageCurrentIdx - 1 : _imageCurrentIdx;
   if (next >= _galleryItems.length) next = _galleryItems.length - 1;
-  _buildGalleryThumbs();
+  _buildThumbStrip();
   _loadGalleryImage(next);
 }
 

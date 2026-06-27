@@ -2780,6 +2780,27 @@ def gallery_list(path: str):
 THUMBNAIL_WIDTH = 320
 
 
+def _ffmpeg_thumbnail(*, file: Path | None = None, data: bytes | None = None) -> bytes:
+    """Generate a downscaled JPEG thumbnail via ffmpeg, from a file path or raw bytes
+    (stdin). Shared by image and archive-image thumbnails. No cache."""
+    if not FFMPEG_BIN:
+        raise HTTPException(status_code=503, detail="ffmpeg not available")
+    input_arg = str(file) if file is not None else "pipe:0"
+    cmd = [FFMPEG_BIN, "-v", "error", "-i", input_arg]
+    if file is not None:
+        cmd.insert(1, "-nostdin")
+    cmd += ["-vf", f"scale={THUMBNAIL_WIDTH}:-2", "-frames:v", "1", "-f", "mjpeg", "pipe:1"]
+    try:
+        completed = subprocess.run(cmd, check=True, capture_output=True, shell=False, input=data)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=503, detail="ffmpeg not available") from exc
+    except subprocess.CalledProcessError as exc:
+        raise HTTPException(status_code=422, detail="Could not generate thumbnail") from exc
+    if not completed.stdout:
+        raise HTTPException(status_code=422, detail="Empty thumbnail")
+    return completed.stdout
+
+
 @app.get("/api/thumbnail")
 def thumbnail(path: str):
     """Return a small downscaled JPEG thumbnail for an image, generated on the fly
@@ -2791,36 +2812,7 @@ def thumbnail(path: str):
         raise HTTPException(status_code=404)
     if not is_image(file):
         raise HTTPException(status_code=415, detail="Not an image")
-    if not FFMPEG_BIN:
-        raise HTTPException(status_code=503, detail="ffmpeg not available")
-    try:
-        completed = subprocess.run(
-            [
-                FFMPEG_BIN,
-                "-nostdin",
-                "-v",
-                "error",
-                "-i",
-                str(file),
-                "-vf",
-                f"scale={THUMBNAIL_WIDTH}:-2",
-                "-frames:v",
-                "1",
-                "-f",
-                "mjpeg",
-                "pipe:1",
-            ],
-            check=True,
-            capture_output=True,
-            shell=False,
-        )
-    except FileNotFoundError as exc:
-        raise HTTPException(status_code=503, detail="ffmpeg not available") from exc
-    except subprocess.CalledProcessError as exc:
-        raise HTTPException(status_code=422, detail="Could not generate thumbnail") from exc
-    if not completed.stdout:
-        raise HTTPException(status_code=422, detail="Empty thumbnail")
-    return Response(content=completed.stdout, media_type="image/jpeg")
+    return Response(content=_ffmpeg_thumbnail(file=file), media_type="image/jpeg")
 
 
 @app.get("/api/archive/list")
@@ -2862,12 +2854,8 @@ def archive_list(path: str):
     raise HTTPException(status_code=415, detail="Unsupported archive format")
 
 
-@app.get("/api/archive/image")
-def archive_image(path: str, index: int):
-    """Extract and serve the Nth image from a ZIP/CBZ/CBR archive."""
-    file = safe_path(path)
-    if not file.exists() or not file.is_file():
-        raise HTTPException(status_code=404)
+def _archive_image_bytes(file: Path, index: int) -> tuple[bytes, str]:
+    """Return (bytes, mime) for the Nth image inside a ZIP/CBZ/CBR archive."""
     ext = file.suffix.lower()
     if ext in {".zip", ".cbz"}:
         try:
@@ -2879,16 +2867,14 @@ def archive_image(path: str, index: int):
                 )
                 if index < 0 or index >= len(names):
                     raise HTTPException(status_code=404, detail="Image index out of range")
-                data = zf.read(names[index])
-                mime = mimetypes.guess_type(names[index])[0] or "image/jpeg"
+                name = names[index]
+                return zf.read(name), (mimetypes.guess_type(name)[0] or "image/jpeg")
         except zipfile.BadZipFile:
             if ext != ".cbz":
                 raise HTTPException(
                     status_code=422, detail="Cannot read archive: File is not a zip file"
                 ) from None
             ext = ".cbr"  # some CBZ files are RAR-encoded; fall through to RAR handler
-        else:
-            return Response(content=data, media_type=mime)
     if ext == ".cbr":
         try:
             import rarfile  # noqa: PLC0415
@@ -2901,12 +2887,34 @@ def archive_image(path: str, index: int):
                 )
                 if index < 0 or index >= len(names):
                     raise HTTPException(status_code=404, detail="Image index out of range")
-                data = rf.read(names[index])
-                mime = mimetypes.guess_type(names[index])[0] or "image/jpeg"
-            return Response(content=data, media_type=mime)
+                name = names[index]
+                return rf.read(name), (mimetypes.guess_type(name)[0] or "image/jpeg")
+        except HTTPException:
+            raise
         except Exception as exc:
             raise HTTPException(status_code=422, detail=f"Cannot read CBR: {exc}") from exc
     raise HTTPException(status_code=415, detail="Unsupported archive format")
+
+
+@app.get("/api/archive/image")
+def archive_image(path: str, index: int):
+    """Extract and serve the Nth image from a ZIP/CBZ/CBR archive."""
+    file = safe_path(path)
+    if not file.exists() or not file.is_file():
+        raise HTTPException(status_code=404)
+    data, mime = _archive_image_bytes(file, index)
+    return Response(content=data, media_type=mime)
+
+
+@app.get("/api/archive/thumbnail")
+def archive_thumbnail(path: str, index: int):
+    """Return a downscaled thumbnail for the Nth image inside an archive (galleries
+    and archives share one viewer with a thumbnail strip)."""
+    file = safe_path(path)
+    if not file.exists() or not file.is_file():
+        raise HTTPException(status_code=404)
+    data, _ = _archive_image_bytes(file, index)
+    return Response(content=_ffmpeg_thumbnail(data=data), media_type="image/jpeg")
 
 
 # Serve frontend

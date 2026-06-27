@@ -406,6 +406,30 @@ class TestThumbnail:
         resp = client.get("/api/thumbnail?path=../../etc/passwd")
         assert resp.status_code == 403
 
+    def test_archive_thumbnail_returns_jpeg(self, monkeypatch):
+        import zipfile
+
+        with zipfile.ZipFile(MEDIA_ROOT / "book.cbz", "w") as zf:
+            zf.writestr("01.jpg", b"\xff\xd8\xff\xe0dummy")
+        monkeypatch.setattr(main_mod, "FFMPEG_BIN", "ffmpeg")
+        monkeypatch.setattr(
+            main_mod.subprocess,
+            "run",
+            lambda *args, **kwargs: MagicMock(stdout=b"\xff\xd8thumb"),
+        )
+        resp = client.get("/api/archive/thumbnail?path=book.cbz&index=0")
+        assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("image/")
+
+    def test_archive_thumbnail_index_out_of_range(self, monkeypatch):
+        import zipfile
+
+        with zipfile.ZipFile(MEDIA_ROOT / "book.cbz", "w") as zf:
+            zf.writestr("01.jpg", b"x")
+        monkeypatch.setattr(main_mod, "FFMPEG_BIN", "ffmpeg")
+        resp = client.get("/api/archive/thumbnail?path=book.cbz&index=5")
+        assert resp.status_code == 404
+
 
 # ── /api/progress ─────────────────────────────────────────────────────────────
 

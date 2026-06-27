@@ -124,9 +124,32 @@ are not sent in clear text.
 | GET | `/api/media-info?path=` | Read on-demand playback metadata via ffprobe |
 | GET | `/api/file?path=` | Serve any media file (video/image/audio/PDF) with `Range` support (native seeking) |
 | GET | `/api/transcode?path=` | Transcoded stream via ffmpeg |
+| GET | `/api/gallery/list?path=` | Flattened, ordered sequence of a gallery folder: `{count, items:[{path, type}]}` |
+| GET | `/api/thumbnail?path=` | On-the-fly downscaled JPEG thumbnail of an image (ffmpeg, no cache) |
+| GET | `/api/archive/list?path=` | Ordered image names inside a ZIP/CBZ/CBR archive |
+| GET | `/api/archive/image?path=&index=` | Serve the Nth image from an archive |
+| GET | `/api/archive/thumbnail?path=&index=` | Downscaled thumbnail of the Nth archive image (ffmpeg) |
 | POST | `/api/download` | Download a web video via yt-dlp `{url, cookies?, referer?, title?}` |
 | POST | `/api/jobs/{job_id}/cancel` | Cancel a pending or running download job |
 | DELETE | `/api/jobs/{job_id}` | Remove a completed/failed/cancelled job from the in-memory store |
+
+### Galleries
+
+A folder is treated as a **gallery** — a single media read page by page — when it
+contains, recursively, more than 3 images and no video. Sub-folders are allowed; the
+gallery is detected at the highest eligible folder and its tree is flattened into one
+ordered sequence (depth-first, current-level files before sub-folders, natural sort).
+`/api/files` reports such a folder with `media_type: "gallery"` plus its own
+`progress` (resume is anchored on the folder path: `position` = page index,
+`duration` = page count). Archives (`.cbz`/`.cbr`/`.zip`) are the other gallery
+support and share the same viewer.
+
+Non-image files inside a gallery are **passengers** (PDF/audio/archive/text): they
+keep their position in the sequence and are previewed (PDF first page and text are
+rendered client-side; others show an icon). Unsupported files are skipped. Thumbnails
+for the strip are generated on the fly via ffmpeg (`/api/thumbnail`,
+`/api/archive/thumbnail`) with no cache; the main image loads immediately and
+thumbnails load lazily.
 
 ### Native Playback Versus Transcode
 
