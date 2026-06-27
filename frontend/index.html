@@ -1148,6 +1148,14 @@
   }
   .gthumb.active { border-color: var(--accent); }
   .gthumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .gthumb-ico { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 22px; }
+  /* Passenger preview (non-image item shown in the gallery main area) */
+  #gallery-passenger { display: none; width: 100%; height: 100%; align-items: center; justify-content: center; overflow: auto; }
+  #gallery-passenger canvas { max-width: 100%; max-height: 100%; box-shadow: 0 0 12px rgba(0,0,0,0.6); }
+  .gallery-text-preview { white-space: pre-wrap; color: var(--text); font-size: 13px; line-height: 1.5; padding: 16px 20px; max-width: 800px; font-family: 'DM Mono', monospace; }
+  .gallery-pass-fallback { text-align: center; color: var(--text-mid); }
+  .gallery-pass-fallback .gpf-icon { font-size: 64px; }
+  .gallery-pass-fallback .gpf-name { font-size: 13px; margin-top: 8px; word-break: break-all; }
   /* Per-image actions on hover (desktop/mouse only — rare action) */
   .gthumb-act {
     position: absolute; top: 1px;
@@ -1661,6 +1669,7 @@
       </div>
       <div id="image-scroll-area">
         <img id="image-el" src="" alt="">
+        <div id="gallery-passenger"></div>
       </div>
       <div id="gallery-thumbs"></div>
     </div>
@@ -3720,6 +3729,10 @@ function _showOnlyPanel(id) {
   document.getElementById('image-viewer').classList.remove('active', 'has-thumbs');
   document.getElementById('audio-player').classList.remove('active');
   document.getElementById('pdf-viewer').classList.remove('active');
+  // Reset the image stage (a previous gallery passenger may have hidden the <img>).
+  const _pass = document.getElementById('gallery-passenger');
+  if (_pass) { _pass.style.display = 'none'; _pass.innerHTML = ''; }
+  document.getElementById('image-el').style.display = '';
   if (id) document.getElementById(id).classList.add('active');
 }
 
@@ -3835,9 +3848,74 @@ function _loadGalleryImage(idx) {
   const it = _galleryItems[idx];
   document.getElementById('image-counter').textContent = `${idx + 1} / ${_galleryItems.length}`;
   document.getElementById('image-title').textContent = it.path.split('/').pop();
-  document.getElementById('image-el').src = `${API}/api/file?path=${encodeURIComponent(it.path)}`;
+  _renderGalleryItem(it);
   _setActiveThumb(idx);
   saveProgress(_galleryPath, idx + 1, _galleryItems.length);
+}
+
+const _PASSENGER_ICONS = { pdf: '📄', audio: '🎵', archive: '📦', text: '📝' };
+
+function _passengerFallbackHtml(type, path) {
+  const icon = _PASSENGER_ICONS[type] || '📄';
+  return `<div class="gallery-pass-fallback"><div class="gpf-icon">${icon}</div>` +
+         `<div class="gpf-name">${esc(path.split('/').pop())}</div></div>`;
+}
+
+// Render the current gallery item: an image, or a passenger preview (PDF 1st page,
+// text excerpt, or a generic icon for audio/archive).
+function _renderGalleryItem(it) {
+  const img = document.getElementById('image-el');
+  const pass = document.getElementById('gallery-passenger');
+  if (it.type === 'image') {
+    pass.style.display = 'none';
+    pass.innerHTML = '';
+    img.style.display = '';
+    img.src = `${API}/api/file?path=${encodeURIComponent(it.path)}`;
+    return;
+  }
+  img.style.display = 'none';
+  img.src = '';
+  pass.style.display = 'flex';
+  if (it.type === 'pdf') { _renderPassengerPdf(it.path); }
+  else if (it.type === 'text') { _renderPassengerText(it.path); }
+  else { pass.innerHTML = _passengerFallbackHtml(it.type, it.path); }
+}
+
+async function _renderPassengerPdf(path) {
+  const pass = document.getElementById('gallery-passenger');
+  pass.innerHTML = '<canvas id="gallery-pass-canvas"></canvas>';
+  if (!window.pdfjsLib) {
+    try {
+      const lib = await import('/pdfjs/pdf.min.js');
+      lib.GlobalWorkerOptions.workerSrc = '/pdfjs/pdf.worker.min.js';
+      window.pdfjsLib = lib;
+    } catch { pass.innerHTML = _passengerFallbackHtml('pdf', path); return; }
+  }
+  try {
+    const doc = await pdfjsLib.getDocument(`${API}/api/file?path=${encodeURIComponent(path)}`).promise;
+    const page = await doc.getPage(1);
+    if (_galleryItems[_imageCurrentIdx]?.path !== path) return;  // navigated away
+    const canvas = document.getElementById('gallery-pass-canvas');
+    if (!canvas) return;
+    const area = document.getElementById('image-scroll-area');
+    const base = page.getViewport({ scale: 1 });
+    const scale = Math.max(0.1, Math.min((area.clientHeight - 16) / base.height, (area.clientWidth - 16) / base.width));
+    const vp = page.getViewport({ scale });
+    canvas.width = vp.width; canvas.height = vp.height;
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+  } catch { pass.innerHTML = _passengerFallbackHtml('pdf', path); }
+}
+
+async function _renderPassengerText(path) {
+  const pass = document.getElementById('gallery-passenger');
+  pass.innerHTML = '<pre class="gallery-text-preview"></pre>';
+  try {
+    const r = await fetch(`${API}/api/file?path=${encodeURIComponent(path)}`);
+    const txt = await r.text();
+    if (_galleryItems[_imageCurrentIdx]?.path !== path) return;
+    const pre = pass.querySelector('pre');
+    if (pre) pre.textContent = txt.slice(0, 4000);
+  } catch { pass.innerHTML = _passengerFallbackHtml('text', path); }
 }
 
 // Build the lazy thumbnail strip (seek bar). Thumbnails load only when scrolled
@@ -3865,9 +3943,17 @@ function _buildGalleryThumbs() {
     cell.dataset.path = it.path;
     cell.title = it.path.split('/').pop();
     cell.onclick = () => _loadGalleryImage(i);
-    const img = document.createElement('img');
-    img.alt = '';
-    cell.appendChild(img);
+    if (it.type === 'image') {
+      const img = document.createElement('img');
+      img.alt = '';
+      cell.appendChild(img);
+      _thumbObserver.observe(cell);  // lazy-load only image thumbnails
+    } else {
+      const ico = document.createElement('div');
+      ico.className = 'gthumb-ico';
+      ico.textContent = _PASSENGER_ICONS[it.type] || '📄';
+      cell.appendChild(ico);
+    }
     // Per-image management (mouse hover, desktop only).
     const moveBtn = document.createElement('button');
     moveBtn.className = 'gthumb-act gthumb-mov';
@@ -3882,7 +3968,6 @@ function _buildGalleryThumbs() {
     cell.appendChild(moveBtn);
     cell.appendChild(delBtn);
     bar.appendChild(cell);
-    _thumbObserver.observe(cell);
   });
 }
 

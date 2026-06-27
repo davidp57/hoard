@@ -1009,6 +1009,8 @@ IMAGE_EXTENSIONS = {
 AUDIO_EXTENSIONS = {".mp3", ".flac", ".ogg", ".m4a", ".aac", ".wav", ".opus"}
 PDF_EXTENSIONS = {".pdf"}
 ARCHIVE_EXTENSIONS = {".zip", ".cbz", ".cbr"}
+# Text formats shown as gallery passengers (previewed client-side).
+TEXT_EXTENSIONS = {".txt", ".md", ".nfo"}
 # Sidecar subtitle formats. Browsers' <track> only accepts WebVTT, so .srt/.ass
 # are converted to VTT on the fly when served (see /api/subtitle).
 SUBTITLE_EXTENSIONS = {".srt", ".ass", ".ssa", ".vtt"}
@@ -1402,11 +1404,30 @@ def is_gallery(folder: Path) -> bool:
     return image_count > 3
 
 
-def gallery_sequence(folder: Path) -> list[Path]:
-    """Ordered image paths of a gallery: depth-first, current-level files before
-    sub-folders, natural sort at each level. (Passengers are added in a later slice.)
+def _gallery_item_type(path: Path) -> str | None:
+    """Type of a gallery item, or None if the file is not shown in a gallery.
+
+    Images are the main content; PDF/audio/archive/text files are 'passengers'.
     """
-    items: list[Path] = []
+    if is_image(path):
+        return "image"
+    if is_pdf(path):
+        return "pdf"
+    if is_audio(path):
+        return "audio"
+    if is_archive(path):
+        return "archive"
+    if path.suffix.lower() in TEXT_EXTENSIONS:
+        return "text"
+    return None
+
+
+def gallery_sequence(folder: Path) -> list[tuple[Path, str]]:
+    """Ordered gallery items as (path, type): depth-first, current-level files before
+    sub-folders, natural sort at each level. Images plus passengers (PDF/audio/
+    archive/text); other files are skipped.
+    """
+    items: list[tuple[Path, str]] = []
 
     def walk(d: Path) -> None:
         files: list[Path] = []
@@ -1426,7 +1447,10 @@ def gallery_sequence(folder: Path) -> list[Path]:
                 subdirs.append(c)
         files.sort(key=lambda p: _natural_key(p.name))
         subdirs.sort(key=lambda p: _natural_key(p.name))
-        items.extend(f for f in files if is_image(f))
+        for f in files:
+            t = _gallery_item_type(f)
+            if t:
+                items.append((f, t))
         for sd in subdirs:
             walk(sd)
 
@@ -2749,7 +2773,7 @@ def gallery_list(path: str):
     folder = safe_path(path)
     if not folder.exists() or not folder.is_dir():
         raise HTTPException(status_code=404)
-    items = [{"path": to_rel(p), "type": "image"} for p in gallery_sequence(folder)]
+    items = [{"path": to_rel(p), "type": t} for p, t in gallery_sequence(folder)]
     return {"count": len(items), "items": items}
 
 

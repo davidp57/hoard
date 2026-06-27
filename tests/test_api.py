@@ -343,6 +343,27 @@ class TestGallery:
         assert entry["progress"]["duration"] == 4.0
         assert entry["progress"]["percent"] == 50.0
 
+    def test_folder_with_pdf_is_still_gallery(self):
+        for i in range(4):
+            _make_image(f"gp/p{i}.jpg")
+        (MEDIA_ROOT / "gp" / "doc.pdf").write_bytes(b"%PDF-1.4")
+        entry = next(e for e in client.get("/api/files").json()["entries"] if e["name"] == "gp")
+        assert entry["media_type"] == "gallery"
+
+    def test_gallery_list_includes_passengers_in_order(self):
+        _make_image("mix/01.jpg")
+        _make_image("mix/03.jpg")
+        (MEDIA_ROOT / "mix" / "02.pdf").write_bytes(b"%PDF-1.4")
+        (MEDIA_ROOT / "mix" / "04.txt").write_text("hello")
+        (MEDIA_ROOT / "mix" / "ignore.bin").write_bytes(b"\x00")  # not a passenger → skipped
+        items = client.get("/api/gallery/list?path=mix").json()["items"]
+        assert [(it["path"].split("/")[-1], it["type"]) for it in items] == [
+            ("01.jpg", "image"),
+            ("02.pdf", "pdf"),
+            ("03.jpg", "image"),
+            ("04.txt", "text"),
+        ]
+
     def test_gallery_list_not_found(self):
         resp = client.get("/api/gallery/list?path=nope")
         assert resp.status_code == 404
