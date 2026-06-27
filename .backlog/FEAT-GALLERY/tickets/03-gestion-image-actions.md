@@ -1,6 +1,6 @@
 # BL-071 — Gestion d'image & actions galerie
 
-Status: ⬜ ready
+Status: ✅ done
 Type: feat
 Parent: FEAT-GALLERY ([PRD](../PRD.md))
 Files: `frontend/index.html`, `backend/main.py`, `tests/test_api.py`

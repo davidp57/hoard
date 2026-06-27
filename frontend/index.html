@@ -1148,6 +1148,21 @@
   }
   .gthumb.active { border-color: var(--accent); }
   .gthumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  /* Per-image actions on hover (desktop/mouse only — rare action) */
+  .gthumb-act {
+    position: absolute; top: 1px;
+    width: 18px; height: 18px; padding: 0; line-height: 16px;
+    border: none; border-radius: 3px; cursor: pointer;
+    font-size: 11px; text-align: center;
+    background: rgba(0, 0, 0, 0.65); color: #fff;
+    display: none;
+  }
+  .gthumb:hover .gthumb-act { display: block; }
+  .gthumb-mov { left: 1px; }
+  .gthumb-del { right: 1px; }
+  .gthumb-mov:hover { background: var(--accent); }
+  .gthumb-del:hover { background: rgba(192, 57, 43, 0.95); }
+  @media (hover: none) { .gthumb-act { display: none !important; } }
 
   /* ── Audio player ── */
   #audio-player {
@@ -1989,6 +2004,7 @@ let _imageIsGallery = false;      // true when viewing a folder-gallery
 let _galleryItems = [];           // [{path, type}] flattened gallery sequence
 let _galleryPath = null;          // folder rel path (resume anchor)
 let _thumbObserver = null;        // IntersectionObserver for lazy thumbnails
+let _galleryMoveIndex = null;     // index of the gallery image being moved (vs whole gallery)
 let _imageFitMode = 'full-page';  // 'full-page'|'fit-width'
 let _pdfDoc = null;
 let _pdfPage = 1;
@@ -3647,20 +3663,26 @@ async function _autoPlayNextFullscreen(navigatePath) {
   }
   _fsReenterFullscreen = false; _fsReenterFullscreenPath = null;
   if (!_gpRenderedList.length) return;
+  const playable = (e) => e.is_video || e.media_type === 'gallery';
   const start = _gpCursorIdx >= 0 ? _gpCursorIdx : 0;
   let target = -1;
   for (let i = start; i < _gpRenderedList.length; i++) {
-    if (_gpRenderedList[i].is_video) { target = i; break; }
+    if (playable(_gpRenderedList[i])) { target = i; break; }
   }
   if (target < 0) {
     for (let i = start - 1; i >= 0; i--) {
-      if (_gpRenderedList[i].is_video) { target = i; break; }
+      if (playable(_gpRenderedList[i])) { target = i; break; }
     }
   }
   if (target < 0) return;
   const entry = _gpRenderedList[target];
   const idx = entries.findIndex(e => e.path === entry.path);
   if (idx < 0) return;
+  if (entry.media_type === 'gallery') {
+    openGallery(idx);
+    document.getElementById('image-viewer').classList.add('viewer-fullscreen');
+    return;
+  }
   await playVideo(idx);
   videoContainer.classList.add('faux-fullscreen');
   syncFullscreenUI();
@@ -3846,6 +3868,19 @@ function _buildGalleryThumbs() {
     const img = document.createElement('img');
     img.alt = '';
     cell.appendChild(img);
+    // Per-image management (mouse hover, desktop only).
+    const moveBtn = document.createElement('button');
+    moveBtn.className = 'gthumb-act gthumb-mov';
+    moveBtn.textContent = '›';  // ›
+    moveBtn.title = 'Déplacer cette image';
+    moveBtn.onclick = (ev) => { ev.stopPropagation(); _galleryMoveImage(Number(cell.dataset.index)); };
+    const delBtn = document.createElement('button');
+    delBtn.className = 'gthumb-act gthumb-del';
+    delBtn.textContent = '✕';  // ✕
+    delBtn.title = 'Supprimer cette image';
+    delBtn.onclick = (ev) => { ev.stopPropagation(); _galleryDeleteImage(Number(cell.dataset.index)); };
+    cell.appendChild(moveBtn);
+    cell.appendChild(delBtn);
     bar.appendChild(cell);
     _thumbObserver.observe(cell);
   });
@@ -3857,6 +3892,63 @@ function _setActiveThumb(idx) {
   bar.querySelectorAll('.gthumb.active').forEach(c => c.classList.remove('active'));
   const cell = bar.querySelector(`.gthumb[data-index="${idx}"]`);
   if (cell) { cell.classList.add('active'); cell.scrollIntoView({ inline: 'center', block: 'nearest' }); }
+}
+
+// True when the gallery viewer is shown fullscreen (its own 'viewer-fullscreen').
+function _galleryViewerFullscreen() {
+  return document.getElementById('image-viewer').classList.contains('viewer-fullscreen');
+}
+
+// Remove one image from the open gallery in place (after delete or move). Avoids a
+// re-fetch (which could race a still-running move job): the sequence is patched locally.
+function _galleryRemoveItemLocally(i) {
+  if (i < 0 || i >= _galleryItems.length) return;
+  _galleryItems.splice(i, 1);
+  if (!_galleryItems.length) {
+    closeImageViewer();
+    dirCache.delete(currentPath);
+    navigate(currentPath);
+    return;
+  }
+  let next = (i < _imageCurrentIdx) ? _imageCurrentIdx - 1 : _imageCurrentIdx;
+  if (next >= _galleryItems.length) next = _galleryItems.length - 1;
+  _buildGalleryThumbs();
+  _loadGalleryImage(next);
+}
+
+async function _galleryDeleteImage(i) {
+  const it = _galleryItems[i];
+  if (!it) return;
+  if (!confirm(`Supprimer cette image ?\n${it.path.split('/').pop()}`)) return;
+  const resp = await retryOn423(
+    () => apiFetch(`${API}/api/files?path=${encodeURIComponent(it.path)}`, { method: 'DELETE' })
+  );
+  if (!resp.ok) { showToast(`Erreur suppression (${resp.status})`); return; }
+  showToast('Image supprimée');
+  _galleryRemoveItemLocally(i);
+}
+
+function _galleryMoveImage(i) {
+  const it = _galleryItems[i];
+  if (!it) return;
+  _galleryMoveIndex = i;
+  openMoveModal(it.path, it.path.split('/').pop());
+}
+
+// Toggle watched on the whole gallery (folder progress, no <video> element involved).
+async function _galleryToggleWatched() {
+  if (!_imageIsGallery || !_galleryItems.length) return;
+  const total = _galleryItems.length;
+  const isSeen = (currentFile?.progress?.percent ?? 0) >= cfg.watched_threshold;
+  const newPos = isSeen ? 0 : total;
+  const resp = await apiFetch(`${API}/api/progress?path=${encodeURIComponent(_galleryPath)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ position: newPos, duration: total }),
+  });
+  if (!resp.ok) { showToast('❌ Erreur lors de la mise à jour'); return; }
+  if (currentFile && currentFile.progress) currentFile.progress.percent = isSeen ? 0 : 100;
+  showToast(isSeen ? '🎬 Marqué non vu' : '✅ Marqué vu');
 }
 
 function imageNav(delta) {
@@ -4568,6 +4660,7 @@ function closeModal() {
   pendingMovePath = null;
   pendingMoveSelectedDest = null;
   pendingMoveSelectedDestName = null;
+  _galleryMoveIndex = null;  // reset gallery-image move intent on cancel
 }
 
 function selectMoveDest(destPath, destName, btnEl) {
@@ -4826,10 +4919,13 @@ async function moveToFolder(destPath, destName) {
   if (!pendingMovePath) return;
   const sourcePath = pendingMovePath;
   const fromPath = currentPath;
-  if (currentFile && currentFile.path === sourcePath && isInFullscreen()) {
+  const galMoveIdx = _galleryMoveIndex;  // capture before closeModal() clears it
+  const wholeGalleryMove = _imageIsGallery && galMoveIdx == null && sourcePath === _galleryPath;
+  if (currentFile && currentFile.path === sourcePath
+      && (isInFullscreen() || _galleryViewerFullscreen())) {
     _fsReenterFullscreen = true; _fsReenterFullscreenPath = fromPath;
   }
-  releaseVideoIfCurrent(sourcePath);
+  if (galMoveIdx == null) releaseVideoIfCurrent(sourcePath);
   closeModal();
   const resp = await apiFetch(`${API}/api/files/move?path=${encodeURIComponent(sourcePath)}`, {
     method: 'POST',
@@ -4847,6 +4943,11 @@ async function moveToFolder(destPath, destName) {
   const _movIdx = _gpRenderedList.findIndex(e => e.path === sourcePath);
   if (_movIdx >= 0) _gpPendingRestoreIdx = _movIdx;
   trackJob(job_id, fromPath);
+  if (galMoveIdx != null) {
+    _galleryRemoveItemLocally(galMoveIdx);  // image moved out of the open gallery
+  } else if (wholeGalleryMove) {
+    closeImageViewer();  // the whole gallery is leaving; close the viewer
+  }
 }
 
 let _deleteResolve = null;
@@ -4868,9 +4969,11 @@ async function confirmDelete(path, name) {
       btn.onclick = null;
       _deleteResolve = null;
       dlg.style.display = 'none';
-      if (currentFile && currentFile.path === path && isInFullscreen()) {
+      if (currentFile && currentFile.path === path
+          && (isInFullscreen() || _galleryViewerFullscreen())) {
         _fsReenterFullscreen = true; _fsReenterFullscreenPath = currentPath;
       }
+      if (_imageIsGallery && _galleryPath === path) closeImageViewer();  // whole gallery deleted
       releaseVideoIfCurrent(path);
       const doDelete = () => apiFetch(`${API}/api/files?path=${encodeURIComponent(path)}`, { method: 'DELETE' });
       const resp = await retryOn423(doDelete);
@@ -5248,6 +5351,12 @@ document.addEventListener('keydown', e => {
     if (e.code === 'ArrowLeft')  { imageNav(-1); return; }
     if (e.code === 'ArrowRight') { imageNav(1);  return; }
     if (e.code === 'KeyF') { toggleViewerFullscreen('image-viewer'); return; }
+    // Gallery: keyboard delete/move/watched act on the whole gallery (like a video).
+    if (_imageIsGallery && currentFile) {
+      if (e.code === 'Delete') { confirmDelete(currentFile.path, currentFile.name); return; }
+      if (e.code === 'KeyD')   { _galleryMoveIndex = null; openMoveModal(currentFile.path, currentFile.name); return; }
+      if (e.code === 'KeyW')   { _galleryToggleWatched(); return; }
+    }
     return;
   }
   // PDF viewer navigation
