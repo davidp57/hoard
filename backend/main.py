@@ -1404,11 +1404,16 @@ def is_gallery(folder: Path) -> bool:
     sub-directory. A folder that contains sub-folders is a browsable container, so a
     folder of galleries shows each sub-folder as its own gallery rather than flattening
     everything into one huge sequence. Own-level scan only (no recursion)."""
+    media_root = MEDIA_ROOT.resolve()
+    try:
+        children = list(folder.iterdir())
+    except PermissionError:
+        return False
     image_count = 0
-    for f in folder.iterdir():
+    for f in children:
         if f.name.startswith("."):
             continue
-        if f.is_symlink() and not f.resolve().is_relative_to(MEDIA_ROOT.resolve()):
+        if f.is_symlink() and not f.resolve().is_relative_to(media_root):
             continue
         if f.is_dir():
             return False  # has a sub-folder → container, not a gallery
@@ -1442,6 +1447,7 @@ def gallery_sequence(folder: Path) -> list[tuple[Path, str]]:
     is a leaf folder (see ``is_gallery``), so sub-folders are not descended into.
     Images plus passengers (PDF/audio/archive/text); other files are skipped.
     """
+    media_root = MEDIA_ROOT.resolve()
     files: list[Path] = []
     try:
         children = list(folder.iterdir())
@@ -1450,7 +1456,7 @@ def gallery_sequence(folder: Path) -> list[tuple[Path, str]]:
     for c in children:
         if c.name.startswith("."):
             continue
-        if c.is_symlink() and not c.resolve().is_relative_to(MEDIA_ROOT.resolve()):
+        if c.is_symlink() and not c.resolve().is_relative_to(media_root):
             continue
         if c.is_file():
             files.append(c)

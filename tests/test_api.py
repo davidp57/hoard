@@ -299,6 +299,11 @@ class TestGallery:
         entry = next(e for e in client.get("/api/files").json()["entries"] if e["name"] == "mixed")
         assert entry["media_type"] == "other"
 
+    def test_is_gallery_handles_permission_error(self):
+        folder = MagicMock()
+        folder.iterdir.side_effect = PermissionError
+        assert main_mod.is_gallery(folder) is False
+
     def test_folder_with_image_subdir_is_container(self):
         # A folder that contains sub-folders is a browsable container, not a gallery;
         # each leaf sub-folder is its own gallery (no recursive flattening).
