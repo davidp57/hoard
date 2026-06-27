@@ -136,7 +136,7 @@ are not sent in clear text.
 ### Galleries
 
 A folder is treated as a **gallery** — a single media read page by page — when it is a
-**leaf** folder: more than 3 images, no video, and **no sub-directory** (own-level scan
+**leaf** folder: more than 3 images, no video, and **no sub-folders** (own-level scan
 only, natural sort). A folder that contains sub-folders is a browsable container, so a
 folder of galleries shows each sub-folder as its own gallery instead of flattening
 everything into one huge sequence. `/api/files` reports a gallery with
