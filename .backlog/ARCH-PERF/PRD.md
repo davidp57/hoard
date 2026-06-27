@@ -5,13 +5,16 @@ Branch: feature/arch-perf (ou une branche par ticket) → PR → develop
 
 ## Problem Statement
 
-Deux dettes techniques restent ouvertes après la consolidation des lecteurs :
+Dettes techniques ouvertes :
 
 1. **`backend/main.py` a grossi** (~2 000+ lignes) et mélange setup DB, streaming,
    file d'attente yt-dlp et routes FastAPI. Navigation et revue deviennent pénibles.
 2. **Transcodage logiciel uniquement** : le H.265→H.264 software est gourmand en CPU
    et peut saturer un NAS bas de gamme, alors que la plupart des SoC NAS exposent un
    encodeur matériel (VAAPI Intel, NVENC GPU).
+3. **Coût de détection des galeries** (BL-074) : `/api/files` fait un `rglob`
+   récursif par sous-dossier (voire deux pour les non-galeries). À optimiser si le
+   listing rame sur de grosses arborescences. *Watch item — non urgent.*
 
 ## Solution
 
