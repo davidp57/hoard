@@ -8,11 +8,11 @@ fixe le vocabulaire métier (ce que sont les concepts, pas comment ils sont impl
 **Galerie** :
 Séquence ordonnée d'éléments prévisualisables — principalement des images, plus
 d'éventuels passagers — lue comme un média unique, avec reprise à la position
-courante. Deux supports : une *archive* (`.cbz`/`.cbr`/`.zip`, séquence plate) ou un
-*dossier* — qui peut s'étendre récursivement à travers ses sous-dossiers,
-l'arborescence étant aplatie en une seule séquence. Une galerie ne contient aucune
-vidéo. Les deux supports partagent la même identité visuelle (icône) et la même
-logique de lecture/reprise.
+courante. Deux supports : une *archive* (`.cbz`/`.cbr`/`.zip`) ou un *dossier
+feuille* (sans sous-dossier). Une galerie ne contient aucune vidéo. Un dossier qui
+contient des sous-dossiers est un conteneur navigable, pas une galerie — il affiche
+chaque sous-dossier comme sa propre galerie. Les deux supports partagent la même
+identité visuelle (icône) et la même logique de lecture/reprise.
 _Avoid_: diaporama, album, planche
 
 **Passager** :

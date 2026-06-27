@@ -124,7 +124,7 @@ are not sent in clear text.
 | GET | `/api/media-info?path=` | Read on-demand playback metadata via ffprobe |
 | GET | `/api/file?path=` | Serve any media file (video/image/audio/PDF) with `Range` support (native seeking) |
 | GET | `/api/transcode?path=` | Transcoded stream via ffmpeg |
-| GET | `/api/gallery/list?path=` | Flattened, ordered sequence of a gallery folder: `{count, items:[{path, type}]}` |
+| GET | `/api/gallery/list?path=` | Ordered sequence of a gallery folder (own level): `{count, items:[{path, type}]}` |
 | GET | `/api/thumbnail?path=` | On-the-fly downscaled JPEG thumbnail of an image (ffmpeg, no cache) |
 | GET | `/api/archive/list?path=` | Ordered image names inside a ZIP/CBZ/CBR archive |
 | GET | `/api/archive/image?path=&index=` | Serve the Nth image from an archive |
@@ -135,14 +135,14 @@ are not sent in clear text.
 
 ### Galleries
 
-A folder is treated as a **gallery** — a single media read page by page — when it
-contains, recursively, more than 3 images and no video. Sub-folders are allowed; the
-gallery is detected at the highest eligible folder and its tree is flattened into one
-ordered sequence (depth-first, current-level files before sub-folders, natural sort).
-`/api/files` reports such a folder with `media_type: "gallery"` plus its own
-`progress` (resume is anchored on the folder path: `position` = page index,
-`duration` = page count). Archives (`.cbz`/`.cbr`/`.zip`) are the other gallery
-support and share the same viewer.
+A folder is treated as a **gallery** — a single media read page by page — when it is a
+**leaf** folder: more than 3 images, no video, and **no sub-directory** (own-level scan
+only, natural sort). A folder that contains sub-folders is a browsable container, so a
+folder of galleries shows each sub-folder as its own gallery instead of flattening
+everything into one huge sequence. `/api/files` reports a gallery with
+`media_type: "gallery"` plus its own `progress` (resume is anchored on the folder path:
+`position` = page index, `duration` = page count). Archives (`.cbz`/`.cbr`/`.zip`) are
+the other gallery support and share the same viewer.
 
 Non-image files inside a gallery are **passengers** (PDF/audio/archive/text): they
 keep their position in the sequence and are previewed (PDF first page and text are

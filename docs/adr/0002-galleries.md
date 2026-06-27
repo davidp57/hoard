@@ -17,11 +17,11 @@ navigation listant ses fichiers. Voir le glossaire (`CONTEXT.md`) pour les terme
 - **Concept unifié** : une *galerie* est une séquence ordonnée d'éléments
   prévisualisables (surtout des images), de support **archive** ou **dossier**. Les
   deux partagent la même logique de lecture/reprise et la même icône (🖼️).
-- **Détection (dossier)** : galerie ssi le dossier contient (récursivement) **plus de
-  3 images** et **aucune vidéo**. Les sous-dossiers sont autorisés ; la galerie est
-  détectée au dossier le plus haut éligible et aplatit l'arborescence en une seule
-  séquence (parcours profondeur d'abord, fichiers du niveau courant avant les
-  sous-dossiers, tri naturel).
+- **Détection (dossier)** : galerie ssi le dossier est une **feuille** — **plus de
+  3 images**, **aucune vidéo**, et **aucun sous-dossier** (parcours du niveau courant
+  seulement, tri naturel). Un dossier qui contient des sous-dossiers est un conteneur
+  navigable ; un dossier de galeries affiche donc chaque sous-dossier comme sa propre
+  galerie. *(Révisé le 2026-06-27 — voir ci-dessous.)*
 - **Opacité** : ouvrir une galerie affiche la première image (ou la reprise), jamais
   la liste. Les actions clavier/pad (déplacer/supprimer) portent sur la galerie
   entière, comme pour une vidéo. La gestion d'image individuelle passe par la barre de
@@ -47,8 +47,29 @@ navigation listant ses fichiers. Voir le glossaire (`CONTEXT.md`) pour les terme
 
 ## Conséquences
 
-- Les sous-dossiers d'une galerie (chapitres) ne sont jamais des entrées navigables.
 - Un dossier qui repasse sous le seuil (images supprimées/déplacées) redevient un
   dossier normal au prochain listing.
 - Un conteneur normal (avec vidéo) garde son état agrégé sur les vidéos seules ; les
   galeries imbriquées n'entrent pas dans cet agrégat (v1).
+
+## Révision 2026-06-27 — détection « feuille » au lieu de récursive
+
+La détection récursive initiale (aplatir toute l'arborescence en une galerie, détectée
+au dossier le plus haut) produisait des galeries inutilisables sur des données réelles :
+un dossier contenant N albums devenait **une seule** galerie de milliers d'images. Or
+au niveau du système de fichiers, « un manga rangé en chapitres » et « un dossier de
+plusieurs albums » sont **structurellement identiques** — aucun signal fiable ne les
+distingue.
+
+Décision : une galerie est désormais un **dossier feuille** (sans sous-dossier). Un
+dossier contenant des sous-dossiers est un conteneur navigable qui affiche chaque
+sous-dossier comme sa propre galerie.
+
+- **Gain** : le cas « dossier de galeries » fonctionne ; comportement prévisible
+  (structurel, pas dépendant d'un seuil) ; détection en `O(iterdir)` sans `rglob`
+  (résout aussi la préoccupation perf de BL-074 côté détection).
+- **Coût assumé** : plus de lecture continue inter-chapitres — un manga en chapitres se
+  lit chapitre par chapitre (chaque chapitre est une galerie).
+- **Alternative écartée** : plafond de taille (basculer en conteneur au-delà de N
+  images) — garderait l'aplatissement pour les petits cas mais introduit un seuil
+  arbitraire et un comportement variable selon la taille.

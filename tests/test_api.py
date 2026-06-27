@@ -299,28 +299,33 @@ class TestGallery:
         entry = next(e for e in client.get("/api/files").json()["entries"] if e["name"] == "mixed")
         assert entry["media_type"] == "other"
 
-    def test_images_counted_recursively(self):
-        _make_image("scan/a.jpg")
-        _make_image("scan/b.jpg")
-        _make_image("scan/sub/c.jpg")
-        _make_image("scan/sub/d.jpg")
-        entry = next(e for e in client.get("/api/files").json()["entries"] if e["name"] == "scan")
-        assert entry["media_type"] == "gallery"
+    def test_folder_with_image_subdir_is_container(self):
+        # A folder that contains sub-folders is a browsable container, not a gallery;
+        # each leaf sub-folder is its own gallery (no recursive flattening).
+        for name in ("a", "b", "c", "d"):
+            _make_image(f"library/Album-01/{name}.jpg")
+        for name in ("a", "b", "c", "d"):
+            _make_image(f"library/Album-02/{name}.jpg")
+        root = client.get("/api/files").json()["entries"]
+        assert next(e for e in root if e["name"] == "library")["media_type"] == "other"
+        albums = client.get("/api/files?path=library").json()["entries"]
+        assert {e["name"]: e["media_type"] for e in albums} == {
+            "Album-01": "gallery",
+            "Album-02": "gallery",
+        }
 
-    def test_gallery_list_order_depth_first(self):
-        _make_image("book/couverture.jpg")
-        _make_image("book/Chapitre-01/page-1.jpg")
-        _make_image("book/Chapitre-01/page-2.jpg")
-        _make_image("book/Chapitre-02/page-1.jpg")
-        items = client.get("/api/gallery/list?path=book").json()["items"]
-        paths = [it["path"] for it in items]
+    def test_gallery_list_is_own_level_only(self):
+        # Galleries are leaf folders; the sequence never descends into sub-folders.
+        for name in ("couverture", "01", "02", "03"):
+            _make_image(f"book/{name}.jpg")
+        _make_image("book/extra/should-be-ignored.jpg")
+        paths = [it["path"] for it in client.get("/api/gallery/list?path=book").json()["items"]]
         assert paths == [
+            "book/01.jpg",
+            "book/02.jpg",
+            "book/03.jpg",
             "book/couverture.jpg",
-            "book/Chapitre-01/page-1.jpg",
-            "book/Chapitre-01/page-2.jpg",
-            "book/Chapitre-02/page-1.jpg",
         ]
-        assert all(it["type"] == "image" for it in items)
 
     def test_gallery_list_natural_sort(self):
         for n in (1, 2, 10):

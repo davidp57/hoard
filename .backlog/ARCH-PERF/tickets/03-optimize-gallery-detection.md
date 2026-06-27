@@ -1,9 +1,17 @@
 # BL-074 — Optimiser le coût de détection des galeries dans `/api/files`
 
-Status: ⬜ ready
+Status: ✅ done
 Type: chore
 Parent: ARCH-PERF ([PRD](../PRD.md))
 Files: `backend/main.py`
+
+> **Résolu (2026-06-27)** par le passage à la détection « galerie = dossier feuille » :
+> `is_gallery()` ne fait plus de `rglob` récursif, juste un `iterdir()` au niveau courant
+> (arrêt au premier sous-dossier ou première vidéo). Le coût par dossier au listing est
+> donc supprimé. Reste uniquement la récursion *préexistante* de `get_folder_state()`
+> (agrégat vidéo), non aggravée par les galeries — à rouvrir séparément si elle pose
+> problème un jour. Le piège « early-exit sur le compte d'images » documenté ci-dessous
+> reste valable comme garde-fou.
 
 ## Contexte (déclencheur)
 
