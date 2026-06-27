@@ -80,7 +80,7 @@ image au lieu de la liste des fichiers.
 
 - On lit les images les unes après les autres ; la position est sauvegardée et reprise
   à la réouverture, comme pour une vidéo.
-- Les sous-dossiers sont aplatis dans l'ordre (utile pour un scan rangé en chapitres).
+- Une galerie est un seul dossier d'images. Un dossier qui **contient des sous-dossiers** reste navigable et affiche chaque sous-dossier comme sa propre galerie (un dossier d'albums s'ouvre donc comme une liste de galeries, pas comme une seule séquence géante).
 - Une **barre de vignettes** sous l'image sert de navigation : clique une vignette pour
   y sauter directement.
 - À la souris (ordinateur), survole une vignette pour faire apparaître ✕ (supprimer

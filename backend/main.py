@@ -1400,17 +1400,18 @@ def _natural_key(name: str):
 
 
 def is_gallery(folder: Path) -> bool:
-    """A gallery folder has (recursively) more than 3 images and no video at all.
-
-    Sub-folders are allowed; non-image, non-video files are tolerated (passengers).
-    Returns early as soon as a video is found.
-    """
+    """A gallery is a *leaf* image folder: more than 3 images, no video, and no
+    sub-directory. A folder that contains sub-folders is a browsable container, so a
+    folder of galleries shows each sub-folder as its own gallery rather than flattening
+    everything into one huge sequence. Own-level scan only (no recursion)."""
     image_count = 0
-    for f in folder.rglob("*"):
+    for f in folder.iterdir():
+        if f.name.startswith("."):
+            continue
         if f.is_symlink() and not f.resolve().is_relative_to(MEDIA_ROOT.resolve()):
             continue
-        if not f.is_file() or f.name.startswith("."):
-            continue
+        if f.is_dir():
+            return False  # has a sub-folder → container, not a gallery
         if is_video(f):
             return False
         if is_image(f):
@@ -1437,38 +1438,28 @@ def _gallery_item_type(path: Path) -> str | None:
 
 
 def gallery_sequence(folder: Path) -> list[tuple[Path, str]]:
-    """Ordered gallery items as (path, type): depth-first, current-level files before
-    sub-folders, natural sort at each level. Images plus passengers (PDF/audio/
-    archive/text); other files are skipped.
+    """Ordered gallery items as (path, type), natural-sorted. Own-level only: a gallery
+    is a leaf folder (see ``is_gallery``), so sub-folders are not descended into.
+    Images plus passengers (PDF/audio/archive/text); other files are skipped.
     """
+    files: list[Path] = []
+    try:
+        children = list(folder.iterdir())
+    except PermissionError:
+        return []
+    for c in children:
+        if c.name.startswith("."):
+            continue
+        if c.is_symlink() and not c.resolve().is_relative_to(MEDIA_ROOT.resolve()):
+            continue
+        if c.is_file():
+            files.append(c)
+    files.sort(key=lambda p: _natural_key(p.name))
     items: list[tuple[Path, str]] = []
-
-    def walk(d: Path) -> None:
-        files: list[Path] = []
-        subdirs: list[Path] = []
-        try:
-            children = list(d.iterdir())
-        except PermissionError:
-            return
-        for c in children:
-            if c.name.startswith("."):
-                continue
-            if c.is_symlink() and not c.resolve().is_relative_to(MEDIA_ROOT.resolve()):
-                continue
-            if c.is_file():
-                files.append(c)
-            elif c.is_dir():
-                subdirs.append(c)
-        files.sort(key=lambda p: _natural_key(p.name))
-        subdirs.sort(key=lambda p: _natural_key(p.name))
-        for f in files:
-            t = _gallery_item_type(f)
-            if t:
-                items.append((f, t))
-        for sd in subdirs:
-            walk(sd)
-
-    walk(folder)
+    for f in files:
+        t = _gallery_item_type(f)
+        if t:
+            items.append((f, t))
     return items
 
 
@@ -2779,7 +2770,7 @@ def serve_file(path: str, request: Request):
 
 @app.get("/api/gallery/list")
 def gallery_list(path: str):
-    """Return the ordered, flattened sequence of a gallery folder.
+    """Return the ordered sequence of a gallery folder (own level only).
 
     Items are served by ``/api/file`` and shaped as ``{"path", "type"}``. The sequence
     contains images plus non-image *passengers* (``pdf``/``audio``/``archive``/``text``)

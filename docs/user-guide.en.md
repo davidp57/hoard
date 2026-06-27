@@ -80,7 +80,7 @@ state), and opening it shows the first image right away instead of the file list
 
 - You read images one after another; the position is saved and resumed on reopen, just
   like a video.
-- Sub-folders are flattened in order (handy for a scan organized into chapters).
+- A gallery is a single image folder. A folder that **contains sub-folders** stays browsable and shows each sub-folder as its own gallery (so a folder of albums opens as a list of galleries, not one giant sequence).
 - A **thumbnail strip** under the image acts as a seek bar: click a thumbnail to jump.
 - With a mouse (desktop), hover a thumbnail to reveal ✕ (delete that image) and › (move
   that image). With keyboard/gamepad, delete/move act on the **whole gallery** (like a

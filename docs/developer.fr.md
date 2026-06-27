@@ -120,7 +120,7 @@ comptes — utiliser HTTPS pour ne pas transmettre les identifiants en clair.
 | GET | `/api/media-info?path=` | Lit à la demande les métadonnées de lecture via ffprobe |
 | GET | `/api/file?path=` | Sert n'importe quel fichier média (vidéo/image/audio/PDF) avec support `Range` (seeking natif) |
 | GET | `/api/transcode?path=` | Stream transcodé via ffmpeg |
-| GET | `/api/gallery/list?path=` | Séquence ordonnée et aplatie d'une galerie : `{count, items:[{path, type}]}` |
+| GET | `/api/gallery/list?path=` | Séquence ordonnée d'une galerie (niveau courant) : `{count, items:[{path, type}]}` |
 | GET | `/api/thumbnail?path=` | Vignette JPEG downscalée d'une image, à la volée (ffmpeg, sans cache) |
 | GET | `/api/archive/list?path=` | Noms d'images ordonnés dans une archive ZIP/CBZ/CBR |
 | GET | `/api/archive/image?path=&index=` | Sert la Nᵉ image d'une archive |
@@ -132,13 +132,14 @@ comptes — utiliser HTTPS pour ne pas transmettre les identifiants en clair.
 ### Galeries
 
 Un dossier est traité comme une **galerie** — un média unique lu page par page —
-lorsqu'il contient, récursivement, plus de 3 images et aucune vidéo. Les sous-dossiers
-sont autorisés ; la galerie est détectée au dossier le plus haut éligible et son
-arborescence est aplatie en une seule séquence (profondeur d'abord, fichiers du niveau
-courant avant les sous-dossiers, tri naturel). `/api/files` renvoie un tel dossier avec
-`media_type: "gallery"` et sa propre `progress` (la reprise est ancrée sur le chemin du
-dossier : `position` = index de page, `duration` = nombre de pages). Les archives
-(`.cbz`/`.cbr`/`.zip`) sont l'autre support de galerie et partagent la même visionneuse.
+lorsqu'il est une **feuille** : plus de 3 images, aucune vidéo, et **aucun
+sous-dossier** (parcours du niveau courant seulement, tri naturel). Un dossier qui
+contient des sous-dossiers est un conteneur navigable : un dossier de galeries affiche
+donc chaque sous-dossier comme sa propre galerie au lieu d'aplatir le tout en une seule
+séquence géante. `/api/files` renvoie une galerie avec `media_type: "gallery"` et sa
+propre `progress` (la reprise est ancrée sur le chemin du dossier : `position` = index
+de page, `duration` = nombre de pages). Les archives (`.cbz`/`.cbr`/`.zip`) sont
+l'autre support de galerie et partagent la même visionneuse.
 
 Les fichiers non-image d'une galerie sont des **passagers** (PDF/audio/archive/texte) :
 ils gardent leur position dans la séquence et reçoivent un aperçu (1ʳᵉ page PDF et texte
