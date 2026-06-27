@@ -82,6 +82,10 @@ state), and opening it shows the first image right away instead of the file list
   like a video.
 - A gallery is a single image folder. A folder that **contains sub-folders** stays browsable and shows each sub-folder as its own gallery (so a folder of albums opens as a list of galleries, not one giant sequence).
 - A **thumbnail strip** under the image acts as a seek bar: click a thumbnail to jump.
+- **Zoom**: mouse wheel (zoom centered on the cursor), click-drag to pan, double-click to
+  toggle zoom ↔ fit. Keyboard: `+` / `-` to zoom, `0` to reset; arrows pan while zoomed
+  (otherwise they go to the previous / next image). Gamepad: left stick pans, right stick
+  ↕ zooms.
 - With a mouse (desktop), hover a thumbnail to reveal ✕ (delete that image) and › (move
   that image). With keyboard/gamepad, delete/move act on the **whole gallery** (like a
   movie), and `W` marks it watched / unwatched.

@@ -83,6 +83,11 @@ image au lieu de la liste des fichiers.
 - Une galerie est un seul dossier d'images. Un dossier qui **contient des sous-dossiers** reste navigable et affiche chaque sous-dossier comme sa propre galerie (un dossier d'albums s'ouvre donc comme une liste de galeries, pas comme une seule séquence géante).
 - Une **barre de vignettes** sous l'image sert de navigation : clique une vignette pour
   y sauter directement.
+- **Zoom** : molette de la souris (zoom centré sur le curseur), clic-glisser pour te
+  déplacer, double-clic pour basculer zoom ↔ ajusté. Au clavier : `+` / `-` pour
+  zoomer, `0` pour réinitialiser, et les flèches déplacent l'image quand on est zoomé
+  (sinon elles passent à l'image précédente / suivante). À la manette : stick gauche
+  pour déplacer, stick droit ↕ pour zoomer.
 - À la souris (ordinateur), survole une vignette pour faire apparaître ✕ (supprimer
   cette image) et › (déplacer cette image). Au clavier/à la manette, supprimer/déplacer
   agit sur la **galerie entière** (comme un film), et `W` la marque vue / non vue.
