@@ -7,6 +7,7 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 ## [Non publié]
 
 ### Corrections
+- **Bookmarklet de téléchargement sur certains sites** : sur des sites qui bloquent les requêtes vers un site externe (fréquent sur les sites de streaming chargés de publicités), la bookmarklet affichait juste « Hoard non joignable » sans solution. Elle ouvre désormais automatiquement Hoard dans un nouvel onglet pour terminer le téléchargement dans ce cas.
 - **Aide clavier lisible** : la fenêtre d'aide (touche `?`) s'affichait en texte sombre sur fond sombre sur PC/Firefox. Elle est de nouveau parfaitement lisible.
 
 ### Améliorations

@@ -332,6 +332,8 @@ Hoard can download videos from the web using **yt-dlp** and save them directly t
 
 **From any web page** — click the bookmarklet. It submits the download **in the background** and injects a live status dialog directly into the current page — no navigation, no opened tab. The dialog progresses through ⌛ "Analyse de l'URL…" → 📥 "Téléchargement… X%" → ✅ "Terminé !" (auto-closes after 4 s). If the queue is busy it shows ⏳ "En attente dans la file… — titre.mp4" until the slot is free. You can cancel the job from the dialog or from the Hoard download queue modal.
 
+> **Sites with a restrictive CSP**: some sites (often ad-heavy streaming sites) block outgoing requests to a third-party domain like Hoard's via their `Content-Security-Policy`. In that case the bookmarklet shows ℹ️ "Site incompatible (CSP)" and automatically opens Hoard in a new tab to finish the download there.
+
 > **Smart video source detection**: if a `<video>` element is playing on the page, the bookmarklet captures its direct source URL instead of the page URL. This enables downloading from sites where yt-dlp has no dedicated extractor (Patreon, custom video players, BunnyCDN embeds, etc.). The modal shows a 🎬 hint when a direct source was detected. The original page URL is automatically sent as the `Referer` header so CDNs that verify the origin accept the request.
 
 **From inside Hoard** — click the **📥** button in the header, paste a URL, and confirm.

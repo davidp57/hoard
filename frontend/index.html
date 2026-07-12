@@ -3074,6 +3074,10 @@ function _buildBookmarkletCode() {
   // A status dialog is injected into the current page — no navigation, no modal.
   // States: "Connexion à Hoard…" → "Analyse de l'URL…" → "Téléchargement… X%"
   //       → "Terminé !" (auto-close 4s) or "❌ <error>" (manual close).
+  // If the fetch itself is rejected (e.g. the page's CSP blocks connect-src to
+  // Hoard's domain — common on ad-heavy sites), fall back to opening Hoard in a
+  // new tab via the #download?url=... hash route, which isn't subject to the
+  // current page's CSP since it's a navigation, not a fetch.
   //
   // Video source detection strategies (in priority order):
   // 1. <video>.currentSrc (if not a blob: URL)
@@ -3165,7 +3169,12 @@ function _buildBookmarkletCode() {
     '}).catch(function(){});},2000);',
     '});',
     '})',
-    '.catch(function(){upd("\u274C","Hoard non joignable",null,0);});',
+    '.catch(function(){',
+    'var qp="url="+encodeURIComponent(pu)+"&cookies="+encodeURIComponent(document.cookie||"")+"&title="+encodeURIComponent(document.title||"");',
+    'if(v)qp+="&videoSrc="+encodeURIComponent(v);',
+    'window.open(H+"/#download?"+qp,"_blank");',
+    'upd("\u2139\uFE0F","Site incompatible (CSP) \u2014 ouverture de Hoard dans un nouvel onglet\u2026",null,3000);',
+    '});',
     '})();',
   ].join('');
 }
