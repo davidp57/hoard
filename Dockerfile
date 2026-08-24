@@ -13,6 +13,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY backend/ ./backend/
 COPY frontend/ ./frontend/
+COPY pyproject.toml ./pyproject.toml
 COPY entrypoint.sh ./entrypoint.sh
 
 # Ensure the data volume is writable by the app user

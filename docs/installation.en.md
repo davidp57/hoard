@@ -133,6 +133,12 @@ All configuration is done via **environment variables** in `docker-compose.yml` 
 | `PREDEFINED_FOLDERS` | `Vu,A revoir,A supprimer` | Quick folders (comma-separated) |
 | `SSL_CERTFILE` | *(unset)* | Path to a PEM certificate file. Enables native HTTPS — no reverse proxy needed. |
 | `SSL_KEYFILE` | *(unset)* | Path to the matching PEM private key file. |
+| `HOARD_AUTH_USER` / `HOARD_AUTH_PASS` | *(unset)* | Set both to require HTTP Basic auth on every request. Recommended when exposing Hoard outside your LAN. Use HTTPS so credentials are not sent in clear text. |
+| `LOG_LEVEL` | `INFO` | Logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`). |
+| `LOG_DIR` | `<DB_PATH directory>/logs` | Directory holding the log files. Empty string disables file logging (stdout only). |
+| `LOG_RETENTION_DAYS` | `30` | Number of daily log files kept (rotation at midnight). |
+| `RESTART_SUPERVISED` | *(auto-detected)* | `0` / `1`. Whether a supervisor restarts the process after it exits. Auto-detected inside a container; only used to word the "Restart Hoard" confirmation. |
+| `JOB_TTL_SECONDS` | `3600` | How long a finished job stays in memory. Does not affect the download history, which lives in the database. |
 
 ### Enabling HTTPS
 
@@ -183,7 +189,19 @@ To expose Hoard via a subdomain (e.g. `hoard.mynas.me`), use the DSM built-in re
 
 ## 6. Data Persistence
 
-The SQLite database (`progress.db`) stores watch progress for all files. It is mounted in a named Docker volume (`hoard_data`) so it survives container updates.
+The SQLite database (`progress.db`) stores watch progress for all files, plus the **download history**. It is mounted in a named Docker volume (`hoard_data`) so it survives container updates.
+
+### Logs
+
+Logs are written **both** to stdout (visible in Portainer) and to a `hoard.log` file placed next to the database by default — `/data/logs/hoard.log` with the standard configuration, so **inside the same persistent volume**. The file rotates every night and **30 days** are kept (`LOG_RETENTION_DAYS`).
+
+They can be read from the UI: **Settings → Maintenance → Log**. Logs contain downloaded URLs and caller IP addresses; if Hoard is reachable outside your LAN, protect it with `HOARD_AUTH_USER` / `HOARD_AUTH_PASS`.
+
+To pull the logs out to the host:
+
+```bash
+docker run --rm -v hoard_data:/data -v $(pwd):/backup alpine cp -r /data/logs /backup/hoard-logs
+```
 
 To back up / export the database:
 

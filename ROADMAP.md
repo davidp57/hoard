@@ -65,9 +65,24 @@
 - [x] **Gamepad cursor preservation** (BL-043/052): cursor no longer resets after file actions or auto-play next
 - [x] **Default home root** (BL-040): designate a root as the startup destination; navigate there directly without the root-picker screen
 
+## v2.3 — Security, Quality & UX *(done)*
+
+- [x] **Optional HTTP Basic auth** (BL-011): enable via `HOARD_AUTH_USER` / `HOARD_AUTH_PASS`, disabled by default
+- [x] **Hardened PIN hashing** (BL-030): scrypt with per-PIN salt; transparent migration from legacy SHA-256
+- [x] **HTTP security headers** (BL-029): `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, CSP
+- [x] **Audit logging** (BL-036): INFO trail for delete/move/download/settings + client IP, WARNING on failed PIN
+- [x] **Robustness**: `MEDIA_ROOT` thread-safety (BL-032), DB-first delete/move atomicity (BL-034), job-store TTL purge (BL-033), progress-map covering index (BL-035), cookies-path validation (BL-031)
+- [x] **Frontend**: fetch timeout + network feedback (BL-037), accessibility pass (BL-039), touch gesture discovery overlay (BL-038), keyboard-help contrast fix (BL-065)
+
+## v2.3 — Player desktop UX polish *(done)*
+
+- [x] **Windowed fullscreen by default on desktop** (BL-066): `F` = in-window immersive fullscreen, `Shift+F` = real OS fullscreen; touch devices keep the real API
+- [x] **Escape goes up one level** (BL-068): keyboard navigation mirrors the gamepad (Esc = B / `nav_back`), shared `navigateUp()`
+- [x] **Remove dead `/api/stream` endpoint** (BL-067): playback fully consolidated on `/api/file`
+
 ## v2.0 — Platform
 
-- [ ] **Basic authentication** (username + password, bcrypt) for LAN-external exposure
+- [x] **Basic authentication** delivered as optional HTTP Basic auth (BL-011) — see v2.3
 - [ ] **Light theme** toggle (persisted in localStorage)
 - [ ] **PWA** manifest + service-worker: installable on iPad / Windows laptop
 - [ ] **Search** across all filenames in MEDIA_ROOT
@@ -83,6 +98,13 @@
 - [ ] **Archive reader** (BL-055): open `.zip`, `.cbz`, `.cbr` comic archives directly in the image viewer
 - [ ] **PDF reader** (BL-056): PDF.js-powered reader with page navigation, zoom, keyboard/gamepad control, and saved progress
 - [ ] **Audio player** (BL-057): native audio playback for `.mp3`, `.flac`, `.ogg`, `.m4a`, `.aac`, `.wav`, `.opus` using existing player infrastructure
+
+## v2.5 — Traceability & Operations *(done)*
+
+- [x] **Download history** (BL-075): persist download jobs in SQLite (table `downloads`), history view in the 📥 modal with final status and error message, unlimited retention by default, jobs interrupted by a restart marked as such
+- [x] **Log retention** (BL-076): daily-rotating log file on the persistent volume, 30 days kept (`LOG_DIR` / `LOG_RETENTION_DAYS`), log viewer in Settings → Maintenance
+- [x] **Restart from the UI** (BL-077): `POST /api/restart` + button in Settings → Maintenance, guarded against active downloads, auto-reload once the backend answers again
+- [x] **Download worker resilience** (BL-078): an unexpected exception used to kill the `dl-worker` thread permanently, leaving every later download stuck in `pending` with no error surfaced anywhere
 
 ---
 

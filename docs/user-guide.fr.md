@@ -47,6 +47,7 @@ La barre de filtrage apparaît automatiquement dès qu'un dossier contient au mo
 | **▶ Lire** | Ouvre la vidéo dans le player |
 | **🏷 Tags** | Ouvre le modal de gestion des tags |
 | **📁 Déplacer** | Ouvre le modal de déplacement (dossiers épinglés + sélecteur libre) |
+| **✏ Renommer** | Ouvre la fenêtre de renommage (touche `R`) |
 | **🗑 Supprimer** | Supprime le fichier après confirmation |
 
 ### Déplacer vers un dossier quelconque
@@ -70,9 +71,33 @@ Les fichiers JPG, PNG, GIF, WEBP, BMP, TIFF et AVIF s'ouvrent dans une visionneu
 - **Bouton ▣** : bascule entre affichage ajusté à la largeur et plein écran
 - **✕** : ferme la visionneuse
 
+### Galeries (dossiers d'images)
+
+Un dossier qui contient plusieurs images (plus de 3) et aucune vidéo est traité comme
+une **galerie** : il apparaît dans la liste comme un média unique (icône 🖼️, barre de
+progression, état vu / en cours / non vu), et l'ouvrir affiche directement la première
+image au lieu de la liste des fichiers.
+
+- On lit les images les unes après les autres ; la position est sauvegardée et reprise
+  à la réouverture, comme pour une vidéo.
+- Une galerie est un seul dossier d'images. Un dossier qui **contient des sous-dossiers** reste navigable et affiche chaque sous-dossier comme sa propre galerie (un dossier d'albums s'ouvre donc comme une liste de galeries, pas comme une seule séquence géante).
+- Une **barre de vignettes** sous l'image sert de navigation : clique une vignette pour
+  y sauter directement.
+- **Zoom** : molette de la souris (zoom centré sur le curseur), clic-glisser pour te
+  déplacer, double-clic pour basculer zoom ↔ ajusté. Au clavier : `+` / `-` pour
+  zoomer, `0` pour réinitialiser, et les flèches déplacent l'image quand on est zoomé
+  (sinon elles passent à l'image précédente / suivante). À la manette : stick gauche
+  pour déplacer, stick droit ↕ pour zoomer.
+- À la souris (ordinateur), survole une vignette pour faire apparaître ✕ (supprimer
+  cette image) et › (déplacer cette image). Au clavier/à la manette, supprimer/déplacer
+  agit sur la **galerie entière** (comme un film), et `W` la marque vue / non vue.
+- Un fichier non-image égaré dans la galerie (PDF, texte…) reste accessible comme
+  **passager** : il garde sa place dans la séquence avec un aperçu.
+
 ### Archives BD/manga (.cbz, .zip, .cbr)
 
-Les archives d'images s'ouvrent page à page comme une visionneuse.
+Les archives d'images sont aussi des galeries : elles s'ouvrent page à page dans la
+même visionneuse, avec la barre de vignettes.
 
 - Navigation identique à la visionneuse d'images (← / →)
 - La page courante est sauvegardée pour reprendre là où tu t'es arrêté
@@ -162,6 +187,8 @@ La liste de fichiers se met à jour toutes les 30 secondes quand l'onglet est vi
 
 Les gestes fonctionnent directement sur l'image vidéo.
 
+> À la première ouverture d'une vidéo sur un appareil tactile, un court écran d'aide présente les principaux gestes. Touchez **Compris** pour le fermer ; il ne réapparaît plus ensuite.
+
 ### Tap simple
 
 | Zone | Action |
@@ -208,9 +235,11 @@ Seek progressif dans la vidéo. La **vitesse dépend de la hauteur du doigt** : 
 | `Shift + ← / →` | Seek moyen (30 s par défaut) |
 | `Ctrl + ← / →` | Seek long (60 s par défaut) |
 | `Alt + ← / →` | Seek très long (120 s par défaut) |
-| `F` | Plein écran |
-| `Échap` | Quitter le plein écran — puis fermer le player |
+| `F` | Plein écran (fenêtré dans le navigateur sur PC) |
+| `Maj + F` | Vrai plein écran de l'OS (sur PC ; sinon `F11`) |
+| `Échap` | Quitter le plein écran → fermer le player → remonter d'un cran dans l'arborescence |
 | `M` | Muet / Son |
+| `C` | Sous-titres (cycle des pistes / désactivé) |
 | `[ / ]` | Vitesse − / + (0,5× → 1× → 1,5× → 2×) |
 | `A` | Cycle aspect ratio (Fit / Fill / …) |
 | `W` | Marquer vu / non vu |
@@ -218,6 +247,7 @@ Seek progressif dans la vidéo. La **vitesse dépend de la hauteur du doigt** : 
 | `I / O` | Marquer point IN / OUT |
 | `E` | Ouvrir la fenêtre Couper |
 | `D` | Ouvrir la fenêtre Déplacer |
+| `R` | Renommer (fichier en cours ou élément sélectionné) |
 | `Suppr` | Supprimer le fichier en cours |
 | `S` | Sauvegarder la position initiale du dossier |
 | `?` | Afficher / masquer l'aide clavier |
@@ -304,6 +334,8 @@ Hoard peut télécharger des vidéos depuis le web via **yt-dlp** et les sauvega
 
 **Depuis n'importe quelle page web** — clique sur la bookmarklet. Elle soumet le téléchargement **en arrière-plan** et injecte une fenêtre de statut en direct directement dans la page courante — aucune navigation, aucun onglet ouvert. Le dialogue progresse à travers ⌛ « Analyse de l'URL… » → 📥 « Téléchargement… X% » → ✅ « Terminé ! » (fermeture automatique après 4 s). Si la file est occupée, il affiche ⏳ « En attente dans la file… — titre.mp4 » jusqu'à ce qu'un slot se libère. Tu peux annuler le job depuis le dialogue ou depuis le modal de file de téléchargement de Hoard.
 
+> **Sites avec une CSP restrictive** : certains sites (souvent des sites de streaming chargés de publicités) bloquent, via leur `Content-Security-Policy`, les requêtes sortantes vers un domaine tiers comme celui de Hoard. Dans ce cas, la bookmarklet affiche ℹ️ « Site incompatible (CSP) » et ouvre automatiquement Hoard dans un nouvel onglet pour y terminer le téléchargement.
+
 > **Détection intelligente de la source vidéo** : si un élément `<video>` est en lecture sur la page, la bookmarklet capture son URL source directe au lieu de l'URL de la page. Cela permet de télécharger depuis des sites où yt-dlp n'a pas d'extracteur dédié (Patreon, lecteurs vidéo custom, embeds BunnyCDN, etc.). Le modal affiche un indicateur 🎬 quand une source directe a été détectée. L'URL de la page d'origine est automatiquement envoyée comme en-tête `Referer` pour que les CDN qui vérifient l'origine acceptent la requête.
 
 **Depuis Hoard directement** — clique sur le bouton **📥** dans l'en-tête, colle l'URL et confirme.
@@ -324,20 +356,65 @@ Tous les téléchargements sont regroupés dans une file centrale accessible dep
 - **Les téléchargements continuent même si tu fermes l'onglet** : ils s'exécutent comme des threads en arrière-plan sur le NAS. Quand tu reviens sur Hoard, le widget de file se reconnecte automatiquement aux jobs en cours.
 - **Rafraîchissement automatique** : quand un téléchargement se termine, le navigateur de fichiers se rafraîchit automatiquement si tu parcours le dossier de téléchargement.
 
+### Historique des téléchargements
+
+Le modal **📥** comporte deux parties :
+
+- **En cours** — la file du moment (progression, annulation, retrait), qui disparaît une fois vidée.
+- **Historique** — la liste **permanente** de tout ce qui a été téléchargé, conservée en base de données. Contrairement à la file, elle survit au redémarrage du NAS et n'expire pas.
+
+Chaque ligne indique le nom du fichier, la date et le résultat :
+
+| Statut | Signification |
+|--------|---------------|
+| ✓ Terminé | Le fichier est arrivé. Le bouton **Aller au fichier** ouvre son dossier et le met en évidence. |
+| ✗ Échec | Le téléchargement a raté. Le message d'erreur est affiché sous la ligne. |
+| ⊘ Annulé | Tu as arrêté le téléchargement. |
+| ⚠ Interrompu (redémarrage) | Hoard s'est arrêté pendant le téléchargement. Le fichier n'est pas arrivé — il faut le relancer. |
+
+Le bouton **Vider** efface l'historique (les fichiers déjà téléchargés ne sont pas touchés) ; **✕** retire une seule ligne.
+
+Par défaut l'historique est conservé **sans limite** — c'est justement ce qui permet de retrouver un ajout ancien. Pour le borner : **Paramètres → Maintenance → Historique des téléchargements**, en nombre de jours (`0` = sans limite).
+
 ### Paramètres
 
 | Paramètre | Description |
 |-----------|-------------|
 | **Durées de seek** | Quatre niveaux configurables dans **Paramètres → Player** : court (défaut 10 s), moyen (30 s), long (60 s), très long (120 s). Utilisés par les boutons, les raccourcis clavier et les double-taps. |
-| **Activer le transcodage** | Quand désactivé, Hoard envoie toujours le flux original (`/api/stream`) sans appeler le transcodeur. Utile si votre NAS est lent ou si votre navigateur lit nativement le format. |
+| **Activer le transcodage** | Quand désactivé, Hoard envoie toujours le fichier original (`/api/file`) sans appeler le transcodeur. Utile si votre NAS est lent ou si votre navigateur lit nativement le format. |
 | **Initial sweep par défaut** | Démarre les vidéos neuves à N secondes au lieu de 0. S'applique seulement si le fichier n'a aucune progression enregistrée. `0` le désactive globalement. |
 | **Dossiers home** | Liste de dossiers nommés affichés sur l'écran d'accueil. Ajouter/supprimer dans **Paramètres → Dossiers home**. |
 | **Dossier de téléchargement** | Dossier cible, relatif à `MEDIA_ROOT` (défaut : `Downloads`). Créé automatiquement s'il n'existe pas. |
 | **Chemin du fichier cookies** | Chemin absolu vers un fichier `cookies.txt` au format Netscape. Utile pour les sites qui nécessitent une authentification. |
+| **Historique des téléchargements** | Nombre de jours conservés dans l'historique (**Paramètres → Maintenance**). `0` = sans limite (défaut). |
 
 ### À propos des cookies
 
 La bookmarklet transmet le `document.cookie` de la page source. Attention : les **cookies HttpOnly ne sont pas accessibles en JavaScript** — pour les sites qui en ont besoin (ex : plateformes de streaming), exporte un fichier `cookies.txt` avec une extension navigateur et renseigne son chemin dans les paramètres.
+
+---
+
+## Maintenance
+
+Section **Paramètres → Maintenance**, pour les opérations d'exploitation courantes.
+
+### Journal
+
+Hoard enregistre ses événements (téléchargements lancés, terminés, échoués, demandes de redémarrage) dans un fichier conservé **30 jours**, en plus des logs du conteneur. Le journal est consultable directement ici :
+
+- Choix du nombre de lignes affichées (100 / 500 / 2000).
+- Filtre par niveau : tous, info, avertissements, erreurs.
+- **↻** actualise, **Copier** met le contenu dans le presse-papier (pratique pour le coller dans un ticket).
+
+Les lignes sont en ordre chronologique, les plus récentes en bas.
+
+### Redémarrer Hoard
+
+Le bouton **↻ Redémarrer Hoard** relance l'application sans passer par Portainer ni le NAS. Utile quand un réglage bas niveau a changé, ou en cas de comportement anormal.
+
+- Si un téléchargement est en cours, Hoard demande une confirmation supplémentaire : le redémarrage **interrompt définitivement** le téléchargement (il apparaîtra comme *Interrompu* dans l'historique).
+- Une fois lancé, la page attend le retour du serveur et se recharge toute seule (jusqu'à 60 s). Au-delà, un message invite à vérifier le conteneur.
+- Hoard ne se relance pas lui-même : c'est le conteneur qui le fait (`restart: unless-stopped` dans `docker-compose.yml`). En dehors d'un conteneur, le bouton **arrête** l'application — le message de confirmation le dit explicitement.
 
 ---
 

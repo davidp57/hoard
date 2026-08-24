@@ -3,6 +3,7 @@
 import json
 import sys
 import threading
+import time
 from unittest.mock import MagicMock
 
 import pytest
@@ -266,6 +267,193 @@ class TestListFiles:
         assert entry["folder_state"] == "seen"
 
 
+# ── Galleries (image folder as a single media) ──────────────────────────────────
+
+
+def _make_image(rel_path: str) -> None:
+    """Create a dummy image file (content irrelevant for detection/listing)."""
+    p = MEDIA_ROOT / rel_path
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_bytes(b"\xff\xd8\xff\xe0" + b"\x00" * 32)
+
+
+class TestGallery:
+    def test_folder_with_images_is_gallery(self):
+        for i in range(4):
+            _make_image(f"album/p{i}.jpg")
+        entry = next(e for e in client.get("/api/files").json()["entries"] if e["name"] == "album")
+        assert entry["is_dir"] is True
+        assert entry["media_type"] == "gallery"
+        assert "progress" in entry
+
+    def test_three_images_is_not_gallery(self):
+        for i in range(3):
+            _make_image(f"few/p{i}.jpg")
+        entry = next(e for e in client.get("/api/files").json()["entries"] if e["name"] == "few")
+        assert entry["media_type"] == "other"
+        assert entry["folder_state"] == "new"
+
+    def test_folder_with_video_is_not_gallery(self):
+        for i in range(4):
+            _make_image(f"mixed/p{i}.jpg")
+        (MEDIA_ROOT / "mixed" / "clip.mp4").write_bytes(b"\x00" * 16)
+        entry = next(e for e in client.get("/api/files").json()["entries"] if e["name"] == "mixed")
+        assert entry["media_type"] == "other"
+
+    def test_is_gallery_handles_permission_error(self):
+        folder = MagicMock()
+        folder.iterdir.side_effect = PermissionError
+        assert main_mod.is_gallery(folder) is False
+
+    def test_folder_with_image_subdir_is_container(self):
+        # A folder that contains sub-folders is a browsable container, not a gallery;
+        # each leaf sub-folder is its own gallery (no recursive flattening).
+        for name in ("a", "b", "c", "d"):
+            _make_image(f"library/Album-01/{name}.jpg")
+        for name in ("a", "b", "c", "d"):
+            _make_image(f"library/Album-02/{name}.jpg")
+        root = client.get("/api/files").json()["entries"]
+        assert next(e for e in root if e["name"] == "library")["media_type"] == "other"
+        albums = client.get("/api/files?path=library").json()["entries"]
+        assert {e["name"]: e["media_type"] for e in albums} == {
+            "Album-01": "gallery",
+            "Album-02": "gallery",
+        }
+
+    def test_gallery_list_is_own_level_only(self):
+        # Galleries are leaf folders; the sequence never descends into sub-folders.
+        for name in ("couverture", "01", "02", "03"):
+            _make_image(f"book/{name}.jpg")
+        _make_image("book/extra/should-be-ignored.jpg")
+        paths = [it["path"] for it in client.get("/api/gallery/list?path=book").json()["items"]]
+        assert paths == [
+            "book/01.jpg",
+            "book/02.jpg",
+            "book/03.jpg",
+            "book/couverture.jpg",
+        ]
+
+    def test_gallery_list_natural_sort(self):
+        for n in (1, 2, 10):
+            _make_image(f"pages/page-{n}.jpg")
+        _make_image("pages/page-3.jpg")
+        paths = [it["path"] for it in client.get("/api/gallery/list?path=pages").json()["items"]]
+        assert paths == [
+            "pages/page-1.jpg",
+            "pages/page-2.jpg",
+            "pages/page-3.jpg",
+            "pages/page-10.jpg",
+        ]
+
+    def test_gallery_progress_anchored_on_folder(self):
+        for i in range(4):
+            _make_image(f"g/p{i}.jpg")
+        client.post("/api/progress?path=g", json={"position": 2.0, "duration": 4.0})
+        entry = next(e for e in client.get("/api/files").json()["entries"] if e["name"] == "g")
+        assert entry["progress"]["position"] == 2.0
+        assert entry["progress"]["duration"] == 4.0
+        assert entry["progress"]["percent"] == 50.0
+
+    def test_folder_with_pdf_is_still_gallery(self):
+        for i in range(4):
+            _make_image(f"gp/p{i}.jpg")
+        (MEDIA_ROOT / "gp" / "doc.pdf").write_bytes(b"%PDF-1.4")
+        entry = next(e for e in client.get("/api/files").json()["entries"] if e["name"] == "gp")
+        assert entry["media_type"] == "gallery"
+
+    def test_passengers_with_few_images_is_not_gallery(self):
+        # Passenger count must not influence detection: it relies on image_count > 3.
+        for i in range(2):
+            _make_image(f"gp_mixed/p{i}.jpg")
+        (MEDIA_ROOT / "gp_mixed" / "doc.pdf").write_bytes(b"%PDF-1.4")
+        (MEDIA_ROOT / "gp_mixed" / "notes.txt").write_text("notes")
+        (MEDIA_ROOT / "gp_mixed" / "audio.mp3").write_bytes(b"ID3")
+        entry = next(
+            e for e in client.get("/api/files").json()["entries"] if e["name"] == "gp_mixed"
+        )
+        assert entry["media_type"] == "other"
+
+    def test_gallery_list_includes_passengers_in_order(self):
+        _make_image("mix/01.jpg")
+        _make_image("mix/03.jpg")
+        (MEDIA_ROOT / "mix" / "02.pdf").write_bytes(b"%PDF-1.4")
+        (MEDIA_ROOT / "mix" / "04.txt").write_text("hello")
+        (MEDIA_ROOT / "mix" / "ignore.bin").write_bytes(b"\x00")  # not a passenger → skipped
+        items = client.get("/api/gallery/list?path=mix").json()["items"]
+        assert [(it["path"].split("/")[-1], it["type"]) for it in items] == [
+            ("01.jpg", "image"),
+            ("02.pdf", "pdf"),
+            ("03.jpg", "image"),
+            ("04.txt", "text"),
+        ]
+
+    def test_gallery_list_not_found(self):
+        resp = client.get("/api/gallery/list?path=nope")
+        assert resp.status_code == 404
+
+    def test_gallery_list_path_traversal_blocked(self):
+        resp = client.get("/api/gallery/list?path=../../etc")
+        assert resp.status_code == 403
+
+
+class TestThumbnail:
+    def test_thumbnail_returns_jpeg(self, monkeypatch):
+        _make_image("g/p0.jpg")
+        monkeypatch.setattr(main_mod, "FFMPEG_BIN", "ffmpeg")
+        monkeypatch.setattr(
+            main_mod.subprocess,
+            "run",
+            lambda *args, **kwargs: MagicMock(stdout=b"\xff\xd8\xff\xe0fakejpeg"),
+        )
+        resp = client.get("/api/thumbnail?path=g/p0.jpg")
+        assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("image/")
+        assert resp.content.startswith(b"\xff\xd8")
+
+    def test_thumbnail_404_missing(self):
+        resp = client.get("/api/thumbnail?path=nope.jpg")
+        assert resp.status_code == 404
+
+    def test_thumbnail_415_not_image(self):
+        (MEDIA_ROOT / "note.txt").write_text("hello")
+        resp = client.get("/api/thumbnail?path=note.txt")
+        assert resp.status_code == 415
+
+    def test_thumbnail_503_without_ffmpeg(self, monkeypatch):
+        _make_image("g/p0.jpg")
+        monkeypatch.setattr(main_mod, "FFMPEG_BIN", "")
+        resp = client.get("/api/thumbnail?path=g/p0.jpg")
+        assert resp.status_code == 503
+
+    def test_thumbnail_path_traversal_blocked(self):
+        resp = client.get("/api/thumbnail?path=../../etc/passwd")
+        assert resp.status_code == 403
+
+    def test_archive_thumbnail_returns_jpeg(self, monkeypatch):
+        import zipfile
+
+        with zipfile.ZipFile(MEDIA_ROOT / "book.cbz", "w") as zf:
+            zf.writestr("01.jpg", b"\xff\xd8\xff\xe0dummy")
+        monkeypatch.setattr(main_mod, "FFMPEG_BIN", "ffmpeg")
+        monkeypatch.setattr(
+            main_mod.subprocess,
+            "run",
+            lambda *args, **kwargs: MagicMock(stdout=b"\xff\xd8thumb"),
+        )
+        resp = client.get("/api/archive/thumbnail?path=book.cbz&index=0")
+        assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("image/")
+
+    def test_archive_thumbnail_index_out_of_range(self, monkeypatch):
+        import zipfile
+
+        with zipfile.ZipFile(MEDIA_ROOT / "book.cbz", "w") as zf:
+            zf.writestr("01.jpg", b"x")
+        monkeypatch.setattr(main_mod, "FFMPEG_BIN", "ffmpeg")
+        resp = client.get("/api/archive/thumbnail?path=book.cbz&index=5")
+        assert resp.status_code == 404
+
+
 # ── /api/progress ─────────────────────────────────────────────────────────────
 
 
@@ -386,34 +574,9 @@ class TestMoveFile:
         assert resp.json()["position"] == 30
 
 
-# ── /api/stream ───────────────────────────────────────────────────────────────
-
-
-class TestStream:
-    def test_stream_returns_200(self, video_file):
-        resp = client.get(f"/api/stream?path={video_file}")
-        assert resp.status_code == 200
-        assert "video" in resp.headers["content-type"]
-
-    def test_stream_range_returns_206(self, video_file):
-        resp = client.get(f"/api/stream?path={video_file}", headers={"Range": "bytes=0-99"})
-        assert resp.status_code == 206
-        assert resp.headers["content-range"].startswith("bytes 0-99/")
-        assert len(resp.content) == 100
-
-    def test_stream_not_found(self):
-        resp = client.get("/api/stream?path=ghost.mp4")
-        assert resp.status_code == 404
-
-    def test_stream_non_video_rejected(self):
-        txt = MEDIA_ROOT / "readme.txt"
-        txt.write_text("hello")
-        resp = client.get("/api/stream?path=readme.txt")
-        assert resp.status_code == 404
-
-    def test_stream_path_traversal_blocked(self):
-        resp = client.get("/api/stream?path=../../etc/passwd")
-        assert resp.status_code == 403
+# Note: the legacy /api/stream endpoint was removed (BL-067). Playback of any
+# media file now goes through /api/file — see TestFile (range, multi-range,
+# 404 and path-traversal coverage).
 
 
 class TestMediaInfo:
@@ -769,6 +932,41 @@ class TestSettings:
 
     def test_update_initial_sweep_seconds_rejects_large_value(self):
         resp = client.post("/api/settings", json={"initial_sweep_seconds": 7201})
+        assert resp.status_code == 422
+
+    def test_gestures_overlay_seen_persists(self):
+        client.post("/api/settings", json={"gestures_overlay_seen": True})
+        assert client.get("/api/settings").json()["gestures_overlay_seen"] == "1"
+        client.post("/api/settings", json={"gestures_overlay_seen": False})
+        assert client.get("/api/settings").json()["gestures_overlay_seen"] == "0"
+
+    def test_cookies_path_accepts_valid_txt_file(self, tmp_path):
+        cookies = tmp_path / "cookies.txt"
+        cookies.write_text("# Netscape HTTP Cookie File\n")
+        resp = client.post("/api/settings", json={"download_cookies_path": str(cookies)})
+        assert resp.status_code == 200
+        assert resp.json()["ok"] is True
+        # Clear it again so it does not leak into other tests.
+        client.post("/api/settings", json={"download_cookies_path": ""})
+
+    def test_cookies_path_empty_clears_setting(self):
+        resp = client.post("/api/settings", json={"download_cookies_path": ""})
+        assert resp.status_code == 200
+        assert resp.json()["ok"] is True
+
+    def test_cookies_path_rejects_relative_path(self):
+        resp = client.post("/api/settings", json={"download_cookies_path": "cookies.txt"})
+        assert resp.status_code == 422
+
+    def test_cookies_path_rejects_non_txt_extension(self, tmp_path):
+        secret = tmp_path / "secret"
+        secret.write_text("sensitive")
+        resp = client.post("/api/settings", json={"download_cookies_path": str(secret)})
+        assert resp.status_code == 422
+
+    def test_cookies_path_rejects_missing_file(self, tmp_path):
+        missing = tmp_path / "nope.txt"
+        resp = client.post("/api/settings", json={"download_cookies_path": str(missing)})
         assert resp.status_code == 422
 
     def test_seek_settings_defaults(self):
@@ -1267,7 +1465,7 @@ def _sync_thread_patch(monkeypatch):
     import backend.main as main_mod
 
     class SyncThread:
-        def __init__(self, target, args, daemon=True):
+        def __init__(self, target, args=(), daemon=True, **kwargs):
             self._target = target
             self._args = args
 
@@ -1440,15 +1638,22 @@ class TestDownload:
         # Reset setting so other tests are unaffected
         client.post("/api/settings", json={"download_cookies_path": ""})
 
-    def test_download_settings_persisted(self):
+    def test_download_settings_persisted(self, tmp_path):
+        cookies = tmp_path / "cookies.txt"
+        cookies.write_text("# Netscape HTTP Cookie File\n")
         resp = client.post(
             "/api/settings",
-            json={"download_folder": "WebVideos", "download_cookies_path": "/data/cookies.txt"},
+            json={
+                "download_folder": "WebVideos",
+                "download_cookies_path": str(cookies),
+            },
         )
         assert resp.status_code == 200
         settings = client.get("/api/settings").json()
         assert settings["download_folder"] == "WebVideos"
-        assert settings["download_cookies_path"] == "/data/cookies.txt"
+        assert settings["download_cookies_path"] == str(cookies)
+        # Reset so other tests are unaffected
+        client.post("/api/settings", json={"download_cookies_path": ""})
 
     def test_download_referer_sets_http_headers(self, monkeypatch):
         """When referer is provided, yt-dlp should receive an http_headers dict."""
@@ -1622,6 +1827,9 @@ class TestDownload:
             trigger["called"] = True
 
         monkeypatch.setitem(sys.modules, "yt_dlp", _make_yt_dlp_mock())
+        # Run the preparation thread inline: without this the assertion below
+        # races the daemon thread started by /api/download.
+        _sync_thread_patch(monkeypatch)
         monkeypatch.setattr(main_mod, "_run_download", intercepted_run)
         monkeypatch.setattr(main_mod, "_enqueue_download", lambda job_id: intercepted_run(job_id))
         resp = client.post("/api/download", json={"url": "https://example.com/video"})
@@ -2000,6 +2208,363 @@ class TestCookiesToNetscape:
         assert "token\tabc=def" in result
 
 
+# ── Security headers ──────────────────────────────────────────────────────────
+
+
+class TestSecurityHeaders:
+    def test_headers_present_on_api_response(self):
+        resp = client.get("/api/settings")
+        assert resp.headers["x-content-type-options"] == "nosniff"
+        assert resp.headers["x-frame-options"] == "DENY"
+        assert "default-src 'self'" in resp.headers["content-security-policy"]
+
+    def test_csp_allows_google_fonts_and_blob(self):
+        csp = client.get("/api/settings").headers["content-security-policy"]
+        assert "https://fonts.googleapis.com" in csp
+        assert "https://fonts.gstatic.com" in csp
+        assert "worker-src 'self' blob:" in csp
+
+
+# ── Database schema ─────────────────────────────────────────────────────────
+
+
+class TestSchema:
+    def _index_names(self):
+        import sqlite3
+
+        from backend.main import DB_PATH
+
+        conn = sqlite3.connect(str(DB_PATH))
+        try:
+            return {
+                r[0]
+                for r in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'index'"
+                ).fetchall()
+            }
+        finally:
+            conn.close()
+
+    def test_progress_active_index_exists(self):
+        # Covering index supporting the /api/files progress-map scan (BL-035).
+        assert "idx_progress_active" in self._index_names()
+
+    def test_segments_path_index_exists(self):
+        assert "idx_segments_path" in self._index_names()
+
+
+# ── Delete / move DB-first atomicity (BL-034) ──────────────────────────────────
+
+
+def _progress_position(rel):
+    import backend.main as m
+
+    with m.get_db() as conn:
+        row = conn.execute("SELECT position FROM progress WHERE path = ?", (rel,)).fetchone()
+    return None if row is None else row["position"]
+
+
+class TestDeleteMoveAtomicity:
+    def test_delete_removes_file_and_progress_row(self):
+        f = MEDIA_ROOT / "todel.mp4"
+        f.write_bytes(b"\x00" * 16)
+        client.post("/api/progress?path=todel.mp4", json={"position": 1, "duration": 2})
+        assert _progress_position("todel.mp4") == 1
+        resp = client.delete("/api/files?path=todel.mp4")
+        assert resp.status_code == 200
+        assert not f.exists()
+        assert _progress_position("todel.mp4") is None
+
+    def test_delete_rolls_back_db_when_fs_fails(self, monkeypatch):
+        import pathlib
+
+        f = MEDIA_ROOT / "locked.mp4"
+        f.write_bytes(b"\x00" * 16)
+        client.post("/api/progress?path=locked.mp4", json={"position": 3, "duration": 6})
+
+        def boom(self):
+            raise PermissionError("locked")
+
+        monkeypatch.setattr(pathlib.Path, "unlink", boom)
+        resp = client.delete("/api/files?path=locked.mp4")
+        assert resp.status_code == 423
+        # FS delete failed → DB must be rolled back, row preserved, file intact.
+        assert f.exists()
+        assert _progress_position("locked.mp4") == 3
+
+
+# ── Optional HTTP Basic auth (BL-011) ──────────────────────────────────────────
+
+
+class TestBasicAuth:
+    def test_disabled_by_default(self):
+        # No HOARD_AUTH_* env in tests → auth off, normal access.
+        assert client.get("/api/settings").status_code == 200
+
+    def test_check_basic_auth_helper(self, monkeypatch):
+        import base64
+
+        import backend.main as m
+
+        monkeypatch.setattr(m, "HOARD_AUTH_USER", "alice")
+        monkeypatch.setattr(m, "HOARD_AUTH_PASS", "secret")
+        good = "Basic " + base64.b64encode(b"alice:secret").decode()
+        bad = "Basic " + base64.b64encode(b"alice:wrong").decode()
+        assert m._check_basic_auth(good) is True
+        assert m._check_basic_auth(bad) is False
+        assert m._check_basic_auth("") is False
+
+    def test_middleware_challenges_and_allows(self, monkeypatch):
+        import base64
+
+        import backend.main as m
+
+        monkeypatch.setattr(m, "HOARD_AUTH_USER", "alice")
+        monkeypatch.setattr(m, "HOARD_AUTH_PASS", "secret")
+        monkeypatch.setattr(m, "_AUTH_ENABLED", True)
+        resp = client.get("/api/settings")
+        assert resp.status_code == 401
+        assert resp.headers["www-authenticate"].startswith("Basic")
+        token = base64.b64encode(b"alice:secret").decode()
+        resp = client.get("/api/settings", headers={"Authorization": f"Basic {token}"})
+        assert resp.status_code == 200
+
+
+# ── PIN hashing: scrypt (BL-030) ───────────────────────────────────────────────
+
+
+class TestPinHashing:
+    def test_pin_stored_as_scrypt_and_verifies(self):
+        import backend.main as m
+
+        client.post("/api/settings", json={"pin": "4321"})
+        with m.get_db() as conn:
+            row = conn.execute("SELECT value FROM settings WHERE key='pin_hash'").fetchone()
+        assert row["value"].startswith("scrypt$")
+        assert client.post("/api/settings/check-pin", json={"pin": "4321"}).status_code == 200
+        assert client.post("/api/settings/check-pin", json={"pin": "0000"}).status_code == 401
+        client.post("/api/settings", json={"pin": ""})  # cleanup
+
+    def test_legacy_sha256_pin_migrated_on_login(self):
+        import hashlib
+
+        import backend.main as m
+
+        legacy = hashlib.sha256(b"1357").hexdigest()
+        with m.get_db() as conn:
+            m._write_setting(conn, "pin_hash", legacy)
+            conn.commit()
+        # Legacy PIN still verifies and is transparently upgraded.
+        assert client.post("/api/settings/check-pin", json={"pin": "1357"}).status_code == 200
+        with m.get_db() as conn:
+            row = conn.execute("SELECT value FROM settings WHERE key='pin_hash'").fetchone()
+        assert row["value"].startswith("scrypt$")
+        client.post("/api/settings", json={"pin": ""})  # cleanup
+
+
+# ── Rename (BL-006) ────────────────────────────────────────────────────────────
+
+
+class TestRename:
+    def test_rename_file_migrates_progress(self):
+        f = MEDIA_ROOT / "old.mp4"
+        f.write_bytes(b"\x00" * 16)
+        client.post("/api/progress?path=old.mp4", json={"position": 4, "duration": 8})
+        resp = client.post("/api/files/rename?path=old.mp4", json={"new_name": "new.mp4"})
+        assert resp.status_code == 200
+        assert not f.exists()
+        assert (MEDIA_ROOT / "new.mp4").exists()
+        assert _progress_position("old.mp4") is None
+        assert _progress_position("new.mp4") == 4
+
+    def test_rename_folder_migrates_children(self):
+        d = MEDIA_ROOT / "season"
+        d.mkdir()
+        (d / "ep1.mp4").write_bytes(b"\x00" * 16)
+        client.post("/api/progress?path=season/ep1.mp4", json={"position": 2, "duration": 10})
+        resp = client.post("/api/files/rename?path=season", json={"new_name": "saison"})
+        assert resp.status_code == 200
+        assert (MEDIA_ROOT / "saison" / "ep1.mp4").exists()
+        assert _progress_position("season/ep1.mp4") is None
+        assert _progress_position("saison/ep1.mp4") == 2
+
+    def test_rename_collision_409(self):
+        (MEDIA_ROOT / "a.mp4").write_bytes(b"\x00" * 8)
+        (MEDIA_ROOT / "b.mp4").write_bytes(b"\x00" * 8)
+        resp = client.post("/api/files/rename?path=a.mp4", json={"new_name": "b.mp4"})
+        assert resp.status_code == 409
+
+    @pytest.mark.parametrize("new_name", ["sub/d.mp4", "a\\b.mp4", ".", "..", "   ", ""])
+    def test_rename_invalid_name_400(self, new_name):
+        (MEDIA_ROOT / "c.mp4").write_bytes(b"\x00" * 8)
+        resp = client.post("/api/files/rename?path=c.mp4", json={"new_name": new_name})
+        assert resp.status_code == 400
+
+    def test_rename_not_found_404(self):
+        resp = client.post("/api/files/rename?path=ghost.mp4", json={"new_name": "x.mp4"})
+        assert resp.status_code == 404
+
+    def test_rename_path_traversal_blocked(self):
+        resp = client.post("/api/files/rename?path=../../etc/passwd", json={"new_name": "x"})
+        assert resp.status_code == 403
+
+
+# ── Subtitles (BL-008) ─────────────────────────────────────────────────────────
+
+
+class TestSubtitles:
+    def test_list_matches_sidecars_by_stem(self):
+        (MEDIA_ROOT / "movie.mp4").write_bytes(b"\x00" * 16)
+        (MEDIA_ROOT / "movie.srt").write_text("1\n00:00:01,000 --> 00:00:02,000\nHi\n")
+        (MEDIA_ROOT / "movie.en.srt").write_text("1\n00:00:01,000 --> 00:00:02,000\nHi\n")
+        (MEDIA_ROOT / "other.srt").write_text("x")  # different stem → excluded
+        subs = client.get("/api/subtitles?path=movie.mp4").json()
+        paths = {s["path"] for s in subs}
+        assert "movie.srt" in paths
+        assert "movie.en.srt" in paths
+        assert "other.srt" not in paths
+        labels = {s["label"] for s in subs}
+        assert "en" in labels  # middle segment becomes the label
+
+    def test_serve_srt_converted_to_vtt(self):
+        (MEDIA_ROOT / "s.srt").write_text("1\n00:00:01,000 --> 00:00:04,000\nBonjour\n")
+        resp = client.get("/api/subtitle?path=s.srt")
+        assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("text/vtt")
+        assert resp.text.startswith("WEBVTT")
+        assert "00:00:01.000 --> 00:00:04.000" in resp.text  # comma → dot
+
+    def test_serve_ass_converted_to_vtt_plaintext(self):
+        ass = (
+            "[Events]\n"
+            "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
+            "Dialogue: 0,0:00:01.00,0:00:03.00,Default,,0,0,0,,{\\i1}Hello{\\i0}\\Nworld\n"
+        )
+        (MEDIA_ROOT / "a.ass").write_text(ass)
+        resp = client.get("/api/subtitle?path=a.ass")
+        assert resp.status_code == 200
+        assert resp.text.startswith("WEBVTT")
+        assert "00:00:01.000 --> 00:00:03.000" in resp.text
+        assert "Hello" in resp.text and "world" in resp.text
+        assert "{" not in resp.text  # override tags stripped
+
+    def test_serve_vtt_passthrough(self):
+        (MEDIA_ROOT / "v.vtt").write_text("WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nHey\n")
+        resp = client.get("/api/subtitle?path=v.vtt")
+        assert resp.status_code == 200
+        assert resp.text.startswith("WEBVTT")
+
+    def test_serve_rejects_non_subtitle(self):
+        (MEDIA_ROOT / "note.txt").write_text("hello")
+        assert client.get("/api/subtitle?path=note.txt").status_code == 404
+
+    def test_serve_path_traversal_blocked(self):
+        assert client.get("/api/subtitle?path=../../etc/passwd").status_code == 403
+
+
+# ── Audit logging (BL-036) ─────────────────────────────────────────────────────
+
+
+class TestAuditLogging:
+    def test_delete_logs_audit_line(self, caplog):
+        import logging
+
+        f = MEDIA_ROOT / "audit.mp4"
+        f.write_bytes(b"\x00" * 8)
+        with caplog.at_level(logging.INFO, logger="hoard"):
+            client.delete("/api/files?path=audit.mp4")
+        assert any("file deleted" in r.getMessage() for r in caplog.records)
+
+    def test_settings_update_logs_audit_line(self, caplog):
+        import logging
+
+        with caplog.at_level(logging.INFO, logger="hoard"):
+            client.post("/api/settings", json={"sort_by": "name"})
+        assert any("settings updated" in r.getMessage() for r in caplog.records)
+
+    def test_wrong_pin_logs_warning(self, caplog):
+        import logging
+
+        client.post("/api/settings", json={"pin": "1234"})
+        with caplog.at_level(logging.WARNING, logger="hoard"):
+            resp = client.post("/api/settings/check-pin", json={"pin": "0000"})
+        assert resp.status_code == 401
+        assert any("PIN check failed" in r.getMessage() for r in caplog.records)
+        client.post("/api/settings", json={"pin": ""})  # cleanup
+
+
+# ── Job store TTL purge (BL-033) ───────────────────────────────────────────────
+
+
+class TestJobPurge:
+    def test_terminal_job_purged_after_ttl(self):
+        import time
+
+        import backend.main as m
+
+        m._jobs.clear()
+        m._jobs["old"] = {
+            "id": "old",
+            "status": "done",
+            "_finished_at": time.monotonic() - m.JOB_TTL_SECONDS - 1,
+        }
+        m._purge_old_jobs()
+        assert "old" not in m._jobs
+
+    def test_terminal_job_gets_ttl_clock_then_survives(self):
+        import backend.main as m
+
+        m._jobs.clear()
+        m._jobs["fresh"] = {"id": "fresh", "status": "done"}
+        m._purge_old_jobs()  # first sighting: stamps the clock, keeps the job
+        assert "fresh" in m._jobs
+        assert "_finished_at" in m._jobs["fresh"]
+
+    def test_active_job_never_purged(self):
+        import time
+
+        import backend.main as m
+
+        m._jobs.clear()
+        m._jobs["run"] = {
+            "id": "run",
+            "status": "running",
+            "_finished_at": time.monotonic() - m.JOB_TTL_SECONDS - 1,
+        }
+        m._purge_old_jobs()
+        assert "run" in m._jobs
+
+
+# ── MEDIA_ROOT thread-safety (BL-032) ──────────────────────────────────────────
+
+
+class TestMediaRootThreadSafety:
+    def test_get_set_media_root_roundtrip(self, tmp_path):
+        import backend.main as m
+
+        original = m.get_media_root()
+        try:
+            newdir = tmp_path / "mr"
+            newdir.mkdir()
+            m.set_media_root(newdir)
+            assert m.get_media_root() == newdir
+        finally:
+            m.set_media_root(original)
+
+    def test_safe_path_resolves_against_current_root(self, tmp_path):
+        import backend.main as m
+
+        original = m.get_media_root()
+        try:
+            newdir = tmp_path / "mr2"
+            newdir.mkdir()
+            (newdir / "a.txt").write_text("x")
+            m.set_media_root(newdir)
+            assert m.safe_path("a.txt") == (newdir / "a.txt").resolve()
+        finally:
+            m.set_media_root(original)
+
+
 # ── /api/search ──────────────────────────────────────────────────────────────
 
 
@@ -2320,3 +2885,355 @@ class TestProgressNonVideo:
         data = client.get("/api/progress?path=manual.pdf").json()
         assert data["position"] == 5
         assert data["duration"] == 20
+
+
+class TestVersion:
+    def test_app_version_matches_pyproject(self):
+        import tomllib
+        from pathlib import Path as _P
+
+        pyproject = _P(main_mod.__file__).resolve().parent.parent / "pyproject.toml"
+        with pyproject.open("rb") as fh:
+            expected = tomllib.load(fh)["project"]["version"]
+        assert main_mod.VERSION == expected != "0.0.0"
+        assert client.get("/api/settings").json()["app_version"] == expected
+
+
+# ── Download history (BL-075) ─────────────────────────────────────────────────
+
+
+class TestDownloadHistory:
+    def _run_one(self, monkeypatch, url="https://example.com/video"):
+        monkeypatch.setitem(sys.modules, "yt_dlp", _make_yt_dlp_mock())
+        _sync_thread_patch(monkeypatch)
+        return client.post("/api/download", json={"url": url}).json()["job_id"]
+
+    def test_history_empty_initially(self):
+        data = client.get("/api/downloads").json()
+        assert data == {"total": 0, "items": []}
+
+    def test_successful_download_is_recorded(self, monkeypatch):
+        job_id = self._run_one(monkeypatch)
+        data = client.get("/api/downloads").json()
+        assert data["total"] == 1
+        entry = data["items"][0]
+        assert entry["id"] == job_id
+        assert entry["url"] == "https://example.com/video"
+        assert entry["status"] == "done"
+        assert entry["error"] is None
+        assert entry["finished_at"] is not None
+
+    def test_failed_download_records_the_error(self, monkeypatch):
+        mock = _make_yt_dlp_mock()
+
+        class _Boom:
+            def __init__(self, *a, **kw):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def extract_info(self, *a, **kw):
+                raise RuntimeError("network unreachable")
+
+        mock.YoutubeDL = _Boom
+        monkeypatch.setitem(sys.modules, "yt_dlp", mock)
+        _sync_thread_patch(monkeypatch)
+        client.post("/api/download", json={"url": "https://example.com/broken"})
+        entry = client.get("/api/downloads").json()["items"][0]
+        assert entry["status"] == "error"
+        assert "network unreachable" in entry["error"]
+
+    def test_history_survives_job_store_purge(self, monkeypatch):
+        """The whole point: the entry outlives the in-memory job."""
+        self._run_one(monkeypatch)
+        main_mod._jobs.clear()
+        assert client.get("/api/jobs").json() == []
+        assert client.get("/api/downloads").json()["total"] == 1
+
+    def test_non_terminal_rows_become_interrupted_at_startup(self):
+        with main_mod.get_db() as conn:
+            conn.execute(
+                "INSERT INTO downloads (id, url, status) VALUES (?, ?, ?)",
+                ("stuck-job", "https://example.com/x", "running"),
+            )
+            conn.execute(
+                "INSERT INTO downloads (id, url, status) VALUES (?, ?, ?)",
+                ("finished-job", "https://example.com/y", "done"),
+            )
+            conn.commit()
+        main_mod.mark_interrupted_downloads()
+        by_id = {e["id"]: e for e in client.get("/api/downloads").json()["items"]}
+        assert by_id["stuck-job"]["status"] == "interrupted"
+        assert by_id["stuck-job"]["finished_at"] is not None
+        assert by_id["finished-job"]["status"] == "done"
+
+    def test_status_filter_and_pagination(self, monkeypatch):
+        self._run_one(monkeypatch, "https://example.com/a")
+        self._run_one(monkeypatch, "https://example.com/b")
+        assert client.get("/api/downloads").json()["total"] == 2
+        assert len(client.get("/api/downloads?limit=1").json()["items"]) == 1
+        page2 = client.get("/api/downloads?limit=1&offset=1").json()
+        assert page2["total"] == 2 and len(page2["items"]) == 1
+        assert client.get("/api/downloads?status=error").json()["items"] == []
+        assert len(client.get("/api/downloads?status=done").json()["items"]) == 2
+
+    def test_delete_single_entry(self, monkeypatch):
+        job_id = self._run_one(monkeypatch)
+        assert client.delete(f"/api/downloads/{job_id}").status_code == 200
+        assert client.get("/api/downloads").json()["total"] == 0
+        assert client.delete(f"/api/downloads/{job_id}").status_code == 404
+
+    def test_clear_history(self, monkeypatch):
+        self._run_one(monkeypatch, "https://example.com/a")
+        self._run_one(monkeypatch, "https://example.com/b")
+        resp = client.delete("/api/downloads")
+        assert resp.status_code == 200 and resp.json()["deleted"] == 2
+        assert client.get("/api/downloads").json()["total"] == 0
+
+    def test_retention_purges_old_entries(self):
+        with main_mod.get_db() as conn:
+            conn.execute(
+                "INSERT INTO downloads (id, url, status, created_at) "
+                "VALUES (?, ?, ?, datetime('now', '-40 days'))",
+                ("old-job", "https://example.com/old", "done"),
+            )
+            conn.commit()
+        # Default retention (0) keeps everything
+        main_mod._purge_download_history()
+        assert client.get("/api/downloads").json()["total"] == 1
+        client.post("/api/settings", json={"download_history_days": 30})
+        main_mod._purge_download_history()
+        assert client.get("/api/downloads").json()["total"] == 0
+
+    def test_retention_setting_roundtrip(self):
+        assert client.get("/api/settings").json()["download_history_days"] == "0"
+        client.post("/api/settings", json={"download_history_days": 15})
+        assert client.get("/api/settings").json()["download_history_days"] == "15"
+
+
+# ── Logs (BL-076) ─────────────────────────────────────────────────────────────
+
+
+class TestLogs:
+    def test_reports_disabled_when_no_log_file(self):
+        """The suite runs with an empty LOG_DIR — the endpoint must say so."""
+        data = client.get("/api/logs").json()
+        assert data["enabled"] is False
+        assert data["lines"] == []
+        assert data["retention_days"] == main_mod.LOG_RETENTION_DAYS
+
+    def test_reads_tail_of_log_file(self, monkeypatch, tmp_path):
+        log_file = tmp_path / "hoard.log"
+        log_file.write_text(
+            "\n".join(f"2026-01-01 00:00:0{i % 10} [INFO] hoard: line {i}" for i in range(50)),
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(main_mod, "LOG_FILE", log_file)
+        data = client.get("/api/logs?lines=5").json()
+        assert data["enabled"] is True
+        assert len(data["lines"]) == 5
+        assert data["lines"][-1].endswith("line 49")
+
+    def test_level_filter_keeps_traceback_continuations(self, monkeypatch, tmp_path):
+        log_file = tmp_path / "hoard.log"
+        log_file.write_text(
+            "2026-01-01 00:00:00 [INFO] hoard: routine\n"
+            "2026-01-01 00:00:01 [ERROR] hoard: boom\n"
+            "    File nowhere.py, line 1\n"
+            "2026-01-01 00:00:02 [INFO] hoard: routine again\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(main_mod, "LOG_FILE", log_file)
+        lines = client.get("/api/logs?level=ERROR").json()["lines"]
+        assert len(lines) == 2
+        assert "boom" in lines[0]
+        assert "File nowhere.py" in lines[1]
+
+    def test_invalid_line_count_is_rejected(self):
+        assert client.get("/api/logs?lines=0").status_code == 422
+        assert client.get("/api/logs?lines=99999").status_code == 422
+
+
+# ── Restart (BL-077) ──────────────────────────────────────────────────────────
+
+
+class TestRestart:
+    def _capture_terminate(self, monkeypatch):
+        """Replace the real process kill with an event, so tests survive."""
+        fired = threading.Event()
+        monkeypatch.setattr(main_mod, "_terminate_process", fired.set)
+        return fired
+
+    def test_restart_answers_then_terminates(self, monkeypatch):
+        fired = self._capture_terminate(monkeypatch)
+        resp = client.post("/api/restart")
+        assert resp.status_code == 200
+        assert resp.json()["ok"] is True
+        assert isinstance(resp.json()["supervised"], bool)
+        assert fired.wait(timeout=5), "process termination was never triggered"
+
+    def test_refuses_while_a_download_is_active(self, monkeypatch):
+        fired = self._capture_terminate(monkeypatch)
+        main_mod._jobs["live"] = {
+            "id": "live",
+            "type": "download",
+            "status": "running",
+            "url": "https://example.com/v",
+        }
+        resp = client.post("/api/restart")
+        assert resp.status_code == 409
+        assert "force=true" in resp.json()["detail"]
+        assert not fired.is_set()
+
+    def test_force_restarts_despite_active_download(self, monkeypatch):
+        fired = self._capture_terminate(monkeypatch)
+        main_mod._jobs["live"] = {
+            "id": "live",
+            "type": "download",
+            "status": "running",
+            "url": "https://example.com/v",
+        }
+        resp = client.post("/api/restart", json={"force": True})
+        assert resp.status_code == 200
+        assert fired.wait(timeout=5)
+
+    def test_finished_downloads_do_not_block(self, monkeypatch):
+        fired = self._capture_terminate(monkeypatch)
+        main_mod._jobs["old"] = {
+            "id": "old",
+            "type": "download",
+            "status": "done",
+            "url": "https://example.com/v",
+        }
+        assert client.post("/api/restart").status_code == 200
+        assert fired.wait(timeout=5)
+
+    def test_supervised_flag_follows_env_override(self, monkeypatch):
+        monkeypatch.setenv("RESTART_SUPERVISED", "0")
+        assert main_mod._is_supervised() is False
+        monkeypatch.setenv("RESTART_SUPERVISED", "1")
+        assert main_mod._is_supervised() is True
+
+
+# ── Download worker resilience (BL-078) ───────────────────────────────────────
+
+
+class TestDownloadWorkerResilience:
+    """A crashing job must not kill the worker thread for the whole process."""
+
+    def _wait_for_terminal(self, job_id, timeout=5.0):
+        """Wait until the real worker thread has settled this job.
+
+        Polling the queue would race the preparation thread, which enqueues the
+        job slightly after /api/download returns.
+        """
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            job = main_mod._jobs.get(job_id)
+            if job and job.get("status") in main_mod._TERMINAL_DOWNLOAD_STATES:
+                return True
+            time.sleep(0.02)
+        return False
+
+    def test_worker_survives_a_crashing_job(self, monkeypatch):
+        calls = []
+
+        def exploding_run(job_id, *a, **kw):
+            calls.append(job_id)
+            if len(calls) == 1:
+                raise RuntimeError("yt-dlp exploded")
+            job = main_mod._jobs[job_id]
+            job["status"] = "done"
+            main_mod._persist_download(job)  # the real _run_download does this
+
+        monkeypatch.setitem(sys.modules, "yt_dlp", _make_yt_dlp_mock())
+        monkeypatch.setattr(main_mod, "_run_download", exploding_run)
+
+        first = client.post("/api/download", json={"url": "https://example.com/one"})
+        assert first.status_code == 200
+        first_id = first.json()["job_id"]
+        assert self._wait_for_terminal(first_id), "worker never picked up the first job"
+
+        # The crashing job is reported as an error instead of vanishing
+        entry = {e["id"]: e for e in client.get("/api/downloads").json()["items"]}[first_id]
+        assert entry["status"] == "error"
+        assert "yt-dlp exploded" in entry["error"]
+
+        # ...and the worker is still alive to process the next one
+        second = client.post("/api/download", json={"url": "https://example.com/two"})
+        second_id = second.json()["job_id"]
+        assert self._wait_for_terminal(second_id), "worker died after the first job crashed"
+        assert len(calls) == 2
+        entry2 = {e["id"]: e for e in client.get("/api/downloads").json()["items"]}[second_id]
+        assert entry2["status"] == "done"
+
+    def test_worker_thread_is_still_running(self):
+        alive = [t for t in threading.enumerate() if t.name == "dl-worker" and t.is_alive()]
+        assert alive, "the download worker thread is gone"
+
+
+# ── Sourcery review follow-ups on PR #39 ──────────────────────────────────────
+
+
+class TestDownloadHistoryReviewFixes:
+    def _seed(self, rows):
+        with main_mod.get_db() as conn:
+            for i, (status, age_days) in enumerate(rows):
+                conn.execute(
+                    "INSERT INTO downloads (id, url, status, created_at) "
+                    "VALUES (?, ?, ?, datetime('now', ?))",
+                    (f"job-{i}", f"https://example.com/{i}", status, f"-{age_days} days"),
+                )
+            conn.commit()
+
+    def test_total_respects_the_status_filter(self):
+        """A filtered listing must report the filtered count, not the grand total."""
+        self._seed([("done", 0), ("done", 0), ("error", 0), ("cancelled", 0)])
+        assert client.get("/api/downloads").json()["total"] == 4
+        done = client.get("/api/downloads?status=done").json()
+        assert done["total"] == 2 and len(done["items"]) == 2
+        error = client.get("/api/downloads?status=error").json()
+        assert error["total"] == 1
+
+    def test_filtered_total_survives_pagination(self):
+        self._seed([("done", 0)] * 5 + [("error", 0)] * 3)
+        page = client.get("/api/downloads?status=done&limit=2").json()
+        assert page["total"] == 5, "total must count all matching rows, not the page"
+        assert len(page["items"]) == 2
+
+    def test_retention_is_applied_at_startup(self):
+        """An instance that never receives a download must still purge old rows."""
+        client.post("/api/settings", json={"download_history_days": 30})
+        self._seed([("done", 40), ("done", 1)])
+        assert client.get("/api/downloads").json()["total"] == 2
+        # Simulates the module-level call made right after init_db()
+        main_mod._purge_download_history()
+        items = client.get("/api/downloads").json()["items"]
+        assert len(items) == 1, "the 40-day-old entry should have been purged"
+
+    def test_unknown_status_is_treated_as_unfinished(self):
+        """The interrupted sweep lists terminal states literally in SQL.
+
+        It must stay in sync with _TERMINAL_DOWNLOAD_STATES: anything not in
+        that tuple is unfinished and gets swept, anything in it is left alone.
+        """
+        with main_mod.get_db() as conn:
+            conn.execute(
+                "INSERT INTO downloads (id, url, status) VALUES (?, ?, ?)",
+                ("weird", "https://example.com/w", "some-future-state"),
+            )
+            for state in main_mod._TERMINAL_DOWNLOAD_STATES:
+                conn.execute(
+                    "INSERT INTO downloads (id, url, status) VALUES (?, ?, ?)",
+                    (f"term-{state}", "https://example.com/t", state),
+                )
+            conn.commit()
+        main_mod.mark_interrupted_downloads()
+        by_id = {e["id"]: e for e in client.get("/api/downloads?limit=1000").json()["items"]}
+        assert by_id["weird"]["status"] == "interrupted"
+        for state in main_mod._TERMINAL_DOWNLOAD_STATES:
+            assert by_id[f"term-{state}"]["status"] == state

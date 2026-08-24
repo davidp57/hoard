@@ -133,6 +133,12 @@ Toute la configuration passe par des **variables d'environnement** dans `docker-
 | `PREDEFINED_FOLDERS` | `Vu,A revoir,A supprimer` | Dossiers rapides (séparés par des virgules) |
 | `SSL_CERTFILE` | *(non défini)* | Chemin vers un fichier de certificat PEM. Active le HTTPS natif — sans reverse proxy. |
 | `SSL_KEYFILE` | *(non défini)* | Chemin vers la clé privée PEM correspondante. |
+| `HOARD_AUTH_USER` / `HOARD_AUTH_PASS` | *(non défini)* | Définir les deux impose une auth HTTP Basic sur chaque requête. Recommandé pour exposer Hoard hors du LAN. Utiliser HTTPS pour ne pas transmettre les identifiants en clair. |
+| `LOG_LEVEL` | `INFO` | Niveau de journalisation (`DEBUG`, `INFO`, `WARNING`, `ERROR`). |
+| `LOG_DIR` | `<dossier de DB_PATH>/logs` | Dossier des fichiers de log. Chaîne vide = journalisation fichier désactivée (sortie standard uniquement). |
+| `LOG_RETENTION_DAYS` | `30` | Nombre de fichiers quotidiens conservés (rotation à minuit). |
+| `RESTART_SUPERVISED` | *(auto-détecté)* | `0` / `1`. Indique si un superviseur relance le processus après un arrêt. Détecté automatiquement dans un container ; sert uniquement à formuler le message de confirmation du bouton « Redémarrer Hoard ». |
+| `JOB_TTL_SECONDS` | `3600` | Durée de conservation en mémoire d'un job terminé. N'affecte pas l'historique des téléchargements, qui est en base. |
 
 ### Activer le HTTPS
 
@@ -183,7 +189,19 @@ Pour exposer Hoard via un sous-domaine (ex. `hoard.monnas.me`), utilise le rever
 
 ## 6. Persistance des données
 
-La base SQLite (`progress.db`) stocke la progression de lecture de tous les fichiers. Elle est montée dans un volume Docker nommé (`hoard_data`) pour survivre aux mises à jour du container.
+La base SQLite (`progress.db`) stocke la progression de lecture de tous les fichiers, ainsi que l'**historique des téléchargements**. Elle est montée dans un volume Docker nommé (`hoard_data`) pour survivre aux mises à jour du container.
+
+### Journaux
+
+Les journaux sont écrits **à la fois** sur la sortie standard (visible dans Portainer) et dans un fichier `hoard.log` placé par défaut à côté de la base — soit `/data/logs/hoard.log` avec la configuration standard, donc **dans le même volume persistant**. Le fichier tourne chaque nuit et **30 jours** sont conservés (`LOG_RETENTION_DAYS`).
+
+Ils sont consultables depuis l'interface : **Paramètres → Maintenance → Journal**. Les journaux contiennent les URL téléchargées et les adresses IP appelantes ; si Hoard est exposé hors du réseau local, protège-le avec `HOARD_AUTH_USER` / `HOARD_AUTH_PASS`.
+
+Pour récupérer les journaux depuis l'hôte :
+
+```bash
+docker run --rm -v hoard_data:/data -v $(pwd):/backup alpine cp -r /data/logs /backup/hoard-logs
+```
 
 Pour sauvegarder / exporter la base :
 

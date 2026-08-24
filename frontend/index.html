@@ -22,7 +22,7 @@
     --accent: #e8ff47;
     --accent-dim: rgba(232,255,71,0.12);
     --text: #f0f0f0;
-    --text-dim: #666;
+    --text-dim: #8a8a8a;  /* raised from #666 to meet WCAG AA contrast on dark surfaces (BL-039) */
     --text-mid: #999;
     --seen: #3a5a3a;
     --inprogress: #5a4a1a;
@@ -181,6 +181,8 @@
   }
   #search-input:focus { border-color: rgba(232,255,71,0.4); }
   #search-input::placeholder { color: var(--text-dim); }
+  /* Keyboard focus indicator (BL-039) — only shows for keyboard navigation, not mouse clicks. */
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 
   /* ── Home screen (multi-root picker) ── */
   .home-screen {
@@ -704,6 +706,14 @@
   .dl-job-status { font-size: 10px; font-family: 'DM Mono', monospace; color: var(--text-dim); }
   .dl-job-status.done { color: #6fcf6f; }
   .dl-job-status.error { color: #cf6f6f; }
+  .dl-job-status.warn { color: #cfa96f; }
+  .dl-job-meta { font-size: 10px; font-family: 'DM Mono', monospace; color: var(--text-dim); flex-shrink: 0; }
+  .dl-job-err { font-size: 10px; font-family: 'DM Mono', monospace; color: #cf6f6f; white-space: pre-wrap; word-break: break-word; margin-top: 2px; }
+  .dl-job-link { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 10px; font-family: inherit; padding: 0; }
+  .dl-empty { font-size: 11px; color: var(--text-dim); padding: 8px 2px; }
+  /* Transient highlight when jumping to a file from the download history */
+  @keyframes entry-flash { 0%, 100% { background: transparent; } 30% { background: color-mix(in srgb, var(--accent) 22%, transparent); } }
+  .entry.flash { animation: entry-flash 1.6s ease-in-out 2; }
   .dl-job-dismiss { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 13px; padding: 0; line-height: 1; flex-shrink: 0; }
   .dl-job-dismiss:hover { color: var(--text); }
 
@@ -1119,6 +1129,80 @@
     max-height: 100%;
     width: auto;
   }
+  /* Gallery zoom / pan */
+  #image-el { transition: transform 0.08s ease-out; transform-origin: center center; }
+  #image-scroll-area.gallery-zoomed { overflow: hidden; cursor: grab; }
+  #image-scroll-area.gallery-panning { cursor: grabbing; }
+  #image-scroll-area.gallery-panning #image-el { transition: none; }
+  /* Fullscreen info HUD — stays visible while the nav bar auto-hides */
+  #gallery-hud {
+    display: none;
+    position: absolute;
+    top: 10px;
+    left: 12px;
+    z-index: 5;
+    max-width: 70%;
+    padding: 4px 10px;
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    font: 12px/1.4 'DM Mono', monospace;
+    border-radius: 6px;
+    pointer-events: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #image-viewer.viewer-fullscreen #gallery-hud { display: block; }
+  /* Gallery thumbnail strip (seek bar for image folders) */
+  #gallery-thumbs {
+    display: none;
+    flex-shrink: 0;
+    gap: 4px;
+    height: 84px;
+    padding: 6px 8px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    overflow-x: auto;
+    overflow-y: hidden;
+    align-items: center;
+  }
+  #image-viewer.has-thumbs #gallery-thumbs { display: flex; }
+  .gthumb {
+    position: relative;
+    flex-shrink: 0;
+    width: 56px;
+    height: 72px;
+    border: 2px solid transparent;
+    border-radius: 4px;
+    overflow: hidden;
+    cursor: pointer;
+    background: var(--surface2);
+  }
+  .gthumb.active { border-color: var(--accent); }
+  .gthumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .gthumb-ico { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 22px; }
+  /* Passenger preview (non-image item shown in the gallery main area) */
+  #gallery-passenger { display: none; width: 100%; height: 100%; align-items: center; justify-content: center; overflow: auto; }
+  #gallery-passenger canvas { max-width: 100%; max-height: 100%; box-shadow: 0 0 12px rgba(0,0,0,0.6); }
+  .gallery-text-preview { white-space: pre-wrap; color: var(--text); font-size: 13px; line-height: 1.5; padding: 16px 20px; max-width: 800px; font-family: 'DM Mono', monospace; }
+  .gallery-pass-fallback { text-align: center; color: var(--text-mid); }
+  .gallery-pass-fallback .gpf-icon { font-size: 64px; }
+  .gallery-pass-fallback .gpf-name { font-size: 13px; margin-top: 8px; word-break: break-all; }
+  /* Per-image actions on hover (desktop/mouse only — rare action) */
+  .gthumb-act {
+    position: absolute; top: 1px;
+    width: 18px; height: 18px; padding: 0; line-height: 16px;
+    border: none; border-radius: 3px; cursor: pointer;
+    font-size: 11px; text-align: center;
+    background: rgba(0, 0, 0, 0.65); color: #fff;
+    display: none;
+  }
+  .gthumb:hover .gthumb-act { display: block; }
+  .gthumb-mov { left: 1px; }
+  .gthumb-del { right: 1px; }
+  .gthumb-mov:hover { background: var(--accent); }
+  .gthumb-del:hover { background: rgba(192, 57, 43, 0.95); }
+  @media (hover: none) { .gthumb-act { display: none !important; } }
 
   /* ── Audio player ── */
   #audio-player {
@@ -1255,6 +1339,18 @@
     z-index: 100 !important;
     background: #000 !important;
   }
+  /* In fullscreen, auto-hide the gallery chrome (nav bar + thumbnail strip) like the
+     video controls; revealed on mouse move / tap (see _galleryChromeReveal). */
+  #image-viewer.viewer-fullscreen #image-nav-bar,
+  #image-viewer.viewer-fullscreen #gallery-thumbs {
+    transition: opacity 0.25s ease;
+  }
+  #image-viewer.viewer-fullscreen.chrome-hidden #image-nav-bar,
+  #image-viewer.viewer-fullscreen.chrome-hidden #gallery-thumbs {
+    opacity: 0;
+    pointer-events: none;
+  }
+  #image-viewer.viewer-fullscreen.chrome-hidden { cursor: none; }
 </style>
 </head>
 <body>
@@ -1326,6 +1422,8 @@
           <select class="s-select" id="s-sort-by">
             <option value="date">Date</option>
             <option value="name">Nom</option>
+            <option value="size">Taille</option>
+            <option value="state">État de lecture</option>
           </select>
           <select class="s-select" id="s-sort-dir">
             <option value="desc">Décroissant</option>
@@ -1481,6 +1579,40 @@
       </div>
     </div>
 
+    <!-- Maintenance -->
+    <div>
+      <div class="s-section-title">🛠 Maintenance</div>
+      <div class="s-row">
+        <div><div class="s-label">Historique des téléchargements</div><div class="s-desc">Nombre de jours conservés. 0&#xA0;=&#xA0;sans limite</div></div>
+        <div class="s-right"><input type="number" class="s-num" id="s-download-history-days" min="0" max="3650" step="1"> <span style="font-size:12px;color:var(--text-dim)">j</span></div>
+      </div>
+      <div class="s-row" style="flex-direction:column;align-items:stretch;gap:8px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+          <div><div class="s-label">Journal</div><div class="s-desc" id="s-log-desc">Événements du serveur</div></div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <select class="s-num" id="s-log-lines" style="width:auto" onchange="refreshLogs()">
+              <option value="100">100 lignes</option>
+              <option value="500" selected>500 lignes</option>
+              <option value="2000">2000 lignes</option>
+            </select>
+            <select class="s-num" id="s-log-level" style="width:auto" onchange="refreshLogs()">
+              <option value="">Tous</option>
+              <option value="INFO">Info +</option>
+              <option value="WARNING">Avertissements +</option>
+              <option value="ERROR">Erreurs</option>
+            </select>
+            <button class="s-btn" onclick="refreshLogs()" title="Actualiser">↻</button>
+            <button class="s-btn" onclick="copyLogs()">Copier</button>
+          </div>
+        </div>
+        <pre id="s-log-view" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text-mid);font-family:'DM Mono',monospace;font-size:10px;line-height:1.5;margin:0;max-height:34vh;overflow:auto;padding:10px;white-space:pre-wrap;word-break:break-word">Chargement…</pre>
+      </div>
+      <div class="s-row" style="flex-direction:column;align-items:flex-start;gap:6px">
+        <div><div class="s-label">Redémarrer Hoard</div><div class="s-desc" id="s-restart-desc">Relance l'application. Les téléchargements en cours sont perdus.</div></div>
+        <button class="s-btn" id="s-restart-btn" onclick="confirmRestartHoard()">↻ Redémarrer Hoard</button>
+      </div>
+    </div>
+
     <button id="settings-save-btn" onclick="saveSettings()">Enregistrer</button>
   </div>
 </div>
@@ -1514,11 +1646,11 @@
 
 <div id="header">
   <div id="logo">Hoard<span id="app-version"></span></div>
-  <button id="home-btn" onclick="navigateHome()" title="Aller au dossier de départ">⌂</button>
+  <button id="home-btn" onclick="navigateHome()" title="Aller au dossier de départ" aria-label="Aller au dossier de départ">⌂</button>
   <button onclick="openBrowseModal()" title="Choisir le dossier de départ" style="background:none;border:1px solid var(--border);color:var(--text-dim);font-size:11px;cursor:pointer;padding:5px 8px;border-radius:6px;flex-shrink:0;font-family:inherit">📂 Browse…</button>
   <div id="breadcrumb"></div>
-  <button id="dl-queue-btn" onclick="openDlQueueModal()" title="File de téléchargement" style="background:none;border:1px solid var(--border);color:var(--text-dim);font-size:15px;cursor:pointer;padding:5px 9px;border-radius:6px;flex-shrink:0;line-height:1">📥<span id="dl-queue-badge"></span></button>
-  <button onclick="openSettings()" title="Paramètres" style="background:none;border:1px solid var(--border);color:var(--text-dim);font-size:15px;cursor:pointer;padding:5px 9px;border-radius:6px;flex-shrink:0;line-height:1">⚙️</button>
+  <button id="dl-queue-btn" onclick="openDlQueueModal()" title="Téléchargements" aria-label="Téléchargements" style="background:none;border:1px solid var(--border);color:var(--text-dim);font-size:15px;cursor:pointer;padding:5px 9px;border-radius:6px;flex-shrink:0;line-height:1">📥<span id="dl-queue-badge"></span></button>
+  <button onclick="openSettings()" title="Paramètres" aria-label="Paramètres" style="background:none;border:1px solid var(--border);color:var(--text-dim);font-size:15px;cursor:pointer;padding:5px 9px;border-radius:6px;flex-shrink:0;line-height:1">⚙️</button>
 </div>
 
 <div id="main">
@@ -1527,6 +1659,8 @@
     <div id="sort-bar">
       <button class="sort-btn" id="sort-date-btn" onclick="setSortBy('date')">Date</button>
       <button class="sort-btn" id="sort-name-btn" onclick="setSortBy('name')">Nom</button>
+      <button class="sort-btn" id="sort-size-btn" onclick="setSortBy('size')">Taille</button>
+      <button class="sort-btn" id="sort-state-btn" onclick="setSortBy('state')">État</button>
       <button class="sort-btn" id="sort-dir-btn" onclick="toggleSortDir()" title="Inverser l'ordre">&#x2193;</button>
       <div id="refresh-indicator" title="Mise à jour en cours…"></div>
       <button class="sort-btn" onclick="openMkdirModal()" title="Nouveau dossier" style="margin-left:4px">&#x2795;</button>
@@ -1577,16 +1711,17 @@
         </div>
         <div id="segments-list" style="display:none"></div>
         <div id="ctrl-row">
-          <button class="ctrl-btn" data-seek="seek_medium" data-dir="back" onclick="skip(-cfg.seek_medium)" title="-30s">⏪</button>
-          <button class="ctrl-btn" data-seek="seek_short" data-dir="back" onclick="skip(-cfg.seek_short)" title="-10s">◀◀</button>
-          <button class="ctrl-btn" id="playpause-btn" onclick="togglePlay()">▶</button>
-          <button class="ctrl-btn" data-seek="seek_short" data-dir="fwd" onclick="skip(cfg.seek_short)" title="+10s">▶▶</button>
-          <button class="ctrl-btn" data-seek="seek_medium" data-dir="fwd" onclick="skip(cfg.seek_medium)" title="+30s">⏩</button>
+          <button class="ctrl-btn" data-seek="seek_medium" data-dir="back" onclick="skip(-cfg.seek_medium)" title="-30s" aria-label="Reculer (seek moyen)">⏪</button>
+          <button class="ctrl-btn" data-seek="seek_short" data-dir="back" onclick="skip(-cfg.seek_short)" title="-10s" aria-label="Reculer (seek court)">◀◀</button>
+          <button class="ctrl-btn" id="playpause-btn" onclick="togglePlay()" aria-label="Lecture ou pause">▶</button>
+          <button class="ctrl-btn" data-seek="seek_short" data-dir="fwd" onclick="skip(cfg.seek_short)" title="+10s" aria-label="Avancer (seek court)">▶▶</button>
+          <button class="ctrl-btn" data-seek="seek_medium" data-dir="fwd" onclick="skip(cfg.seek_medium)" title="+30s" aria-label="Avancer (seek moyen)">⏩</button>
           <div id="time-display">0:00 / 0:00</div>
           <div id="volume-wrap">
-            <span style="font-size:16px;cursor:pointer" onclick="toggleMute()">🔊</span>
+            <span role="button" tabindex="0" aria-label="Muet / son" style="font-size:16px;cursor:pointer" onclick="toggleMute()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleMute();}">🔊</span>
             <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="1" oninput="setVolume(this.value)">
-          </div>          <button class="ctrl-btn" id="fullscreen-btn" onclick="toggleFullscreen()" title="Plein écran (F)">&#x26F6;</button>
+          </div>          <button class="ctrl-btn" id="subs-btn" onclick="cycleSubtitles()" title="Sous-titres (C)" aria-label="Sous-titres">💬</button>
+          <button class="ctrl-btn" id="fullscreen-btn" onclick="toggleFullscreen()" title="Plein écran (F)" aria-label="Plein écran">&#x26F6;</button>
           <button class="ctrl-btn" id="speed-btn" onclick="cycleSpeed()" title="Vitesse de lecture">1×</button>
           <button class="ctrl-btn" id="fit-btn" onclick="toggleVideoFit()" title="Fit / Fill">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1610,9 +1745,12 @@
         <div id="image-title"></div>
         <button onclick="closeImageViewer()" title="Fermer">&#x2715;</button>
       </div>
+      <div id="gallery-hud"></div>
       <div id="image-scroll-area">
         <img id="image-el" src="" alt="">
+        <div id="gallery-passenger"></div>
       </div>
+      <div id="gallery-thumbs"></div>
     </div>
 
     <!-- Audio player -->
@@ -1681,8 +1819,21 @@
     <!-- Queue list (shown when jobs exist) -->
     <div id="dl-queue-section" style="display:none;flex-direction:column;gap:0;flex-shrink:0">
       <div style="border-top:1px solid var(--border);padding-top:12px;display:flex;flex-direction:column;gap:8px">
-        <div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.06em">File d'attente</div>
+        <div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.06em">En cours</div>
         <div id="dl-queue-list" style="display:flex;flex-direction:column;gap:6px;overflow-y:auto;max-height:32vh"></div>
+      </div>
+    </div>
+    <!-- Persistent history (survives the job TTL and container restarts) -->
+    <div id="dl-history-section" style="display:flex;flex-direction:column;gap:0;flex:1;min-height:0">
+      <div style="border-top:1px solid var(--border);padding-top:12px;display:flex;flex-direction:column;gap:8px;min-height:0;flex:1">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+          <div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.06em">Historique <span id="dl-history-count" style="color:var(--text-mid)"></span></div>
+          <div style="display:flex;gap:6px">
+            <button class="s-btn" onclick="refreshDlHistory()" title="Actualiser" style="padding:3px 8px;font-size:11px">↻</button>
+            <button class="s-btn" onclick="clearDlHistory()" title="Vider l'historique" style="padding:3px 8px;font-size:11px">Vider</button>
+          </div>
+        </div>
+        <div id="dl-history-list" style="display:flex;flex-direction:column;gap:6px;overflow-y:auto;flex:1;min-height:60px"></div>
       </div>
     </div>
   </div>
@@ -1797,6 +1948,20 @@
   </div>
 </div>
 
+<!-- Rename modal -->
+<div id="rename-overlay" onclick="closeRenameModal(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
+  <div style="background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:12px;padding:24px;width:360px;max-width:95vw;display:flex;flex-direction:column;gap:14px">
+    <div style="font-size:15px;font-weight:700;color:var(--accent)">Renommer</div>
+    <input id="rename-input" type="text" placeholder="Nouveau nom" autocomplete="off"
+      style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Mono',monospace;font-size:13px;padding:9px 12px;outline:none;width:100%;box-sizing:border-box"
+      onkeydown="if(event.key==='Enter')confirmRename();else if(event.key==='Escape')closeRenameModal()">
+    <div style="display:flex;gap:8px">
+      <button onclick="confirmRename()" style="flex:1;background:var(--accent);color:#000;border:none;padding:10px;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">Renommer</button>
+      <button onclick="closeRenameModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:10px 16px;border-radius:8px;cursor:pointer;font-family:inherit">Annuler</button>
+    </div>
+  </div>
+</div>
+
 <!-- Delete confirmation dialog -->
 <div id="delete-dialog" onclick="if(event.target===this)closeDeleteDialog()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:340px;max-width:90vw;display:flex;flex-direction:column;gap:14px">
@@ -1811,7 +1976,7 @@
 
 <!-- Keyboard shortcuts dialog -->
 <dialog id="shortcuts-dialog" onclick="_dialogBackdropClose(event, 'shortcuts-dialog')">
-  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:520px;max-width:95vw;max-height:85vh;overflow-y:auto;display:flex;flex-direction:column;gap:10px">
+  <div style="background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:12px;padding:24px;width:520px;max-width:95vw;max-height:85vh;overflow-y:auto;display:flex;flex-direction:column;gap:10px">
     <div style="display:flex;justify-content:space-between;align-items:center">
       <div style="font-size:15px;font-weight:700;color:var(--accent)">⌨ Raccourcis clavier</div>
       <button onclick="document.getElementById('shortcuts-dialog').close()" style="background:none;border:none;color:var(--text-dim);font-size:20px;cursor:pointer;line-height:1">✕</button>
@@ -1839,14 +2004,15 @@
       <tbody>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">↑ / ↓</td><td style="padding:4px 8px">Volume +/− 10 % <span style="color:var(--text-dim)">(player actif)</span></td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">M</td><td style="padding:4px 8px">Muet / Son</td></tr>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">C</td><td style="padding:4px 8px">Sous-titres (cycle pistes / désactivé)</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">[ / ]</td><td style="padding:4px 8px">Vitesse − / + (0,5× → 1× → 1,5× → 2×)</td></tr>
       </tbody>
     </table>
     <div style="font-size:11px;font-weight:700;color:var(--text-dim);margin-top:6px;text-transform:uppercase;letter-spacing:.05em">Player</div>
     <table style="width:100%;border-collapse:collapse;font-size:12px">
       <tbody>
-        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">F</td><td style="padding:4px 8px">Plein écran</td></tr>
-        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">Échap</td><td style="padding:4px 8px">Quitter plein écran — puis fermer le player</td></tr>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">F</td><td style="padding:4px 8px">Plein écran (fenêtré sur PC) <span style="color:var(--text-dim)">— Maj+F pour le vrai plein écran</span></td></tr>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">Échap</td><td style="padding:4px 8px">Quitter plein écran → fermer le player → remonter d'un cran (comme B au pad)</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">A</td><td style="padding:4px 8px">Cycle aspect ratio (Fit / Fill / …)</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">W</td><td style="padding:4px 8px">Marquer vu / non vu</td></tr>
       </tbody>
@@ -1857,6 +2023,7 @@
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">I / O</td><td style="padding:4px 8px">Marquer point IN / OUT</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">E</td><td style="padding:4px 8px">Ouvrir la fenêtre Couper</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">D</td><td style="padding:4px 8px">Ouvrir la fenêtre Déplacer</td></tr>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">R</td><td style="padding:4px 8px">Renommer (fichier en cours ou élément sélectionné)</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">Suppr</td><td style="padding:4px 8px">Supprimer le fichier en cours</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">S</td><td style="padding:4px 8px">Sauvegarder position initiale du dossier</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">?</td><td style="padding:4px 8px">Afficher / masquer cette aide</td></tr>
@@ -1885,6 +2052,18 @@
     <div id="gp-overlay-body"></div>
     <button onclick="closeGpOverlay()" style="margin-top:14px;background:var(--surface2);border:1px solid var(--border);color:var(--text-mid);font-size:13px;cursor:pointer;padding:8px 20px;border-radius:8px;font-family:inherit">Fermer</button>
   </div>
+</div>
+
+<!-- One-shot touch gesture discovery overlay (BL-038) — shown once on touch devices -->
+<div id="gesture-help-overlay" role="dialog" aria-label="Aide des gestes tactiles" onclick="if(event.target===this)dismissGestureOverlay()" style="display:none;position:fixed;inset:0;z-index:5000;background:rgba(0,0,0,0.85);align-items:center;justify-content:center;flex-direction:column;gap:18px;padding:24px;text-align:center;color:var(--text);font-family:inherit">
+  <div style="font-size:18px;font-weight:700;color:var(--accent)">👆 Gestes tactiles</div>
+  <div style="display:flex;gap:12px;width:100%;max-width:440px">
+    <div style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 8px;font-size:13px">⏪<br>Double-tap<br>à gauche<br><span style="color:var(--text-dim)">reculer</span></div>
+    <div style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 8px;font-size:13px">⏯️<br>Tap au<br>centre<br><span style="color:var(--text-dim)">pause</span></div>
+    <div style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 8px;font-size:13px">⏩<br>Double-tap<br>à droite<br><span style="color:var(--text-dim)">avancer</span></div>
+  </div>
+  <div style="font-size:13px;max-width:440px;color:var(--text-mid)">Glissez verticalement près des bords pour régler le volume et la luminosité.</div>
+  <button onclick="dismissGestureOverlay()" aria-label="Fermer l'aide des gestes" style="margin-top:6px;background:var(--accent);color:#000;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;padding:10px 28px;font-family:inherit">Compris</button>
 </div>
 
 <script>
@@ -1922,6 +2101,11 @@ let _imageCurrentIdx = 0;
 let _imageIsArchive = false;
 let _imageArchivePath = null;
 let _imageArchiveImages = [];
+let _imageIsGallery = false;      // true when viewing a folder-gallery
+let _galleryItems = [];           // [{path, type}] flattened gallery sequence
+let _galleryPath = null;          // folder rel path (resume anchor)
+let _thumbObserver = null;        // IntersectionObserver for lazy thumbnails
+let _galleryMoveIndex = null;     // index of the gallery image being moved (vs whole gallery)
 let _imageFitMode = 'full-page';  // 'full-page'|'fit-width'
 let _pdfDoc = null;
 let _pdfPage = 1;
@@ -1961,6 +2145,7 @@ let cfg = {
   gamepad_swap_sticks: false,
   gamepad_mapping: {},
   fs_progress_zoom: 20,
+  gestures_overlay_seen: false,
 };
 
 function applyCfg(s) {
@@ -2001,6 +2186,7 @@ function applyCfg(s) {
   cfg.gamepad_swap_sticks        = s.gamepad_swap_sticks === '1' || s.gamepad_swap_sticks === true;
   try { cfg.gamepad_mapping = JSON.parse(s.gamepad_mapping || '{}'); } catch { cfg.gamepad_mapping = {}; }
   cfg.fs_progress_zoom = parseInt(s.fs_progress_zoom ?? 20, 10);
+  cfg.gestures_overlay_seen = s.gestures_overlay_seen === '1' || s.gestures_overlay_seen === true;
   // propagate navigation prefs
   homeFolder = cfg.home_folder;
   sortBy     = cfg.sort_by;
@@ -2276,6 +2462,8 @@ function toggleSortDir() {
 function updateSortUI() {
   document.getElementById('sort-date-btn').classList.toggle('active', sortBy === 'date');
   document.getElementById('sort-name-btn').classList.toggle('active', sortBy === 'name');
+  document.getElementById('sort-size-btn').classList.toggle('active', sortBy === 'size');
+  document.getElementById('sort-state-btn').classList.toggle('active', sortBy === 'state');
   const dirBtn = document.getElementById('sort-dir-btn');
   dirBtn.textContent = sortDir === 'desc' ? '\u2193' : '\u2191';
   dirBtn.title = sortDir === 'desc' ? 'Plus récent / A→Z : cliquer pour inverser' : 'Plus ancien / Z→A : cliquer pour inverser';
@@ -2288,12 +2476,38 @@ function sortedList(list) {
     let cmp = 0;
     if (sortBy === 'name') {
       cmp = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+    } else if (sortBy === 'size') {
+      cmp = (a.size || 0) - (b.size || 0);
+      if (cmp === 0) cmp = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+    } else if (sortBy === 'state') {
+      cmp = watchStateRank(a) - watchStateRank(b);
+      if (cmp === 0) cmp = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
     } else {
       cmp = (a.mtime || 0) - (b.mtime || 0);
     }
     return sortDir === 'desc' ? -cmp : cmp;
   });
   return { pinned, rest };
+}
+
+// Watch-state rank for sorting: 0 = unseen, 1 = in progress, 2 = seen.
+// Folders use their aggregated folder_state; files use their progress percent
+// against the configured watched threshold.
+// A gallery is a folder (is_dir) read as a single media (media_type 'gallery').
+function isGallery(e) {
+  return e.is_dir && e.media_type === 'gallery';
+}
+
+function watchStateRank(e) {
+  if (e.is_dir && !isGallery(e)) {
+    if (e.folder_state === 'seen') return 2;
+    if (e.folder_state === 'inprogress') return 1;
+    return 0;
+  }
+  const pct = e.progress?.percent ?? 0;
+  if (pct >= cfg.watched_threshold) return 2;
+  if (pct > 0) return 1;
+  return 0;
 }
 
 function updateHomeBtnState() {
@@ -2471,7 +2685,7 @@ function closeDestPicker(e) {
 
 async function _loadDestPickerDir(relPath) {
   _destPickerPath = relPath;
-  const r = await fetch(`${API}/api/files?path=${encodeURIComponent(relPath)}`).then(r => r.json()).catch(() => null);
+  const r = await apiFetch(`${API}/api/files?path=${encodeURIComponent(relPath)}`).then(r => r.json()).catch(() => null);
   if (!r) { showToast('Erreur'); return; }
   // Crumb
   const crumb = document.getElementById('dest-picker-crumb');
@@ -2509,7 +2723,7 @@ async function moveFileToPath(srcPath, destFolderRel) {
   // Build destination: destFolderRel/filename
   const fileName = srcPath.split('/').pop();
   const destPath = destFolderRel ? `${destFolderRel}/${fileName}` : fileName;
-  const r = await fetch(`${API}/api/files/move?path=${encodeURIComponent(srcPath)}`, {
+  const r = await apiFetch(`${API}/api/files/move?path=${encodeURIComponent(srcPath)}`, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({ destination: destPath }),
@@ -2520,7 +2734,7 @@ async function moveFileToPath(srcPath, destFolderRel) {
     return;
   }
   showToast(`↗ Déplacé vers ${destFolderRel || 'racine'}`);
-  dirCache.delete(currentPath);
+  dirCache.clear();  // a folder's gallery-ness/state depends on contents → drop all
   navigate(currentPath);
 }
 
@@ -2829,6 +3043,7 @@ function openSettings() {
   document.getElementById('s-home-desc').textContent   = cfg.home_folder || '(racine)';
   document.getElementById('s-download-folder').value   = cfg.download_folder;
   document.getElementById('s-cookies-path').value      = cfg.download_cookies_path;
+  document.getElementById('s-download-history-days').value = cfg.download_history_days ?? 0;
   document.getElementById('s-transcode-enabled').checked    = cfg.transcode_enabled;
   document.getElementById('s-transcode-audio-only').checked = cfg.transcode_audio_only;
   document.getElementById('s-gamepad-enabled').checked  = cfg.gamepad_enabled;
@@ -2838,6 +3053,7 @@ function openSettings() {
   updateSettingsHomeRoots();
   _updateBookmarkletLink();
   _refreshPinStatusUI();
+  refreshLogs();
   document.getElementById('settings-page').classList.add('open');
 }
 
@@ -2879,6 +3095,7 @@ async function saveSettings() {
     seek_xlong:    parseInt(document.getElementById('s-seek-xlong').value,  10),
     download_folder:           (document.getElementById('s-download-folder').value || 'Downloads').trim(),
     download_cookies_path:     document.getElementById('s-cookies-path').value.trim(),
+    download_history_days:     parseInt(document.getElementById('s-download-history-days').value, 10) || 0,
     transcode_enabled:         document.getElementById('s-transcode-enabled').checked,
     transcode_audio_only:      document.getElementById('s-transcode-audio-only').checked,
     gamepad_enabled:           document.getElementById('s-gamepad-enabled').checked,
@@ -2915,6 +3132,10 @@ function _buildBookmarkletCode() {
   // A status dialog is injected into the current page — no navigation, no modal.
   // States: "Connexion à Hoard…" → "Analyse de l'URL…" → "Téléchargement… X%"
   //       → "Terminé !" (auto-close 4s) or "❌ <error>" (manual close).
+  // If the fetch itself is rejected (e.g. the page's CSP blocks connect-src to
+  // Hoard's domain — common on ad-heavy sites), fall back to opening Hoard in a
+  // new tab via the #download?url=... hash route, which isn't subject to the
+  // current page's CSP since it's a navigation, not a fetch.
   //
   // Video source detection strategies (in priority order):
   // 1. <video>.currentSrc (if not a blob: URL)
@@ -3006,7 +3227,12 @@ function _buildBookmarkletCode() {
     '}).catch(function(){});},2000);',
     '});',
     '})',
-    '.catch(function(){upd("\u274C","Hoard non joignable",null,0);});',
+    '.catch(function(){',
+    'var qp="url="+encodeURIComponent(pu)+"&cookies="+encodeURIComponent(document.cookie||"")+"&title="+encodeURIComponent(document.title||"");',
+    'if(v)qp+="&videoSrc="+encodeURIComponent(v);',
+    'window.open(H+"/#download?"+qp,"_blank");',
+    'upd("\u2139\uFE0F","Site incompatible (CSP) \u2014 ouverture de Hoard dans un nouvel onglet\u2026",null,3000);',
+    '});',
     '})();',
   ].join('');
 }
@@ -3045,6 +3271,7 @@ function openDlQueueModal(url, cookies, videoSrc, title) {
   const destLabel = document.getElementById('download-dest-label');
   if (destLabel) destLabel.textContent = cfg.download_folder || 'Downloads';
   _renderDlQueueList();
+  refreshDlHistory();
   const overlay = document.getElementById('dl-queue-overlay');
   overlay.style.display = 'flex';
   setTimeout(() => { if (urlInput) urlInput.focus(); }, 50);
@@ -3164,6 +3391,14 @@ async function _pollDlQueue() {
     j => j.status === 'done' && prevJobs.some(p => p.id === j.id && p.status !== 'done'),
   );
   if (justDone.length > 0) _refreshAfterDownload();
+  // A job reaching a terminal state produced a new history entry
+  const dlOverlay = document.getElementById('dl-queue-overlay');
+  const modalOpen = dlOverlay && dlOverlay.style.display !== 'none';
+  const justFinished = _dlQueueJobs.some(
+    j => ['done', 'error', 'cancelled'].includes(j.status)
+      && prevJobs.some(p => p.id === j.id && p.status !== j.status),
+  );
+  if (modalOpen && justFinished) refreshDlHistory();
   _updateDlQueueWidget();
   _renderDlQueueList();
   const hasActive = _dlQueueJobs.some(j => j.status === 'pending' || j.status === 'running');
@@ -3174,7 +3409,7 @@ async function _pollDlQueue() {
 function _refreshAfterDownload() {
   const dlFolder = (cfg && cfg.download_folder) || 'Downloads';
   if (currentPath === dlFolder) {
-    dirCache.delete(dlFolder);
+    dirCache.clear();
     navigate(dlFolder);
   }
 }
@@ -3209,6 +3444,220 @@ async function _initDlQueue() {
 }
 
 // ── Search ─────────────────────────────────────────────────────────────────
+
+// ── Download history (persistent, survives restarts) ──────────────────────────
+let _dlHistory = [];
+let _dlHistoryTotal = 0;
+const _DL_HISTORY_PAGE = 100;
+
+const _DL_HISTORY_LABELS = {
+  done: { icon: '✓', text: 'Terminé', cls: 'done' },
+  error: { icon: '✗', text: 'Échec', cls: 'error' },
+  cancelled: { icon: '⊘', text: 'Annulé', cls: 'warn' },
+  interrupted: { icon: '⚠', text: 'Interrompu (redémarrage)', cls: 'warn' },
+};
+
+function _dlHistoryDate(value) {
+  if (!value) return '';
+  // SQLite CURRENT_TIMESTAMP is UTC without a timezone marker
+  const d = new Date(value.replace(' ', 'T') + (value.endsWith('Z') ? '' : 'Z'));
+  if (isNaN(d)) return value;
+  return d.toLocaleString(undefined, {
+    day: '2-digit', month: '2-digit', year: '2-digit',
+    hour: '2-digit', minute: '2-digit',
+  });
+}
+
+function _renderDlHistory() {
+  const list = document.getElementById('dl-history-list');
+  const count = document.getElementById('dl-history-count');
+  if (!list) return;
+  if (count) {
+    count.textContent = _dlHistoryTotal
+      ? (_dlHistory.length < _dlHistoryTotal
+        ? `(${_dlHistory.length} / ${_dlHistoryTotal})`
+        : `(${_dlHistoryTotal})`)
+      : '';
+  }
+  if (_dlHistory.length === 0) {
+    list.innerHTML = '<div class="dl-empty">Aucun téléchargement enregistré.</div>';
+    return;
+  }
+  const rows = _dlHistory.map(item => {
+    const label = _DL_HISTORY_LABELS[item.status]
+      || { icon: '⌛', text: item.status, cls: '' };
+    const name = item.output_name || item.title || item.url;
+    const when = _dlHistoryDate(item.finished_at || item.created_at);
+    const canOpen = item.status === 'done' && item.output_path;
+    return `<div class="dl-job-item">
+      <div class="dl-job-name" title="${_esc(item.url)}">${_esc(name)}</div>
+      <div class="dl-job-row">
+        <div class="dl-job-status ${label.cls}">${label.icon} ${_esc(label.text)}</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          ${canOpen ? `<button class="dl-job-link" onclick="goToDownloadedFile('${_esc(item.output_path)}')">Aller au fichier</button>` : ''}
+          <span class="dl-job-meta">${_esc(when)}</span>
+          <button class="dl-job-dismiss" onclick="deleteDlHistoryEntry('${_esc(item.id)}')" title="Retirer de l'historique">✕</button>
+        </div>
+      </div>
+      ${item.error ? `<div class="dl-job-err">${_esc(item.error)}</div>` : ''}
+    </div>`;
+  }).join('');
+  // Older entries stay reachable: the list is paginated, not truncated.
+  const more = _dlHistory.length < _dlHistoryTotal
+    ? `<button class="s-btn" onclick="loadMoreDlHistory()" style="align-self:center;margin-top:4px">Charger plus (${_dlHistoryTotal - _dlHistory.length} restants)</button>`
+    : '';
+  list.innerHTML = rows + more;
+}
+
+async function _loadDlHistoryPage(reset) {
+  const offset = reset ? 0 : _dlHistory.length;
+  const data = await fetch(`${API}/api/downloads?limit=${_DL_HISTORY_PAGE}&offset=${offset}`)
+    .then(r => (r.ok ? r.json() : null)).catch(() => null);
+  if (!data) { showToast('Historique indisponible'); return; }
+  _dlHistory = reset ? (data.items || []) : _dlHistory.concat(data.items || []);
+  _dlHistoryTotal = data.total || 0;
+  _renderDlHistory();
+}
+
+async function refreshDlHistory() {
+  await _loadDlHistoryPage(true);
+}
+
+async function loadMoreDlHistory() {
+  await _loadDlHistoryPage(false);
+}
+
+async function deleteDlHistoryEntry(id) {
+  // Only drop it locally once the server confirms — otherwise the entry silently
+  // reappears on the next refresh and the UI has lied about deleting it.
+  const ok = await fetch(`${API}/api/downloads/${encodeURIComponent(id)}`, { method: 'DELETE' })
+    .then(r => r.ok).catch(() => false);
+  if (!ok) { showToast('Suppression impossible'); return; }
+  _dlHistory = _dlHistory.filter(i => i.id !== id);
+  _dlHistoryTotal = Math.max(0, _dlHistoryTotal - 1);
+  _renderDlHistory();
+}
+
+async function clearDlHistory() {
+  if (_dlHistory.length === 0) return;
+  if (!confirm('Vider tout l’historique des téléchargements ?\n(Les fichiers déjà téléchargés ne sont pas supprimés.)')) return;
+  const ok = await fetch(`${API}/api/downloads`, { method: 'DELETE' })
+    .then(r => r.ok).catch(() => false);
+  if (!ok) { showToast('Impossible de vider l’historique'); return; }
+  _dlHistory = [];
+  _dlHistoryTotal = 0;
+  _renderDlHistory();
+}
+
+function goToDownloadedFile(relPath) {
+  const parts = String(relPath).split('/');
+  parts.pop();
+  const folder = parts.join('/');
+  closeDlQueueModal();
+  navigate(folder);
+  // Flag the entry once the folder listing has been rendered
+  setTimeout(() => {
+    const row = document.querySelector(`#filelist .entry[data-path="${CSS.escape(relPath)}"]`);
+    if (row) {
+      row.classList.add('flash');
+      row.scrollIntoView({ block: 'center' });
+      setTimeout(() => row.classList.remove('flash'), 3400);
+    }
+  }, 400);
+}
+
+
+// ── Maintenance: logs & restart ───────────────────────────────────────────────
+let _logLines = [];
+
+async function refreshLogs() {
+  const view = document.getElementById('s-log-view');
+  const desc = document.getElementById('s-log-desc');
+  if (!view) return;
+  const lines = document.getElementById('s-log-lines').value;
+  const level = document.getElementById('s-log-level').value;
+  const qs = `lines=${encodeURIComponent(lines)}` + (level ? `&level=${encodeURIComponent(level)}` : '');
+  const data = await fetch(`${API}/api/logs?${qs}`).then(r => r.json()).catch(() => null);
+  if (!data) { view.textContent = 'Journal indisponible.'; return; }
+  if (!data.enabled) {
+    _logLines = [];
+    view.textContent = 'Journalisation fichier désactivée (LOG_DIR vide). Les événements ne sont visibles que dans les logs du conteneur.';
+    if (desc) desc.textContent = 'Événements du serveur';
+    return;
+  }
+  _logLines = data.lines || [];
+  if (desc) desc.textContent = `${data.path} — ${data.retention_days} jours conservés`;
+  // Chronological order: reversing line by line would scramble multi-line
+  // stack traces. Scroll to the bottom instead, where the newest lines are.
+  view.textContent = _logLines.length ? _logLines.join('\n') : 'Aucune ligne pour ce filtre.';
+  view.scrollTop = view.scrollHeight;
+}
+
+async function copyLogs() {
+  const text = _logLines.join('\n');
+  if (!text) { showToast('Rien à copier'); return; }
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast('✓ Journal copié');
+  } catch {
+    showToast('Copie impossible');
+  }
+}
+
+async function restartHoard(force = false) {
+  const btn = document.getElementById('s-restart-btn');
+  const resp = await fetch(`${API}/api/restart`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ force }),
+  }).catch(() => null);
+
+  if (!resp) { showToast('Hoard ne répond pas'); return; }
+
+  if (resp.status === 409) {
+    const err = await resp.json().catch(() => ({}));
+    const msg = (err.detail || 'Un téléchargement est en cours.')
+      + '\n\nRedémarrer maintenant l’interrompra définitivement. Continuer ?';
+    if (confirm(msg)) restartHoard(true);
+    return;
+  }
+  if (!resp.ok) { showToast('Redémarrage refusé (' + resp.status + ')'); return; }
+
+  const data = await resp.json().catch(() => ({}));
+  if (!data.supervised) {
+    showToast('⚠ Hoard s’arrête (aucun superviseur pour le relancer)');
+    return;
+  }
+  if (btn) { btn.disabled = true; btn.textContent = '⌛ Redémarrage…'; }
+  _waitForBackend();
+}
+
+// Confirm before firing the restart, with wording that matches the environment.
+function confirmRestartHoard() {
+  const supervised = cfg && cfg.restart_supervised;
+  const msg = supervised
+    ? 'Redémarrer Hoard ?\n\nLa page se rechargera automatiquement une fois le serveur revenu.'
+    : 'Arrêter Hoard ?\n\nAucun superviseur n’est détecté : l’application ne redémarrera pas toute seule.';
+  if (confirm(msg)) restartHoard(false);
+}
+
+function _waitForBackend(deadlineMs = 60000) {
+  const started = Date.now();
+  const btn = document.getElementById('s-restart-btn');
+  const tick = async () => {
+    const alive = await fetch(`${API}/api/settings`, { cache: 'no-store' })
+      .then(r => r.ok).catch(() => false);
+    if (alive) { window.location.reload(); return; }
+    if (Date.now() - started > deadlineMs) {
+      if (btn) { btn.disabled = false; btn.textContent = '↻ Redémarrer Hoard'; }
+      showToast('⚠ Hoard n’est pas revenu — vérifiez le conteneur');
+      return;
+    }
+    setTimeout(tick, 2000);
+  };
+  setTimeout(tick, 2000);
+}
+
 function onSearchInput(value) {
   clearTimeout(searchDebounceTimer);
   searchQuery = value.trim();
@@ -3221,7 +3670,7 @@ async function runSearch() {
   const indicator = document.getElementById('refresh-indicator');
   if (indicator) indicator.classList.add('active');
   try {
-    const r = await fetch(`${API}/api/search?q=${encodeURIComponent(searchQuery)}&path=${encodeURIComponent(currentPath)}`);
+    const r = await apiFetch(`${API}/api/search?q=${encodeURIComponent(searchQuery)}&path=${encodeURIComponent(currentPath)}`);
     if (!r.ok) return;
     const data = await r.json();
     showingHomeScreen = false;
@@ -3327,7 +3776,7 @@ function toggleTagFilter(tag) {
 // ── Navigation ────────────────────────────────────────────────────────────────
 async function refreshCurrentFolder() {
   if (showingHomeScreen) return;
-  dirCache.delete(currentPath);
+  dirCache.clear();  // a folder's gallery-ness/state depends on contents → drop all
   await navigate(currentPath);
 }
 
@@ -3346,6 +3795,7 @@ async function navigate(path) {
   if (currentFile) {
     video.pause();
     video.src = '';
+    clearSubtitles();
     document.getElementById('video-container').classList.remove('active');
     document.getElementById('image-viewer').classList.remove('active', 'viewer-fullscreen');
     document.getElementById('audio-player').classList.remove('active');
@@ -3378,7 +3828,7 @@ async function navigate(path) {
 
   let data;
   try {
-    const resp = await fetch(`${API}/api/files?path=${encodeURIComponent(path)}`);
+    const resp = await apiFetch(`${API}/api/files?path=${encodeURIComponent(path)}`);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     data = await resp.json();
   } catch (err) {
@@ -3419,13 +3869,14 @@ function renderBreadcrumb(crumbs) {
 }
 
 function getMediaIcon(e) {
+  if (isGallery(e)) return '\u{1F5BC}\u{FE0F}';  // 🖼️
   if (e.is_dir) {
     return e.folder_state === 'seen' ? '✅' : (e.folder_state === 'inprogress' ? '📂' : '📁');
   }
   const mt = e.media_type || 'other';
   if (mt === 'video') return getVideoIcon(e.progress);
   if (mt === 'image') return '📸';
-  if (mt === 'archive') return '📦';
+  if (mt === 'archive') return '\u{1F5BC}\u{FE0F}';  // 🖼️ — an archive is a gallery
   if (mt === 'audio') return '🎵';
   if (mt === 'pdf') return '📄';
   return '📝';
@@ -3435,7 +3886,8 @@ function renderEntry(e, i) {
   const icon = getMediaIcon(e);
   const meta = e.is_dir ? '' : formatSize(e.size);
   const mt = e.media_type || 'other';
-  const hasProgress = !e.is_dir && mt !== 'other' && e.progress && e.progress.duration > 0;
+  const gal = isGallery(e);
+  const hasProgress = (gal || (!e.is_dir && mt !== 'other')) && e.progress && e.progress.duration > 0;
   const progressHtml = hasProgress ? (() => {
     const timeLabel = (mt === 'video' || mt === 'audio')
       ? `${formatTime(e.progress.position)} / ${formatTime(e.progress.duration)}`
@@ -3448,7 +3900,7 @@ function renderEntry(e, i) {
   `;
   })() : '';
 
-  const stateClass = !e.is_dir && mt !== 'other' ? getStateClass(e.progress) : (e.folder_state === 'seen' ? 'seen' : (e.folder_state === 'inprogress' ? 'inprogress' : ''));
+  const stateClass = (gal || (!e.is_dir && mt !== 'other')) ? getStateClass(e.progress) : (e.folder_state === 'seen' ? 'seen' : (e.folder_state === 'inprogress' ? 'inprogress' : ''));
   const pinBtn = e.is_dir ? `<button class="action-btn ${e.is_quick_folder ? 'pinned' : ''}" onclick="togglePin(${jsStr(e.path)}, ${e.is_quick_folder})" title="${e.is_quick_folder ? 'Retirer' : 'Accès rapide'}">📌</button>` : '';
   const tagsHtml = (e.tags && e.tags.length) ? e.tags.map(t => `<span class="tag-badge">${esc(t)}</span>`).join('') : '';
   const actionsHtml = mt !== 'other' || e.is_dir ? `
@@ -3456,18 +3908,21 @@ function renderEntry(e, i) {
       ${pinBtn}
       <button class="action-btn" onclick="openTagModal(${jsStr(e.path)}, ${jsStr(e.name)})">🏷</button>
       <button class="action-btn" onclick="openMoveModal(${jsStr(e.path)}, ${jsStr(e.name)})">↗</button>
+      <button class="action-btn" onclick="openRenameModal(${jsStr(e.path)}, ${jsStr(e.name)})" aria-label="Renommer">✏</button>
       <button class="action-btn danger" onclick="confirmDelete(${jsStr(e.path)}, ${jsStr(e.name)})">🗑</button>
     </div>
   ` : '';
 
   const activeClass = currentFile && currentFile.path === e.path ? 'active' : '';
-  const clickHandler = e.is_dir
-    ? 'navigate(' + jsStr(e.path) + ')'
-    : (mt !== 'other' ? 'openMedia(' + i + ')' : '');
+  const clickHandler = gal
+    ? 'openGallery(' + i + ')'
+    : (e.is_dir
+      ? 'navigate(' + jsStr(e.path) + ')'
+      : (mt !== 'other' ? 'openMedia(' + i + ')' : ''));
   const qfClass = e.is_quick_folder ? 'qf' : '';
 
   return `
-    <div class="entry ${stateClass} ${activeClass} ${e.is_dir ? 'is-dir' : ''} ${qfClass}" onclick="${clickHandler}">
+    <div class="entry ${stateClass} ${activeClass} ${e.is_dir ? 'is-dir' : ''} ${qfClass}" data-path="${esc(e.path)}" onclick="${clickHandler}">
       <div class="entry-icon">${icon}</div>
       <div class="entry-info">
         <div class="entry-name">${esc(e.name)}</div>
@@ -3544,20 +3999,27 @@ async function _autoPlayNextFullscreen(navigatePath) {
   }
   _fsReenterFullscreen = false; _fsReenterFullscreenPath = null;
   if (!_gpRenderedList.length) return;
+  const playable = (e) => e.is_video || e.media_type === 'gallery';
   const start = _gpCursorIdx >= 0 ? _gpCursorIdx : 0;
   let target = -1;
   for (let i = start; i < _gpRenderedList.length; i++) {
-    if (_gpRenderedList[i].is_video) { target = i; break; }
+    if (playable(_gpRenderedList[i])) { target = i; break; }
   }
   if (target < 0) {
     for (let i = start - 1; i >= 0; i--) {
-      if (_gpRenderedList[i].is_video) { target = i; break; }
+      if (playable(_gpRenderedList[i])) { target = i; break; }
     }
   }
   if (target < 0) return;
   const entry = _gpRenderedList[target];
   const idx = entries.findIndex(e => e.path === entry.path);
   if (idx < 0) return;
+  if (entry.media_type === 'gallery') {
+    openGallery(idx);
+    document.getElementById('image-viewer').classList.add('viewer-fullscreen');
+    _galleryChromeReveal();
+    return;
+  }
   await playVideo(idx);
   videoContainer.classList.add('faux-fullscreen');
   syncFullscreenUI();
@@ -3571,8 +4033,148 @@ function _setMediaActive(active) {
 }
 
 function toggleViewerFullscreen(id) {
-  document.getElementById(id).classList.toggle('viewer-fullscreen');
+  const el = document.getElementById(id);
+  el.classList.toggle('viewer-fullscreen');
+  if (id === 'image-viewer') {
+    if (el.classList.contains('viewer-fullscreen')) _galleryChromeReveal();
+    else _galleryChromeReset();
+  }
 }
+
+// Auto-hide the gallery chrome (nav bar + thumbnail strip) in fullscreen, like the
+// video controls. Revealed on mouse move / tap, hidden again after a short idle.
+let _galleryChromeTimer = null;
+function _galleryChromeReveal() {
+  const iv = document.getElementById('image-viewer');
+  if (!iv.classList.contains('viewer-fullscreen')) return;
+  iv.classList.remove('chrome-hidden');
+  if (_galleryChromeTimer) clearTimeout(_galleryChromeTimer);
+  _galleryChromeTimer = setTimeout(() => {
+    const v = document.getElementById('image-viewer');
+    if (v.classList.contains('viewer-fullscreen')) v.classList.add('chrome-hidden');
+  }, 2500);
+}
+function _galleryChromeReset() {
+  if (_galleryChromeTimer) { clearTimeout(_galleryChromeTimer); _galleryChromeTimer = null; }
+  document.getElementById('image-viewer').classList.remove('chrome-hidden');
+}
+document.getElementById('image-viewer').addEventListener('mousemove', _galleryChromeReveal);
+document.getElementById('image-viewer').addEventListener('touchstart', _galleryChromeReveal, { passive: true });
+
+// ── Gallery zoom / pan (mouse wheel + drag, keyboard +/-/0/arrows, gamepad sticks) ──
+let _galleryZoom = 1;
+let _galleryPanX = 0;
+let _galleryPanY = 0;
+const _GALLERY_ZOOM_MAX = 6;
+const _GALLERY_WHEEL_FACTOR = 1.15;     // per wheel notch
+const _GALLERY_KEY_FACTOR = 1.25;       // per +/- keypress
+const _GALLERY_DBLCLICK_ZOOM = 2;       // double-click target zoom
+const _GALLERY_PAN_KEY_STEP = 60;       // px per arrow keypress
+const _GALLERY_GP_ZOOM_RATE = 0.04;     // right-stick zoom per poll frame
+const _GALLERY_GP_PAN_RATE = 16;        // left-stick pan px per poll frame
+
+// Zoom applies only when the viewer actually shows an image (not a passenger preview).
+function _galleryImageZoomActive() {
+  if (currentViewerMode !== 'image') return false;
+  if (_imageIsGallery) return _galleryItems[_imageCurrentIdx]?.type === 'image';
+  return true; // archive page or single image
+}
+
+function _updateGalleryHud() {
+  const hud = document.getElementById('gallery-hud');
+  if (!hud) return;
+  const parts = [];
+  const counter = document.getElementById('image-counter').textContent.trim();
+  if (counter) parts.push(counter);
+  if (_galleryZoom > 1) parts.push(`${Math.round(_galleryZoom * 100)}%`);
+  const title = document.getElementById('image-title').textContent.trim();
+  if (title) parts.push(title);
+  hud.textContent = parts.join('  ·  ');
+}
+
+function _applyGalleryTransform() {
+  const img = document.getElementById('image-el');
+  img.style.transform = _galleryZoom > 1
+    ? `translate(${_galleryPanX}px, ${_galleryPanY}px) scale(${_galleryZoom})`
+    : '';
+  document.getElementById('image-scroll-area').classList.toggle('gallery-zoomed', _galleryZoom > 1);
+  _updateGalleryHud();
+}
+
+function _resetGalleryZoom() {
+  _galleryZoom = 1; _galleryPanX = 0; _galleryPanY = 0;
+  const img = document.getElementById('image-el');
+  img.style.transform = '';
+  document.getElementById('image-scroll-area').classList.remove('gallery-zoomed', 'gallery-panning');
+  _updateGalleryHud();
+}
+
+function _clampGalleryPan() {
+  const area = document.getElementById('image-scroll-area');
+  const img = document.getElementById('image-el');
+  const maxX = Math.max(0, (img.clientWidth * _galleryZoom - area.clientWidth) / 2);
+  const maxY = Math.max(0, (img.clientHeight * _galleryZoom - area.clientHeight) / 2);
+  _galleryPanX = Math.max(-maxX, Math.min(maxX, _galleryPanX));
+  _galleryPanY = Math.max(-maxY, Math.min(maxY, _galleryPanY));
+}
+
+// Zoom by *factor*, keeping the point at offset (ox,oy) from the area center fixed.
+function _galleryZoomAt(factor, ox = 0, oy = 0) {
+  if (!_galleryImageZoomActive()) return;
+  const z0 = _galleryZoom;
+  const z1 = Math.max(1, Math.min(_GALLERY_ZOOM_MAX, z0 * factor));
+  if (z1 === z0) return;
+  if (z1 === 1) { _resetGalleryZoom(); return; }
+  _galleryPanX = ox - (ox - _galleryPanX) * (z1 / z0);
+  _galleryPanY = oy - (oy - _galleryPanY) * (z1 / z0);
+  _galleryZoom = z1;
+  _clampGalleryPan();
+  _applyGalleryTransform();
+}
+
+function _galleryPanBy(dx, dy) {
+  if (_galleryZoom <= 1) return;
+  _galleryPanX += dx; _galleryPanY += dy;
+  _clampGalleryPan();
+  _applyGalleryTransform();
+}
+
+(() => {
+  const area = document.getElementById('image-scroll-area');
+  area.addEventListener('wheel', e => {
+    if (!_galleryImageZoomActive()) return;
+    e.preventDefault();
+    const r = area.getBoundingClientRect();
+    const ox = e.clientX - r.left - r.width / 2;
+    const oy = e.clientY - r.top - r.height / 2;
+    _galleryZoomAt(e.deltaY < 0 ? _GALLERY_WHEEL_FACTOR : 1 / _GALLERY_WHEEL_FACTOR, ox, oy);
+  }, { passive: false });
+  area.addEventListener('dblclick', e => {
+    if (!_galleryImageZoomActive()) return;
+    if (_galleryZoom > 1) { _resetGalleryZoom(); return; }
+    const r = area.getBoundingClientRect();
+    _galleryZoomAt(_GALLERY_DBLCLICK_ZOOM, e.clientX - r.left - r.width / 2, e.clientY - r.top - r.height / 2);
+  });
+  let drag = null;
+  area.addEventListener('mousedown', e => {
+    if (_galleryZoom <= 1 || !_galleryImageZoomActive()) return;
+    drag = { x: e.clientX, y: e.clientY, px: _galleryPanX, py: _galleryPanY };
+    area.classList.add('gallery-panning');
+    e.preventDefault();
+  });
+  window.addEventListener('mousemove', e => {
+    if (!drag) return;
+    _galleryPanX = drag.px + (e.clientX - drag.x);
+    _galleryPanY = drag.py + (e.clientY - drag.y);
+    _clampGalleryPan();
+    _applyGalleryTransform();
+  });
+  window.addEventListener('mouseup', () => {
+    if (!drag) return;
+    drag = null;
+    area.classList.remove('gallery-panning');
+  });
+})();
 
 // ── Media dispatcher ──────────────────────────────────────────────────────────
 
@@ -3589,13 +4191,38 @@ function openMedia(idx) {
 
 // ── Image viewer ──────────────────────────────────────────────────────────────
 
+// Reset the image/gallery viewer state (used when leaving it for another panel).
+function _resetGalleryViewerState() {
+  if (_thumbObserver) { _thumbObserver.disconnect(); _thumbObserver = null; }
+  const bar = document.getElementById('gallery-thumbs');
+  if (bar) bar.innerHTML = '';
+  _imageIsGallery = false;
+  _imageIsArchive = false;
+}
+
 function _showOnlyPanel(id) {
   document.getElementById('player-empty').style.display = 'none';
+  // Switching to a non-video panel: stop video playback (don't leave audio running).
+  if (id !== 'video-container') { try { video.pause(); } catch { /* no video yet */ } }
   document.getElementById('video-container').classList.remove('active');
-  document.getElementById('image-viewer').classList.remove('active');
+  document.getElementById('image-viewer').classList.remove('active', 'has-thumbs');
   document.getElementById('audio-player').classList.remove('active');
   document.getElementById('pdf-viewer').classList.remove('active');
+  // Reset the image stage (a previous gallery passenger may have hidden the <img>).
+  const _pass = document.getElementById('gallery-passenger');
+  if (_pass) { _pass.style.display = 'none'; _pass.innerHTML = ''; }
+  document.getElementById('image-el').style.display = '';
+  _resetGalleryZoom();
   if (id) document.getElementById(id).classList.add('active');
+}
+
+// Hide image/audio/pdf viewers and reset gallery state when starting a video.
+function _hideAltViewers() {
+  document.getElementById('image-viewer').classList.remove('active', 'viewer-fullscreen', 'has-thumbs');
+  document.getElementById('audio-player').classList.remove('active');
+  document.getElementById('pdf-viewer').classList.remove('active');
+  _galleryChromeReset();
+  _resetGalleryViewerState();
 }
 
 function openImage(idx) {
@@ -3603,6 +4230,7 @@ function openImage(idx) {
   if (!entry) return;
   currentFile = entry;
   _imageIsArchive = false;
+  _imageIsGallery = false;
   _imageCurrentIdx = idx;
   currentViewerMode = 'image';
 
@@ -3620,6 +4248,7 @@ function openImage(idx) {
   document.getElementById('image-counter').textContent = `${posInImages + 1} / ${fileEntries.length}`;
   document.getElementById('image-title').textContent = entry.name;
   document.getElementById('image-el').src = `${API}/api/file?path=${encodeURIComponent(entry.path)}`;
+  _resetGalleryZoom();
 
   saveProgress(entry.path, posInImages + 1, fileEntries.length);
 }
@@ -3649,6 +4278,7 @@ function openArchive(idx) {
     .then(data => {
       _imageArchiveImages = data.images || [];
       document.getElementById('image-title').textContent = entry.name;
+      _buildThumbStrip();
       _loadArchiveImage(0);
     })
     .catch(() => {
@@ -3664,10 +4294,266 @@ function _loadArchiveImage(idx) {
   document.getElementById('image-title').textContent = _imageArchiveImages[idx];
   document.getElementById('image-el').src =
     `${API}/api/archive/image?path=${encodeURIComponent(_imageArchivePath)}&index=${idx}`;
+  _resetGalleryZoom();
+  _setActiveThumb(idx);
   saveProgress(_imageArchivePath, idx + 1, _imageArchiveImages.length);
 }
 
+// ── Gallery (image folder read as a single media) ───────────────────────────────
+
+function openGallery(idx) {
+  const entry = entries[idx];
+  if (!entry) return;
+  currentFile = entry;
+  _imageIsArchive = false;
+  _imageIsGallery = true;
+  _galleryPath = entry.path;
+  _galleryItems = [];
+  currentViewerMode = 'image';
+
+  _setMediaActive(true);
+  document.getElementById('player-panel').classList.add('mobile-active');
+  _showOnlyPanel('image-viewer');
+
+  const iv = document.getElementById('image-viewer');
+  iv.classList.remove('fit-width', 'full-page');
+  iv.classList.add(_imageFitMode);
+
+  fetch(`${API}/api/gallery/list?path=${encodeURIComponent(entry.path)}`)
+    .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+    .then(data => {
+      _galleryItems = data.items || [];
+      if (!_galleryItems.length) { showToast('Galerie vide'); closeImageViewer(); return; }
+      // Resume: folder progress stores position = page index (1-based).
+      let startIdx = 0;
+      const p = entry.progress;
+      if (p && p.has_saved_progress && p.position > 0) {
+        startIdx = Math.min(Math.max(Math.round(p.position) - 1, 0), _galleryItems.length - 1);
+      }
+      _buildThumbStrip();
+      _loadGalleryImage(startIdx);
+    })
+    .catch(() => { showToast('Erreur lecture galerie'); closeImageViewer(); });
+}
+
+function _loadGalleryImage(idx) {
+  if (!_galleryItems.length) return;
+  _imageCurrentIdx = idx;
+  const it = _galleryItems[idx];
+  document.getElementById('image-counter').textContent = `${idx + 1} / ${_galleryItems.length}`;
+  document.getElementById('image-title').textContent = it.path.split('/').pop();
+  _renderGalleryItem(it);
+  _resetGalleryZoom();
+  _setActiveThumb(idx);
+  saveProgress(_galleryPath, idx + 1, _galleryItems.length);
+}
+
+const _PASSENGER_ICONS = { pdf: '📄', audio: '🎵', archive: '📦', text: '📝' };
+
+function _passengerFallbackHtml(type, path) {
+  const icon = _PASSENGER_ICONS[type] || '📄';
+  return `<div class="gallery-pass-fallback"><div class="gpf-icon">${icon}</div>` +
+         `<div class="gpf-name">${esc(path.split('/').pop())}</div></div>`;
+}
+
+// Render the current gallery item: an image, or a passenger preview (PDF 1st page,
+// text excerpt, or a generic icon for audio/archive).
+function _renderGalleryItem(it) {
+  const img = document.getElementById('image-el');
+  const pass = document.getElementById('gallery-passenger');
+  if (it.type === 'image') {
+    pass.style.display = 'none';
+    pass.innerHTML = '';
+    img.style.display = '';
+    img.src = `${API}/api/file?path=${encodeURIComponent(it.path)}`;
+    return;
+  }
+  img.style.display = 'none';
+  img.src = '';
+  pass.style.display = 'flex';
+  if (it.type === 'pdf') { _renderPassengerPdf(it.path); }
+  else if (it.type === 'text') { _renderPassengerText(it.path); }
+  else { pass.innerHTML = _passengerFallbackHtml(it.type, it.path); }
+}
+
+async function _renderPassengerPdf(path) {
+  const pass = document.getElementById('gallery-passenger');
+  pass.innerHTML = '<canvas id="gallery-pass-canvas"></canvas>';
+  if (!window.pdfjsLib) {
+    try {
+      const lib = await import('/pdfjs/pdf.min.js');
+      lib.GlobalWorkerOptions.workerSrc = '/pdfjs/pdf.worker.min.js';
+      window.pdfjsLib = lib;
+    } catch { pass.innerHTML = _passengerFallbackHtml('pdf', path); return; }
+  }
+  try {
+    const doc = await pdfjsLib.getDocument(`${API}/api/file?path=${encodeURIComponent(path)}`).promise;
+    const page = await doc.getPage(1);
+    if (_galleryItems[_imageCurrentIdx]?.path !== path) return;  // navigated away
+    const canvas = document.getElementById('gallery-pass-canvas');
+    if (!canvas) return;
+    const area = document.getElementById('image-scroll-area');
+    const base = page.getViewport({ scale: 1 });
+    const scale = Math.max(0.1, Math.min((area.clientHeight - 16) / base.height, (area.clientWidth - 16) / base.width));
+    const vp = page.getViewport({ scale });
+    canvas.width = vp.width; canvas.height = vp.height;
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+  } catch { pass.innerHTML = _passengerFallbackHtml('pdf', path); }
+}
+
+async function _renderPassengerText(path) {
+  const pass = document.getElementById('gallery-passenger');
+  pass.innerHTML = '<pre class="gallery-text-preview"></pre>';
+  try {
+    const r = await fetch(`${API}/api/file?path=${encodeURIComponent(path)}`);
+    const txt = await r.text();
+    if (_galleryItems[_imageCurrentIdx]?.path !== path) return;
+    const pre = pass.querySelector('pre');
+    if (pre) pre.textContent = txt.slice(0, 4000);
+  } catch { pass.innerHTML = _passengerFallbackHtml('text', path); }
+}
+
+// Build the lazy thumbnail strip (seek bar), shared by folder-galleries and
+// archives. Thumbnails load only when scrolled into view, so the main image
+// (served full-size) never waits on them.
+function _buildThumbStrip() {
+  const bar = document.getElementById('gallery-thumbs');
+  const iv = document.getElementById('image-viewer');
+  bar.innerHTML = '';
+  if (_thumbObserver) { _thumbObserver.disconnect(); _thumbObserver = null; }
+  const count = _imageIsArchive ? _imageArchiveImages.length
+    : (_imageIsGallery ? _galleryItems.length : 0);
+  if (!count) { iv.classList.remove('has-thumbs'); return; }
+  iv.classList.add('has-thumbs');
+  _thumbObserver = new IntersectionObserver((obsEntries) => {
+    obsEntries.forEach(en => {
+      if (!en.isIntersecting) return;
+      const cell = en.target;
+      const img = cell.querySelector('img');
+      if (img && !img.src && cell.dataset.src) img.src = cell.dataset.src;
+      _thumbObserver.unobserve(cell);
+    });
+  }, { root: bar, rootMargin: '300px' });
+  for (let i = 0; i < count; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'gthumb' + (i === _imageCurrentIdx ? ' active' : '');
+    cell.dataset.index = String(i);
+    if (_imageIsArchive) {
+      cell.onclick = () => _loadArchiveImage(i);
+      const img = document.createElement('img');
+      img.alt = '';
+      img.decoding = 'async';
+      // Full image, downscaled by the browser (no server-side ffmpeg → no NAS CPU storm).
+      cell.dataset.src = `${API}/api/archive/image?path=${encodeURIComponent(_imageArchivePath)}&index=${i}`;
+      cell.appendChild(img);
+      _thumbObserver.observe(cell);
+    } else {
+      const it = _galleryItems[i];
+      cell.title = it.path.split('/').pop();
+      cell.onclick = () => _loadGalleryImage(i);
+      if (it.type === 'image') {
+        const img = document.createElement('img');
+        img.alt = '';
+        img.decoding = 'async';
+        // Full image, downscaled by the browser (no server-side ffmpeg → no NAS CPU storm).
+        cell.dataset.src = `${API}/api/file?path=${encodeURIComponent(it.path)}`;
+        cell.appendChild(img);
+        _thumbObserver.observe(cell);  // lazy-load only when scrolled into view
+      } else {
+        const ico = document.createElement('div');
+        ico.className = 'gthumb-ico';
+        ico.textContent = _PASSENGER_ICONS[it.type] || '📄';
+        cell.appendChild(ico);
+      }
+      // Per-image management (gallery only; mouse hover, desktop only).
+      const moveBtn = document.createElement('button');
+      moveBtn.className = 'gthumb-act gthumb-mov';
+      moveBtn.textContent = '›';
+      moveBtn.title = 'Déplacer cette image';
+      moveBtn.onclick = (ev) => { ev.stopPropagation(); _galleryMoveImage(Number(cell.dataset.index)); };
+      const delBtn = document.createElement('button');
+      delBtn.className = 'gthumb-act gthumb-del';
+      delBtn.textContent = '✕';
+      delBtn.title = 'Supprimer cette image';
+      delBtn.onclick = (ev) => { ev.stopPropagation(); _galleryDeleteImage(Number(cell.dataset.index)); };
+      cell.appendChild(moveBtn);
+      cell.appendChild(delBtn);
+    }
+    bar.appendChild(cell);
+  }
+}
+
+function _setActiveThumb(idx) {
+  const bar = document.getElementById('gallery-thumbs');
+  if (!bar) return;
+  bar.querySelectorAll('.gthumb.active').forEach(c => c.classList.remove('active'));
+  const cell = bar.querySelector(`.gthumb[data-index="${idx}"]`);
+  if (cell) { cell.classList.add('active'); cell.scrollIntoView({ inline: 'center', block: 'nearest' }); }
+}
+
+// True when the gallery viewer is shown fullscreen (its own 'viewer-fullscreen').
+function _galleryViewerFullscreen() {
+  return document.getElementById('image-viewer').classList.contains('viewer-fullscreen');
+}
+
+// Remove one image from the open gallery in place (after delete or move). Avoids a
+// re-fetch (which could race a still-running move job): the sequence is patched locally.
+function _galleryRemoveItemLocally(i) {
+  if (i < 0 || i >= _galleryItems.length) return;
+  _galleryItems.splice(i, 1);
+  if (!_galleryItems.length) {
+    closeImageViewer();
+    dirCache.clear();  // a folder's gallery-ness/state depends on contents → drop all
+    navigate(currentPath);
+    return;
+  }
+  let next = (i < _imageCurrentIdx) ? _imageCurrentIdx - 1 : _imageCurrentIdx;
+  if (next >= _galleryItems.length) next = _galleryItems.length - 1;
+  _buildThumbStrip();
+  _loadGalleryImage(next);
+}
+
+async function _galleryDeleteImage(i) {
+  const it = _galleryItems[i];
+  if (!it) return;
+  if (!confirm(`Supprimer cette image ?\n${it.path.split('/').pop()}`)) return;
+  const resp = await retryOn423(
+    () => apiFetch(`${API}/api/files?path=${encodeURIComponent(it.path)}`, { method: 'DELETE' })
+  );
+  if (!resp.ok) { showToast(`Erreur suppression (${resp.status})`); return; }
+  showToast('Image supprimée');
+  _galleryRemoveItemLocally(i);
+}
+
+function _galleryMoveImage(i) {
+  const it = _galleryItems[i];
+  if (!it) return;
+  _galleryMoveIndex = i;
+  openMoveModal(it.path, it.path.split('/').pop());
+}
+
+// Toggle watched on the whole gallery (folder progress, no <video> element involved).
+async function _galleryToggleWatched() {
+  if (!_imageIsGallery || !_galleryItems.length) return;
+  const total = _galleryItems.length;
+  const isSeen = (currentFile?.progress?.percent ?? 0) >= cfg.watched_threshold;
+  const newPos = isSeen ? 0 : total;
+  const resp = await apiFetch(`${API}/api/progress?path=${encodeURIComponent(_galleryPath)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ position: newPos, duration: total }),
+  });
+  if (!resp.ok) { showToast('❌ Erreur lors de la mise à jour'); return; }
+  if (currentFile && currentFile.progress) currentFile.progress.percent = isSeen ? 0 : 100;
+  showToast(isSeen ? '🎬 Marqué non vu' : '✅ Marqué vu');
+}
+
 function imageNav(delta) {
+  if (_imageIsGallery) {
+    const next = _imageCurrentIdx + delta;
+    if (next >= 0 && next < _galleryItems.length) _loadGalleryImage(next);
+    return;
+  }
   if (_imageIsArchive) {
     const next = _imageCurrentIdx + delta;
     if (next >= 0 && next < _imageArchiveImages.length) _loadArchiveImage(next);
@@ -3692,6 +4578,14 @@ function toggleImageMode() {
 function closeImageViewer() {
   currentFile = null;
   currentViewerMode = null;
+  _imageIsGallery = false;
+  _galleryItems = [];
+  _galleryPath = null;
+  if (_thumbObserver) { _thumbObserver.disconnect(); _thumbObserver = null; }
+  document.getElementById('gallery-thumbs').innerHTML = '';
+  document.getElementById('image-viewer').classList.remove('has-thumbs');
+  _galleryChromeReset();
+  _resetGalleryZoom();
   _setMediaActive(false);
   document.getElementById('image-viewer').classList.remove('active', 'viewer-fullscreen');
   document.getElementById('player-panel').classList.remove('mobile-active');
@@ -3846,6 +4740,50 @@ function closePdfViewer() {
   document.getElementById('player-empty').style.display = '';
 }
 
+// ── Subtitles (BL-008) ───────────────────────────────────────────────────────
+// Sidecar .srt/.ass are detected by the backend and served as WebVTT <track>s.
+let _subtitleTracks = [];   // [{label, path}]
+let _subtitleIdx = -1;      // -1 = off
+
+function clearSubtitles() {
+  document.getElementById('video').querySelectorAll('track').forEach(t => t.remove());
+  _subtitleTracks = [];
+  _subtitleIdx = -1;
+}
+
+async function loadSubtitles(videoPath) {
+  clearSubtitles();
+  let list = [];
+  try {
+    const r = await apiFetch(`${API}/api/subtitles?path=${encodeURIComponent(videoPath)}`);
+    if (r.ok) list = await r.json();
+  } catch { return; }  // network error toast already shown by apiFetch
+  if (!Array.isArray(list) || !list.length) return;
+  const v = document.getElementById('video');
+  _subtitleTracks = list;
+  list.forEach((s, i) => {
+    const tr = document.createElement('track');
+    tr.kind = 'subtitles';
+    tr.label = s.label || `Piste ${i + 1}`;
+    tr.src = `${API}/api/subtitle?path=${encodeURIComponent(s.path)}`;
+    v.appendChild(tr);
+  });
+  // Start disabled; the user turns them on by cycling.
+  setTimeout(() => { for (const t of v.textTracks) t.mode = 'disabled'; }, 0);
+}
+
+function cycleSubtitles() {
+  if (!_subtitleTracks.length) { showToast('Aucun sous-titre disponible'); return; }
+  const v = document.getElementById('video');
+  _subtitleIdx = (_subtitleIdx + 1 >= _subtitleTracks.length) ? -1 : _subtitleIdx + 1;
+  for (let i = 0; i < v.textTracks.length; i++) {
+    v.textTracks[i].mode = (i === _subtitleIdx) ? 'showing' : 'disabled';
+  }
+  showToast(_subtitleIdx < 0
+    ? 'Sous-titres désactivés'
+    : `Sous-titres : ${_subtitleTracks[_subtitleIdx].label}`);
+}
+
 
 async function playVideo(idx) {
   const entry = entries[idx];
@@ -3864,10 +4802,13 @@ async function playVideo(idx) {
     document.getElementById('player-panel').classList.add('mobile-active');
   }
 
+  _hideAltViewers();           // hide any gallery/image/pdf/audio viewer still open
+  currentViewerMode = 'video';
   document.getElementById('player-empty').style.display = 'none';
   const vc = document.getElementById('video-container');
   vc.classList.add('active');
   document.getElementById('now-playing-name').textContent = entry.name;
+  maybeShowGestureOverlay();
 
   // Load progress and segments
   const folderPath = getCurrentFolderPath(entry.path);
@@ -3922,6 +4863,7 @@ async function playVideo(idx) {
   }
   video.src = playbackChoice.src;
   resetSpeed();
+  loadSubtitles(entry.path);
   updateMediaMeta(mediaInfo);
 
   // Auto-save every 5s
@@ -3989,7 +4931,7 @@ async function saveProgress(pathOverride, posOverride, durOverride) {
   }
   // Snapshot locals before any await — currentFile may be nulled by navigate() while we await
   const filePath = file.path;
-  await fetch(`${API}/api/progress?path=${encodeURIComponent(filePath)}`, {
+  await apiFetch(`${API}/api/progress?path=${encodeURIComponent(filePath)}`, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({ position: pos, duration: dur })
@@ -4278,7 +5220,7 @@ async function togglePin(path, isPinned) {
     });
   }
   await loadQuickFolders();
-  dirCache.delete(currentPath);
+  dirCache.clear();  // a folder's gallery-ness/state depends on contents → drop all
   await navigate(currentPath);
 }
 
@@ -4319,6 +5261,7 @@ function closeModal() {
   pendingMovePath = null;
   pendingMoveSelectedDest = null;
   pendingMoveSelectedDestName = null;
+  _galleryMoveIndex = null;  // reset gallery-image move intent on cancel
 }
 
 function selectMoveDest(destPath, destName, btnEl) {
@@ -4340,6 +5283,7 @@ function releaseVideoIfCurrent(path) {
   if (currentFile && currentFile.path === path) {
     video.pause();
     video.src = '';  // releases the file lock on Windows
+    clearSubtitles();
     resetFullscreenPlaybackUI();
     document.getElementById('video-container').classList.remove('active');
     document.getElementById('player-empty').style.display = '';
@@ -4560,7 +5504,7 @@ async function pollJob(jobId, refreshPath) {
     statusEl.className = 'job-status done';
     clearInterval(tracked.intervalId);
     if (refreshPath !== null) {
-      dirCache.delete(refreshPath);
+      dirCache.clear();
       if (currentPath === refreshPath) navigate(refreshPath);
     }
     setTimeout(() => tracked.card.remove(), 8000);
@@ -4576,12 +5520,15 @@ async function moveToFolder(destPath, destName) {
   if (!pendingMovePath) return;
   const sourcePath = pendingMovePath;
   const fromPath = currentPath;
-  if (currentFile && currentFile.path === sourcePath && isInFullscreen()) {
+  const galMoveIdx = _galleryMoveIndex;  // capture before closeModal() clears it
+  const wholeGalleryMove = _imageIsGallery && galMoveIdx == null && sourcePath === _galleryPath;
+  if (currentFile && currentFile.path === sourcePath
+      && (isInFullscreen() || _galleryViewerFullscreen())) {
     _fsReenterFullscreen = true; _fsReenterFullscreenPath = fromPath;
   }
-  releaseVideoIfCurrent(sourcePath);
+  if (galMoveIdx == null) releaseVideoIfCurrent(sourcePath);
   closeModal();
-  const resp = await fetch(`${API}/api/files/move?path=${encodeURIComponent(sourcePath)}`, {
+  const resp = await apiFetch(`${API}/api/files/move?path=${encodeURIComponent(sourcePath)}`, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({ destination: destPath })
@@ -4597,6 +5544,11 @@ async function moveToFolder(destPath, destName) {
   const _movIdx = _gpRenderedList.findIndex(e => e.path === sourcePath);
   if (_movIdx >= 0) _gpPendingRestoreIdx = _movIdx;
   trackJob(job_id, fromPath);
+  if (galMoveIdx != null) {
+    _galleryRemoveItemLocally(galMoveIdx);  // image moved out of the open gallery
+  } else if (wholeGalleryMove) {
+    closeImageViewer();  // the whole gallery is leaving; close the viewer
+  }
 }
 
 let _deleteResolve = null;
@@ -4618,11 +5570,13 @@ async function confirmDelete(path, name) {
       btn.onclick = null;
       _deleteResolve = null;
       dlg.style.display = 'none';
-      if (currentFile && currentFile.path === path && isInFullscreen()) {
+      if (currentFile && currentFile.path === path
+          && (isInFullscreen() || _galleryViewerFullscreen())) {
         _fsReenterFullscreen = true; _fsReenterFullscreenPath = currentPath;
       }
+      if (_imageIsGallery && _galleryPath === path) closeImageViewer();  // whole gallery deleted
       releaseVideoIfCurrent(path);
-      const doDelete = () => fetch(`${API}/api/files?path=${encodeURIComponent(path)}`, { method: 'DELETE' });
+      const doDelete = () => apiFetch(`${API}/api/files?path=${encodeURIComponent(path)}`, { method: 'DELETE' });
       const resp = await retryOn423(doDelete);
       if (!resp.ok) {
         const msg = resp.status === 423 ? 'Le fichier est encore verrouillé, réessayez dans un instant' : `Erreur : impossible de supprimer (${resp.status})`;
@@ -4633,7 +5587,7 @@ async function confirmDelete(path, name) {
       // Restore cursor to same index after re-render (works for gamepad, keyboard, click)
       const _delIdx = _gpRenderedList.findIndex(e => e.path === path);
       if (_delIdx >= 0) _gpPendingRestoreIdx = _delIdx;
-      dirCache.delete(currentPath);
+      dirCache.clear();  // a folder's gallery-ness/state depends on contents → drop all
       await navigate(currentPath);
       resolve();
     };
@@ -4678,9 +5632,53 @@ async function confirmMkdir() {
     showToast(`Erreur : ${err.detail || resp.status}`);
   } else {
     showToast(`Dossier "${name}" créé`);
-    dirCache.delete(currentPath);
+    dirCache.clear();  // a folder's gallery-ness/state depends on contents → drop all
     await navigate(currentPath);
   }
+}
+
+// ── Rename (BL-006) ─────────────────────────────────────────────────────────
+let _renameTargetPath = null;
+function openRenameModal(path, name) {
+  if (!path) return;
+  _renameTargetPath = path;
+  document.getElementById('rename-overlay').style.display = 'flex';
+  const input = document.getElementById('rename-input');
+  input.value = name || path.split('/').pop();
+  setTimeout(() => { input.focus(); input.select(); }, 50);
+}
+
+function closeRenameModal(e) {
+  if (e && e.target !== document.getElementById('rename-overlay')) return;
+  document.getElementById('rename-overlay').style.display = 'none';
+  _renameTargetPath = null;
+}
+
+async function confirmRename() {
+  const newName = document.getElementById('rename-input').value.trim();
+  if (!newName || !_renameTargetPath) return;
+  const path = _renameTargetPath;
+  document.getElementById('rename-overlay').style.display = 'none';
+  _renameTargetPath = null;
+  const resp = await apiFetch(`${API}/api/files/rename?path=${encodeURIComponent(path)}`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ new_name: newName }),
+  }).catch(() => null);
+  if (!resp) return;  // network error: apiFetch already showed a toast
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    showToast(`Erreur : ${err.detail || resp.status}`);
+    return;
+  }
+  // If the renamed item is the one currently playing, keep currentFile in sync.
+  if (currentFile && currentFile.path === path) {
+    const data = await resp.json().catch(() => ({}));
+    if (data.path) { currentFile.path = data.path; currentFile.name = newName; }
+  }
+  showToast(`Renommé en « ${newName} »`);
+  dirCache.clear();  // a folder's gallery-ness/state depends on contents → drop all
+  await navigate(currentPath);
 }
 
 // ── Utils ─────────────────────────────────────────────────────────────────────
@@ -4717,6 +5715,49 @@ function showToast(msg) {
   t.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// One-shot touch gesture discovery overlay (BL-038). Shown the first time the
+// player opens on a touch device (pointer: coarse) when gestures are enabled.
+// The "seen" flag is persisted in backend settings so it never shows again.
+function maybeShowGestureOverlay() {
+  if (cfg.gestures_overlay_seen || !cfg.gesture_enabled) return;
+  if (!window.matchMedia || !window.matchMedia('(pointer: coarse)').matches) return;
+  const ov = document.getElementById('gesture-help-overlay');
+  if (ov) ov.style.display = 'flex';
+}
+
+async function dismissGestureOverlay() {
+  const ov = document.getElementById('gesture-help-overlay');
+  if (ov) ov.style.display = 'none';
+  cfg.gestures_overlay_seen = true;
+  try {
+    await apiFetch(`${API}/api/settings`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ gestures_overlay_seen: true }),
+    });
+  } catch { /* not critical: will retry next session */ }
+}
+
+// fetch() wrapper with a timeout + user feedback on network failure. Used for
+// the main user actions (listing, search, progress save, move, delete). The NAS
+// can be slow to wake; without a timeout the UI would hang silently. Streaming
+// and job-polling endpoints keep their own logic and do NOT use this wrapper.
+const API_FETCH_TIMEOUT_MS = 15000;
+async function apiFetch(url, opts = {}, timeoutMs = API_FETCH_TIMEOUT_MS) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...opts, signal: ctrl.signal });
+  } catch (err) {
+    showToast(err.name === 'AbortError'
+      ? '⏱️ Délai dépassé — serveur lent ou injoignable'
+      : '⚠️ Erreur réseau — vérifiez la connexion');
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // Fullscreen (faux-fullscreen on touch devices / iOS / PWA)
@@ -4796,28 +5837,43 @@ function syncFullscreenUI() {
   }
 }
 
-function toggleFullscreen() {
-  const useFaux = !document.fullscreenEnabled || typeof videoContainer.requestFullscreen !== 'function';
+// Fullscreen toggle. Default per device: on desktop (fine pointer) we use the
+// in-window "faux-fullscreen" (immersive within the browser window) — the user
+// can press F11 for a real OS fullscreen. On touch devices (iPad: no F11) we
+// use the real Fullscreen API. Shift+F (opts.forceReal) forces the real API on
+// desktop. Everything that depends on fullscreen state goes through
+// isInFullscreen(), which covers faux-fullscreen too, so behavior is identical.
+function toggleFullscreen(opts = {}) {
+  // Already in a fullscreen state → exit whichever is active.
   if (videoContainer.classList.contains('faux-fullscreen')) {
     videoContainer.classList.remove('faux-fullscreen');
     syncFullscreenUI();
-  } else if (document.fullscreenElement === videoContainer) {
+    return;
+  }
+  if (document.fullscreenElement === videoContainer) {
     document.exitFullscreen();
-  } else if (useFaux) {
+    return;
+  }
+  // Entering: pick windowed vs real.
+  const realAvailable =
+    document.fullscreenEnabled && typeof videoContainer.requestFullscreen === 'function';
+  const coarsePointer = !!window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+  const wantReal = realAvailable && (opts.forceReal === true || coarsePointer);
+  if (!wantReal) {
     videoContainer.classList.add('faux-fullscreen');
     syncFullscreenUI();
-  } else {
-    videoContainer.requestFullscreen().catch(err => {
-      if (err.name === 'NotAllowedError') {
-        // Browser requires a direct user gesture (e.g. Firefox + gamepad polling).
-        // Fall back to CSS faux-fullscreen so the gamepad Y button still works.
-        videoContainer.classList.add('faux-fullscreen');
-        syncFullscreenUI();
-      } else {
-        console.warn('requestFullscreen failed:', err);
-      }
-    });
+    return;
   }
+  videoContainer.requestFullscreen().catch(err => {
+    if (err.name === 'NotAllowedError') {
+      // Browser requires a direct user gesture (e.g. Firefox + gamepad polling).
+      // Fall back to CSS faux-fullscreen so the gamepad Y button still works.
+      videoContainer.classList.add('faux-fullscreen');
+      syncFullscreenUI();
+    } else {
+      console.warn('requestFullscreen failed:', err);
+    }
+  });
 }
 
 document.addEventListener('fullscreenchange', () => {
@@ -4860,7 +5916,7 @@ document.addEventListener('keydown', e => {
     if (document.getElementById('export-dialog')?.style.display === 'flex') { closeExportModal(); return; }
     if (currentViewerMode === 'image') {
       const iv = document.getElementById('image-viewer');
-      if (iv.classList.contains('viewer-fullscreen')) { iv.classList.remove('viewer-fullscreen'); return; }
+      if (iv.classList.contains('viewer-fullscreen')) { iv.classList.remove('viewer-fullscreen'); _galleryChromeReset(); return; }
       closeImageViewer(); return;
     }
     if (currentViewerMode === 'audio') { closeAudioPlayer(); return; }
@@ -4871,6 +5927,8 @@ document.addEventListener('keydown', e => {
     }
     if (isInFullscreen()) { toggleFullscreen(); return; }
     if (currentFile !== null) { privacyClose(); return; }
+    // Browser mode: Escape goes up one level, mirroring the gamepad B button.
+    if (currentPath) { navigateUp(); return; }
   }
   // Keyboard navigation for open dialogs (mirrors gamepad: ↑↓ = navigate, Enter = confirm, Escape already handled above)
   {
@@ -4888,12 +5946,38 @@ document.addEventListener('keydown', e => {
       return; // Swallow all other keys while a dialog is open
     }
   }
+  // Help dialog works everywhere (browser, video, image/gallery, pdf, audio), as long
+  // as the target isn't a text field.
+  if (e.key === '?' && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+    openShortcutsDialog();
+    return;
+  }
   // Image viewer navigation
   if (currentViewerMode === 'image') {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-    if (e.code === 'ArrowLeft')  { imageNav(-1); return; }
-    if (e.code === 'ArrowRight') { imageNav(1);  return; }
     if (e.code === 'KeyF') { toggleViewerFullscreen('image-viewer'); return; }
+    // Zoom (mirrors the PDF viewer): +/- zoom, 0 resets to fit.
+    if (e.code === 'Equal' || e.code === 'NumpadAdd')      { _galleryZoomAt(_GALLERY_KEY_FACTOR); return; }
+    if (e.code === 'Minus' || e.code === 'NumpadSubtract') { _galleryZoomAt(1 / _GALLERY_KEY_FACTOR); return; }
+    if (e.code === 'Digit0' || e.code === 'Numpad0')       { _resetGalleryZoom(); return; }
+    // Arrows: pan while zoomed (image moves in the arrow's direction, matching the
+    // mouse drag), otherwise navigate between images.
+    if (_galleryZoom > 1) {
+      const STEP = _GALLERY_PAN_KEY_STEP;
+      if (e.code === 'ArrowLeft')  { _galleryPanBy(-STEP, 0); return; }
+      if (e.code === 'ArrowRight') { _galleryPanBy(STEP, 0);  return; }
+      if (e.code === 'ArrowUp')    { e.preventDefault(); _galleryPanBy(0, -STEP); return; }
+      if (e.code === 'ArrowDown')  { e.preventDefault(); _galleryPanBy(0, STEP);  return; }
+    } else {
+      if (e.code === 'ArrowLeft')  { imageNav(-1); return; }
+      if (e.code === 'ArrowRight') { imageNav(1);  return; }
+    }
+    // Gallery: keyboard delete/move/watched act on the whole gallery (like a video).
+    if (_imageIsGallery && currentFile) {
+      if (e.code === 'Delete') { confirmDelete(currentFile.path, currentFile.name); return; }
+      if (e.code === 'KeyD')   { _galleryMoveIndex = null; openMoveModal(currentFile.path, currentFile.name); return; }
+      if (e.code === 'KeyW')   { _galleryToggleWatched(); return; }
+    }
     return;
   }
   // PDF viewer navigation
@@ -4912,7 +5996,8 @@ document.addEventListener('keydown', e => {
     bumpFullscreenControlsIdle();
   }
   if (e.code === 'Space') { e.preventDefault(); togglePlay(); return; }
-  if (e.code === 'KeyF') { toggleFullscreen(); return; }
+  // F = in-window fullscreen (desktop default); Shift+F = real OS fullscreen.
+  if (e.code === 'KeyF') { toggleFullscreen({ forceReal: e.shiftKey }); return; }
   if (e.code === 'ArrowUp') {
     e.preventDefault();
     if (currentFile) { setVolume(Math.min(1, video.volume + 0.1)); }
@@ -4925,9 +6010,12 @@ document.addEventListener('keydown', e => {
     else             { _gpMoveCursor(1); }
     return;
   }
-  // Seek keys — 4 levels via modifier
+  // Seek keys — 4 levels via modifier. In browser mode (no media playing) the
+  // horizontal arrows have no action, mirroring the D-pad left/right. We still
+  // preventDefault so they stay a true no-op (no page scroll), not a fall-through.
   if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
     e.preventDefault();
+    if (!currentFile) return;
     const dir = e.code === 'ArrowLeft' ? -1 : 1;
     let amount;
     if (e.altKey)        amount = cfg.seek_xlong;
@@ -4939,9 +6027,16 @@ document.addEventListener('keydown', e => {
   }
   // File list navigation (when no media is playing)
   if (e.code === 'Enter' && !currentFile && _gpCursorIdx >= 0) { _gpActivateCursor(); return; }
+  // Rename (BL-006): the playing file, or the browser cursor target.
+  if (e.code === 'KeyR') {
+    const t = currentFile ?? (_gpCursorIdx >= 0 ? _gpRenderedList[_gpCursorIdx] : null);
+    if (t) openRenameModal(t.path, t.name);
+    return;
+  }
   // Keys below require an active media file
   if (!currentFile) return;
   if (e.code === 'KeyM') { toggleMute(); return; }
+  if (e.code === 'KeyC') { cycleSubtitles(); return; }
   if (e.code === 'KeyA') { toggleVideoFit(); return; }
   if (e.code === 'KeyW') { _gpToggleWatched(); return; }
   if (e.code === 'BracketLeft')  { cycleSpeed(-1); return; }
@@ -4954,7 +6049,6 @@ document.addEventListener('keydown', e => {
   if (e.code === 'KeyS') { saveCurrentPositionAsInitialSweep(); return; }
   if (e.code === 'PageDown') { nextVideoInFolder(); return; }
   if (e.code === 'PageUp')   { prevVideoInFolder(); return; }
-  if (e.key === '?') { openShortcutsDialog(); return; }
 });
 
 // ── Dialog helpers ────────────────────────────────────────────────────────────
@@ -5156,8 +6250,7 @@ function _gpAction(action, gamepad) {
       if (hasVideo) { toggleVideoFit(); }
       break;
     case 'subtitles':
-      // no-op until BL-008
-      showToast('Sous-titres : non disponible');
+      cycleSubtitles();
       break;
     case 'move_quick_1':
       if (hasVideo && quickFolders[0]) {
@@ -5207,9 +6300,15 @@ function _gpAction(action, gamepad) {
       _gpActivateCursor();
       break;
     case 'nav_back':
-      if (currentPath) navigate(currentPath.split('/').slice(0, -1).join('/'));
+      navigateUp();
       break;
   }
+}
+
+// Go up one level in the folder tree (no-op at root). Shared by the gamepad B
+// button (nav_back) and the keyboard Escape handler so both behave identically.
+function navigateUp() {
+  if (currentPath) navigate(currentPath.split('/').slice(0, -1).join('/'));
 }
 
 // ── Gamepad async toggle watched ──────────────────────────────────────────────
@@ -5217,7 +6316,7 @@ async function _gpToggleWatched() {
   if (!currentFile || !video.duration) return;
   const isSeen = (currentFile.progress?.percent ?? 0) >= cfg.watched_threshold;
   const newPos = isSeen ? 0 : video.duration * (cfg.watched_threshold / 100);
-  const resp = await fetch(`${API}/api/progress?path=${encodeURIComponent(currentFile.path)}`, {
+  const resp = await apiFetch(`${API}/api/progress?path=${encodeURIComponent(currentFile.path)}`, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({ position: newPos, duration: video.duration }),
@@ -5245,7 +6344,9 @@ function _gpMoveCursor(delta) {
 function _gpActivateCursor() {
   if (_gpCursorIdx < 0 || _gpCursorIdx >= _gpRenderedList.length) return;
   const entry = _gpRenderedList[_gpCursorIdx];
-  if (entry.is_dir) {
+  if (isGallery(entry)) {
+    openGallery(entries.indexOf(entry));  // a gallery is a dir but opens like a media
+  } else if (entry.is_dir) {
     navigate(entry.path);
   } else {
     openMedia(entries.indexOf(entry));
@@ -5315,6 +6416,17 @@ function _gpPoll() {
     } else {
       _gpNavRepeat.btn = -1;
     } // axis assignment depends on gamepad_swap_sticks setting
+    // Gallery viewer: left stick pans, right stick Y zooms (when an image is shown).
+    if (currentViewerMode === 'image') {
+      if (_galleryImageZoomActive()) {
+        const gx = _gpDeadzone(gp.axes[0] ?? 0);
+        const gy = _gpDeadzone(gp.axes[1] ?? 0);
+        const gz = _gpDeadzone(gp.axes[3] ?? 0);  // right stick Y: up (negative) = zoom in
+        if (gz) _galleryZoomAt(1 + (-gz) * _GALLERY_GP_ZOOM_RATE);
+        if (_galleryZoom > 1 && (gx || gy)) _galleryPanBy(-gx * _GALLERY_GP_PAN_RATE, -gy * _GALLERY_GP_PAN_RATE);
+      }
+      continue;  // skip the video/browser stick handling below
+    }
     // Normal : left X = seek, right Y = volume
     // Swapped: right X = seek, left Y = volume
     // Browser navigation (left Y) is unaffected by the swap

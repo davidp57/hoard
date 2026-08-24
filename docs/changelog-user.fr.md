@@ -6,6 +6,38 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ## [Non publié]
 
+## [v2.5.0] — 2026-08-24
+
+### Nouveautés
+- **Historique des téléchargements** : le bouton 📥 garde maintenant la trace de **tout** ce que tu as téléchargé, avec la date et le résultat. Jusqu'ici la liste s'effaçait au bout d'une heure et à chaque redémarrage du NAS : un téléchargement raté ne laissait aucune trace, impossible de savoir s'il avait échoué ou n'était jamais parti. Les échecs affichent désormais leur cause, et un bouton **Aller au fichier** ouvre le dossier du fichier téléchargé. L'historique est conservé sans limite de durée.
+- **Consulter le journal depuis Hoard** : **Paramètres → Maintenance → Journal** affiche l'activité du serveur des **30 derniers jours** (téléchargements, erreurs, redémarrages), avec filtre par niveau et bouton de copie. Plus besoin d'ouvrir Portainer pour comprendre ce qui s'est passé.
+- **Redémarrer Hoard depuis les réglages** : un bouton **↻ Redémarrer Hoard** dans **Paramètres → Maintenance** relance l'application sans passer par le NAS. Si un téléchargement est en cours, Hoard prévient avant. La page se recharge toute seule une fois le serveur revenu.
+
+### Corrections
+- **Téléchargements qui restaient bloqués « en attente » pour toujours** : quand un téléchargement plantait d'une certaine façon, le mécanisme qui traite la file s'arrêtait définitivement — sans le dire. Tous les téléchargements suivants restaient alors en attente indéfiniment, sans jamais démarrer ni signaler d'erreur, jusqu'au redémarrage du NAS. C'est corrigé : un téléchargement en échec affiche désormais son erreur, et les suivants s'enchaînent normalement.
+- **Bookmarklet de téléchargement sur certains sites** : sur des sites qui bloquent les requêtes vers un site externe (fréquent sur les sites de streaming chargés de publicités), la bookmarklet affichait juste « Hoard non joignable » sans solution. Elle ouvre désormais automatiquement Hoard dans un nouvel onglet pour terminer le téléchargement dans ce cas.
+- **Aide clavier lisible** : la fenêtre d'aide (touche `?`) s'affichait en texte sombre sur fond sombre sur PC/Firefox. Elle est de nouveau parfaitement lisible.
+
+### Améliorations
+- **Plein écran plus souple sur PC** : la touche `F` (et le bouton plein écran) affiche maintenant la vidéo en plein cadre **dans la fenêtre du navigateur** (interface masquée), sans passer en plein écran système. Pour un vrai plein écran, utilise `Maj+F` (ou `F11`). Sur iPad/tablette, rien ne change.
+- **Touche Échap plus pratique** : sur PC, quand aucune vidéo n'est ouverte, `Échap` remonte d'un dossier dans l'arborescence (comme le bouton B de la manette).
+
+### Nouveautés
+- **Galeries d'images** : un dossier rempli d'images (BD, scan, lot de photos) s'ouvre maintenant comme un **album** unique — la première image s'affiche directement et tu fais défiler les pages, au lieu de voir la liste des fichiers. Hoard se souvient de la page où tu t'es arrêté, et l'album affiche son avancement dans la liste (comme une vidéo). Une **barre de miniatures** permet de sauter directement à une image ; à la souris, survole une miniature pour la supprimer (✕) ou la déplacer (›). Les archives BD (.cbz/.zip/.cbr) fonctionnent de la même façon. Un PDF ou un texte glissé dans le dossier reste visible dans l'album avec un aperçu.
+- **Sous-titres** : si un fichier `.srt` ou `.ass` porte le même nom que ta vidéo (dans le même dossier), Hoard le détecte automatiquement. Active/désactive les sous-titres avec le bouton 💬, la touche `C` ou la manette. (Les `.ass` sont affichés en texte simple, sans mise en forme.)
+- **Renommer fichiers et dossiers** : un bouton ✏ apparaît sur chaque élément de la liste (ou appuie sur `R`) pour le renommer directement depuis Hoard, sans passer par un autre outil. Renommer un dossier conserve la progression de lecture des vidéos qu'il contient.
+- **Trier par taille ou par état** : en plus de Date et Nom, tu peux désormais trier la liste par taille de fichier ou par état de lecture (non vu / en cours / vu).
+- **Aide aux gestes tactiles** : la première fois que vous ouvrez une vidéo sur un écran tactile, un petit guide montre les gestes disponibles (double-tap pour avancer/reculer, tap pour mettre en pause, glissé pour le volume et la luminosité). Il ne s'affiche qu'une seule fois.
+
+### Améliorations
+- **Accessibilité** : les boutons icône (accueil, réglages, lecture/pause, plein écran…) ont désormais un libellé pour les lecteurs d'écran, la navigation au clavier affiche un contour de focus visible, et le texte gris secondaire est plus contrasté donc plus lisible.
+- **Retour en cas de problème réseau** : si le serveur est lent à répondre (par ex. NAS en veille) ou injoignable, l'application affiche maintenant un message au lieu de rester figée. Les actions concernées : navigation, recherche, reprise de lecture, déplacement et suppression.
+
+### Sécurité
+- **Protection par mot de passe (optionnelle)** : il est désormais possible d'exiger un identifiant et un mot de passe pour accéder à Hoard, pratique si vous l'exposez sur Internet. Cette option s'active lors de l'installation (variables `HOARD_AUTH_USER` / `HOARD_AUTH_PASS`) et reste désactivée par défaut.
+- **Code PIN mieux protégé** : le code PIN est maintenant stocké de façon beaucoup plus sûre (hachage salé). Votre PIN existant continue de fonctionner sans rien changer.
+- **Réglages — chemin du fichier de cookies** : le chemin saisi pour les cookies de téléchargement est maintenant vérifié au moment de l'enregistrement (il doit s'agir d'un fichier `.txt` existant et lisible). Un message clair s'affiche si le chemin est invalide.
+
 ---
 
 ## [v2.2.0] — 2026-05-20

@@ -35,7 +35,7 @@ Hoard remplace un lecteur vidéo mobile sur NAS. Il comble un besoin que Jellyfi
 | **Installation** | [docs/installation.fr.md](docs/installation.fr.md) | [docs/installation.en.md](docs/installation.en.md) |
 | **Développeur** | [docs/developer.fr.md](docs/developer.fr.md) | [docs/developer.en.md](docs/developer.en.md) |
 | **Investigation lecture native** | [docs/native-playback.fr.md](docs/native-playback.fr.md) | [docs/native-playback.en.md](docs/native-playback.en.md) |
-| **Backlog** | [docs/backlog.md](docs/backlog.md) | [docs/backlog.md](docs/backlog.md) |
+| **Backlog** | [.backlog/README.md](.backlog/README.md) | [.backlog/README.md](.backlog/README.md) |
 
 ### Démarrage rapide
 
@@ -83,7 +83,7 @@ Hoard is a web video player and file manager for a NAS. It fills a gap that Jell
 | **Installation** | [docs/installation.fr.md](docs/installation.fr.md) | [docs/installation.en.md](docs/installation.en.md) |
 | **Developer** | [docs/developer.fr.md](docs/developer.fr.md) | [docs/developer.en.md](docs/developer.en.md) |
 | **Native playback investigation** | [docs/native-playback.fr.md](docs/native-playback.fr.md) | [docs/native-playback.en.md](docs/native-playback.en.md) |
-| **Backlog** | [docs/backlog.md](docs/backlog.md) | [docs/backlog.md](docs/backlog.md) |
+| **Backlog** | [.backlog/README.md](.backlog/README.md) | [.backlog/README.md](.backlog/README.md) |
 
 ### Quick start
 

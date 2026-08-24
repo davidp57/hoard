@@ -48,6 +48,7 @@ The tag filter bar appears automatically as soon as a folder contains at least o
 | **▶ Play** | Opens the video in the player |
 | **🏷 Tags** | Opens the tag management modal |
 | **📁 Move** | Opens the move modal (pinned folders + free-pick browser) |
+| **✏ Rename** | Opens the rename dialog (`R` key) |
 | **🗑 Delete** | Deletes the file after confirmation |
 
 ### Moving to Any Folder
@@ -71,9 +72,30 @@ JPG, PNG, GIF, WEBP, BMP, TIFF, and AVIF files open in an integrated image viewe
 - **▣ button**: toggle between fit-width and full-page display
 - **✕**: close the viewer
 
+### Galleries (image folders)
+
+A folder containing several images (more than 3) and no video is treated as a
+**gallery**: it shows up in the list as a single media (🖼️ icon, progress bar, watched
+state), and opening it shows the first image right away instead of the file list.
+
+- You read images one after another; the position is saved and resumed on reopen, just
+  like a video.
+- A gallery is a single image folder. A folder that **contains sub-folders** stays browsable and shows each sub-folder as its own gallery (so a folder of albums opens as a list of galleries, not one giant sequence).
+- A **thumbnail strip** under the image acts as a seek bar: click a thumbnail to jump.
+- **Zoom**: mouse wheel (zoom centered on the cursor), click-drag to pan, double-click to
+  toggle zoom ↔ fit. Keyboard: `+` / `-` to zoom, `0` to reset; arrows pan while zoomed
+  (otherwise they go to the previous / next image). Gamepad: left stick pans, right stick
+  ↕ zooms.
+- With a mouse (desktop), hover a thumbnail to reveal ✕ (delete that image) and › (move
+  that image). With keyboard/gamepad, delete/move act on the **whole gallery** (like a
+  movie), and `W` marks it watched / unwatched.
+- A stray non-image file (PDF, text…) stays accessible as a **passenger**: it keeps its
+  place in the sequence with a preview.
+
 ### Comic/manga archives (.cbz, .zip, .cbr)
 
-Image archives open as a page-by-page viewer.
+Image archives are galleries too: they open page by page in the same viewer, with the
+thumbnail strip.
 
 - Navigation identical to the image viewer (← / →)
 - Current page is saved so you can resume where you left off
@@ -163,6 +185,8 @@ The file list refreshes automatically every 30 seconds when the tab is visible, 
 
 Gestures work directly on the video image.
 
+> The first time you open a video on a touch device, a short help screen introduces the main gestures. Tap **Compris** (Got it) to dismiss it; it will not appear again.
+
 ### Single Tap
 
 | Area | Action |
@@ -209,9 +233,11 @@ Progressive seek through the video. **Speed depends on the vertical position of 
 | `Shift + ← / →` | Medium seek (30 s default) |
 | `Ctrl + ← / →` | Long seek (60 s default) |
 | `Alt + ← / →` | Extra-long seek (120 s default) |
-| `F` | Fullscreen |
-| `Esc` | Exit fullscreen — then close the player |
+| `F` | Fullscreen (in-window on desktop) |
+| `Shift + F` | Real OS fullscreen (on desktop; otherwise use `F11`) |
+| `Esc` | Exit fullscreen → close the player → go up one level in the tree |
 | `M` | Mute / Unmute |
+| `C` | Subtitles (cycle tracks / off) |
 | `[ / ]` | Speed − / + (0.5× → 1× → 1.5× → 2×) |
 | `A` | Cycle aspect ratio (Fit / Fill / …) |
 | `W` | Toggle watched / unwatched |
@@ -219,6 +245,7 @@ Progressive seek through the video. **Speed depends on the vertical position of 
 | `I / O` | Set IN / OUT marker |
 | `E` | Open Trim window |
 | `D` | Open Move window |
+| `R` | Rename (current file or selected entry) |
 | `Delete` | Delete current file |
 | `S` | Save folder start position |
 | `?` | Show / hide keyboard help |
@@ -305,6 +332,8 @@ Hoard can download videos from the web using **yt-dlp** and save them directly t
 
 **From any web page** — click the bookmarklet. It submits the download **in the background** and injects a live status dialog directly into the current page — no navigation, no opened tab. The dialog progresses through ⌛ "Analyse de l'URL…" → 📥 "Téléchargement… X%" → ✅ "Terminé !" (auto-closes after 4 s). If the queue is busy it shows ⏳ "En attente dans la file… — titre.mp4" until the slot is free. You can cancel the job from the dialog or from the Hoard download queue modal.
 
+> **Sites with a restrictive CSP**: some sites (often ad-heavy streaming sites) block outgoing requests to a third-party domain like Hoard's via their `Content-Security-Policy`. In that case the bookmarklet shows ℹ️ "Site incompatible (CSP)" and automatically opens Hoard in a new tab to finish the download there.
+
 > **Smart video source detection**: if a `<video>` element is playing on the page, the bookmarklet captures its direct source URL instead of the page URL. This enables downloading from sites where yt-dlp has no dedicated extractor (Patreon, custom video players, BunnyCDN embeds, etc.). The modal shows a 🎬 hint when a direct source was detected. The original page URL is automatically sent as the `Referer` header so CDNs that verify the origin accept the request.
 
 **From inside Hoard** — click the **📥** button in the header, paste a URL, and confirm.
@@ -325,20 +354,65 @@ All downloads are tracked in a central queue accessible from the **📥** button
 - **Downloads continue even if you close the tab**: they run as backend threads on the NAS. When you return to Hoard, the queue widget automatically reconnects to in-progress jobs.
 - **Auto-refresh**: when a download completes, the file browser automatically refreshes if you are currently browsing the download folder.
 
+### Download History
+
+The **📥** modal has two parts:
+
+- **In progress** — the current queue (progress, cancel, dismiss), which disappears once emptied.
+- **History** — the **permanent** list of everything that was downloaded, stored in the database. Unlike the queue, it survives a NAS restart and never expires.
+
+Each row shows the filename, the date, and the outcome:
+
+| Status | Meaning |
+|--------|---------|
+| ✓ Done | The file made it. **Aller au fichier** opens its folder and highlights it. |
+| ✗ Failed | The download failed. The error message is shown under the row. |
+| ⊘ Cancelled | You stopped the download. |
+| ⚠ Interrupted (restart) | Hoard stopped mid-download. The file did not make it — start it again. |
+
+**Vider** clears the history (downloaded files are never touched); **✕** removes a single row.
+
+History is kept **without any limit** by default — that is precisely what lets you find an old download again. To bound it: **Settings → Maintenance → Historique des téléchargements**, in days (`0` = unlimited).
+
 ### Settings
 
 | Setting | Description |
 |---------|-------------|
 | **Seek durations** | Four configurable levels in **Settings → Player**: short (default 10 s), medium (30 s), long (60 s), extra-long (120 s). Used by skip buttons, keyboard shortcuts, and double-taps. |
-| **Enable transcoding** | When disabled, Hoard always serves the original stream (`/api/stream`) without calling the transcoder. Useful if your NAS is slow or your browser can play the format natively. |
+| **Enable transcoding** | When disabled, Hoard always serves the original file (`/api/file`) without calling the transcoder. Useful if your NAS is slow or your browser can play the format natively. |
 | **Default initial sweep** | Start brand-new videos at N seconds instead of 0. Applies only when the file has no saved progress yet. `0` disables it globally. |
 | **Home roots** | Named root folders shown on the home screen. Add or remove them in **Settings → Home roots**. |
 | **Download folder** | Target folder, relative to `MEDIA_ROOT` (default: `Downloads`). Created automatically if it does not exist. |
 | **Cookies file path** | Absolute path to a Netscape `cookies.txt` file. Useful for sites that require authentication. |
+| **Download history** | Days of download history kept (**Settings → Maintenance**). `0` = unlimited (default). |
 
 ### About Cookies
 
 The bookmarklet forwards `document.cookie` from the source page. Note that **HttpOnly cookies are not accessible to JavaScript** — for sites where those are required (e.g. streaming platforms), export a `cookies.txt` file with a browser extension and specify its path in Settings.
+
+---
+
+## Maintenance
+
+The **Settings → Maintenance** section covers everyday operational tasks.
+
+### Log
+
+Hoard records its events (downloads started, completed, failed, restart requests) in a file kept for **30 days**, on top of the container logs. The log can be read right here:
+
+- Pick how many lines to show (100 / 500 / 2000).
+- Filter by level: all, info, warnings, errors.
+- **↻** refreshes, **Copier** puts the content on the clipboard (handy for pasting into an issue).
+
+Lines are in chronological order, newest at the bottom.
+
+### Restart Hoard
+
+The **↻ Redémarrer Hoard** button restarts the application without going through Portainer or the NAS. Useful after a low-level setting change, or when something misbehaves.
+
+- If a download is running, Hoard asks for an extra confirmation: restarting **permanently interrupts** it (it will show up as *Interrupted* in the history).
+- Once triggered, the page waits for the server to come back and reloads on its own (up to 60 s). Past that, a message suggests checking the container.
+- Hoard never restarts itself: the container does (`restart: unless-stopped` in `docker-compose.yml`). Outside a container the button **shuts the application down** — the confirmation message says so explicitly.
 
 ---
 

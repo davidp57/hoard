@@ -57,6 +57,13 @@ hoard/
 | `DB_PATH` | `/data/progress.db` | SQLite database path |
 | `SSL_CERTFILE` | *(unset)* | Path to a PEM certificate file. When set (together with `SSL_KEYFILE`), uvicorn serves HTTPS natively. |
 | `SSL_KEYFILE` | *(unset)* | Path to the matching PEM private key file. |
+| `JOB_TTL_SECONDS` | `3600` | Seconds a terminal download/export job is kept in memory before being purged. |
+| `LOG_LEVEL` | `INFO` | Logging level for the `hoard` logger (audit trail). |
+| `LOG_DIR` | `<DB_PATH dir>/logs` | Directory for the rotating log file. Empty string disables file logging (stdout only) — the test suite sets it empty. |
+| `LOG_RETENTION_DAYS` | `30` | `backupCount` of the `TimedRotatingFileHandler` (daily rotation at midnight). |
+| `RESTART_SUPERVISED` | *(auto)* | `0`/`1`. Overrides the container auto-detection (`/.dockerenv`) used to word the restart confirmation in the UI. |
+| `HOARD_AUTH_USER` | *(unset)* | Username for optional HTTP Basic auth. Auth is enabled only when both this and `HOARD_AUTH_PASS` are set. |
+| `HOARD_AUTH_PASS` | *(unset)* | Password for optional HTTP Basic auth. |
 
 ### Path Safety
 
@@ -70,6 +77,25 @@ def safe_path(rel: str) -> Path:
     return resolved
 ```
 
+### Security Headers
+
+An HTTP middleware (`add_security_headers`) injects on every response:
+`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
+`Referrer-Policy: no-referrer`, and a `Content-Security-Policy`. The CSP allows
+`'unsafe-inline'` (required by the single-file inline CSS/JS frontend), the
+Google Fonts import (`fonts.googleapis.com` / `fonts.gstatic.com`), and
+`blob:`/`data:` sources used by the media and PDF.js viewers. Headers are set
+with `setdefault`, so an endpoint may override them if needed.
+
+### Optional HTTP Basic Auth
+
+Set both `HOARD_AUTH_USER` and `HOARD_AUTH_PASS` to require HTTP Basic
+authentication on every request (`require_basic_auth` middleware). When either
+is unset, auth is disabled and behavior is unchanged. Credentials are compared
+in constant time. This is meant for exposing Hoard behind a reverse proxy or
+direct HTTPS without a full account system — use HTTPS so the Basic credentials
+are not sent in clear text.
+
 ### API Endpoints
 
 | Method | Route | Description |
@@ -80,6 +106,9 @@ def safe_path(rel: str) -> Path:
 | DELETE | `/api/files?path=` | Delete a file or folder |
 | POST | `/api/files/move?path=` | Move to `{destination}` (relative path) |
 | POST | `/api/files/mkdir` | Create a folder `{path}` |
+| POST | `/api/files/rename?path=` | Rename to `{new_name}` (base name only); migrates progress/segments, including folder descendants |
+| GET | `/api/subtitles?path=` | List sidecar subtitles for a video (same folder, sharing its stem) |
+| GET | `/api/subtitle?path=` | Serve a sidecar subtitle converted to WebVTT (.srt/.ass → VTT, .vtt passthrough) |
 | POST | `/api/files/cut` | Cut video via ffmpeg `{path, start, end, output}` |
 | GET | `/api/segments?path=` | List segments for a file (ordered by creation) |
 | POST | `/api/segments?path=` | Add a segment `{seg_in, seg_out}` → `{id}` |
@@ -96,11 +125,42 @@ def safe_path(rel: str) -> Path:
 | GET | `/api/settings` | Read user settings |
 | POST | `/api/settings` | Save user settings |
 | GET | `/api/media-info?path=` | Read on-demand playback metadata via ffprobe |
-| GET | `/api/stream?path=` | HTTP video stream with `Range` support (native seeking) |
+| GET | `/api/file?path=` | Serve any media file (video/image/audio/PDF) with `Range` support (native seeking) |
 | GET | `/api/transcode?path=` | Transcoded stream via ffmpeg |
+| GET | `/api/gallery/list?path=` | Ordered sequence of a gallery folder (own level): `{count, items:[{path, type}]}` |
+| GET | `/api/thumbnail?path=` | On-the-fly downscaled JPEG thumbnail of an image (ffmpeg, no cache) |
+| GET | `/api/archive/list?path=` | Ordered image names inside a ZIP/CBZ/CBR archive |
+| GET | `/api/archive/image?path=&index=` | Serve the Nth image from an archive |
+| GET | `/api/archive/thumbnail?path=&index=` | Downscaled thumbnail of the Nth archive image (ffmpeg) |
 | POST | `/api/download` | Download a web video via yt-dlp `{url, cookies?, referer?, title?}` |
 | POST | `/api/jobs/{job_id}/cancel` | Cancel a pending or running download job |
 | DELETE | `/api/jobs/{job_id}` | Remove a completed/failed/cancelled job from the in-memory store |
+| GET | `/api/downloads` | Persistent download history `?limit=&offset=&status=` → `{total, items}` |
+| DELETE | `/api/downloads` | Clear the whole history (files untouched) |
+| DELETE | `/api/downloads/{id}` | Remove one history entry |
+| GET | `/api/logs` | Tail of the log file `?lines=&level=` → `{enabled, path, retention_days, lines}` |
+| POST | `/api/restart` | Terminate the process so the supervisor restarts it `{force?}` → `{ok, supervised}` |
+
+### Galleries
+
+A folder is treated as a **gallery** — a single media read page by page — when it is a
+**leaf** folder: more than 3 images, no video, and **no sub-folders** (own-level scan
+only, natural sort). A folder that contains sub-folders is a browsable container, so a
+folder of galleries shows each sub-folder as its own gallery instead of flattening
+everything into one huge sequence. `/api/files` reports a gallery with
+`media_type: "gallery"` plus its own `progress` (resume is anchored on the folder path:
+`position` = page index, `duration` = page count). Archives (`.cbz`/`.cbr`/`.zip`) are
+the other gallery support and share the same viewer.
+
+Non-image files inside a gallery are **passengers** (PDF/audio/archive/text): they
+keep their position in the sequence and are previewed (PDF first page and text are
+rendered client-side; others show an icon). Unsupported files are skipped. The
+thumbnail strip serves the **full images, downscaled by the browser** (`/api/file` /
+`/api/archive/image`), lazily (only when scrolled into view) — this keeps thumbnailing
+off the NAS CPU. The ffmpeg thumbnail endpoints (`/api/thumbnail`,
+`/api/archive/thumbnail`) remain as a lightweight fallback, hard-capped at
+`THUMBNAIL_MAX_CONCURRENCY` concurrent processes (excess requests get 503), but are not
+on the gallery hot path.
 
 ### Native Playback Versus Transcode
 
@@ -110,7 +170,7 @@ The frontend applies a layered decision ladder:
 
 1. `video.canPlayType()` against the combined container/codecs MIME string.
 2. `navigator.mediaCapabilities.decodingInfo()` when the browser exposes it and the metadata is complete enough.
-3. `/api/stream` by default for the safe baseline and for `probe` formats such as HEVC-in-MP4, even if browser capability APIs stay conservative.
+3. `/api/file` by default for the safe baseline and for `probe` formats such as HEVC-in-MP4, even if browser capability APIs stay conservative.
 4. `/api/transcode` immediately only for explicit `fallback` formats, or later when native playback still fails at load time.
 
 See `docs/native-playback.en.md` for the compatibility matrix and the implemented strategy.
@@ -149,6 +209,19 @@ CREATE TABLE segments (
     seg_out REAL NOT NULL
 );
 -- index: idx_segments_path ON segments(path)
+
+CREATE TABLE downloads (
+    id          TEXT PRIMARY KEY,   -- job uuid
+    url         TEXT NOT NULL,
+    title       TEXT,               -- bookmarklet page-title hint
+    output_name TEXT,               -- final filename
+    output_path TEXT,               -- path relative to MEDIA_ROOT
+    status      TEXT NOT NULL,      -- pending|resolving|running|done|error|cancelled|interrupted
+    error       TEXT,
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    finished_at TIMESTAMP
+);
+-- index: idx_downloads_created ON downloads(created_at DESC)
 ```
 
 ### Initial Sweep
@@ -169,9 +242,15 @@ Video cuts (`/api/files/cut`) run in individual daemon threads. Web downloads us
 - **Phase 1 (immediate thread)**: when `POST /api/download` is called, a dedicated thread starts immediately, sets the job to `resolving`, fills in a filename preview from the `title` hint, then transitions to `pending` and adds the job to `queue.Queue`.
 - **Phase 2 (queue worker)**: a single daemon thread (`dl-worker`) dequeues jobs one at a time and runs the yt-dlp download, preventing bandwidth overload.
 
-**Job status lifecycle:** `pending` → `resolving` → `pending` (with filename) → `running` → `done` / `error` / `cancelled`
+**Job status lifecycle:** `pending` → `resolving` → `pending` (with filename) → `running` → `done` / `error` / `cancelled`. History rows can additionally carry `interrupted`, set at startup for jobs the process never finished.
 
 All job state is held in memory in `_jobs: dict[str, dict]`. Fields prefixed with `_` are private and stripped before JSON serialization by `_job_for_api()`. The `/api/jobs` endpoint lets the frontend poll for progress.
+
+**Download persistence.** `_jobs` is the hot store only — entries are purged `JOB_TTL_SECONDS` after reaching a terminal state and vanish on restart. Every meaningful transition of a `download` job is therefore mirrored into the `downloads` table by `_persist_download()`, which the `/api/downloads` history reads back. A DB failure there is logged and swallowed: persistence must never break a download.
+
+At startup, `mark_interrupted_downloads()` flips any row still in a non-terminal state to `interrupted` — the process died mid-download, and without this the history would show jobs stuck `running` forever. Retention is driven by the `download_history_days` setting (`0` = keep forever, the default) and applied by `_purge_download_history()`.
+
+**Worker resilience (BL-078).** `_download_worker_loop` catches every exception escaping `_run_download`. Before that fix, any unexpected error (a broken yt-dlp import, a job removed mid-flight) propagated out of the `while True` loop and killed the `dl-worker` thread permanently: all later downloads then sat in `pending` forever with no error surfaced anywhere. The handler now logs the traceback, marks the job `error`, and keeps the thread alive.
 
 ### Download Endpoint (`POST /api/download`)
 
@@ -196,6 +275,8 @@ All job state is held in memory in `_jobs: dict[str, dict]`. Fields prefixed wit
 **Cookie resolution order:**
 1. Persistent `cookies.txt` file (path from `download_cookies_path` setting), if it exists.
 2. Inline cookies from the request body, written to a temporary file.
+
+The `download_cookies_path` setting is validated when saved via `POST /api/settings` (`_validate_cookies_path()`): the path must be absolute, end with `.txt`, exist as a readable file, otherwise the save is rejected with HTTP 422. An empty string clears the setting. This prevents pointing yt-dlp at an arbitrary file.
 
 **yt-dlp options used:** `bestvideo+bestaudio/best`, `merge_output_format: mp4`. Output is saved to the `download_folder` setting (relative to `MEDIA_ROOT`, created if needed).
 

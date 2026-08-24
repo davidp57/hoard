@@ -14,7 +14,7 @@ Today Hoard uses this flow:
 2. Build codec-aware MIME types from ffprobe metadata.
 3. Use `video.canPlayType()` as the first gate.
 4. When available, use `navigator.mediaCapabilities.decodingInfo()` with the exact file metadata.
-5. Keep `/api/stream` as the default for the safe baseline and for `probe` formats such as HEVC-in-MP4, because some browsers stay conservative in capability APIs even when native playback works.
+5. Keep `/api/file` as the default for the safe baseline and for `probe` formats such as HEVC-in-MP4, because some browsers stay conservative in capability APIs even when native playback works.
 6. Switch early to `/api/transcode` only for conservative `fallback` formats.
 7. If the browser later fails with `MEDIA_ERR_SRC_NOT_SUPPORTED`, retry with `/api/transcode`.
 
@@ -70,7 +70,7 @@ These should not be treated as browser-safe until Hoard has hard evidence otherw
 
 - Hoard still does not cache probe results across sessions.
 - The fallback logic remains player-side only; file lists are not pre-annotated with codec support.
-- Unknown or partially described files still rely on optimistic `/api/stream` plus runtime fallback.
+- Unknown or partially described files still rely on optimistic `/api/file` plus runtime fallback.
 
 ## Rules To Keep
 

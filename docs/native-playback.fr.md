@@ -14,7 +14,7 @@ Aujourd'hui, Hoard suit ce flux :
 2. Construire des chaînes MIME tenant compte des codecs à partir des métadonnées ffprobe.
 3. Utiliser `video.canPlayType()` comme premier filtre.
 4. Quand il est disponible, utiliser `navigator.mediaCapabilities.decodingInfo()` avec les métadonnées exactes du fichier.
-5. Conserver `/api/stream` par défaut pour la base sûre et pour les formats `probe` comme HEVC dans MP4, car certains navigateurs restent prudents dans leurs API de capacité alors que la lecture native fonctionne bien.
+5. Conserver `/api/file` par défaut pour la base sûre et pour les formats `probe` comme HEVC dans MP4, car certains navigateurs restent prudents dans leurs API de capacité alors que la lecture native fonctionne bien.
 6. Basculer tôt vers `/api/transcode` seulement pour les formats `fallback` conservateurs.
 7. Si le navigateur échoue ensuite avec `MEDIA_ERR_SRC_NOT_SUPPORTED`, retenter via `/api/transcode`.
 
@@ -70,7 +70,7 @@ Ces formats ne doivent pas être traités comme sûrs côté navigateur tant que
 
 - Hoard ne met pas encore en cache les résultats de probing entre les sessions.
 - La logique de fallback reste limitée au player ; la liste de fichiers n'affiche pas encore d'indication de compatibilité codec.
-- Les fichiers inconnus ou décrits partiellement reposent encore sur un `/api/stream` optimiste puis un fallback à l'exécution.
+- Les fichiers inconnus ou décrits partiellement reposent encore sur un `/api/file` optimiste puis un fallback à l'exécution.
 
 ## Règles à conserver
 

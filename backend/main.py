@@ -1,12 +1,16 @@
+import base64
 import hashlib
+import hmac
 import ipaddress
 import json
 import logging
+import logging.handlers
 import mimetypes
 import os
 import queue as _queue_module
 import re
 import shutil
+import signal
 import sqlite3
 import string as _string
 import subprocess
@@ -26,15 +30,73 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 # ── Logging ──────────────────────────────────────────────────────────────────
+# This block must stay at the very top: every logger.* call below depends on it.
+# The default log directory sits next to the SQLite database (a persistent volume
+# in production), hence the direct DB_PATH env read — the DB_PATH constant itself
+# is defined further down, in the Config section.
 _log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
+_LOG_FORMAT = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+_default_log_dir = Path(os.environ.get("DB_PATH", "/data/progress.db")).parent / "logs"
+# Empty LOG_DIR disables file logging entirely (used by the test suite).
+LOG_DIR = os.environ.get("LOG_DIR", str(_default_log_dir))
+LOG_RETENTION_DAYS = int(os.environ.get("LOG_RETENTION_DAYS", "30"))
+
+LOG_FILE: Path | None = None
+_log_handlers: list[logging.Handler] = [logging.StreamHandler()]
+_log_setup_error: str | None = None
+
+if LOG_DIR:
+    try:
+        log_dir_path = Path(LOG_DIR)
+        log_dir_path.mkdir(parents=True, exist_ok=True)
+        LOG_FILE = log_dir_path / "hoard.log"
+        _log_handlers.append(
+            logging.handlers.TimedRotatingFileHandler(
+                LOG_FILE,
+                when="midnight",
+                backupCount=LOG_RETENTION_DAYS,
+                encoding="utf-8",
+            )
+        )
+    except OSError as exc:
+        # Never fail startup because of logging — fall back to stdout only.
+        LOG_FILE = None
+        _log_setup_error = f"file logging disabled ({LOG_DIR}): {exc}"
+
 logging.basicConfig(
     level=getattr(logging, _log_level, logging.INFO),
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    format=_LOG_FORMAT,
+    handlers=_log_handlers,
 )
 logger = logging.getLogger("hoard")
+if _log_setup_error:
+    logger.warning(_log_setup_error)
 
 # ── Config ────────────────────────────────────────────────────────────────────
 MEDIA_ROOT = Path(os.environ.get("MEDIA_ROOT", "/media"))
+# MEDIA_ROOT can be reassigned at runtime via POST /api/settings. Guard writes
+# with a lock and read through get_media_root() so a concurrent request never
+# sees a torn value mid-update (notably safe_path(), which must resolve against
+# a single consistent root).
+_media_root_lock = threading.Lock()
+
+
+def get_media_root() -> Path:
+    with _media_root_lock:
+        return MEDIA_ROOT
+
+
+def set_media_root(new_root: Path) -> None:
+    global MEDIA_ROOT
+    with _media_root_lock:
+        MEDIA_ROOT = new_root
+
+
+def _client_ip(request: Request) -> str:
+    """Best-effort client IP for the audit log."""
+    return request.client.host if request.client else "unknown"
+
+
 DB_PATH = Path(os.environ.get("DB_PATH", "/data/progress.db"))
 
 
@@ -82,11 +144,87 @@ def _resolve_ffprobe() -> str:
 FFMPEG_BIN = _resolve_ffmpeg()
 FFPROBE_BIN = _resolve_ffprobe()
 
+
 # ── App ───────────────────────────────────────────────────────────────────────
-VERSION = "1.0.0"
+def _read_version() -> str:
+    """Single source of truth for the app version: pyproject.toml at the repo root
+    (copied into the Docker image). Falls back to '0.0.0' if unavailable."""
+    try:
+        import tomllib  # noqa: PLC0415 — stdlib (py3.11+)
+
+        pyproject = Path(__file__).resolve().parent.parent / "pyproject.toml"
+        with pyproject.open("rb") as fh:
+            return tomllib.load(fh)["project"]["version"]
+    except Exception:
+        return "0.0.0"
+
+
+VERSION = _read_version()
 
 app = FastAPI(title="Hoard", version=VERSION)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+# Security headers applied to every response. The CSP keeps the single-file
+# inline CSS/JS frontend working ('unsafe-inline'), allows the Google Fonts
+# import used by the UI, and permits blob:/data: sources needed by the media
+# and PDF.js viewers.
+_CSP = (
+    "default-src 'self'; "
+    "script-src 'self' 'unsafe-inline'; "
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+    "font-src 'self' https://fonts.gstatic.com; "
+    "img-src 'self' data: blob:; "
+    "media-src 'self' blob:; "
+    "worker-src 'self' blob:; "
+    "connect-src 'self'; "
+    "frame-ancestors 'none'"
+)
+SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+    "Content-Security-Policy": _CSP,
+}
+
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    for key, value in SECURITY_HEADERS.items():
+        response.headers.setdefault(key, value)
+    return response
+
+
+# Optional HTTP Basic auth, opt-in via env vars. Disabled unless BOTH HOARD_AUTH_USER
+# and HOARD_AUTH_PASS are set — suitable for exposing Hoard behind a reverse proxy
+# or direct HTTPS without building a full account system. When disabled, behavior
+# is unchanged.
+HOARD_AUTH_USER = os.environ.get("HOARD_AUTH_USER", "")
+HOARD_AUTH_PASS = os.environ.get("HOARD_AUTH_PASS", "")
+_AUTH_ENABLED = bool(HOARD_AUTH_USER and HOARD_AUTH_PASS)
+
+
+def _check_basic_auth(header: str) -> bool:
+    if not header.startswith("Basic "):
+        return False
+    try:
+        user, _, pwd = base64.b64decode(header[6:]).decode("utf-8").partition(":")
+    except (ValueError, UnicodeDecodeError):
+        return False
+    # Constant-time comparison on both fields (always evaluate both).
+    user_ok = hmac.compare_digest(user, HOARD_AUTH_USER)
+    pass_ok = hmac.compare_digest(pwd, HOARD_AUTH_PASS)
+    return user_ok and pass_ok
+
+
+@app.middleware("http")
+async def require_basic_auth(request: Request, call_next):
+    if not _AUTH_ENABLED or _check_basic_auth(request.headers.get("authorization", "")):
+        return await call_next(request)
+    return Response(
+        status_code=401,
+        headers={"WWW-Authenticate": 'Basic realm="Hoard"'},
+    )
 
 
 # ── DB ────────────────────────────────────────────────────────────────────────
@@ -168,21 +306,94 @@ def init_db():
             )
         """)
         conn.execute("CREATE INDEX IF NOT EXISTS idx_segments_path ON segments(path)")
+        # Durable mirror of download jobs: _jobs is the hot store, this table is
+        # the history that survives the job TTL and container restarts.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS downloads (
+                id          TEXT PRIMARY KEY,
+                url         TEXT NOT NULL,
+                title       TEXT,
+                output_name TEXT,
+                output_path TEXT,
+                status      TEXT NOT NULL,
+                error       TEXT,
+                created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                finished_at TIMESTAMP
+            )
+        """)
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_downloads_created ON downloads(created_at DESC)"
+        )
+        # Covering index for the progress-map scan in /api/files & /api/search
+        # (SELECT path, position, duration ... WHERE duration > 0). progress.path
+        # is already the PRIMARY KEY, so per-path lookups are indexed; this index
+        # lets the whole-table map query run as an index-only range scan, skipping
+        # duration<=0 rows and avoiding row reads on large libraries.
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_progress_active ON progress(duration, position, path)"
+        )
         conn.commit()
+
+
+# Download states that never change again once reached. 'interrupted' only ever
+# comes from mark_interrupted_downloads() — a job can't reach it while running.
+_TERMINAL_DOWNLOAD_STATES = ("done", "error", "cancelled", "interrupted")
+
+
+def mark_interrupted_downloads():
+    """Requalify downloads left mid-flight by a shutdown.
+
+    Any row still in a non-terminal state at startup belonged to a job the
+    process never finished — the container restarted underneath it. Without
+    this, the history would show downloads stuck 'running' forever.
+    """
+    with get_db() as conn:
+        # Spelled out rather than built from _TERMINAL_DOWNLOAD_STATES so no SQL
+        # string is assembled at runtime. NOT IN (rather than listing the
+        # non-terminal states) keeps this safe by default: an unknown status is
+        # treated as unfinished. test_unknown_status_is_treated_as_unfinished
+        # locks that in, and guards against the tuple drifting from this list.
+        cur = conn.execute(
+            "UPDATE downloads SET status='interrupted', finished_at=CURRENT_TIMESTAMP "
+            "WHERE status NOT IN ('done', 'error', 'cancelled', 'interrupted')"
+        )
+        conn.commit()
+    if cur.rowcount:
+        logger.info("marked %d interrupted download(s) at startup", cur.rowcount)
+
+
+def _purge_download_history() -> None:
+    """Drop history rows older than the configured retention (0 = keep forever)."""
+    try:
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT value FROM settings WHERE key='download_history_days'"
+            ).fetchone()
+            days = int(row["value"]) if row and str(row["value"]).strip() else 0
+            if days <= 0:
+                return
+            conn.execute(
+                "DELETE FROM downloads WHERE created_at < datetime('now', ?)",
+                (f"-{days} days",),
+            )
+            conn.commit()
+    except (sqlite3.Error, ValueError) as exc:
+        logger.warning("could not purge download history: %s", exc)
 
 
 def reload_media_root():
     """Override MEDIA_ROOT from DB settings if set."""
-    global MEDIA_ROOT
     with get_db() as conn:
         row = conn.execute("SELECT value FROM settings WHERE key='media_root'").fetchone()
     if row:
         candidate = Path(row["value"])
         if candidate.exists() and candidate.is_dir():
-            MEDIA_ROOT = candidate
+            set_media_root(candidate)
 
 
 init_db()
+mark_interrupted_downloads()
+_purge_download_history()  # retention must apply even if no download is ever started
 reload_media_root()
 print(f"Hoard v{VERSION} — media: {MEDIA_ROOT}")
 
@@ -210,6 +421,10 @@ class InitialSweepFolderRequest(BaseModel):
 
 class MkdirRequest(BaseModel):
     name: str  # folder name only (no slashes)
+
+
+class RenameRequest(BaseModel):
+    new_name: str  # new base name only (no slashes)
 
 
 class HomeRootRequest(BaseModel):
@@ -251,6 +466,85 @@ _download_task_queue: _queue_module.Queue = _queue_module.Queue()
 def _job_for_api(job: dict) -> dict:
     """Return a JSON-serialisable view of a job (strips private _ keys)."""
     return {k: v for k, v in job.items() if not k.startswith("_")}
+
+
+# Terminal job states and the TTL after which they are purged from _jobs to
+# avoid unbounded memory growth on a long-running server.
+_TERMINAL_JOB_STATES = ("done", "error", "cancelled")
+JOB_TTL_SECONDS = int(os.environ.get("JOB_TTL_SECONDS", "3600"))
+
+
+def _purge_old_jobs() -> None:
+    """Drop terminal jobs whose TTL has elapsed.
+
+    The TTL clock starts when a job is *first observed* in a terminal state.
+    Since clients poll the job list frequently this is effectively completion
+    time, and it avoids stamping every status transition across the workers.
+    Active (non-terminal) jobs are never purged.
+    """
+    now = time.monotonic()
+    for job_id in list(_jobs.keys()):
+        job = _jobs.get(job_id)
+        if not job or job.get("status") not in _TERMINAL_JOB_STATES:
+            continue
+        finished = job.get("_finished_at")
+        if finished is None:
+            job["_finished_at"] = now
+        elif now - finished > JOB_TTL_SECONDS:
+            del _jobs[job_id]
+
+
+def _download_output_rel(job: dict) -> str | None:
+    """Relative path of a finished download, or None if not resolvable yet."""
+    name = job.get("output_name")
+    output_dir = (job.get("_params") or {}).get("output_dir")
+    if not name or not output_dir:
+        return None
+    try:
+        return to_rel(Path(output_dir) / name)
+    except ValueError:
+        # Destination outside MEDIA_ROOT (shouldn't happen — safe_path guards it)
+        return None
+
+
+def _persist_download(job: dict) -> None:
+    """Mirror a download job into the `downloads` history table.
+
+    Called on every meaningful transition. Failure to persist must never break
+    a download, so DB errors are swallowed with a warning.
+    """
+    if job.get("type") != "download":
+        return
+    params = job.get("_params") or {}
+    finished = job.get("status") in _TERMINAL_DOWNLOAD_STATES
+    try:
+        with get_db() as conn:
+            conn.execute(
+                """
+                INSERT INTO downloads (id, url, title, output_name, output_path,
+                                       status, error, finished_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, CASE WHEN ? THEN CURRENT_TIMESTAMP END)
+                ON CONFLICT(id) DO UPDATE SET
+                    output_name = excluded.output_name,
+                    output_path = excluded.output_path,
+                    status      = excluded.status,
+                    error       = excluded.error,
+                    finished_at = COALESCE(downloads.finished_at, excluded.finished_at)
+                """,
+                (
+                    job["id"],
+                    job.get("url", ""),
+                    params.get("title"),
+                    job.get("output_name") or None,
+                    _download_output_rel(job),
+                    job.get("status", ""),
+                    job.get("error"),
+                    1 if finished else 0,
+                ),
+            )
+            conn.commit()
+    except sqlite3.Error as exc:
+        logger.warning("could not persist download %s: %s", job.get("id"), exc)
 
 
 def _fmt_hms(s: float) -> str:
@@ -458,26 +752,31 @@ def _run_move(job_id: str, source: Path, destination: Path) -> None:
     job["status"] = "running"
     final_dest = (destination / source.name) if destination.is_dir() else destination
     final_dest.parent.mkdir(parents=True, exist_ok=True)
-    for attempt in range(5):
-        try:
-            shutil.move(str(source), str(final_dest))
-            break
-        except PermissionError:
-            if attempt < 4:
-                time.sleep(0.6)
-            else:
-                job["status"] = "error"
-                job["error"] = "File is locked by another process"
-                return
-        except Exception as e:
-            job["status"] = "error"
-            job["error"] = str(e)
-            return
     old_rel = to_rel(source)
     new_rel = to_rel(final_dest)
+    # DB-first atomicity: stage the metadata move, perform the filesystem move,
+    # and only commit if it succeeds. Roll back on failure so progress/segments
+    # rows never point at a path the file was not actually moved to.
     with get_db() as conn:
         conn.execute("UPDATE progress SET path = ? WHERE path = ?", (new_rel, old_rel))
         conn.execute("UPDATE segments SET path = ? WHERE path = ?", (new_rel, old_rel))
+        for attempt in range(5):
+            try:
+                shutil.move(str(source), str(final_dest))
+                break
+            except PermissionError:
+                if attempt < 4:
+                    time.sleep(0.6)
+                else:
+                    conn.rollback()
+                    job["status"] = "error"
+                    job["error"] = "File is locked by another process"
+                    return
+            except Exception as e:
+                conn.rollback()
+                job["status"] = "error"
+                job["error"] = str(e)
+                return
         conn.commit()
     job["status"] = "done"
     job["progress"] = 100
@@ -657,9 +956,11 @@ def _run_download(
     # Bail out early if already cancelled while waiting in the queue
     if cancel_event.is_set():
         job["status"] = "cancelled"
+        _persist_download(job)
         return
 
     job["status"] = "running"
+    _persist_download(job)
 
     tmp_cookies_file: str | None = None
 
@@ -758,6 +1059,7 @@ def _run_download(
         else:
             job["status"] = "done"
             job["progress"] = 100
+            logger.info("download completed: name=%s", job.get("source_name"))
 
     except Exception as e:
         if cancel_event.is_set():
@@ -773,7 +1075,10 @@ def _run_download(
         else:
             job["status"] = "error"
             job["error"] = str(e)
+            logger.warning("download failed: name=%s error=%s", job.get("source_name"), e)
     finally:
+        # Record the outcome whatever happened — this is the history entry.
+        _persist_download(job)
         if tmp_cookies_file:
             try:
                 os.unlink(tmp_cookies_file)
@@ -799,6 +1104,7 @@ def _prepare_download(job_id: str) -> None:
 
     if cancel_event.is_set():
         job["status"] = "cancelled"
+        _persist_download(job)
         return
 
     job["status"] = "resolving"
@@ -812,9 +1118,12 @@ def _prepare_download(job_id: str) -> None:
 
     if cancel_event.is_set():
         job["status"] = "cancelled"
+        _persist_download(job)
         return
 
     job["status"] = "pending"
+    # Persist the filename preview so an interrupted job is still identifiable.
+    _persist_download(job)
     _enqueue_download(job_id)
 
 
@@ -829,6 +1138,7 @@ def _download_worker_loop() -> None:
             # Job may have been cancelled while waiting in the queue
             if job.get("_cancel_event") and job["_cancel_event"].is_set():
                 job["status"] = "cancelled"
+                _persist_download(job)
                 continue
             p = job["_params"]
             _run_download(
@@ -840,6 +1150,17 @@ def _download_worker_loop() -> None:
                 p.get("referer"),
                 p.get("title"),
             )
+        except Exception as exc:
+            # Anything escaping _run_download (a missing yt-dlp, a job removed
+            # mid-flight...) used to kill this thread for good: every later
+            # download then sat in 'pending' forever with no error anywhere.
+            # Surface it on the job and keep the worker alive.
+            logger.exception("download worker error on job %s: %s", job_id, exc)
+            job = _jobs.get(job_id)
+            if job is not None and job.get("status") not in _TERMINAL_DOWNLOAD_STATES:
+                job["status"] = "error"
+                job["error"] = f"{type(exc).__name__}: {exc}"
+                _persist_download(job)
         finally:
             _download_task_queue.task_done()
 
@@ -878,6 +1199,11 @@ IMAGE_EXTENSIONS = {
 AUDIO_EXTENSIONS = {".mp3", ".flac", ".ogg", ".m4a", ".aac", ".wav", ".opus"}
 PDF_EXTENSIONS = {".pdf"}
 ARCHIVE_EXTENSIONS = {".zip", ".cbz", ".cbr"}
+# Text formats shown as gallery passengers (previewed client-side).
+TEXT_EXTENSIONS = {".txt", ".md", ".nfo"}
+# Sidecar subtitle formats. Browsers' <track> only accepts WebVTT, so .srt/.ass
+# are converted to VTT on the fly when served (see /api/subtitle).
+SUBTITLE_EXTENSIONS = {".srt", ".ass", ".ssa", ".vtt"}
 
 
 def is_video(path: Path) -> bool:
@@ -1158,8 +1484,9 @@ def _read_media_info(file: Path) -> dict:
 
 def safe_path(rel: str) -> Path:
     """Resolve and ensure path stays within MEDIA_ROOT."""
-    resolved = (MEDIA_ROOT / rel).resolve()
-    media_resolved = MEDIA_ROOT.resolve()
+    root = get_media_root()  # capture once: MEDIA_ROOT may change concurrently
+    resolved = (root / rel).resolve()
+    media_resolved = root.resolve()
     logger.debug("safe_path: rel=%r resolved=%s media_root=%s", rel, resolved, media_resolved)
     if not resolved.is_relative_to(media_resolved):
         logger.warning("safe_path DENIED: %s is outside %s", resolved, media_resolved)
@@ -1243,6 +1570,81 @@ def get_folder_state(folder: Path, progress_map: dict) -> str:
     return "new"
 
 
+def _natural_key(name: str):
+    """Sort key for natural (numeric-aware) ordering: 'page-2' < 'page-10'."""
+    return [int(tok) if tok.isdigit() else tok.lower() for tok in re.split(r"(\d+)", name)]
+
+
+def is_gallery(folder: Path) -> bool:
+    """A gallery is a *leaf* image folder: more than 3 images, no video, and no
+    sub-directory. A folder that contains sub-folders is a browsable container, so a
+    folder of galleries shows each sub-folder as its own gallery rather than flattening
+    everything into one huge sequence. Own-level scan only (no recursion)."""
+    media_root = MEDIA_ROOT.resolve()
+    try:
+        children = list(folder.iterdir())
+    except PermissionError:
+        return False
+    image_count = 0
+    for f in children:
+        if f.name.startswith("."):
+            continue
+        if f.is_symlink() and not f.resolve().is_relative_to(media_root):
+            continue
+        if f.is_dir():
+            return False  # has a sub-folder → container, not a gallery
+        if is_video(f):
+            return False
+        if is_image(f):
+            image_count += 1
+    return image_count > 3
+
+
+def _gallery_item_type(path: Path) -> str | None:
+    """Type of a gallery item, or None if the file is not shown in a gallery.
+
+    Images are the main content; PDF/audio/archive/text files are 'passengers'.
+    """
+    if is_image(path):
+        return "image"
+    if is_pdf(path):
+        return "pdf"
+    if is_audio(path):
+        return "audio"
+    if is_archive(path):
+        return "archive"
+    if path.suffix.lower() in TEXT_EXTENSIONS:
+        return "text"
+    return None
+
+
+def gallery_sequence(folder: Path) -> list[tuple[Path, str]]:
+    """Ordered gallery items as (path, type), natural-sorted. Own-level only: a gallery
+    is a leaf folder (see ``is_gallery``), so sub-folders are not descended into.
+    Images plus passengers (PDF/audio/archive/text); other files are skipped.
+    """
+    media_root = MEDIA_ROOT.resolve()
+    files: list[Path] = []
+    try:
+        children = list(folder.iterdir())
+    except PermissionError:
+        return []
+    for c in children:
+        if c.name.startswith("."):
+            continue
+        if c.is_symlink() and not c.resolve().is_relative_to(media_root):
+            continue
+        if c.is_file():
+            files.append(c)
+    files.sort(key=lambda p: _natural_key(p.name))
+    items: list[tuple[Path, str]] = []
+    for f in files:
+        t = _gallery_item_type(f)
+        if t:
+            items.append((f, t))
+    return items
+
+
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 
@@ -1283,17 +1685,27 @@ def list_files(path: str = ""):
     entries = []
     for item, st in items_with_stat:
         rel = to_rel(item)
-        _media_type = get_media_type(item) if item.is_file() else "other"
+        is_directory = item.is_dir()
+        folder_state = None
+        if item.is_file():
+            _media_type = get_media_type(item)
+        elif is_gallery(item):
+            # A gallery folder behaves like a media: it carries its own progress
+            # percent instead of an aggregated folder_state.
+            _media_type = "gallery"
+        else:
+            _media_type = "other"
+            folder_state = get_folder_state(item, progress_map)
         entry = {
             "name": item.name,
             "path": rel,
-            "is_dir": item.is_dir(),
+            "is_dir": is_directory,
             "is_video": is_video(item) if item.is_file() else False,
             "media_type": _media_type,
             "size": st.st_size if item.is_file() else 0,
             "mtime": st.st_mtime,
-            "is_quick_folder": rel in qf_paths if item.is_dir() else False,
-            "folder_state": get_folder_state(item, progress_map) if item.is_dir() else None,
+            "is_quick_folder": rel in qf_paths if is_directory else False,
+            "folder_state": folder_state,
         }
         if _media_type != "other":
             entry["progress"] = get_progress(item)
@@ -1395,32 +1807,47 @@ def save_progress(path: str, body: ProgressUpdate):
 
 
 @app.delete("/api/files")
-def delete_file(path: str):
+def delete_file(path: str, request: Request):
     target = safe_path(path)
     if not target.exists():
         raise HTTPException(status_code=404)
-    try:
-        if target.is_dir():
-            shutil.rmtree(target)
-        else:
-            target.unlink()
-    except PermissionError:
-        raise HTTPException(status_code=423, detail="File is locked by another process") from None
-    # Clean progress and segments entries
     rel = to_rel(target)
+    # DB-first atomicity: stage the metadata deletion, perform the filesystem
+    # delete, and only commit if it succeeds. If the FS op fails, roll back so
+    # we never leave stale progress/segments rows for a file that still exists.
     with get_db() as conn:
         conn.execute("DELETE FROM progress WHERE path = ?", (rel,))
         conn.execute("DELETE FROM segments WHERE path = ?", (rel,))
+        try:
+            if target.is_dir():
+                shutil.rmtree(target)
+            else:
+                target.unlink()
+        except PermissionError:
+            conn.rollback()
+            raise HTTPException(
+                status_code=423, detail="File is locked by another process"
+            ) from None
+        except OSError as e:
+            conn.rollback()
+            raise HTTPException(status_code=500, detail="Failed to delete file") from e
         conn.commit()
+    logger.info("file deleted: path=%s ip=%s", rel, _client_ip(request))
     return {"ok": True}
 
 
 @app.post("/api/files/move")
-def move_file(path: str, body: MoveRequest):
+def move_file(path: str, body: MoveRequest, request: Request):
     source = safe_path(path)
     destination = safe_path(body.destination)
     if not source.exists():
         raise HTTPException(status_code=404)
+    logger.info(
+        "file move requested: src=%s dest=%s ip=%s",
+        to_rel(source),
+        body.destination,
+        _client_ip(request),
+    )
     job_id = str(uuid.uuid4())
     _jobs[job_id] = {
         "id": job_id,
@@ -1451,6 +1878,141 @@ def make_directory(path: str, body: MkdirRequest):
         raise HTTPException(status_code=409, detail="Already exists")
     new_dir.mkdir()
     return {"ok": True}
+
+
+def _migrate_renamed_paths(conn, old_rel: str, new_rel: str) -> None:
+    """Rewrite stored paths after a rename: the entry itself and, when it is a
+    folder, every descendant (prefix match). Uses substr equality (not LIKE) so
+    '_' / '%' in names are not treated as wildcards. Table names are literal
+    (no string interpolation) to keep the queries parameterised and injection-safe."""
+    tail_start = len(old_rel) + 1
+    prefix = old_rel + "/"
+    conn.execute("UPDATE progress SET path = ? WHERE path = ?", (new_rel, old_rel))
+    conn.execute(
+        "UPDATE progress SET path = ? || substr(path, ?) WHERE substr(path, 1, ?) = ?",
+        (new_rel, tail_start, tail_start, prefix),
+    )
+    conn.execute("UPDATE segments SET path = ? WHERE path = ?", (new_rel, old_rel))
+    conn.execute(
+        "UPDATE segments SET path = ? || substr(path, ?) WHERE substr(path, 1, ?) = ?",
+        (new_rel, tail_start, tail_start, prefix),
+    )
+
+
+@app.post("/api/files/rename")
+def rename_path(path: str, body: RenameRequest, request: Request):
+    source = safe_path(path)
+    if not source.exists():
+        raise HTTPException(status_code=404)
+    new_name = body.new_name.strip()
+    if not new_name or any(c in new_name for c in ("/", "\\", "\0")) or new_name in (".", ".."):
+        raise HTTPException(status_code=400, detail="Invalid name")
+    dest = safe_path(to_rel(source.parent / new_name))  # defense-in-depth re-check
+    if dest.exists():
+        raise HTTPException(status_code=409, detail="A file with that name already exists")
+    old_rel = to_rel(source)
+    new_rel = to_rel(dest)
+    # DB-first atomicity (BL-034 pattern): migrate metadata, then rename on disk,
+    # rolling back the DB if the filesystem op fails.
+    with get_db() as conn:
+        _migrate_renamed_paths(conn, old_rel, new_rel)
+        try:
+            source.rename(dest)
+        except OSError as e:
+            conn.rollback()
+            raise HTTPException(status_code=500, detail="Rename failed") from e
+        conn.commit()
+    logger.info("renamed: %s -> %s ip=%s", old_rel, new_rel, _client_ip(request))
+    return {"ok": True, "path": new_rel}
+
+
+# ── Subtitles ───────────────────────────────────────────────────────────────
+# Browsers' <track> element only accepts WebVTT, so sidecar .srt/.ass files are
+# converted to VTT on the fly. .ass styling is dropped (plain text), which is the
+# pragmatic dependency-free option (full ASS rendering would need a WASM library).
+
+
+def _srt_to_vtt(text: str) -> str:
+    # SRT differs from VTT only by the ',' millisecond separator and the header.
+    body = re.sub(r"(\d{2}:\d{2}:\d{2}),(\d{3})", r"\1.\2", text.strip())
+    return "WEBVTT\n\n" + body
+
+
+def _ass_time_to_vtt(t: str) -> str:
+    # ASS time is H:MM:SS.cc (centiseconds) → VTT HH:MM:SS.mmm.
+    h, m, rest = t.strip().split(":")
+    s, _, cs = rest.partition(".")
+    ms = int((cs + "00")[:2]) * 10
+    return f"{int(h):02d}:{int(m):02d}:{int(s):02d}.{ms:03d}"
+
+
+def _ass_to_vtt(text: str) -> str:
+    fmt: list[str] | None = None
+    cues: list[str] = ["WEBVTT", ""]
+    in_events = False
+    for line in text.splitlines():
+        s = line.strip()
+        if s.startswith("[") and s.endswith("]"):
+            in_events = s.lower() == "[events]"
+            continue
+        if not in_events:
+            continue
+        key, _, value = s.partition(":")
+        key = key.strip().lower()
+        if key == "format":
+            fmt = [f.strip().lower() for f in value.split(",")]
+        elif key == "dialogue" and fmt:
+            parts = value.split(",", len(fmt) - 1)
+            row = {fmt[i]: (parts[i] if i < len(parts) else "") for i in range(len(fmt))}
+            start, end, txt = row.get("start"), row.get("end"), row.get("text", "")
+            if not start or not end:
+                continue
+            txt = re.sub(r"\{[^}]*\}", "", txt)  # strip override tags
+            txt = txt.replace("\\N", "\n").replace("\\n", "\n").replace("\\h", " ").strip()
+            if not txt:
+                continue
+            try:
+                cues.append(f"{_ass_time_to_vtt(start)} --> {_ass_time_to_vtt(end)}")
+            except (ValueError, IndexError):
+                continue
+            cues.append(txt)
+            cues.append("")
+    return "\n".join(cues)
+
+
+@app.get("/api/subtitles")
+def list_subtitles(path: str):
+    """List sidecar subtitle files for a video (same folder, sharing its stem)."""
+    video = safe_path(path)
+    if not video.exists():
+        raise HTTPException(status_code=404)
+    stem = video.stem
+    subs = []
+    for item in sorted(video.parent.iterdir()):
+        if not item.is_file() or item.suffix.lower() not in SUBTITLE_EXTENSIONS:
+            continue
+        if item.stem != stem and not item.name.startswith(stem + "."):
+            continue
+        mid = item.name[len(stem) :].rsplit(".", 1)[0].strip(". ")
+        subs.append({"label": mid or item.suffix.lstrip(".").upper(), "path": to_rel(item)})
+    return subs
+
+
+@app.get("/api/subtitle")
+def serve_subtitle(path: str):
+    """Serve a sidecar subtitle converted to WebVTT (so <track> can use it)."""
+    f = safe_path(path)
+    if not f.is_file() or f.suffix.lower() not in SUBTITLE_EXTENSIONS:
+        raise HTTPException(status_code=404)
+    raw = f.read_text(encoding="utf-8", errors="replace")
+    ext = f.suffix.lower()
+    if ext == ".vtt":
+        vtt = raw if raw.lstrip().startswith("WEBVTT") else "WEBVTT\n\n" + raw
+    elif ext == ".srt":
+        vtt = _srt_to_vtt(raw)
+    else:  # .ass / .ssa
+        vtt = _ass_to_vtt(raw)
+    return Response(content=vtt, media_type="text/vtt")
 
 
 # ── Cut / Jobs ────────────────────────────────────────────────────────────────
@@ -1563,6 +2125,7 @@ def export_segments(path: str, body: ExportSegmentsRequest):
 
 @app.get("/api/jobs")
 def list_jobs():
+    _purge_old_jobs()
     return [_job_for_api(j) for j in _jobs.values()]
 
 
@@ -1589,6 +2152,62 @@ def cancel_job(job_id: str):
     # Signal the cancel event; the worker / progress hook will pick it up
     job["_cancel_event"].set()
     job["status"] = "cancelled"
+    _persist_download(job)
+    return {"ok": True}
+
+
+# ── Download history ──────────────────────────────────────────────────────────
+
+
+@app.get("/api/downloads")
+def list_downloads(
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    status: str | None = None,
+):
+    """Persistent download history, most recent first.
+
+    `total` counts the rows matching the same filter as `items`, so a paginating
+    client can trust it to know whether more pages exist.
+    """
+    # Both branches are spelled out as whole literal statements: no SQL string is
+    # ever assembled at runtime (project rule, and it keeps scanners quiet).
+    with get_db() as conn:
+        if status:
+            rows = conn.execute(
+                "SELECT * FROM downloads WHERE status = ? "
+                "ORDER BY created_at DESC, rowid DESC LIMIT ? OFFSET ?",
+                (status, limit, offset),
+            ).fetchall()
+            total = conn.execute(
+                "SELECT COUNT(*) AS n FROM downloads WHERE status = ?", (status,)
+            ).fetchone()["n"]
+        else:
+            rows = conn.execute(
+                "SELECT * FROM downloads ORDER BY created_at DESC, rowid DESC LIMIT ? OFFSET ?",
+                (limit, offset),
+            ).fetchall()
+            total = conn.execute("SELECT COUNT(*) AS n FROM downloads").fetchone()["n"]
+    return {"total": total, "items": [dict(r) for r in rows]}
+
+
+@app.delete("/api/downloads")
+def clear_download_history():
+    """Wipe the whole history. Live jobs in _jobs are untouched."""
+    with get_db() as conn:
+        cur = conn.execute("DELETE FROM downloads")
+        conn.commit()
+    return {"ok": True, "deleted": cur.rowcount}
+
+
+@app.delete("/api/downloads/{download_id}")
+def delete_download_entry(download_id: str):
+    """Remove a single history entry (the file itself is never touched)."""
+    with get_db() as conn:
+        cur = conn.execute("DELETE FROM downloads WHERE id = ?", (download_id,))
+        conn.commit()
+    if cur.rowcount == 0:
+        raise HTTPException(status_code=404, detail="History entry not found")
     return {"ok": True}
 
 
@@ -1634,9 +2253,10 @@ def _validate_download_url(url: str) -> None:
 
 
 @app.post("/api/download")
-def start_download(body: DownloadRequest):
+def start_download(body: DownloadRequest, request: Request):
     """Start a yt-dlp download in the background and return a job_id."""
     _validate_download_url(body.url)
+    logger.info("download started: url=%s ip=%s", body.url, _client_ip(request))
 
     with get_db() as conn:
         s = _read_all_settings(conn)
@@ -1669,6 +2289,10 @@ def start_download(body: DownloadRequest):
             "title": body.title,
         },
     }
+    # Record the attempt right away: a download that never gets off the ground
+    # must still leave a trace in the history.
+    _persist_download(_jobs[job_id])
+    _purge_download_history()
     # Phase 1: immediately resolve filename preview and transition to 'resolving'
     # then 'pending', so the bookmarklet toast shows meaningful states even when
     # another download is already running.
@@ -1942,7 +2566,7 @@ _SETTINGS_KEYS = {
     "privacy_timeout",  # minutes (int), 0 = disabled
     "watched_threshold",  # percent (int), default 90
     "home_folder",  # relative path from MEDIA_ROOT
-    "sort_by",  # 'date' | 'name'
+    "sort_by",  # 'date' | 'name' | 'size' | 'state'
     "sort_dir",  # 'asc' | 'desc'
     "gesture_enabled",  # '1' | '0'
     "gesture_seek",  # '1' | '0'
@@ -1959,6 +2583,7 @@ _SETTINGS_KEYS = {
     "initial_sweep_seconds",  # seconds int, default 0 = disabled
     "download_folder",  # relative path from MEDIA_ROOT, default 'Downloads'
     "download_cookies_path",  # absolute path to a Netscape cookies.txt file, optional
+    "download_history_days",  # int, 0 = keep history forever (default)
     "transcode_enabled",  # '1' | '0', default '1'
     "transcode_audio_only",  # '1' | '0', default '0' — copy video, transcode audio only (lighter)
     "gamepad_enabled",  # '1' | '0', default '1'
@@ -1967,6 +2592,7 @@ _SETTINGS_KEYS = {
     "gamepad_swap_sticks",  # '1' | '0', default '0' — swap left/right stick assignments
     "gamepad_mapping",  # JSON string, default '{}' (use built-in defaults)
     "fs_progress_zoom",  # int 5-50, zoom window % for fullscreen progress bar, default 20
+    "gestures_overlay_seen",  # '1' | '0', one-shot touch-gesture discovery overlay flag
 }
 
 _SETTINGS_DEFAULTS: dict[str, str] = {
@@ -1991,6 +2617,7 @@ _SETTINGS_DEFAULTS: dict[str, str] = {
     "initial_sweep_seconds": "0",
     "download_folder": "Downloads",
     "download_cookies_path": "",
+    "download_history_days": "0",
     "transcode_enabled": "1",
     "transcode_audio_only": "0",
     "gamepad_enabled": "1",
@@ -1999,6 +2626,7 @@ _SETTINGS_DEFAULTS: dict[str, str] = {
     "gamepad_swap_sticks": "0",
     "gamepad_mapping": "{}",
     "fs_progress_zoom": "20",
+    "gestures_overlay_seen": "0",
 }
 
 
@@ -2032,6 +2660,7 @@ class SettingsPayload(BaseModel):
     gesture_volume: bool | None = None
     gesture_brightness: bool | None = None
     gesture_doubletap: bool | None = None
+    gestures_overlay_seen: bool | None = None
     gesture_edge_pct: int | None = None
     gesture_swipe_threshold: int | None = None
     gesture_swipe_sensitivity: str | None = None
@@ -2042,6 +2671,7 @@ class SettingsPayload(BaseModel):
     initial_sweep_seconds: int | None = Field(default=None, ge=0, le=7200)
     download_folder: str | None = None
     download_cookies_path: str | None = None
+    download_history_days: int | None = Field(default=None, ge=0, le=3650)
     transcode_enabled: bool | None = None
     transcode_audio_only: bool | None = None
     gamepad_enabled: bool | None = None
@@ -2061,12 +2691,80 @@ def get_settings():
     result["pin_set"] = bool(s.get("pin_hash"))
     result["media_root"] = str(MEDIA_ROOT).replace("\\", "/")
     result["app_version"] = VERSION
+    # Lets the UI word the restart confirmation correctly before calling /api/restart
+    result["restart_supervised"] = _is_supervised()
     return result
 
 
+# PIN hashing — scrypt with a random per-PIN salt. Parameters tuned for NAS
+# hardware (N=2^14 ≈ 16 MiB working memory per check, fast enough for an
+# occasional PIN entry). Stored format: "scrypt$<salt_hex>$<key_hex>".
+_SCRYPT_N = 2**14
+_SCRYPT_R = 8
+_SCRYPT_P = 1
+_SCRYPT_MAXMEM = 64 * 1024 * 1024
+
+
+def _hash_pin(pin: str) -> str:
+    salt = os.urandom(16)
+    key = hashlib.scrypt(
+        pin.encode(),
+        salt=salt,
+        n=_SCRYPT_N,
+        r=_SCRYPT_R,
+        p=_SCRYPT_P,
+        dklen=32,
+        maxmem=_SCRYPT_MAXMEM,
+    )
+    return f"scrypt${salt.hex()}${key.hex()}"
+
+
+def _verify_pin(pin: str, stored: str) -> bool:
+    """Verify a PIN against the stored hash. Supports the legacy unsalted
+    SHA-256 format for transparent migration to scrypt."""
+    if stored.startswith("scrypt$"):
+        try:
+            _, salt_hex, key_hex = stored.split("$", 2)
+            salt = bytes.fromhex(salt_hex)
+            expected = bytes.fromhex(key_hex)
+        except (ValueError, IndexError):
+            return False
+        key = hashlib.scrypt(
+            pin.encode(),
+            salt=salt,
+            n=_SCRYPT_N,
+            r=_SCRYPT_R,
+            p=_SCRYPT_P,
+            dklen=len(expected),
+            maxmem=_SCRYPT_MAXMEM,
+        )
+        return hmac.compare_digest(key, expected)
+    # Legacy SHA-256 (no salt) — accepted only so the next successful login can
+    # transparently upgrade it to scrypt.
+    return hmac.compare_digest(hashlib.sha256(pin.encode()).hexdigest(), stored)
+
+
+def _validate_cookies_path(path: str) -> None:
+    """Validate a user-supplied cookies file path before it is stored.
+
+    The path is later handed to yt-dlp as a ``cookiefile``; without validation any
+    readable file (e.g. ``/etc/passwd``) could be pointed at the downloader. The
+    path must be absolute, carry a ``.txt`` extension, exist as a file, and be
+    readable. Raises HTTP 422 with an explicit message otherwise.
+    """
+    p = Path(path)
+    if not p.is_absolute():
+        raise HTTPException(status_code=422, detail="Cookies path must be absolute")
+    if p.suffix.lower() != ".txt":
+        raise HTTPException(status_code=422, detail="Cookies file must have a .txt extension")
+    if not p.is_file():
+        raise HTTPException(status_code=422, detail="Cookies file does not exist")
+    if not os.access(p, os.R_OK):
+        raise HTTPException(status_code=422, detail="Cookies file is not readable")
+
+
 @app.post("/api/settings")
-def update_settings(body: SettingsPayload):
-    global MEDIA_ROOT
+def update_settings(body: SettingsPayload, request: Request):
     with get_db() as conn:
         if body.media_root is not None:
             new_root = Path(body.media_root)
@@ -2074,15 +2772,14 @@ def update_settings(body: SettingsPayload):
                 raise HTTPException(
                     status_code=404, detail="Path does not exist or is not a directory"
                 )
-            MEDIA_ROOT = new_root
+            set_media_root(new_root)
             _write_setting(conn, "media_root", str(new_root))
 
         if body.pin is not None:
             if body.pin == "":
                 _write_setting(conn, "pin_hash", "")
             else:
-                h = hashlib.sha256(body.pin.encode()).hexdigest()
-                _write_setting(conn, "pin_hash", h)
+                _write_setting(conn, "pin_hash", _hash_pin(body.pin))
 
         if body.gamepad_mapping is not None:
             try:
@@ -2091,6 +2788,10 @@ def update_settings(body: SettingsPayload):
                 raise HTTPException(
                     status_code=422, detail="gamepad_mapping must be valid JSON"
                 ) from exc
+
+        # Empty string clears the setting; only validate a non-empty path.
+        if body.download_cookies_path:
+            _validate_cookies_path(body.download_cookies_path)
 
         _simple: list[tuple[str, object]] = [
             ("privacy_timeout", body.privacy_timeout),
@@ -2108,6 +2809,7 @@ def update_settings(body: SettingsPayload):
             ("initial_sweep_seconds", body.initial_sweep_seconds),
             ("download_folder", body.download_folder),
             ("download_cookies_path", body.download_cookies_path),
+            ("download_history_days", body.download_history_days),
             ("gamepad_deadzone", body.gamepad_deadzone),
             ("gamepad_mapping", body.gamepad_mapping),
             ("fs_progress_zoom", body.fs_progress_zoom),
@@ -2122,6 +2824,7 @@ def update_settings(body: SettingsPayload):
             ("gesture_volume", body.gesture_volume),
             ("gesture_brightness", body.gesture_brightness),
             ("gesture_doubletap", body.gesture_doubletap),
+            ("gestures_overlay_seen", body.gestures_overlay_seen),
             ("transcode_enabled", body.transcode_enabled),
             ("transcode_audio_only", body.transcode_audio_only),
             ("gamepad_enabled", body.gamepad_enabled),
@@ -2134,11 +2837,12 @@ def update_settings(body: SettingsPayload):
 
         conn.commit()
 
+    logger.info("settings updated: ip=%s", _client_ip(request))
     return {"ok": True}
 
 
 @app.post("/api/settings/check-pin")
-def check_pin(body: dict):
+def check_pin(body: dict, request: Request):
     """Returns {ok: true} if the supplied PIN matches, 401 otherwise."""
     pin = str(body.get("pin", ""))
     with get_db() as conn:
@@ -2147,58 +2851,15 @@ def check_pin(body: dict):
     if not stored_hash:
         # No PIN set — always OK
         return {"ok": True}
-    if hashlib.sha256(pin.encode()).hexdigest() == stored_hash:
+    if _verify_pin(pin, stored_hash):
+        # Transparently upgrade a legacy unsalted SHA-256 hash to scrypt.
+        if not stored_hash.startswith("scrypt$"):
+            with get_db() as conn:
+                _write_setting(conn, "pin_hash", _hash_pin(pin))
+                conn.commit()
         return {"ok": True}
+    logger.warning("PIN check failed: ip=%s", _client_ip(request))
     raise HTTPException(status_code=401, detail="Wrong PIN")
-
-
-@app.get("/api/stream")
-def stream_video(path: str, request: Request):
-    file = safe_path(path)
-    if not file.exists() or not is_video(file):
-        raise HTTPException(status_code=404)
-
-    file_size = file.stat().st_size
-    mime_type = mimetypes.guess_type(str(file))[0] or "video/mp4"
-
-    range_header = request.headers.get("range")
-    if range_header:
-        start, end = 0, file_size - 1
-        range_str = range_header.replace("bytes=", "")
-        parts = range_str.split("-")
-        start = int(parts[0]) if parts[0] else 0
-        end = int(parts[1]) if parts[1] else file_size - 1
-        chunk_size = end - start + 1
-
-        def iter_file():
-            with open(file, "rb") as f:
-                f.seek(start)
-                remaining = chunk_size
-                while remaining > 0:
-                    chunk = f.read(min(65536, remaining))
-                    if not chunk:
-                        break
-                    yield chunk
-                    remaining -= len(chunk)
-
-        headers = {
-            "Content-Range": f"bytes {start}-{end}/{file_size}",
-            "Accept-Ranges": "bytes",
-            "Content-Length": str(chunk_size),
-            "Content-Type": mime_type,
-        }
-        return StreamingResponse(iter_file(), status_code=206, headers=headers)
-
-    def iter_full():
-        with open(file, "rb") as f:
-            while chunk := f.read(65536):
-                yield chunk
-
-    return StreamingResponse(
-        iter_full(),
-        media_type=mime_type,
-        headers={"Accept-Ranges": "bytes", "Content-Length": str(file_size)},
-    )
 
 
 @app.get("/api/media-info")
@@ -2355,6 +3016,95 @@ def serve_file(path: str, request: Request):
     )
 
 
+@app.get("/api/gallery/list")
+def gallery_list(path: str):
+    """Return the ordered sequence of a gallery folder (own level only).
+
+    Items are served by ``/api/file`` and shaped as ``{"path", "type"}``. The sequence
+    contains images plus non-image *passengers* (``pdf``/``audio``/``archive``/``text``)
+    at their ordered position; unsupported files are skipped.
+    """
+    folder = safe_path(path)
+    if not folder.exists() or not folder.is_dir():
+        raise HTTPException(status_code=404)
+    items = [{"path": to_rel(p), "type": t} for p, t in gallery_sequence(folder)]
+    return {"count": len(items), "items": items}
+
+
+THUMBNAIL_WIDTH = 320
+THUMBNAIL_TIMEOUT_SECONDS = 15
+THUMBNAIL_MAX_BYTES = 50 * 1024 * 1024  # 50 MiB — reject oversized inputs for thumbnailing
+# Hard cap on concurrent ffmpeg thumbnail processes. Spawning one ffmpeg per thumbnail
+# could saturate a low-power NAS (and exhaust the threadpool); requests beyond the cap
+# fail fast with 503 instead of piling up. The frontend serves browser-downscaled full
+# images for the strip, so these endpoints are a lightweight fallback, not the hot path.
+THUMBNAIL_MAX_CONCURRENCY = 2
+_thumbnail_slots = threading.BoundedSemaphore(THUMBNAIL_MAX_CONCURRENCY)
+
+
+def _ffmpeg_thumbnail(*, file: Path | None = None, data: bytes | None = None) -> bytes:
+    """Generate a downscaled JPEG thumbnail via ffmpeg, from a file path or raw bytes
+    (stdin). Shared by image and archive-image thumbnails. No cache.
+
+    Guarded against resource exhaustion: oversized inputs are rejected (413) and the
+    ffmpeg call is bounded by a timeout (504).
+    """
+    if not FFMPEG_BIN:
+        raise HTTPException(status_code=503, detail="ffmpeg not available")
+    if data is not None:
+        if len(data) > THUMBNAIL_MAX_BYTES:
+            raise HTTPException(status_code=413, detail="Input too large for thumbnailing")
+    elif file is not None:
+        try:
+            if file.stat().st_size > THUMBNAIL_MAX_BYTES:
+                raise HTTPException(status_code=413, detail="File too large for thumbnailing")
+        except OSError:
+            pass
+    input_arg = str(file) if file is not None else "pipe:0"
+    cmd = [FFMPEG_BIN, "-v", "error", "-i", input_arg]
+    if file is not None:
+        cmd.insert(1, "-nostdin")
+    cmd += ["-vf", f"scale={THUMBNAIL_WIDTH}:-2", "-frames:v", "1", "-f", "mjpeg", "pipe:1"]
+    if not _thumbnail_slots.acquire(blocking=False):
+        raise HTTPException(status_code=503, detail="Thumbnail service busy")
+    try:
+        # cmd is a fixed flag list; only FFMPEG_BIN (resolved binary) and a safe_path-
+        # validated file path / "pipe:0" vary. shell=False, no user-controlled tokens.
+        completed = subprocess.run(  # nosemgrep: dangerous-subprocess-use-audit
+            cmd,
+            check=True,
+            capture_output=True,
+            shell=False,
+            input=data,
+            timeout=THUMBNAIL_TIMEOUT_SECONDS,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=503, detail="ffmpeg not available") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise HTTPException(status_code=504, detail="Thumbnail generation timed out") from exc
+    except subprocess.CalledProcessError as exc:
+        raise HTTPException(status_code=422, detail="Could not generate thumbnail") from exc
+    finally:
+        _thumbnail_slots.release()
+    if not completed.stdout:
+        raise HTTPException(status_code=422, detail="Empty thumbnail")
+    return completed.stdout
+
+
+@app.get("/api/thumbnail")
+def thumbnail(path: str):
+    """Return a small downscaled JPEG thumbnail for an image, generated on the fly
+    via ffmpeg. No cache: the first gallery image is served full-size by /api/file
+    immediately, and thumbnails are requested lazily by the client.
+    """
+    file = safe_path(path)
+    if not file.exists() or not file.is_file():
+        raise HTTPException(status_code=404)
+    if not is_image(file):
+        raise HTTPException(status_code=415, detail="Not an image")
+    return Response(content=_ffmpeg_thumbnail(file=file), media_type="image/jpeg")
+
+
 @app.get("/api/archive/list")
 def archive_list(path: str):
     """Return ordered list of image names inside a ZIP/CBZ/CBR archive."""
@@ -2394,12 +3144,8 @@ def archive_list(path: str):
     raise HTTPException(status_code=415, detail="Unsupported archive format")
 
 
-@app.get("/api/archive/image")
-def archive_image(path: str, index: int):
-    """Extract and serve the Nth image from a ZIP/CBZ/CBR archive."""
-    file = safe_path(path)
-    if not file.exists() or not file.is_file():
-        raise HTTPException(status_code=404)
+def _archive_image_bytes(file: Path, index: int) -> tuple[bytes, str]:
+    """Return (bytes, mime) for the Nth image inside a ZIP/CBZ/CBR archive."""
     ext = file.suffix.lower()
     if ext in {".zip", ".cbz"}:
         try:
@@ -2411,16 +3157,14 @@ def archive_image(path: str, index: int):
                 )
                 if index < 0 or index >= len(names):
                     raise HTTPException(status_code=404, detail="Image index out of range")
-                data = zf.read(names[index])
-                mime = mimetypes.guess_type(names[index])[0] or "image/jpeg"
+                name = names[index]
+                return zf.read(name), (mimetypes.guess_type(name)[0] or "image/jpeg")
         except zipfile.BadZipFile:
             if ext != ".cbz":
                 raise HTTPException(
                     status_code=422, detail="Cannot read archive: File is not a zip file"
                 ) from None
             ext = ".cbr"  # some CBZ files are RAR-encoded; fall through to RAR handler
-        else:
-            return Response(content=data, media_type=mime)
     if ext == ".cbr":
         try:
             import rarfile  # noqa: PLC0415
@@ -2433,12 +3177,179 @@ def archive_image(path: str, index: int):
                 )
                 if index < 0 or index >= len(names):
                     raise HTTPException(status_code=404, detail="Image index out of range")
-                data = rf.read(names[index])
-                mime = mimetypes.guess_type(names[index])[0] or "image/jpeg"
-            return Response(content=data, media_type=mime)
+                name = names[index]
+                return rf.read(name), (mimetypes.guess_type(name)[0] or "image/jpeg")
+        except HTTPException:
+            raise
         except Exception as exc:
             raise HTTPException(status_code=422, detail=f"Cannot read CBR: {exc}") from exc
     raise HTTPException(status_code=415, detail="Unsupported archive format")
+
+
+@app.get("/api/archive/image")
+def archive_image(path: str, index: int):
+    """Extract and serve the Nth image from a ZIP/CBZ/CBR archive."""
+    file = safe_path(path)
+    if not file.exists() or not file.is_file():
+        raise HTTPException(status_code=404)
+    data, mime = _archive_image_bytes(file, index)
+    return Response(content=data, media_type=mime)
+
+
+@app.get("/api/archive/thumbnail")
+def archive_thumbnail(path: str, index: int):
+    """Return a downscaled thumbnail for the Nth image inside an archive (galleries
+    and archives share one viewer with a thumbnail strip)."""
+    file = safe_path(path)
+    if not file.exists() or not file.is_file():
+        raise HTTPException(status_code=404)
+    data, _ = _archive_image_bytes(file, index)
+    return Response(content=_ffmpeg_thumbnail(data=data), media_type="image/jpeg")
+
+
+# ── Maintenance (logs & restart) ──────────────────────────────────────────────
+
+_LOG_LEVEL_ORDER = {"DEBUG": 10, "INFO": 20, "WARNING": 30, "ERROR": 40, "CRITICAL": 50}
+# Bytes read from the tail of the log file — enough for a few thousand lines
+# without ever loading a full day of logs into memory.
+_LOG_TAIL_BYTES = 1_000_000
+
+
+def _line_level(line: str) -> str | None:
+    """Level of a log line, or None for continuation lines (tracebacks)."""
+    start = line.find("[")
+    if start == -1:
+        return None
+    end = line.find("]", start)
+    if end == -1:
+        return None
+    candidate = line[start + 1 : end]
+    return candidate if candidate in _LOG_LEVEL_ORDER else None
+
+
+def _read_log_tail(path: Path, lines: int, min_level: str | None) -> list[str]:
+    """Last `lines` log lines, optionally filtered from `min_level` upwards.
+
+    Continuation lines (stack traces) inherit the level of the line they
+    follow, so a filtered ERROR keeps its traceback attached.
+    """
+    with open(path, "rb") as fh:
+        fh.seek(0, os.SEEK_END)
+        size = fh.tell()
+        fh.seek(max(0, size - _LOG_TAIL_BYTES))
+        raw = fh.read().decode("utf-8", errors="replace")
+    all_lines = raw.splitlines()
+    # A partial first line is likely truncated mid-record — drop it.
+    if size > _LOG_TAIL_BYTES and all_lines:
+        all_lines = all_lines[1:]
+
+    if min_level:
+        threshold = _LOG_LEVEL_ORDER.get(min_level.upper())
+        if threshold is not None:
+            kept: list[str] = []
+            current = 0
+            for line in all_lines:
+                level = _line_level(line)
+                if level is not None:
+                    current = _LOG_LEVEL_ORDER[level]
+                if current >= threshold:
+                    kept.append(line)
+            all_lines = kept
+
+    return all_lines[-lines:]
+
+
+@app.get("/api/logs")
+def get_logs(
+    lines: int = Query(500, ge=1, le=5000),
+    level: str | None = None,
+):
+    """Tail of the application log file (most recent last).
+
+    Returns `enabled: false` when file logging is off (LOG_DIR empty or the
+    directory could not be created) — the frontend says so instead of showing
+    an empty log.
+    """
+    if LOG_FILE is None or not LOG_FILE.exists():
+        return {
+            "enabled": False,
+            "path": str(LOG_FILE) if LOG_FILE else "",
+            "retention_days": LOG_RETENTION_DAYS,
+            "lines": [],
+        }
+    try:
+        tail = _read_log_tail(LOG_FILE, lines, level)
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"Could not read log file: {exc}") from exc
+    return {
+        "enabled": True,
+        "path": str(LOG_FILE),
+        "retention_days": LOG_RETENTION_DAYS,
+        "lines": tail,
+    }
+
+
+class RestartRequest(BaseModel):
+    force: bool = False  # restart even while a download is running
+
+
+def _active_download_count() -> int:
+    return sum(
+        1
+        for j in _jobs.values()
+        if j.get("type") == "download" and j.get("status") not in _TERMINAL_DOWNLOAD_STATES
+    )
+
+
+def _is_supervised() -> bool:
+    """Whether something will restart the process once it exits.
+
+    Defaults to true inside a container (docker-compose sets
+    `restart: unless-stopped`); override with RESTART_SUPERVISED=0/1.
+    """
+    override = os.environ.get("RESTART_SUPERVISED", "")
+    if override:
+        return override not in ("0", "false", "False")
+    return Path("/.dockerenv").exists()
+
+
+def _terminate_process() -> None:
+    """Terminate the process so the supervisor can start a fresh one.
+
+    Isolated in its own function so tests can replace it — calling it for real
+    would kill the test runner.
+    """
+    os.kill(os.getpid(), signal.SIGTERM)
+
+
+def _delayed_terminate(delay: float = 0.5) -> None:
+    time.sleep(delay)
+    _terminate_process()
+
+
+@app.post("/api/restart")
+def restart_app(request: Request, body: RestartRequest | None = None):
+    """Stop the process; the container supervisor brings it back up.
+
+    Answers *before* terminating so the client can start polling for the new
+    instance. Hoard never restarts itself — outside a supervised container this
+    endpoint simply shuts the application down.
+    """
+    force = bool(body and body.force)
+    active = _active_download_count()
+    if active and not force:
+        raise HTTPException(
+            status_code=409,
+            detail=f"{active} download(s) in progress — pass force=true to restart anyway",
+        )
+    logger.info(
+        "restart requested: ip=%s active_downloads=%d forced=%s",
+        _client_ip(request),
+        active,
+        force,
+    )
+    threading.Thread(target=_delayed_terminate, daemon=True, name="restart").start()
+    return {"ok": True, "supervised": _is_supervised()}
 
 
 # Serve frontend
