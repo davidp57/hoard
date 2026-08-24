@@ -6,6 +6,8 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ## [Non publié]
 
+## [v2.5.0] — 2026-08-24
+
 ### Nouveautés
 - **Historique des téléchargements** : le bouton 📥 garde maintenant la trace de **tout** ce que tu as téléchargé, avec la date et le résultat. Jusqu'ici la liste s'effaçait au bout d'une heure et à chaque redémarrage du NAS : un téléchargement raté ne laissait aucune trace, impossible de savoir s'il avait échoué ou n'était jamais parti. Les échecs affichent désormais leur cause, et un bouton **Aller au fichier** ouvre le dossier du fichier téléchargé. L'historique est conservé sans limite de durée.
 - **Consulter le journal depuis Hoard** : **Paramètres → Maintenance → Journal** affiche l'activité du serveur des **30 derniers jours** (téléchargements, erreurs, redémarrages), avec filtre par niveau et bouton de copie. Plus besoin d'ouvrir Portainer pour comprendre ce qui s'est passé.

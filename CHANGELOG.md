@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v2.5.0] - 2026-08-24
+
 ### Added
 - **Historique des téléchargements (BL-075)** : les jobs de téléchargement sont désormais persistés en SQLite (table `downloads`) au lieu de vivre uniquement dans le dict mémoire `_jobs`, purgé au bout d'une heure et perdu à chaque redémarrage du container. Le modal 📥 se scinde en **« En cours »** et **« Historique »**, avec statut final, message d'erreur, date, retrait d'une entrée et bouton « Aller au fichier » pour les téléchargements réussis. Les jobs coupés par un arrêt du processus sont requalifiés `interrupted` au démarrage. Nouveaux endpoints `GET/DELETE /api/downloads` et `DELETE /api/downloads/{id}`, nouveau réglage `download_history_days` (`0` = sans limite, défaut).
 - **Journalisation fichier avec rétention de 30 jours (BL-076)** : ajout d'un `TimedRotatingFileHandler` (rotation à minuit, `backupCount` configurable) écrivant dans `<dossier de DB_PATH>/logs/hoard.log` — donc dans le volume persistant — en plus de la sortie standard. Nouvelles variables `LOG_DIR` (vide = désactivé) et `LOG_RETENTION_DAYS`. Nouveau `GET /api/logs` (lecture par la fin, filtre de niveau conservant les traces multi-lignes) et lecteur de journal dans **Paramètres → Maintenance**. Un dossier de logs non créable ne bloque pas le démarrage.
