@@ -3174,3 +3174,43 @@ class TestDownloadWorkerResilience:
     def test_worker_thread_is_still_running(self):
         alive = [t for t in threading.enumerate() if t.name == "dl-worker" and t.is_alive()]
         assert alive, "the download worker thread is gone"
+
+
+# ── Sourcery review follow-ups on PR #39 ──────────────────────────────────────
+
+
+class TestDownloadHistoryReviewFixes:
+    def _seed(self, rows):
+        with main_mod.get_db() as conn:
+            for i, (status, age_days) in enumerate(rows):
+                conn.execute(
+                    "INSERT INTO downloads (id, url, status, created_at) "
+                    "VALUES (?, ?, ?, datetime('now', ?))",
+                    (f"job-{i}", f"https://example.com/{i}", status, f"-{age_days} days"),
+                )
+            conn.commit()
+
+    def test_total_respects_the_status_filter(self):
+        """A filtered listing must report the filtered count, not the grand total."""
+        self._seed([("done", 0), ("done", 0), ("error", 0), ("cancelled", 0)])
+        assert client.get("/api/downloads").json()["total"] == 4
+        done = client.get("/api/downloads?status=done").json()
+        assert done["total"] == 2 and len(done["items"]) == 2
+        error = client.get("/api/downloads?status=error").json()
+        assert error["total"] == 1
+
+    def test_filtered_total_survives_pagination(self):
+        self._seed([("done", 0)] * 5 + [("error", 0)] * 3)
+        page = client.get("/api/downloads?status=done&limit=2").json()
+        assert page["total"] == 5, "total must count all matching rows, not the page"
+        assert len(page["items"]) == 2
+
+    def test_retention_is_applied_at_startup(self):
+        """An instance that never receives a download must still purge old rows."""
+        client.post("/api/settings", json={"download_history_days": 30})
+        self._seed([("done", 40), ("done", 1)])
+        assert client.get("/api/downloads").json()["total"] == 2
+        # Simulates the module-level call made right after init_db()
+        main_mod._purge_download_history()
+        items = client.get("/api/downloads").json()["items"]
+        assert len(items) == 1, "the 40-day-old entry should have been purged"

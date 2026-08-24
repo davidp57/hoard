@@ -3447,6 +3447,8 @@ async function _initDlQueue() {
 
 // ── Download history (persistent, survives restarts) ──────────────────────────
 let _dlHistory = [];
+let _dlHistoryTotal = 0;
+const _DL_HISTORY_PAGE = 100;
 
 const _DL_HISTORY_LABELS = {
   done: { icon: '✓', text: 'Terminé', cls: 'done' },
@@ -3470,12 +3472,18 @@ function _renderDlHistory() {
   const list = document.getElementById('dl-history-list');
   const count = document.getElementById('dl-history-count');
   if (!list) return;
-  if (count) count.textContent = _dlHistory.length ? `(${_dlHistory.length})` : '';
+  if (count) {
+    count.textContent = _dlHistoryTotal
+      ? (_dlHistory.length < _dlHistoryTotal
+        ? `(${_dlHistory.length} / ${_dlHistoryTotal})`
+        : `(${_dlHistoryTotal})`)
+      : '';
+  }
   if (_dlHistory.length === 0) {
     list.innerHTML = '<div class="dl-empty">Aucun téléchargement enregistré.</div>';
     return;
   }
-  list.innerHTML = _dlHistory.map(item => {
+  const rows = _dlHistory.map(item => {
     const label = _DL_HISTORY_LABELS[item.status]
       || { icon: '⌛', text: item.status, cls: '' };
     const name = item.output_name || item.title || item.url;
@@ -3494,26 +3502,50 @@ function _renderDlHistory() {
       ${item.error ? `<div class="dl-job-err">${_esc(item.error)}</div>` : ''}
     </div>`;
   }).join('');
+  // Older entries stay reachable: the list is paginated, not truncated.
+  const more = _dlHistory.length < _dlHistoryTotal
+    ? `<button class="s-btn" onclick="loadMoreDlHistory()" style="align-self:center;margin-top:4px">Charger plus (${_dlHistoryTotal - _dlHistory.length} restants)</button>`
+    : '';
+  list.innerHTML = rows + more;
 }
 
-async function refreshDlHistory() {
-  const data = await fetch(`${API}/api/downloads?limit=200`).then(r => r.json()).catch(() => null);
-  if (!data) return;
-  _dlHistory = data.items || [];
+async function _loadDlHistoryPage(reset) {
+  const offset = reset ? 0 : _dlHistory.length;
+  const data = await fetch(`${API}/api/downloads?limit=${_DL_HISTORY_PAGE}&offset=${offset}`)
+    .then(r => (r.ok ? r.json() : null)).catch(() => null);
+  if (!data) { showToast('Historique indisponible'); return; }
+  _dlHistory = reset ? (data.items || []) : _dlHistory.concat(data.items || []);
+  _dlHistoryTotal = data.total || 0;
   _renderDlHistory();
 }
 
+async function refreshDlHistory() {
+  await _loadDlHistoryPage(true);
+}
+
+async function loadMoreDlHistory() {
+  await _loadDlHistoryPage(false);
+}
+
 async function deleteDlHistoryEntry(id) {
-  await fetch(`${API}/api/downloads/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
+  // Only drop it locally once the server confirms — otherwise the entry silently
+  // reappears on the next refresh and the UI has lied about deleting it.
+  const ok = await fetch(`${API}/api/downloads/${encodeURIComponent(id)}`, { method: 'DELETE' })
+    .then(r => r.ok).catch(() => false);
+  if (!ok) { showToast('Suppression impossible'); return; }
   _dlHistory = _dlHistory.filter(i => i.id !== id);
+  _dlHistoryTotal = Math.max(0, _dlHistoryTotal - 1);
   _renderDlHistory();
 }
 
 async function clearDlHistory() {
   if (_dlHistory.length === 0) return;
   if (!confirm('Vider tout l’historique des téléchargements ?\n(Les fichiers déjà téléchargés ne sont pas supprimés.)')) return;
-  await fetch(`${API}/api/downloads`, { method: 'DELETE' }).catch(() => {});
+  const ok = await fetch(`${API}/api/downloads`, { method: 'DELETE' })
+    .then(r => r.ok).catch(() => false);
+  if (!ok) { showToast('Impossible de vider l’historique'); return; }
   _dlHistory = [];
+  _dlHistoryTotal = 0;
   _renderDlHistory();
 }
 

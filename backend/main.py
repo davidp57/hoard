@@ -359,6 +359,25 @@ def mark_interrupted_downloads():
         logger.info("marked %d interrupted download(s) at startup", cur.rowcount)
 
 
+def _purge_download_history() -> None:
+    """Drop history rows older than the configured retention (0 = keep forever)."""
+    try:
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT value FROM settings WHERE key='download_history_days'"
+            ).fetchone()
+            days = int(row["value"]) if row and str(row["value"]).strip() else 0
+            if days <= 0:
+                return
+            conn.execute(
+                "DELETE FROM downloads WHERE created_at < datetime('now', ?)",
+                (f"-{days} days",),
+            )
+            conn.commit()
+    except (sqlite3.Error, ValueError) as exc:
+        logger.warning("could not purge download history: %s", exc)
+
+
 def reload_media_root():
     """Override MEDIA_ROOT from DB settings if set."""
     with get_db() as conn:
@@ -371,6 +390,7 @@ def reload_media_root():
 
 init_db()
 mark_interrupted_downloads()
+_purge_download_history()  # retention must apply even if no download is ever started
 reload_media_root()
 print(f"Hoard v{VERSION} — media: {MEDIA_ROOT}")
 
@@ -522,25 +542,6 @@ def _persist_download(job: dict) -> None:
             conn.commit()
     except sqlite3.Error as exc:
         logger.warning("could not persist download %s: %s", job.get("id"), exc)
-
-
-def _purge_download_history() -> None:
-    """Drop history rows older than the configured retention (0 = keep forever)."""
-    try:
-        with get_db() as conn:
-            row = conn.execute(
-                "SELECT value FROM settings WHERE key='download_history_days'"
-            ).fetchone()
-            days = int(row["value"]) if row and str(row["value"]).strip() else 0
-            if days <= 0:
-                return
-            conn.execute(
-                "DELETE FROM downloads WHERE created_at < datetime('now', ?)",
-                (f"-{days} days",),
-            )
-            conn.commit()
-    except (sqlite3.Error, ValueError) as exc:
-        logger.warning("could not purge download history: %s", exc)
 
 
 def _fmt_hms(s: float) -> str:
@@ -2161,17 +2162,21 @@ def list_downloads(
     offset: int = Query(0, ge=0),
     status: str | None = None,
 ):
-    """Persistent download history, most recent first."""
-    sql = "SELECT * FROM downloads"
-    params: list = []
-    if status:
-        sql += " WHERE status = ?"
-        params.append(status)
-    sql += " ORDER BY created_at DESC, rowid DESC LIMIT ? OFFSET ?"
-    params.extend([limit, offset])
+    """Persistent download history, most recent first.
+
+    `total` counts the rows matching the same filter as `items`, so a paginating
+    client can trust it to know whether more pages exist.
+    """
+    where = " WHERE status = ?" if status else ""
+    filter_params: tuple = (status,) if status else ()
     with get_db() as conn:
-        rows = conn.execute(sql, params).fetchall()
-        total = conn.execute("SELECT COUNT(*) AS n FROM downloads").fetchone()["n"]
+        rows = conn.execute(
+            f"SELECT * FROM downloads{where} ORDER BY created_at DESC, rowid DESC LIMIT ? OFFSET ?",
+            (*filter_params, limit, offset),
+        ).fetchall()
+        total = conn.execute(
+            f"SELECT COUNT(*) AS n FROM downloads{where}", filter_params
+        ).fetchone()["n"]
     return {"total": total, "items": [dict(r) for r in rows]}
 
 
