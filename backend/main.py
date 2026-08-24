@@ -338,7 +338,6 @@ def init_db():
 # Download states that never change again once reached. 'interrupted' only ever
 # comes from mark_interrupted_downloads() — a job can't reach it while running.
 _TERMINAL_DOWNLOAD_STATES = ("done", "error", "cancelled", "interrupted")
-_TERMINAL_DOWNLOAD_PLACEHOLDERS = ",".join("?" * len(_TERMINAL_DOWNLOAD_STATES))
 
 
 def mark_interrupted_downloads():
@@ -349,10 +348,14 @@ def mark_interrupted_downloads():
     this, the history would show downloads stuck 'running' forever.
     """
     with get_db() as conn:
+        # Spelled out rather than built from _TERMINAL_DOWNLOAD_STATES so no SQL
+        # string is assembled at runtime. NOT IN (rather than listing the
+        # non-terminal states) keeps this safe by default: an unknown status is
+        # treated as unfinished. test_unknown_status_is_treated_as_unfinished
+        # locks that in, and guards against the tuple drifting from this list.
         cur = conn.execute(
             "UPDATE downloads SET status='interrupted', finished_at=CURRENT_TIMESTAMP "
-            f"WHERE status NOT IN ({_TERMINAL_DOWNLOAD_PLACEHOLDERS})",
-            _TERMINAL_DOWNLOAD_STATES,
+            "WHERE status NOT IN ('done', 'error', 'cancelled', 'interrupted')"
         )
         conn.commit()
     if cur.rowcount:
@@ -2167,16 +2170,24 @@ def list_downloads(
     `total` counts the rows matching the same filter as `items`, so a paginating
     client can trust it to know whether more pages exist.
     """
-    where = " WHERE status = ?" if status else ""
-    filter_params: tuple = (status,) if status else ()
+    # Both branches are spelled out as whole literal statements: no SQL string is
+    # ever assembled at runtime (project rule, and it keeps scanners quiet).
     with get_db() as conn:
-        rows = conn.execute(
-            f"SELECT * FROM downloads{where} ORDER BY created_at DESC, rowid DESC LIMIT ? OFFSET ?",
-            (*filter_params, limit, offset),
-        ).fetchall()
-        total = conn.execute(
-            f"SELECT COUNT(*) AS n FROM downloads{where}", filter_params
-        ).fetchone()["n"]
+        if status:
+            rows = conn.execute(
+                "SELECT * FROM downloads WHERE status = ? "
+                "ORDER BY created_at DESC, rowid DESC LIMIT ? OFFSET ?",
+                (status, limit, offset),
+            ).fetchall()
+            total = conn.execute(
+                "SELECT COUNT(*) AS n FROM downloads WHERE status = ?", (status,)
+            ).fetchone()["n"]
+        else:
+            rows = conn.execute(
+                "SELECT * FROM downloads ORDER BY created_at DESC, rowid DESC LIMIT ? OFFSET ?",
+                (limit, offset),
+            ).fetchall()
+            total = conn.execute("SELECT COUNT(*) AS n FROM downloads").fetchone()["n"]
     return {"total": total, "items": [dict(r) for r in rows]}
 
 

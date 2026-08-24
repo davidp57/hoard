@@ -3214,3 +3214,26 @@ class TestDownloadHistoryReviewFixes:
         main_mod._purge_download_history()
         items = client.get("/api/downloads").json()["items"]
         assert len(items) == 1, "the 40-day-old entry should have been purged"
+
+    def test_unknown_status_is_treated_as_unfinished(self):
+        """The interrupted sweep lists terminal states literally in SQL.
+
+        It must stay in sync with _TERMINAL_DOWNLOAD_STATES: anything not in
+        that tuple is unfinished and gets swept, anything in it is left alone.
+        """
+        with main_mod.get_db() as conn:
+            conn.execute(
+                "INSERT INTO downloads (id, url, status) VALUES (?, ?, ?)",
+                ("weird", "https://example.com/w", "some-future-state"),
+            )
+            for state in main_mod._TERMINAL_DOWNLOAD_STATES:
+                conn.execute(
+                    "INSERT INTO downloads (id, url, status) VALUES (?, ?, ?)",
+                    (f"term-{state}", "https://example.com/t", state),
+                )
+            conn.commit()
+        main_mod.mark_interrupted_downloads()
+        by_id = {e["id"]: e for e in client.get("/api/downloads?limit=1000").json()["items"]}
+        assert by_id["weird"]["status"] == "interrupted"
+        for state in main_mod._TERMINAL_DOWNLOAD_STATES:
+            assert by_id[f"term-{state}"]["status"] == state
