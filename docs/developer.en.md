@@ -59,6 +59,9 @@ hoard/
 | `SSL_KEYFILE` | *(unset)* | Path to the matching PEM private key file. |
 | `JOB_TTL_SECONDS` | `3600` | Seconds a terminal download/export job is kept in memory before being purged. |
 | `LOG_LEVEL` | `INFO` | Logging level for the `hoard` logger (audit trail). |
+| `LOG_DIR` | `<DB_PATH dir>/logs` | Directory for the rotating log file. Empty string disables file logging (stdout only) — the test suite sets it empty. |
+| `LOG_RETENTION_DAYS` | `30` | `backupCount` of the `TimedRotatingFileHandler` (daily rotation at midnight). |
+| `RESTART_SUPERVISED` | *(auto)* | `0`/`1`. Overrides the container auto-detection (`/.dockerenv`) used to word the restart confirmation in the UI. |
 | `HOARD_AUTH_USER` | *(unset)* | Username for optional HTTP Basic auth. Auth is enabled only when both this and `HOARD_AUTH_PASS` are set. |
 | `HOARD_AUTH_PASS` | *(unset)* | Password for optional HTTP Basic auth. |
 
@@ -132,6 +135,11 @@ are not sent in clear text.
 | POST | `/api/download` | Download a web video via yt-dlp `{url, cookies?, referer?, title?}` |
 | POST | `/api/jobs/{job_id}/cancel` | Cancel a pending or running download job |
 | DELETE | `/api/jobs/{job_id}` | Remove a completed/failed/cancelled job from the in-memory store |
+| GET | `/api/downloads` | Persistent download history `?limit=&offset=&status=` → `{total, items}` |
+| DELETE | `/api/downloads` | Clear the whole history (files untouched) |
+| DELETE | `/api/downloads/{id}` | Remove one history entry |
+| GET | `/api/logs` | Tail of the log file `?lines=&level=` → `{enabled, path, retention_days, lines}` |
+| POST | `/api/restart` | Terminate the process so the supervisor restarts it `{force?}` → `{ok, supervised}` |
 
 ### Galleries
 
@@ -201,6 +209,19 @@ CREATE TABLE segments (
     seg_out REAL NOT NULL
 );
 -- index: idx_segments_path ON segments(path)
+
+CREATE TABLE downloads (
+    id          TEXT PRIMARY KEY,   -- job uuid
+    url         TEXT NOT NULL,
+    title       TEXT,               -- bookmarklet page-title hint
+    output_name TEXT,               -- final filename
+    output_path TEXT,               -- path relative to MEDIA_ROOT
+    status      TEXT NOT NULL,      -- pending|resolving|running|done|error|cancelled|interrupted
+    error       TEXT,
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    finished_at TIMESTAMP
+);
+-- index: idx_downloads_created ON downloads(created_at DESC)
 ```
 
 ### Initial Sweep
@@ -221,9 +242,15 @@ Video cuts (`/api/files/cut`) run in individual daemon threads. Web downloads us
 - **Phase 1 (immediate thread)**: when `POST /api/download` is called, a dedicated thread starts immediately, sets the job to `resolving`, fills in a filename preview from the `title` hint, then transitions to `pending` and adds the job to `queue.Queue`.
 - **Phase 2 (queue worker)**: a single daemon thread (`dl-worker`) dequeues jobs one at a time and runs the yt-dlp download, preventing bandwidth overload.
 
-**Job status lifecycle:** `pending` → `resolving` → `pending` (with filename) → `running` → `done` / `error` / `cancelled`
+**Job status lifecycle:** `pending` → `resolving` → `pending` (with filename) → `running` → `done` / `error` / `cancelled`. History rows can additionally carry `interrupted`, set at startup for jobs the process never finished.
 
 All job state is held in memory in `_jobs: dict[str, dict]`. Fields prefixed with `_` are private and stripped before JSON serialization by `_job_for_api()`. The `/api/jobs` endpoint lets the frontend poll for progress.
+
+**Download persistence.** `_jobs` is the hot store only — entries are purged `JOB_TTL_SECONDS` after reaching a terminal state and vanish on restart. Every meaningful transition of a `download` job is therefore mirrored into the `downloads` table by `_persist_download()`, which the `/api/downloads` history reads back. A DB failure there is logged and swallowed: persistence must never break a download.
+
+At startup, `mark_interrupted_downloads()` flips any row still in a non-terminal state to `interrupted` — the process died mid-download, and without this the history would show jobs stuck `running` forever. Retention is driven by the `download_history_days` setting (`0` = keep forever, the default) and applied by `_purge_download_history()`.
+
+**Worker resilience (BL-078).** `_download_worker_loop` catches every exception escaping `_run_download`. Before that fix, any unexpected error (a broken yt-dlp import, a job removed mid-flight) propagated out of the `while True` loop and killed the `dl-worker` thread permanently: all later downloads then sat in `pending` forever with no error surfaced anywhere. The handler now logs the traceback, marks the job `error`, and keeps the thread alive.
 
 ### Download Endpoint (`POST /api/download`)
 

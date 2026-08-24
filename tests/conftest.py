@@ -18,6 +18,8 @@ DATA_DIR.mkdir(parents=True)
 
 os.environ["MEDIA_ROOT"] = str(MEDIA_DIR)
 os.environ["DB_PATH"] = str(DATA_DIR / "test.db")
+# Disable file logging: the test suite must not write outside its temp dir.
+os.environ["LOG_DIR"] = ""
 
 
 # ── Shared fixtures ───────────────────────────────────────────────────────────
@@ -45,6 +47,7 @@ def clean_media():
         _conn.execute("DELETE FROM home_roots")
         _conn.execute("DELETE FROM file_tags")
         _conn.execute("DELETE FROM segments")
+        _conn.execute("DELETE FROM downloads")
         _conn.commit()
     finally:
         _conn.close()

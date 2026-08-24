@@ -20,6 +20,7 @@ Convention détaillée : [`docs/agents/issue-tracker.md`](../docs/agents/issue-t
 | [FEAT-ADVANCED](FEAT-ADVANCED/PRD.md) — Fonctionnalités avancées (thème clair BL-013, multi-utilisateur BL-015) | ⬜ |
 | [ARCH-PERF](ARCH-PERF/PRD.md) — Architecture & Performance (split `main.py` BL-041, transcodage HW BL-042) | ⬜ |
 | [FEAT-GALLERY](FEAT-GALLERY/PRD.md) — Galeries d'images (dossier comme média opaque, comme une archive) | ✅ |
+| [OPS-VISIBILITY](OPS-VISIBILITY/PRD.md) — Traçabilité & exploitation (historique de téléchargement BL-075, rétention des logs BL-076, redémarrage depuis l'UI BL-077, résilience du worker BL-078) | ✅ |
 
 ## Lots archivés
 

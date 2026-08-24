@@ -6,7 +6,13 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ## [Non publié]
 
+### Nouveautés
+- **Historique des téléchargements** : le bouton 📥 garde maintenant la trace de **tout** ce que tu as téléchargé, avec la date et le résultat. Jusqu'ici la liste s'effaçait au bout d'une heure et à chaque redémarrage du NAS : un téléchargement raté ne laissait aucune trace, impossible de savoir s'il avait échoué ou n'était jamais parti. Les échecs affichent désormais leur cause, et un bouton **Aller au fichier** ouvre le dossier du fichier téléchargé. L'historique est conservé sans limite de durée.
+- **Consulter le journal depuis Hoard** : **Paramètres → Maintenance → Journal** affiche l'activité du serveur des **30 derniers jours** (téléchargements, erreurs, redémarrages), avec filtre par niveau et bouton de copie. Plus besoin d'ouvrir Portainer pour comprendre ce qui s'est passé.
+- **Redémarrer Hoard depuis les réglages** : un bouton **↻ Redémarrer Hoard** dans **Paramètres → Maintenance** relance l'application sans passer par le NAS. Si un téléchargement est en cours, Hoard prévient avant. La page se recharge toute seule une fois le serveur revenu.
+
 ### Corrections
+- **Téléchargements qui restaient bloqués « en attente » pour toujours** : quand un téléchargement plantait d'une certaine façon, le mécanisme qui traite la file s'arrêtait définitivement — sans le dire. Tous les téléchargements suivants restaient alors en attente indéfiniment, sans jamais démarrer ni signaler d'erreur, jusqu'au redémarrage du NAS. C'est corrigé : un téléchargement en échec affiche désormais son erreur, et les suivants s'enchaînent normalement.
 - **Bookmarklet de téléchargement sur certains sites** : sur des sites qui bloquent les requêtes vers un site externe (fréquent sur les sites de streaming chargés de publicités), la bookmarklet affichait juste « Hoard non joignable » sans solution. Elle ouvre désormais automatiquement Hoard dans un nouvel onglet pour terminer le téléchargement dans ce cas.
 - **Aide clavier lisible** : la fenêtre d'aide (touche `?`) s'affichait en texte sombre sur fond sombre sur PC/Firefox. Elle est de nouveau parfaitement lisible.
 

@@ -354,6 +354,26 @@ All downloads are tracked in a central queue accessible from the **📥** button
 - **Downloads continue even if you close the tab**: they run as backend threads on the NAS. When you return to Hoard, the queue widget automatically reconnects to in-progress jobs.
 - **Auto-refresh**: when a download completes, the file browser automatically refreshes if you are currently browsing the download folder.
 
+### Download History
+
+The **📥** modal has two parts:
+
+- **In progress** — the current queue (progress, cancel, dismiss), which disappears once emptied.
+- **History** — the **permanent** list of everything that was downloaded, stored in the database. Unlike the queue, it survives a NAS restart and never expires.
+
+Each row shows the filename, the date, and the outcome:
+
+| Status | Meaning |
+|--------|---------|
+| ✓ Done | The file made it. **Aller au fichier** opens its folder and highlights it. |
+| ✗ Failed | The download failed. The error message is shown under the row. |
+| ⊘ Cancelled | You stopped the download. |
+| ⚠ Interrupted (restart) | Hoard stopped mid-download. The file did not make it — start it again. |
+
+**Vider** clears the history (downloaded files are never touched); **✕** removes a single row.
+
+History is kept **without any limit** by default — that is precisely what lets you find an old download again. To bound it: **Settings → Maintenance → Historique des téléchargements**, in days (`0` = unlimited).
+
 ### Settings
 
 | Setting | Description |
@@ -364,10 +384,35 @@ All downloads are tracked in a central queue accessible from the **📥** button
 | **Home roots** | Named root folders shown on the home screen. Add or remove them in **Settings → Home roots**. |
 | **Download folder** | Target folder, relative to `MEDIA_ROOT` (default: `Downloads`). Created automatically if it does not exist. |
 | **Cookies file path** | Absolute path to a Netscape `cookies.txt` file. Useful for sites that require authentication. |
+| **Download history** | Days of download history kept (**Settings → Maintenance**). `0` = unlimited (default). |
 
 ### About Cookies
 
 The bookmarklet forwards `document.cookie` from the source page. Note that **HttpOnly cookies are not accessible to JavaScript** — for sites where those are required (e.g. streaming platforms), export a `cookies.txt` file with a browser extension and specify its path in Settings.
+
+---
+
+## Maintenance
+
+The **Settings → Maintenance** section covers everyday operational tasks.
+
+### Log
+
+Hoard records its events (downloads started, completed, failed, restart requests) in a file kept for **30 days**, on top of the container logs. The log can be read right here:
+
+- Pick how many lines to show (100 / 500 / 2000).
+- Filter by level: all, info, warnings, errors.
+- **↻** refreshes, **Copier** puts the content on the clipboard (handy for pasting into an issue).
+
+Lines are in chronological order, newest at the bottom.
+
+### Restart Hoard
+
+The **↻ Redémarrer Hoard** button restarts the application without going through Portainer or the NAS. Useful after a low-level setting change, or when something misbehaves.
+
+- If a download is running, Hoard asks for an extra confirmation: restarting **permanently interrupts** it (it will show up as *Interrupted* in the history).
+- Once triggered, the page waits for the server to come back and reloads on its own (up to 60 s). Past that, a message suggests checking the container.
+- Hoard never restarts itself: the container does (`restart: unless-stopped` in `docker-compose.yml`). Outside a container the button **shuts the application down** — the confirmation message says so explicitly.
 
 ---
 

@@ -4,11 +4,13 @@ import hmac
 import ipaddress
 import json
 import logging
+import logging.handlers
 import mimetypes
 import os
 import queue as _queue_module
 import re
 import shutil
+import signal
 import sqlite3
 import string as _string
 import subprocess
@@ -28,12 +30,47 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 # ── Logging ──────────────────────────────────────────────────────────────────
+# This block must stay at the very top: every logger.* call below depends on it.
+# The default log directory sits next to the SQLite database (a persistent volume
+# in production), hence the direct DB_PATH env read — the DB_PATH constant itself
+# is defined further down, in the Config section.
 _log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
+_LOG_FORMAT = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+_default_log_dir = Path(os.environ.get("DB_PATH", "/data/progress.db")).parent / "logs"
+# Empty LOG_DIR disables file logging entirely (used by the test suite).
+LOG_DIR = os.environ.get("LOG_DIR", str(_default_log_dir))
+LOG_RETENTION_DAYS = int(os.environ.get("LOG_RETENTION_DAYS", "30"))
+
+LOG_FILE: Path | None = None
+_log_handlers: list[logging.Handler] = [logging.StreamHandler()]
+_log_setup_error: str | None = None
+
+if LOG_DIR:
+    try:
+        log_dir_path = Path(LOG_DIR)
+        log_dir_path.mkdir(parents=True, exist_ok=True)
+        LOG_FILE = log_dir_path / "hoard.log"
+        _log_handlers.append(
+            logging.handlers.TimedRotatingFileHandler(
+                LOG_FILE,
+                when="midnight",
+                backupCount=LOG_RETENTION_DAYS,
+                encoding="utf-8",
+            )
+        )
+    except OSError as exc:
+        # Never fail startup because of logging — fall back to stdout only.
+        LOG_FILE = None
+        _log_setup_error = f"file logging disabled ({LOG_DIR}): {exc}"
+
 logging.basicConfig(
     level=getattr(logging, _log_level, logging.INFO),
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    format=_LOG_FORMAT,
+    handlers=_log_handlers,
 )
 logger = logging.getLogger("hoard")
+if _log_setup_error:
+    logger.warning(_log_setup_error)
 
 # ── Config ────────────────────────────────────────────────────────────────────
 MEDIA_ROOT = Path(os.environ.get("MEDIA_ROOT", "/media"))
@@ -269,6 +306,24 @@ def init_db():
             )
         """)
         conn.execute("CREATE INDEX IF NOT EXISTS idx_segments_path ON segments(path)")
+        # Durable mirror of download jobs: _jobs is the hot store, this table is
+        # the history that survives the job TTL and container restarts.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS downloads (
+                id          TEXT PRIMARY KEY,
+                url         TEXT NOT NULL,
+                title       TEXT,
+                output_name TEXT,
+                output_path TEXT,
+                status      TEXT NOT NULL,
+                error       TEXT,
+                created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                finished_at TIMESTAMP
+            )
+        """)
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_downloads_created ON downloads(created_at DESC)"
+        )
         # Covering index for the progress-map scan in /api/files & /api/search
         # (SELECT path, position, duration ... WHERE duration > 0). progress.path
         # is already the PRIMARY KEY, so per-path lookups are indexed; this index
@@ -278,6 +333,30 @@ def init_db():
             "CREATE INDEX IF NOT EXISTS idx_progress_active ON progress(duration, position, path)"
         )
         conn.commit()
+
+
+# Download states that never change again once reached. 'interrupted' only ever
+# comes from mark_interrupted_downloads() — a job can't reach it while running.
+_TERMINAL_DOWNLOAD_STATES = ("done", "error", "cancelled", "interrupted")
+_TERMINAL_DOWNLOAD_PLACEHOLDERS = ",".join("?" * len(_TERMINAL_DOWNLOAD_STATES))
+
+
+def mark_interrupted_downloads():
+    """Requalify downloads left mid-flight by a shutdown.
+
+    Any row still in a non-terminal state at startup belonged to a job the
+    process never finished — the container restarted underneath it. Without
+    this, the history would show downloads stuck 'running' forever.
+    """
+    with get_db() as conn:
+        cur = conn.execute(
+            "UPDATE downloads SET status='interrupted', finished_at=CURRENT_TIMESTAMP "
+            f"WHERE status NOT IN ({_TERMINAL_DOWNLOAD_PLACEHOLDERS})",
+            _TERMINAL_DOWNLOAD_STATES,
+        )
+        conn.commit()
+    if cur.rowcount:
+        logger.info("marked %d interrupted download(s) at startup", cur.rowcount)
 
 
 def reload_media_root():
@@ -291,6 +370,7 @@ def reload_media_root():
 
 
 init_db()
+mark_interrupted_downloads()
 reload_media_root()
 print(f"Hoard v{VERSION} — media: {MEDIA_ROOT}")
 
@@ -389,6 +469,78 @@ def _purge_old_jobs() -> None:
             job["_finished_at"] = now
         elif now - finished > JOB_TTL_SECONDS:
             del _jobs[job_id]
+
+
+def _download_output_rel(job: dict) -> str | None:
+    """Relative path of a finished download, or None if not resolvable yet."""
+    name = job.get("output_name")
+    output_dir = (job.get("_params") or {}).get("output_dir")
+    if not name or not output_dir:
+        return None
+    try:
+        return to_rel(Path(output_dir) / name)
+    except ValueError:
+        # Destination outside MEDIA_ROOT (shouldn't happen — safe_path guards it)
+        return None
+
+
+def _persist_download(job: dict) -> None:
+    """Mirror a download job into the `downloads` history table.
+
+    Called on every meaningful transition. Failure to persist must never break
+    a download, so DB errors are swallowed with a warning.
+    """
+    if job.get("type") != "download":
+        return
+    params = job.get("_params") or {}
+    finished = job.get("status") in _TERMINAL_DOWNLOAD_STATES
+    try:
+        with get_db() as conn:
+            conn.execute(
+                """
+                INSERT INTO downloads (id, url, title, output_name, output_path,
+                                       status, error, finished_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, CASE WHEN ? THEN CURRENT_TIMESTAMP END)
+                ON CONFLICT(id) DO UPDATE SET
+                    output_name = excluded.output_name,
+                    output_path = excluded.output_path,
+                    status      = excluded.status,
+                    error       = excluded.error,
+                    finished_at = COALESCE(downloads.finished_at, excluded.finished_at)
+                """,
+                (
+                    job["id"],
+                    job.get("url", ""),
+                    params.get("title"),
+                    job.get("output_name") or None,
+                    _download_output_rel(job),
+                    job.get("status", ""),
+                    job.get("error"),
+                    1 if finished else 0,
+                ),
+            )
+            conn.commit()
+    except sqlite3.Error as exc:
+        logger.warning("could not persist download %s: %s", job.get("id"), exc)
+
+
+def _purge_download_history() -> None:
+    """Drop history rows older than the configured retention (0 = keep forever)."""
+    try:
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT value FROM settings WHERE key='download_history_days'"
+            ).fetchone()
+            days = int(row["value"]) if row and str(row["value"]).strip() else 0
+            if days <= 0:
+                return
+            conn.execute(
+                "DELETE FROM downloads WHERE created_at < datetime('now', ?)",
+                (f"-{days} days",),
+            )
+            conn.commit()
+    except (sqlite3.Error, ValueError) as exc:
+        logger.warning("could not purge download history: %s", exc)
 
 
 def _fmt_hms(s: float) -> str:
@@ -800,9 +952,11 @@ def _run_download(
     # Bail out early if already cancelled while waiting in the queue
     if cancel_event.is_set():
         job["status"] = "cancelled"
+        _persist_download(job)
         return
 
     job["status"] = "running"
+    _persist_download(job)
 
     tmp_cookies_file: str | None = None
 
@@ -919,6 +1073,8 @@ def _run_download(
             job["error"] = str(e)
             logger.warning("download failed: name=%s error=%s", job.get("source_name"), e)
     finally:
+        # Record the outcome whatever happened — this is the history entry.
+        _persist_download(job)
         if tmp_cookies_file:
             try:
                 os.unlink(tmp_cookies_file)
@@ -944,6 +1100,7 @@ def _prepare_download(job_id: str) -> None:
 
     if cancel_event.is_set():
         job["status"] = "cancelled"
+        _persist_download(job)
         return
 
     job["status"] = "resolving"
@@ -957,9 +1114,12 @@ def _prepare_download(job_id: str) -> None:
 
     if cancel_event.is_set():
         job["status"] = "cancelled"
+        _persist_download(job)
         return
 
     job["status"] = "pending"
+    # Persist the filename preview so an interrupted job is still identifiable.
+    _persist_download(job)
     _enqueue_download(job_id)
 
 
@@ -974,6 +1134,7 @@ def _download_worker_loop() -> None:
             # Job may have been cancelled while waiting in the queue
             if job.get("_cancel_event") and job["_cancel_event"].is_set():
                 job["status"] = "cancelled"
+                _persist_download(job)
                 continue
             p = job["_params"]
             _run_download(
@@ -985,6 +1146,17 @@ def _download_worker_loop() -> None:
                 p.get("referer"),
                 p.get("title"),
             )
+        except Exception as exc:
+            # Anything escaping _run_download (a missing yt-dlp, a job removed
+            # mid-flight...) used to kill this thread for good: every later
+            # download then sat in 'pending' forever with no error anywhere.
+            # Surface it on the job and keep the worker alive.
+            logger.exception("download worker error on job %s: %s", job_id, exc)
+            job = _jobs.get(job_id)
+            if job is not None and job.get("status") not in _TERMINAL_DOWNLOAD_STATES:
+                job["status"] = "error"
+                job["error"] = f"{type(exc).__name__}: {exc}"
+                _persist_download(job)
         finally:
             _download_task_queue.task_done()
 
@@ -1976,6 +2148,50 @@ def cancel_job(job_id: str):
     # Signal the cancel event; the worker / progress hook will pick it up
     job["_cancel_event"].set()
     job["status"] = "cancelled"
+    _persist_download(job)
+    return {"ok": True}
+
+
+# ── Download history ──────────────────────────────────────────────────────────
+
+
+@app.get("/api/downloads")
+def list_downloads(
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    status: str | None = None,
+):
+    """Persistent download history, most recent first."""
+    sql = "SELECT * FROM downloads"
+    params: list = []
+    if status:
+        sql += " WHERE status = ?"
+        params.append(status)
+    sql += " ORDER BY created_at DESC, rowid DESC LIMIT ? OFFSET ?"
+    params.extend([limit, offset])
+    with get_db() as conn:
+        rows = conn.execute(sql, params).fetchall()
+        total = conn.execute("SELECT COUNT(*) AS n FROM downloads").fetchone()["n"]
+    return {"total": total, "items": [dict(r) for r in rows]}
+
+
+@app.delete("/api/downloads")
+def clear_download_history():
+    """Wipe the whole history. Live jobs in _jobs are untouched."""
+    with get_db() as conn:
+        cur = conn.execute("DELETE FROM downloads")
+        conn.commit()
+    return {"ok": True, "deleted": cur.rowcount}
+
+
+@app.delete("/api/downloads/{download_id}")
+def delete_download_entry(download_id: str):
+    """Remove a single history entry (the file itself is never touched)."""
+    with get_db() as conn:
+        cur = conn.execute("DELETE FROM downloads WHERE id = ?", (download_id,))
+        conn.commit()
+    if cur.rowcount == 0:
+        raise HTTPException(status_code=404, detail="History entry not found")
     return {"ok": True}
 
 
@@ -2057,6 +2273,10 @@ def start_download(body: DownloadRequest, request: Request):
             "title": body.title,
         },
     }
+    # Record the attempt right away: a download that never gets off the ground
+    # must still leave a trace in the history.
+    _persist_download(_jobs[job_id])
+    _purge_download_history()
     # Phase 1: immediately resolve filename preview and transition to 'resolving'
     # then 'pending', so the bookmarklet toast shows meaningful states even when
     # another download is already running.
@@ -2347,6 +2567,7 @@ _SETTINGS_KEYS = {
     "initial_sweep_seconds",  # seconds int, default 0 = disabled
     "download_folder",  # relative path from MEDIA_ROOT, default 'Downloads'
     "download_cookies_path",  # absolute path to a Netscape cookies.txt file, optional
+    "download_history_days",  # int, 0 = keep history forever (default)
     "transcode_enabled",  # '1' | '0', default '1'
     "transcode_audio_only",  # '1' | '0', default '0' — copy video, transcode audio only (lighter)
     "gamepad_enabled",  # '1' | '0', default '1'
@@ -2380,6 +2601,7 @@ _SETTINGS_DEFAULTS: dict[str, str] = {
     "initial_sweep_seconds": "0",
     "download_folder": "Downloads",
     "download_cookies_path": "",
+    "download_history_days": "0",
     "transcode_enabled": "1",
     "transcode_audio_only": "0",
     "gamepad_enabled": "1",
@@ -2433,6 +2655,7 @@ class SettingsPayload(BaseModel):
     initial_sweep_seconds: int | None = Field(default=None, ge=0, le=7200)
     download_folder: str | None = None
     download_cookies_path: str | None = None
+    download_history_days: int | None = Field(default=None, ge=0, le=3650)
     transcode_enabled: bool | None = None
     transcode_audio_only: bool | None = None
     gamepad_enabled: bool | None = None
@@ -2452,6 +2675,8 @@ def get_settings():
     result["pin_set"] = bool(s.get("pin_hash"))
     result["media_root"] = str(MEDIA_ROOT).replace("\\", "/")
     result["app_version"] = VERSION
+    # Lets the UI word the restart confirmation correctly before calling /api/restart
+    result["restart_supervised"] = _is_supervised()
     return result
 
 
@@ -2568,6 +2793,7 @@ def update_settings(body: SettingsPayload, request: Request):
             ("initial_sweep_seconds", body.initial_sweep_seconds),
             ("download_folder", body.download_folder),
             ("download_cookies_path", body.download_cookies_path),
+            ("download_history_days", body.download_history_days),
             ("gamepad_deadzone", body.gamepad_deadzone),
             ("gamepad_mapping", body.gamepad_mapping),
             ("fs_progress_zoom", body.fs_progress_zoom),
@@ -2963,6 +3189,151 @@ def archive_thumbnail(path: str, index: int):
         raise HTTPException(status_code=404)
     data, _ = _archive_image_bytes(file, index)
     return Response(content=_ffmpeg_thumbnail(data=data), media_type="image/jpeg")
+
+
+# ── Maintenance (logs & restart) ──────────────────────────────────────────────
+
+_LOG_LEVEL_ORDER = {"DEBUG": 10, "INFO": 20, "WARNING": 30, "ERROR": 40, "CRITICAL": 50}
+# Bytes read from the tail of the log file — enough for a few thousand lines
+# without ever loading a full day of logs into memory.
+_LOG_TAIL_BYTES = 1_000_000
+
+
+def _line_level(line: str) -> str | None:
+    """Level of a log line, or None for continuation lines (tracebacks)."""
+    start = line.find("[")
+    if start == -1:
+        return None
+    end = line.find("]", start)
+    if end == -1:
+        return None
+    candidate = line[start + 1 : end]
+    return candidate if candidate in _LOG_LEVEL_ORDER else None
+
+
+def _read_log_tail(path: Path, lines: int, min_level: str | None) -> list[str]:
+    """Last `lines` log lines, optionally filtered from `min_level` upwards.
+
+    Continuation lines (stack traces) inherit the level of the line they
+    follow, so a filtered ERROR keeps its traceback attached.
+    """
+    with open(path, "rb") as fh:
+        fh.seek(0, os.SEEK_END)
+        size = fh.tell()
+        fh.seek(max(0, size - _LOG_TAIL_BYTES))
+        raw = fh.read().decode("utf-8", errors="replace")
+    all_lines = raw.splitlines()
+    # A partial first line is likely truncated mid-record — drop it.
+    if size > _LOG_TAIL_BYTES and all_lines:
+        all_lines = all_lines[1:]
+
+    if min_level:
+        threshold = _LOG_LEVEL_ORDER.get(min_level.upper())
+        if threshold is not None:
+            kept: list[str] = []
+            current = 0
+            for line in all_lines:
+                level = _line_level(line)
+                if level is not None:
+                    current = _LOG_LEVEL_ORDER[level]
+                if current >= threshold:
+                    kept.append(line)
+            all_lines = kept
+
+    return all_lines[-lines:]
+
+
+@app.get("/api/logs")
+def get_logs(
+    lines: int = Query(500, ge=1, le=5000),
+    level: str | None = None,
+):
+    """Tail of the application log file (most recent last).
+
+    Returns `enabled: false` when file logging is off (LOG_DIR empty or the
+    directory could not be created) — the frontend says so instead of showing
+    an empty log.
+    """
+    if LOG_FILE is None or not LOG_FILE.exists():
+        return {
+            "enabled": False,
+            "path": str(LOG_FILE) if LOG_FILE else "",
+            "retention_days": LOG_RETENTION_DAYS,
+            "lines": [],
+        }
+    try:
+        tail = _read_log_tail(LOG_FILE, lines, level)
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"Could not read log file: {exc}") from exc
+    return {
+        "enabled": True,
+        "path": str(LOG_FILE),
+        "retention_days": LOG_RETENTION_DAYS,
+        "lines": tail,
+    }
+
+
+class RestartRequest(BaseModel):
+    force: bool = False  # restart even while a download is running
+
+
+def _active_download_count() -> int:
+    return sum(
+        1
+        for j in _jobs.values()
+        if j.get("type") == "download" and j.get("status") not in _TERMINAL_DOWNLOAD_STATES
+    )
+
+
+def _is_supervised() -> bool:
+    """Whether something will restart the process once it exits.
+
+    Defaults to true inside a container (docker-compose sets
+    `restart: unless-stopped`); override with RESTART_SUPERVISED=0/1.
+    """
+    override = os.environ.get("RESTART_SUPERVISED", "")
+    if override:
+        return override not in ("0", "false", "False")
+    return Path("/.dockerenv").exists()
+
+
+def _terminate_process() -> None:
+    """Terminate the process so the supervisor can start a fresh one.
+
+    Isolated in its own function so tests can replace it — calling it for real
+    would kill the test runner.
+    """
+    os.kill(os.getpid(), signal.SIGTERM)
+
+
+def _delayed_terminate(delay: float = 0.5) -> None:
+    time.sleep(delay)
+    _terminate_process()
+
+
+@app.post("/api/restart")
+def restart_app(request: Request, body: RestartRequest | None = None):
+    """Stop the process; the container supervisor brings it back up.
+
+    Answers *before* terminating so the client can start polling for the new
+    instance. Hoard never restarts itself — outside a supervised container this
+    endpoint simply shuts the application down.
+    """
+    force = bool(body and body.force)
+    active = _active_download_count()
+    if active and not force:
+        raise HTTPException(
+            status_code=409,
+            detail=f"{active} download(s) in progress — pass force=true to restart anyway",
+        )
+    logger.info(
+        "restart requested: ip=%s active_downloads=%d forced=%s",
+        _client_ip(request),
+        active,
+        force,
+    )
+    threading.Thread(target=_delayed_terminate, daemon=True, name="restart").start()
+    return {"ok": True, "supervised": _is_supervised()}
 
 
 # Serve frontend

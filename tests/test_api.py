@@ -3,6 +3,7 @@
 import json
 import sys
 import threading
+import time
 from unittest.mock import MagicMock
 
 import pytest
@@ -1464,7 +1465,7 @@ def _sync_thread_patch(monkeypatch):
     import backend.main as main_mod
 
     class SyncThread:
-        def __init__(self, target, args, daemon=True):
+        def __init__(self, target, args=(), daemon=True, **kwargs):
             self._target = target
             self._args = args
 
@@ -1826,6 +1827,9 @@ class TestDownload:
             trigger["called"] = True
 
         monkeypatch.setitem(sys.modules, "yt_dlp", _make_yt_dlp_mock())
+        # Run the preparation thread inline: without this the assertion below
+        # races the daemon thread started by /api/download.
+        _sync_thread_patch(monkeypatch)
         monkeypatch.setattr(main_mod, "_run_download", intercepted_run)
         monkeypatch.setattr(main_mod, "_enqueue_download", lambda job_id: intercepted_run(job_id))
         resp = client.post("/api/download", json={"url": "https://example.com/video"})
@@ -2893,3 +2897,280 @@ class TestVersion:
             expected = tomllib.load(fh)["project"]["version"]
         assert main_mod.VERSION == expected != "0.0.0"
         assert client.get("/api/settings").json()["app_version"] == expected
+
+
+# ── Download history (BL-075) ─────────────────────────────────────────────────
+
+
+class TestDownloadHistory:
+    def _run_one(self, monkeypatch, url="https://example.com/video"):
+        monkeypatch.setitem(sys.modules, "yt_dlp", _make_yt_dlp_mock())
+        _sync_thread_patch(monkeypatch)
+        return client.post("/api/download", json={"url": url}).json()["job_id"]
+
+    def test_history_empty_initially(self):
+        data = client.get("/api/downloads").json()
+        assert data == {"total": 0, "items": []}
+
+    def test_successful_download_is_recorded(self, monkeypatch):
+        job_id = self._run_one(monkeypatch)
+        data = client.get("/api/downloads").json()
+        assert data["total"] == 1
+        entry = data["items"][0]
+        assert entry["id"] == job_id
+        assert entry["url"] == "https://example.com/video"
+        assert entry["status"] == "done"
+        assert entry["error"] is None
+        assert entry["finished_at"] is not None
+
+    def test_failed_download_records_the_error(self, monkeypatch):
+        mock = _make_yt_dlp_mock()
+
+        class _Boom:
+            def __init__(self, *a, **kw):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def extract_info(self, *a, **kw):
+                raise RuntimeError("network unreachable")
+
+        mock.YoutubeDL = _Boom
+        monkeypatch.setitem(sys.modules, "yt_dlp", mock)
+        _sync_thread_patch(monkeypatch)
+        client.post("/api/download", json={"url": "https://example.com/broken"})
+        entry = client.get("/api/downloads").json()["items"][0]
+        assert entry["status"] == "error"
+        assert "network unreachable" in entry["error"]
+
+    def test_history_survives_job_store_purge(self, monkeypatch):
+        """The whole point: the entry outlives the in-memory job."""
+        self._run_one(monkeypatch)
+        main_mod._jobs.clear()
+        assert client.get("/api/jobs").json() == []
+        assert client.get("/api/downloads").json()["total"] == 1
+
+    def test_non_terminal_rows_become_interrupted_at_startup(self):
+        with main_mod.get_db() as conn:
+            conn.execute(
+                "INSERT INTO downloads (id, url, status) VALUES (?, ?, ?)",
+                ("stuck-job", "https://example.com/x", "running"),
+            )
+            conn.execute(
+                "INSERT INTO downloads (id, url, status) VALUES (?, ?, ?)",
+                ("finished-job", "https://example.com/y", "done"),
+            )
+            conn.commit()
+        main_mod.mark_interrupted_downloads()
+        by_id = {e["id"]: e for e in client.get("/api/downloads").json()["items"]}
+        assert by_id["stuck-job"]["status"] == "interrupted"
+        assert by_id["stuck-job"]["finished_at"] is not None
+        assert by_id["finished-job"]["status"] == "done"
+
+    def test_status_filter_and_pagination(self, monkeypatch):
+        self._run_one(monkeypatch, "https://example.com/a")
+        self._run_one(monkeypatch, "https://example.com/b")
+        assert client.get("/api/downloads").json()["total"] == 2
+        assert len(client.get("/api/downloads?limit=1").json()["items"]) == 1
+        page2 = client.get("/api/downloads?limit=1&offset=1").json()
+        assert page2["total"] == 2 and len(page2["items"]) == 1
+        assert client.get("/api/downloads?status=error").json()["items"] == []
+        assert len(client.get("/api/downloads?status=done").json()["items"]) == 2
+
+    def test_delete_single_entry(self, monkeypatch):
+        job_id = self._run_one(monkeypatch)
+        assert client.delete(f"/api/downloads/{job_id}").status_code == 200
+        assert client.get("/api/downloads").json()["total"] == 0
+        assert client.delete(f"/api/downloads/{job_id}").status_code == 404
+
+    def test_clear_history(self, monkeypatch):
+        self._run_one(monkeypatch, "https://example.com/a")
+        self._run_one(monkeypatch, "https://example.com/b")
+        resp = client.delete("/api/downloads")
+        assert resp.status_code == 200 and resp.json()["deleted"] == 2
+        assert client.get("/api/downloads").json()["total"] == 0
+
+    def test_retention_purges_old_entries(self):
+        with main_mod.get_db() as conn:
+            conn.execute(
+                "INSERT INTO downloads (id, url, status, created_at) "
+                "VALUES (?, ?, ?, datetime('now', '-40 days'))",
+                ("old-job", "https://example.com/old", "done"),
+            )
+            conn.commit()
+        # Default retention (0) keeps everything
+        main_mod._purge_download_history()
+        assert client.get("/api/downloads").json()["total"] == 1
+        client.post("/api/settings", json={"download_history_days": 30})
+        main_mod._purge_download_history()
+        assert client.get("/api/downloads").json()["total"] == 0
+
+    def test_retention_setting_roundtrip(self):
+        assert client.get("/api/settings").json()["download_history_days"] == "0"
+        client.post("/api/settings", json={"download_history_days": 15})
+        assert client.get("/api/settings").json()["download_history_days"] == "15"
+
+
+# ── Logs (BL-076) ─────────────────────────────────────────────────────────────
+
+
+class TestLogs:
+    def test_reports_disabled_when_no_log_file(self):
+        """The suite runs with an empty LOG_DIR — the endpoint must say so."""
+        data = client.get("/api/logs").json()
+        assert data["enabled"] is False
+        assert data["lines"] == []
+        assert data["retention_days"] == main_mod.LOG_RETENTION_DAYS
+
+    def test_reads_tail_of_log_file(self, monkeypatch, tmp_path):
+        log_file = tmp_path / "hoard.log"
+        log_file.write_text(
+            "\n".join(f"2026-01-01 00:00:0{i % 10} [INFO] hoard: line {i}" for i in range(50)),
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(main_mod, "LOG_FILE", log_file)
+        data = client.get("/api/logs?lines=5").json()
+        assert data["enabled"] is True
+        assert len(data["lines"]) == 5
+        assert data["lines"][-1].endswith("line 49")
+
+    def test_level_filter_keeps_traceback_continuations(self, monkeypatch, tmp_path):
+        log_file = tmp_path / "hoard.log"
+        log_file.write_text(
+            "2026-01-01 00:00:00 [INFO] hoard: routine\n"
+            "2026-01-01 00:00:01 [ERROR] hoard: boom\n"
+            "    File nowhere.py, line 1\n"
+            "2026-01-01 00:00:02 [INFO] hoard: routine again\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(main_mod, "LOG_FILE", log_file)
+        lines = client.get("/api/logs?level=ERROR").json()["lines"]
+        assert len(lines) == 2
+        assert "boom" in lines[0]
+        assert "File nowhere.py" in lines[1]
+
+    def test_invalid_line_count_is_rejected(self):
+        assert client.get("/api/logs?lines=0").status_code == 422
+        assert client.get("/api/logs?lines=99999").status_code == 422
+
+
+# ── Restart (BL-077) ──────────────────────────────────────────────────────────
+
+
+class TestRestart:
+    def _capture_terminate(self, monkeypatch):
+        """Replace the real process kill with an event, so tests survive."""
+        fired = threading.Event()
+        monkeypatch.setattr(main_mod, "_terminate_process", fired.set)
+        return fired
+
+    def test_restart_answers_then_terminates(self, monkeypatch):
+        fired = self._capture_terminate(monkeypatch)
+        resp = client.post("/api/restart")
+        assert resp.status_code == 200
+        assert resp.json()["ok"] is True
+        assert isinstance(resp.json()["supervised"], bool)
+        assert fired.wait(timeout=5), "process termination was never triggered"
+
+    def test_refuses_while_a_download_is_active(self, monkeypatch):
+        fired = self._capture_terminate(monkeypatch)
+        main_mod._jobs["live"] = {
+            "id": "live",
+            "type": "download",
+            "status": "running",
+            "url": "https://example.com/v",
+        }
+        resp = client.post("/api/restart")
+        assert resp.status_code == 409
+        assert "force=true" in resp.json()["detail"]
+        assert not fired.is_set()
+
+    def test_force_restarts_despite_active_download(self, monkeypatch):
+        fired = self._capture_terminate(monkeypatch)
+        main_mod._jobs["live"] = {
+            "id": "live",
+            "type": "download",
+            "status": "running",
+            "url": "https://example.com/v",
+        }
+        resp = client.post("/api/restart", json={"force": True})
+        assert resp.status_code == 200
+        assert fired.wait(timeout=5)
+
+    def test_finished_downloads_do_not_block(self, monkeypatch):
+        fired = self._capture_terminate(monkeypatch)
+        main_mod._jobs["old"] = {
+            "id": "old",
+            "type": "download",
+            "status": "done",
+            "url": "https://example.com/v",
+        }
+        assert client.post("/api/restart").status_code == 200
+        assert fired.wait(timeout=5)
+
+    def test_supervised_flag_follows_env_override(self, monkeypatch):
+        monkeypatch.setenv("RESTART_SUPERVISED", "0")
+        assert main_mod._is_supervised() is False
+        monkeypatch.setenv("RESTART_SUPERVISED", "1")
+        assert main_mod._is_supervised() is True
+
+
+# ── Download worker resilience (BL-078) ───────────────────────────────────────
+
+
+class TestDownloadWorkerResilience:
+    """A crashing job must not kill the worker thread for the whole process."""
+
+    def _wait_for_terminal(self, job_id, timeout=5.0):
+        """Wait until the real worker thread has settled this job.
+
+        Polling the queue would race the preparation thread, which enqueues the
+        job slightly after /api/download returns.
+        """
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            job = main_mod._jobs.get(job_id)
+            if job and job.get("status") in main_mod._TERMINAL_DOWNLOAD_STATES:
+                return True
+            time.sleep(0.02)
+        return False
+
+    def test_worker_survives_a_crashing_job(self, monkeypatch):
+        calls = []
+
+        def exploding_run(job_id, *a, **kw):
+            calls.append(job_id)
+            if len(calls) == 1:
+                raise RuntimeError("yt-dlp exploded")
+            job = main_mod._jobs[job_id]
+            job["status"] = "done"
+            main_mod._persist_download(job)  # the real _run_download does this
+
+        monkeypatch.setitem(sys.modules, "yt_dlp", _make_yt_dlp_mock())
+        monkeypatch.setattr(main_mod, "_run_download", exploding_run)
+
+        first = client.post("/api/download", json={"url": "https://example.com/one"})
+        assert first.status_code == 200
+        first_id = first.json()["job_id"]
+        assert self._wait_for_terminal(first_id), "worker never picked up the first job"
+
+        # The crashing job is reported as an error instead of vanishing
+        entry = {e["id"]: e for e in client.get("/api/downloads").json()["items"]}[first_id]
+        assert entry["status"] == "error"
+        assert "yt-dlp exploded" in entry["error"]
+
+        # ...and the worker is still alive to process the next one
+        second = client.post("/api/download", json={"url": "https://example.com/two"})
+        second_id = second.json()["job_id"]
+        assert self._wait_for_terminal(second_id), "worker died after the first job crashed"
+        assert len(calls) == 2
+        entry2 = {e["id"]: e for e in client.get("/api/downloads").json()["items"]}[second_id]
+        assert entry2["status"] == "done"
+
+    def test_worker_thread_is_still_running(self):
+        alive = [t for t in threading.enumerate() if t.name == "dl-worker" and t.is_alive()]
+        assert alive, "the download worker thread is gone"
