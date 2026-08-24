@@ -356,6 +356,26 @@ Tous les téléchargements sont regroupés dans une file centrale accessible dep
 - **Les téléchargements continuent même si tu fermes l'onglet** : ils s'exécutent comme des threads en arrière-plan sur le NAS. Quand tu reviens sur Hoard, le widget de file se reconnecte automatiquement aux jobs en cours.
 - **Rafraîchissement automatique** : quand un téléchargement se termine, le navigateur de fichiers se rafraîchit automatiquement si tu parcours le dossier de téléchargement.
 
+### Historique des téléchargements
+
+Le modal **📥** comporte deux parties :
+
+- **En cours** — la file du moment (progression, annulation, retrait), qui disparaît une fois vidée.
+- **Historique** — la liste **permanente** de tout ce qui a été téléchargé, conservée en base de données. Contrairement à la file, elle survit au redémarrage du NAS et n'expire pas.
+
+Chaque ligne indique le nom du fichier, la date et le résultat :
+
+| Statut | Signification |
+|--------|---------------|
+| ✓ Terminé | Le fichier est arrivé. Le bouton **Aller au fichier** ouvre son dossier et le met en évidence. |
+| ✗ Échec | Le téléchargement a raté. Le message d'erreur est affiché sous la ligne. |
+| ⊘ Annulé | Tu as arrêté le téléchargement. |
+| ⚠ Interrompu (redémarrage) | Hoard s'est arrêté pendant le téléchargement. Le fichier n'est pas arrivé — il faut le relancer. |
+
+Le bouton **Vider** efface l'historique (les fichiers déjà téléchargés ne sont pas touchés) ; **✕** retire une seule ligne.
+
+Par défaut l'historique est conservé **sans limite** — c'est justement ce qui permet de retrouver un ajout ancien. Pour le borner : **Paramètres → Maintenance → Historique des téléchargements**, en nombre de jours (`0` = sans limite).
+
 ### Paramètres
 
 | Paramètre | Description |
@@ -366,10 +386,35 @@ Tous les téléchargements sont regroupés dans une file centrale accessible dep
 | **Dossiers home** | Liste de dossiers nommés affichés sur l'écran d'accueil. Ajouter/supprimer dans **Paramètres → Dossiers home**. |
 | **Dossier de téléchargement** | Dossier cible, relatif à `MEDIA_ROOT` (défaut : `Downloads`). Créé automatiquement s'il n'existe pas. |
 | **Chemin du fichier cookies** | Chemin absolu vers un fichier `cookies.txt` au format Netscape. Utile pour les sites qui nécessitent une authentification. |
+| **Historique des téléchargements** | Nombre de jours conservés dans l'historique (**Paramètres → Maintenance**). `0` = sans limite (défaut). |
 
 ### À propos des cookies
 
 La bookmarklet transmet le `document.cookie` de la page source. Attention : les **cookies HttpOnly ne sont pas accessibles en JavaScript** — pour les sites qui en ont besoin (ex : plateformes de streaming), exporte un fichier `cookies.txt` avec une extension navigateur et renseigne son chemin dans les paramètres.
+
+---
+
+## Maintenance
+
+Section **Paramètres → Maintenance**, pour les opérations d'exploitation courantes.
+
+### Journal
+
+Hoard enregistre ses événements (téléchargements lancés, terminés, échoués, demandes de redémarrage) dans un fichier conservé **30 jours**, en plus des logs du conteneur. Le journal est consultable directement ici :
+
+- Choix du nombre de lignes affichées (100 / 500 / 2000).
+- Filtre par niveau : tous, info, avertissements, erreurs.
+- **↻** actualise, **Copier** met le contenu dans le presse-papier (pratique pour le coller dans un ticket).
+
+Les lignes sont en ordre chronologique, les plus récentes en bas.
+
+### Redémarrer Hoard
+
+Le bouton **↻ Redémarrer Hoard** relance l'application sans passer par Portainer ni le NAS. Utile quand un réglage bas niveau a changé, ou en cas de comportement anormal.
+
+- Si un téléchargement est en cours, Hoard demande une confirmation supplémentaire : le redémarrage **interrompt définitivement** le téléchargement (il apparaîtra comme *Interrompu* dans l'historique).
+- Une fois lancé, la page attend le retour du serveur et se recharge toute seule (jusqu'à 60 s). Au-delà, un message invite à vérifier le conteneur.
+- Hoard ne se relance pas lui-même : c'est le conteneur qui le fait (`restart: unless-stopped` dans `docker-compose.yml`). En dehors d'un conteneur, le bouton **arrête** l'application — le message de confirmation le dit explicitement.
 
 ---
 

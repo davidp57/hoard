@@ -706,6 +706,14 @@
   .dl-job-status { font-size: 10px; font-family: 'DM Mono', monospace; color: var(--text-dim); }
   .dl-job-status.done { color: #6fcf6f; }
   .dl-job-status.error { color: #cf6f6f; }
+  .dl-job-status.warn { color: #cfa96f; }
+  .dl-job-meta { font-size: 10px; font-family: 'DM Mono', monospace; color: var(--text-dim); flex-shrink: 0; }
+  .dl-job-err { font-size: 10px; font-family: 'DM Mono', monospace; color: #cf6f6f; white-space: pre-wrap; word-break: break-word; margin-top: 2px; }
+  .dl-job-link { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 10px; font-family: inherit; padding: 0; }
+  .dl-empty { font-size: 11px; color: var(--text-dim); padding: 8px 2px; }
+  /* Transient highlight when jumping to a file from the download history */
+  @keyframes entry-flash { 0%, 100% { background: transparent; } 30% { background: color-mix(in srgb, var(--accent) 22%, transparent); } }
+  .entry.flash { animation: entry-flash 1.6s ease-in-out 2; }
   .dl-job-dismiss { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 13px; padding: 0; line-height: 1; flex-shrink: 0; }
   .dl-job-dismiss:hover { color: var(--text); }
 
@@ -1571,6 +1579,40 @@
       </div>
     </div>
 
+    <!-- Maintenance -->
+    <div>
+      <div class="s-section-title">🛠 Maintenance</div>
+      <div class="s-row">
+        <div><div class="s-label">Historique des téléchargements</div><div class="s-desc">Nombre de jours conservés. 0&#xA0;=&#xA0;sans limite</div></div>
+        <div class="s-right"><input type="number" class="s-num" id="s-download-history-days" min="0" max="3650" step="1"> <span style="font-size:12px;color:var(--text-dim)">j</span></div>
+      </div>
+      <div class="s-row" style="flex-direction:column;align-items:stretch;gap:8px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+          <div><div class="s-label">Journal</div><div class="s-desc" id="s-log-desc">Événements du serveur</div></div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <select class="s-num" id="s-log-lines" style="width:auto" onchange="refreshLogs()">
+              <option value="100">100 lignes</option>
+              <option value="500" selected>500 lignes</option>
+              <option value="2000">2000 lignes</option>
+            </select>
+            <select class="s-num" id="s-log-level" style="width:auto" onchange="refreshLogs()">
+              <option value="">Tous</option>
+              <option value="INFO">Info +</option>
+              <option value="WARNING">Avertissements +</option>
+              <option value="ERROR">Erreurs</option>
+            </select>
+            <button class="s-btn" onclick="refreshLogs()" title="Actualiser">↻</button>
+            <button class="s-btn" onclick="copyLogs()">Copier</button>
+          </div>
+        </div>
+        <pre id="s-log-view" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text-mid);font-family:'DM Mono',monospace;font-size:10px;line-height:1.5;margin:0;max-height:34vh;overflow:auto;padding:10px;white-space:pre-wrap;word-break:break-word">Chargement…</pre>
+      </div>
+      <div class="s-row" style="flex-direction:column;align-items:flex-start;gap:6px">
+        <div><div class="s-label">Redémarrer Hoard</div><div class="s-desc" id="s-restart-desc">Relance l'application. Les téléchargements en cours sont perdus.</div></div>
+        <button class="s-btn" id="s-restart-btn" onclick="confirmRestartHoard()">↻ Redémarrer Hoard</button>
+      </div>
+    </div>
+
     <button id="settings-save-btn" onclick="saveSettings()">Enregistrer</button>
   </div>
 </div>
@@ -1607,7 +1649,7 @@
   <button id="home-btn" onclick="navigateHome()" title="Aller au dossier de départ" aria-label="Aller au dossier de départ">⌂</button>
   <button onclick="openBrowseModal()" title="Choisir le dossier de départ" style="background:none;border:1px solid var(--border);color:var(--text-dim);font-size:11px;cursor:pointer;padding:5px 8px;border-radius:6px;flex-shrink:0;font-family:inherit">📂 Browse…</button>
   <div id="breadcrumb"></div>
-  <button id="dl-queue-btn" onclick="openDlQueueModal()" title="File de téléchargement" aria-label="File de téléchargement" style="background:none;border:1px solid var(--border);color:var(--text-dim);font-size:15px;cursor:pointer;padding:5px 9px;border-radius:6px;flex-shrink:0;line-height:1">📥<span id="dl-queue-badge"></span></button>
+  <button id="dl-queue-btn" onclick="openDlQueueModal()" title="Téléchargements" aria-label="Téléchargements" style="background:none;border:1px solid var(--border);color:var(--text-dim);font-size:15px;cursor:pointer;padding:5px 9px;border-radius:6px;flex-shrink:0;line-height:1">📥<span id="dl-queue-badge"></span></button>
   <button onclick="openSettings()" title="Paramètres" aria-label="Paramètres" style="background:none;border:1px solid var(--border);color:var(--text-dim);font-size:15px;cursor:pointer;padding:5px 9px;border-radius:6px;flex-shrink:0;line-height:1">⚙️</button>
 </div>
 
@@ -1777,8 +1819,21 @@
     <!-- Queue list (shown when jobs exist) -->
     <div id="dl-queue-section" style="display:none;flex-direction:column;gap:0;flex-shrink:0">
       <div style="border-top:1px solid var(--border);padding-top:12px;display:flex;flex-direction:column;gap:8px">
-        <div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.06em">File d'attente</div>
+        <div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.06em">En cours</div>
         <div id="dl-queue-list" style="display:flex;flex-direction:column;gap:6px;overflow-y:auto;max-height:32vh"></div>
+      </div>
+    </div>
+    <!-- Persistent history (survives the job TTL and container restarts) -->
+    <div id="dl-history-section" style="display:flex;flex-direction:column;gap:0;flex:1;min-height:0">
+      <div style="border-top:1px solid var(--border);padding-top:12px;display:flex;flex-direction:column;gap:8px;min-height:0;flex:1">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+          <div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.06em">Historique <span id="dl-history-count" style="color:var(--text-mid)"></span></div>
+          <div style="display:flex;gap:6px">
+            <button class="s-btn" onclick="refreshDlHistory()" title="Actualiser" style="padding:3px 8px;font-size:11px">↻</button>
+            <button class="s-btn" onclick="clearDlHistory()" title="Vider l'historique" style="padding:3px 8px;font-size:11px">Vider</button>
+          </div>
+        </div>
+        <div id="dl-history-list" style="display:flex;flex-direction:column;gap:6px;overflow-y:auto;flex:1;min-height:60px"></div>
       </div>
     </div>
   </div>
@@ -2988,6 +3043,7 @@ function openSettings() {
   document.getElementById('s-home-desc').textContent   = cfg.home_folder || '(racine)';
   document.getElementById('s-download-folder').value   = cfg.download_folder;
   document.getElementById('s-cookies-path').value      = cfg.download_cookies_path;
+  document.getElementById('s-download-history-days').value = cfg.download_history_days ?? 0;
   document.getElementById('s-transcode-enabled').checked    = cfg.transcode_enabled;
   document.getElementById('s-transcode-audio-only').checked = cfg.transcode_audio_only;
   document.getElementById('s-gamepad-enabled').checked  = cfg.gamepad_enabled;
@@ -2997,6 +3053,7 @@ function openSettings() {
   updateSettingsHomeRoots();
   _updateBookmarkletLink();
   _refreshPinStatusUI();
+  refreshLogs();
   document.getElementById('settings-page').classList.add('open');
 }
 
@@ -3038,6 +3095,7 @@ async function saveSettings() {
     seek_xlong:    parseInt(document.getElementById('s-seek-xlong').value,  10),
     download_folder:           (document.getElementById('s-download-folder').value || 'Downloads').trim(),
     download_cookies_path:     document.getElementById('s-cookies-path').value.trim(),
+    download_history_days:     parseInt(document.getElementById('s-download-history-days').value, 10) || 0,
     transcode_enabled:         document.getElementById('s-transcode-enabled').checked,
     transcode_audio_only:      document.getElementById('s-transcode-audio-only').checked,
     gamepad_enabled:           document.getElementById('s-gamepad-enabled').checked,
@@ -3213,6 +3271,7 @@ function openDlQueueModal(url, cookies, videoSrc, title) {
   const destLabel = document.getElementById('download-dest-label');
   if (destLabel) destLabel.textContent = cfg.download_folder || 'Downloads';
   _renderDlQueueList();
+  refreshDlHistory();
   const overlay = document.getElementById('dl-queue-overlay');
   overlay.style.display = 'flex';
   setTimeout(() => { if (urlInput) urlInput.focus(); }, 50);
@@ -3332,6 +3391,14 @@ async function _pollDlQueue() {
     j => j.status === 'done' && prevJobs.some(p => p.id === j.id && p.status !== 'done'),
   );
   if (justDone.length > 0) _refreshAfterDownload();
+  // A job reaching a terminal state produced a new history entry
+  const dlOverlay = document.getElementById('dl-queue-overlay');
+  const modalOpen = dlOverlay && dlOverlay.style.display !== 'none';
+  const justFinished = _dlQueueJobs.some(
+    j => ['done', 'error', 'cancelled'].includes(j.status)
+      && prevJobs.some(p => p.id === j.id && p.status !== j.status),
+  );
+  if (modalOpen && justFinished) refreshDlHistory();
   _updateDlQueueWidget();
   _renderDlQueueList();
   const hasActive = _dlQueueJobs.some(j => j.status === 'pending' || j.status === 'running');
@@ -3377,6 +3444,220 @@ async function _initDlQueue() {
 }
 
 // ── Search ─────────────────────────────────────────────────────────────────
+
+// ── Download history (persistent, survives restarts) ──────────────────────────
+let _dlHistory = [];
+let _dlHistoryTotal = 0;
+const _DL_HISTORY_PAGE = 100;
+
+const _DL_HISTORY_LABELS = {
+  done: { icon: '✓', text: 'Terminé', cls: 'done' },
+  error: { icon: '✗', text: 'Échec', cls: 'error' },
+  cancelled: { icon: '⊘', text: 'Annulé', cls: 'warn' },
+  interrupted: { icon: '⚠', text: 'Interrompu (redémarrage)', cls: 'warn' },
+};
+
+function _dlHistoryDate(value) {
+  if (!value) return '';
+  // SQLite CURRENT_TIMESTAMP is UTC without a timezone marker
+  const d = new Date(value.replace(' ', 'T') + (value.endsWith('Z') ? '' : 'Z'));
+  if (isNaN(d)) return value;
+  return d.toLocaleString(undefined, {
+    day: '2-digit', month: '2-digit', year: '2-digit',
+    hour: '2-digit', minute: '2-digit',
+  });
+}
+
+function _renderDlHistory() {
+  const list = document.getElementById('dl-history-list');
+  const count = document.getElementById('dl-history-count');
+  if (!list) return;
+  if (count) {
+    count.textContent = _dlHistoryTotal
+      ? (_dlHistory.length < _dlHistoryTotal
+        ? `(${_dlHistory.length} / ${_dlHistoryTotal})`
+        : `(${_dlHistoryTotal})`)
+      : '';
+  }
+  if (_dlHistory.length === 0) {
+    list.innerHTML = '<div class="dl-empty">Aucun téléchargement enregistré.</div>';
+    return;
+  }
+  const rows = _dlHistory.map(item => {
+    const label = _DL_HISTORY_LABELS[item.status]
+      || { icon: '⌛', text: item.status, cls: '' };
+    const name = item.output_name || item.title || item.url;
+    const when = _dlHistoryDate(item.finished_at || item.created_at);
+    const canOpen = item.status === 'done' && item.output_path;
+    return `<div class="dl-job-item">
+      <div class="dl-job-name" title="${_esc(item.url)}">${_esc(name)}</div>
+      <div class="dl-job-row">
+        <div class="dl-job-status ${label.cls}">${label.icon} ${_esc(label.text)}</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          ${canOpen ? `<button class="dl-job-link" onclick="goToDownloadedFile('${_esc(item.output_path)}')">Aller au fichier</button>` : ''}
+          <span class="dl-job-meta">${_esc(when)}</span>
+          <button class="dl-job-dismiss" onclick="deleteDlHistoryEntry('${_esc(item.id)}')" title="Retirer de l'historique">✕</button>
+        </div>
+      </div>
+      ${item.error ? `<div class="dl-job-err">${_esc(item.error)}</div>` : ''}
+    </div>`;
+  }).join('');
+  // Older entries stay reachable: the list is paginated, not truncated.
+  const more = _dlHistory.length < _dlHistoryTotal
+    ? `<button class="s-btn" onclick="loadMoreDlHistory()" style="align-self:center;margin-top:4px">Charger plus (${_dlHistoryTotal - _dlHistory.length} restants)</button>`
+    : '';
+  list.innerHTML = rows + more;
+}
+
+async function _loadDlHistoryPage(reset) {
+  const offset = reset ? 0 : _dlHistory.length;
+  const data = await fetch(`${API}/api/downloads?limit=${_DL_HISTORY_PAGE}&offset=${offset}`)
+    .then(r => (r.ok ? r.json() : null)).catch(() => null);
+  if (!data) { showToast('Historique indisponible'); return; }
+  _dlHistory = reset ? (data.items || []) : _dlHistory.concat(data.items || []);
+  _dlHistoryTotal = data.total || 0;
+  _renderDlHistory();
+}
+
+async function refreshDlHistory() {
+  await _loadDlHistoryPage(true);
+}
+
+async function loadMoreDlHistory() {
+  await _loadDlHistoryPage(false);
+}
+
+async function deleteDlHistoryEntry(id) {
+  // Only drop it locally once the server confirms — otherwise the entry silently
+  // reappears on the next refresh and the UI has lied about deleting it.
+  const ok = await fetch(`${API}/api/downloads/${encodeURIComponent(id)}`, { method: 'DELETE' })
+    .then(r => r.ok).catch(() => false);
+  if (!ok) { showToast('Suppression impossible'); return; }
+  _dlHistory = _dlHistory.filter(i => i.id !== id);
+  _dlHistoryTotal = Math.max(0, _dlHistoryTotal - 1);
+  _renderDlHistory();
+}
+
+async function clearDlHistory() {
+  if (_dlHistory.length === 0) return;
+  if (!confirm('Vider tout l’historique des téléchargements ?\n(Les fichiers déjà téléchargés ne sont pas supprimés.)')) return;
+  const ok = await fetch(`${API}/api/downloads`, { method: 'DELETE' })
+    .then(r => r.ok).catch(() => false);
+  if (!ok) { showToast('Impossible de vider l’historique'); return; }
+  _dlHistory = [];
+  _dlHistoryTotal = 0;
+  _renderDlHistory();
+}
+
+function goToDownloadedFile(relPath) {
+  const parts = String(relPath).split('/');
+  parts.pop();
+  const folder = parts.join('/');
+  closeDlQueueModal();
+  navigate(folder);
+  // Flag the entry once the folder listing has been rendered
+  setTimeout(() => {
+    const row = document.querySelector(`#filelist .entry[data-path="${CSS.escape(relPath)}"]`);
+    if (row) {
+      row.classList.add('flash');
+      row.scrollIntoView({ block: 'center' });
+      setTimeout(() => row.classList.remove('flash'), 3400);
+    }
+  }, 400);
+}
+
+
+// ── Maintenance: logs & restart ───────────────────────────────────────────────
+let _logLines = [];
+
+async function refreshLogs() {
+  const view = document.getElementById('s-log-view');
+  const desc = document.getElementById('s-log-desc');
+  if (!view) return;
+  const lines = document.getElementById('s-log-lines').value;
+  const level = document.getElementById('s-log-level').value;
+  const qs = `lines=${encodeURIComponent(lines)}` + (level ? `&level=${encodeURIComponent(level)}` : '');
+  const data = await fetch(`${API}/api/logs?${qs}`).then(r => r.json()).catch(() => null);
+  if (!data) { view.textContent = 'Journal indisponible.'; return; }
+  if (!data.enabled) {
+    _logLines = [];
+    view.textContent = 'Journalisation fichier désactivée (LOG_DIR vide). Les événements ne sont visibles que dans les logs du conteneur.';
+    if (desc) desc.textContent = 'Événements du serveur';
+    return;
+  }
+  _logLines = data.lines || [];
+  if (desc) desc.textContent = `${data.path} — ${data.retention_days} jours conservés`;
+  // Chronological order: reversing line by line would scramble multi-line
+  // stack traces. Scroll to the bottom instead, where the newest lines are.
+  view.textContent = _logLines.length ? _logLines.join('\n') : 'Aucune ligne pour ce filtre.';
+  view.scrollTop = view.scrollHeight;
+}
+
+async function copyLogs() {
+  const text = _logLines.join('\n');
+  if (!text) { showToast('Rien à copier'); return; }
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast('✓ Journal copié');
+  } catch {
+    showToast('Copie impossible');
+  }
+}
+
+async function restartHoard(force = false) {
+  const btn = document.getElementById('s-restart-btn');
+  const resp = await fetch(`${API}/api/restart`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ force }),
+  }).catch(() => null);
+
+  if (!resp) { showToast('Hoard ne répond pas'); return; }
+
+  if (resp.status === 409) {
+    const err = await resp.json().catch(() => ({}));
+    const msg = (err.detail || 'Un téléchargement est en cours.')
+      + '\n\nRedémarrer maintenant l’interrompra définitivement. Continuer ?';
+    if (confirm(msg)) restartHoard(true);
+    return;
+  }
+  if (!resp.ok) { showToast('Redémarrage refusé (' + resp.status + ')'); return; }
+
+  const data = await resp.json().catch(() => ({}));
+  if (!data.supervised) {
+    showToast('⚠ Hoard s’arrête (aucun superviseur pour le relancer)');
+    return;
+  }
+  if (btn) { btn.disabled = true; btn.textContent = '⌛ Redémarrage…'; }
+  _waitForBackend();
+}
+
+// Confirm before firing the restart, with wording that matches the environment.
+function confirmRestartHoard() {
+  const supervised = cfg && cfg.restart_supervised;
+  const msg = supervised
+    ? 'Redémarrer Hoard ?\n\nLa page se rechargera automatiquement une fois le serveur revenu.'
+    : 'Arrêter Hoard ?\n\nAucun superviseur n’est détecté : l’application ne redémarrera pas toute seule.';
+  if (confirm(msg)) restartHoard(false);
+}
+
+function _waitForBackend(deadlineMs = 60000) {
+  const started = Date.now();
+  const btn = document.getElementById('s-restart-btn');
+  const tick = async () => {
+    const alive = await fetch(`${API}/api/settings`, { cache: 'no-store' })
+      .then(r => r.ok).catch(() => false);
+    if (alive) { window.location.reload(); return; }
+    if (Date.now() - started > deadlineMs) {
+      if (btn) { btn.disabled = false; btn.textContent = '↻ Redémarrer Hoard'; }
+      showToast('⚠ Hoard n’est pas revenu — vérifiez le conteneur');
+      return;
+    }
+    setTimeout(tick, 2000);
+  };
+  setTimeout(tick, 2000);
+}
+
 function onSearchInput(value) {
   clearTimeout(searchDebounceTimer);
   searchQuery = value.trim();
@@ -3641,7 +3922,7 @@ function renderEntry(e, i) {
   const qfClass = e.is_quick_folder ? 'qf' : '';
 
   return `
-    <div class="entry ${stateClass} ${activeClass} ${e.is_dir ? 'is-dir' : ''} ${qfClass}" onclick="${clickHandler}">
+    <div class="entry ${stateClass} ${activeClass} ${e.is_dir ? 'is-dir' : ''} ${qfClass}" data-path="${esc(e.path)}" onclick="${clickHandler}">
       <div class="entry-icon">${icon}</div>
       <div class="entry-info">
         <div class="entry-name">${esc(e.name)}</div>

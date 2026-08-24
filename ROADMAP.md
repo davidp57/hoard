@@ -99,6 +99,13 @@
 - [ ] **PDF reader** (BL-056): PDF.js-powered reader with page navigation, zoom, keyboard/gamepad control, and saved progress
 - [ ] **Audio player** (BL-057): native audio playback for `.mp3`, `.flac`, `.ogg`, `.m4a`, `.aac`, `.wav`, `.opus` using existing player infrastructure
 
+## v2.5 — Traceability & Operations *(done)*
+
+- [x] **Download history** (BL-075): persist download jobs in SQLite (table `downloads`), history view in the 📥 modal with final status and error message, unlimited retention by default, jobs interrupted by a restart marked as such
+- [x] **Log retention** (BL-076): daily-rotating log file on the persistent volume, 30 days kept (`LOG_DIR` / `LOG_RETENTION_DAYS`), log viewer in Settings → Maintenance
+- [x] **Restart from the UI** (BL-077): `POST /api/restart` + button in Settings → Maintenance, guarded against active downloads, auto-reload once the backend answers again
+- [x] **Download worker resilience** (BL-078): an unexpected exception used to kill the `dl-worker` thread permanently, leaving every later download stuck in `pending` with no error surfaced anywhere
+
 ---
 
 > Items within each milestone are roughly ordered by priority.
