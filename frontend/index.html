@@ -1872,7 +1872,7 @@
 </div>
 
 <!-- Destination picker modal (free move) -->
-<div id="dest-picker-overlay" onclick="closeDestPicker(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
+<div id="dest-picker-overlay" onclick="closeDestPicker(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:700;align-items:center;justify-content:center">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:480px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;gap:10px">
     <div id="dest-picker-title" style="font-size:15px;font-weight:700;color:var(--accent)">Déplacer vers…</div>
     <div id="dest-picker-crumb" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim);word-break:break-all;min-height:16px"></div>
@@ -2704,9 +2704,22 @@ function closeDestPicker(e) {
 }
 
 async function _loadDestPickerDir(relPath) {
+  // A 404 still parses as JSON ({detail: ...}), so checking the body alone let a
+  // missing folder through and blew up on r.entries — the picker then rendered
+  // empty with no message at all. Check the status, and fall back to the root
+  // so a destination that no longer exists still opens something usable.
+  const r = await apiFetch(`${API}/api/files?path=${encodeURIComponent(relPath)}`)
+    .then(resp => (resp.ok ? resp.json() : null))
+    .catch(() => null);
+  if (!r || !Array.isArray(r.entries)) {
+    if (relPath) {
+      showToast('Dossier introuvable — retour à la racine');
+      return _loadDestPickerDir('');
+    }
+    showToast('Erreur');
+    return;
+  }
   _destPickerPath = relPath;
-  const r = await apiFetch(`${API}/api/files?path=${encodeURIComponent(relPath)}`).then(r => r.json()).catch(() => null);
-  if (!r) { showToast('Erreur'); return; }
   // Crumb
   const crumb = document.getElementById('dest-picker-crumb');
   const parts = relPath ? relPath.split('/').filter(Boolean) : [];

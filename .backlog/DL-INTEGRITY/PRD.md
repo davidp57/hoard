@@ -122,3 +122,5 @@ Lockstep doc : `docs/user-guide.*.md` (destination, collisions), `docs/developer
 | BL-079 | Un téléchargement « terminé » doit avoir produit un fichier | fix | ✅ done |
 | BL-080 | Savoir où atterrissent les téléchargements | fix | ✅ done |
 | BL-081 | Le test de redémarrage peut tuer le lanceur de tests | fix | ✅ done |
+| BL-082 | Le bouton « Parcourir… » ne fait rien (correctif de suivi de BL-080) | fix | ✅ done |
+| BL-083 | La suite de tests atteint le vrai yt-dlp et part sur le réseau | fix | ✅ done |

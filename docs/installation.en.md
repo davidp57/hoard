@@ -139,6 +139,7 @@ All configuration is done via **environment variables** in `docker-compose.yml` 
 | `LOG_RETENTION_DAYS` | `30` | Number of daily log files kept (rotation at midnight). |
 | `RESTART_SUPERVISED` | *(auto-detected)* | `0` / `1`. Whether a supervisor restarts the process after it exits. Auto-detected inside a container; only used to word the "Restart Hoard" confirmation. |
 | `JOB_TTL_SECONDS` | `3600` | How long a finished job stays in memory. Does not affect the download history, which lives in the database. |
+| `DOWNLOAD_SOCKET_TIMEOUT` | `30` | Seconds of silence tolerated on a download socket before giving up. Stops a silent server from pinning the (sequential) queue. |
 
 ### Enabling HTTPS
 

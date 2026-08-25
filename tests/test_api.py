@@ -3405,3 +3405,41 @@ class TestDownloadDestination:
         data = client.get("/api/settings").json()
         assert data["download_folder_abs"].endswith("/Ailleurs/Sous-dossier")
         assert data["download_folder_exists"] is False
+
+
+# ── Network isolation & timeouts (BL-083) ─────────────────────────────────────
+
+
+class TestNoRealNetwork:
+    def test_the_real_yt_dlp_is_unreachable(self):
+        """The session fixture must keep the genuine module out of reach.
+
+        yt-dlp is a real dependency, so it is importable in the test env. A
+        download thread outliving its test would otherwise import it and issue a
+        real HTTP request with no timeout, hanging the whole suite.
+        """
+        import yt_dlp
+
+        with pytest.raises(RuntimeError, match="real yt-dlp"):
+            yt_dlp.YoutubeDL({})
+
+    def test_late_thread_fails_loudly_instead_of_hanging(self, monkeypatch):
+        """Simulate the exact race: the patch is gone when the job runs."""
+        _sync_thread_patch(monkeypatch)  # no yt_dlp mock on purpose
+        resp = client.post("/api/download", json={"url": "https://example.com/late"})
+        assert resp.status_code == 200
+        entry = client.get("/api/downloads").json()["items"][0]
+        assert entry["status"] == "error"
+        assert "yt-dlp" in entry["error"]
+
+
+class TestDownloadSocketTimeout:
+    def test_socket_timeout_is_passed_to_yt_dlp(self, monkeypatch):
+        """A silent server must not pin the sequential queue forever."""
+        mock = _make_yt_dlp_mock()
+        monkeypatch.setitem(sys.modules, "yt_dlp", mock)
+        _sync_thread_patch(monkeypatch)
+        client.post("/api/download", json={"url": "https://example.com/v", "title": "T"})
+        opts = mock.YoutubeDL.call_args[0][0]
+        assert opts["socket_timeout"] == main_mod.DOWNLOAD_SOCKET_TIMEOUT
+        assert main_mod.DOWNLOAD_SOCKET_TIMEOUT > 0

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v2.5.2] - 2026-08-25
+
+### Fixed
+- **La suite de tests atteignait le vrai yt-dlp et partait sur le réseau (BL-083)** : les tests remplacent `sys.modules["yt_dlp"]` individuellement, mais `monkeypatch` restaure l'entrée à la fin du test — alors que les threads de téléchargement lancés par ce test peuvent encore tourner. Un tel thread importait alors le **vrai** yt-dlp et émettait une vraie requête HTTP **sans timeout**. En local la suite se figeait une fois sur deux ; sur la CI, l'étape « Run tests » restait bloquée jusqu'à la limite de 6 h — symptôme que j'avais attribué à tort à des runners défaillants sur trois releases. `requirements-dev.txt` incluant `backend/requirements.txt`, yt-dlp est bel et bien installé dans l'environnement de test, donc le piège était armé depuis toujours. Une fixture `autouse` de session installe désormais un substitut qui **refuse bruyamment** : un thread retardataire échoue au lieu de pendre, et `monkeypatch` restaure vers ce substitut plutôt que vers le vrai module. Diagnostic obtenu en capturant la pile des threads (`faulthandler_timeout`).
+- **Un serveur muet pouvait bloquer la file de téléchargement indéfiniment (BL-083)** : aucun timeout réseau n'était passé à yt-dlp. Un hôte qui accepte la connexion puis se tait immobilisait le worker — et la file étant séquentielle, tous les téléchargements suivants attendaient derrière. Nouvelle option `socket_timeout`, réglable via `DOWNLOAD_SOCKET_TIMEOUT` (défaut : 30 s).
+- **Le bouton « Parcourir… » du dossier de téléchargement ne faisait rien (BL-082)** : deux défauts cumulés, tous deux introduits ou exposés par BL-080.
+  1. `dest-picker-overlay` est en `z-index: 300` alors que la page des réglages est en `500` : le sélecteur s'ouvrait **derrière** elle, donc invisible. Il passe à `700`.
+  2. Même au premier plan, il se serait ouvert **vide** : le sélecteur démarre sur le dossier courant, et `_loadDestPickerDir()` faisait `r.json()` sans vérifier le statut HTTP. Sur un dossier absent — précisément le cas d'une destination « qui n'existe pas encore » — l'API répond 404 avec un corps JSON `{detail: ...}`, valeur *truthy* qui passait le garde `if (!r)`, puis `r.entries.filter()` levait une exception silencieuse : ni liste, ni message. Le statut est désormais vérifié et un chemin introuvable replie sur la racine avec un toast explicite. Ce défaut préexistait dans le sélecteur de déplacement de fichiers, qui en bénéficie aussi.
+
 ## [v2.5.1] - 2026-08-25
 
 ### Fixed

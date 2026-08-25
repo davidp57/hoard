@@ -99,6 +99,11 @@
 - [ ] **PDF reader** (BL-056): PDF.js-powered reader with page navigation, zoom, keyboard/gamepad control, and saved progress
 - [ ] **Audio player** (BL-057): native audio playback for `.mp3`, `.flac`, `.ogg`, `.m4a`, `.aac`, `.wav`, `.opus` using existing player infrastructure
 
+## v2.5.2 — Destination picker follow-up *(done)*
+
+- [x] **Tests reached the real yt-dlp** (BL-083): download threads outliving their test imported the genuine module and issued a real, timeout-less HTTP request — the suite stalled locally one run in two, and CI's "Run tests" step hung until the 6-hour limit (blamed on faulty runners across three releases). A session fixture now makes the real module unreachable, and production passes a `socket_timeout` so a silent server cannot pin the sequential queue
+- [x] **The "Parcourir…" button did nothing** (BL-082): the folder picker opened *behind* the settings page (`z-index` 300 vs 500), and would have opened empty anyway — `_loadDestPickerDir()` parsed a 404 body as success and then threw on `r.entries`, leaving neither list nor message. Both fixed; the file-move picker gains the same guard
+
 ## v2.5.1 — Download integrity *(done)*
 
 - [x] **No more silent losses** (BL-079): yt-dlp skips a download whose target name is taken, raises nothing and still emits `finished` — Hoard reported it as done for a file it never wrote. Output names are now made unique up front, a skip is detected and surfaced as an error, and no job reaches `done` without the file being on disk
