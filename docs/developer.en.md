@@ -252,6 +252,16 @@ At startup, `mark_interrupted_downloads()` flips any row still in a non-terminal
 
 **Worker resilience (BL-078).** `_download_worker_loop` catches every exception escaping `_run_download`. Before that fix, any unexpected error (a broken yt-dlp import, a job removed mid-flight) propagated out of the `while True` loop and killed the `dl-worker` thread permanently: all later downloads then sat in `pending` forever with no error surfaced anywhere. The handler now logs the traceback, marks the job `error`, and keeps the thread alive.
 
+**Silent skip (BL-079).** yt-dlp does **not** overwrite an existing target and does **not** raise when it skips: `extract_info(download=True)` returns normally and the progress hook still fires `finished`. Hoard used to read that as success, so a download whose filename was already taken was reported `done` with no file written — the bookmarklet sends `document.title`, and one site often gives many videos the same title, so this lost files in bulk. Three guards now apply:
+
+1. `_unique_output_stem()` frees the name up front (`Video.mp4` → `Video (2).mp4`), testing the `stem + "."` prefix via `iterdir()` — not `glob()`, since a stem may contain `[`.
+2. The progress hook counts `downloading` events. Zero events means no bytes moved, i.e. a skip; the job becomes an `error` explaining the collision. This is the net for downloads started without a title, where the name cannot be reserved in advance.
+3. `_confirm_download_landed()` refuses to mark a job `done` unless the file is actually on disk, and logs the absolute path and size.
+
+The stored filename comes from `info["requested_downloads"][0]["filepath"]` — what yt-dlp actually wrote. The old code rebuilt it from `prepare_filename()` and forced `merge_output_format` onto the suffix, so a single-stream download written as `.webm` was recorded as a `.mp4` that never existed.
+
+Titles are escaped with `_outtmpl_literal()` before entering the output template: `%` starts a field reference, so `Best of 50%(off) deal` produced the file `Best of 50NAeal.mp4`.
+
 ### Download Endpoint (`POST /api/download`)
 
 **Request body** (`DownloadRequest`):

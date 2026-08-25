@@ -374,6 +374,18 @@ Each row shows the filename, the date, and the outcome:
 
 History is kept **without any limit** by default — that is precisely what lets you find an old download again. To bound it: **Settings → Maintenance → Historique des téléchargements**, in days (`0` = unlimited).
 
+### Where Files Land
+
+The 📥 modal shows the destination twice: the relative name (e.g. `Downloads`) and the **full path** (e.g. `/media/Downloads`). When the folder does not exist yet, a "sera créé" note says so.
+
+This matters because the destination folder is **created on demand**: a mistyped setting raises no error, it just creates a folder somewhere else where every download quietly piles up.
+
+### Two Videos, Two Files
+
+When the bookmarklet sends the page title as the filename, two different videos on the same site often carry the **same** title. Hoard now suffixes the name — `Ma video.mp4`, then `Ma video (2).mp4` — exactly like a browser does.
+
+Without that, the downloader saw a file of the same name, **skipped the download silently**, and the video was lost while the UI displayed "Terminé". Should the case still arise (a download started with no filename), the entry now ends as a **failure** with a message explaining what to do, never as "done".
+
 ### Settings
 
 | Setting | Description |
@@ -382,7 +394,7 @@ History is kept **without any limit** by default — that is precisely what lets
 | **Enable transcoding** | When disabled, Hoard always serves the original file (`/api/file`) without calling the transcoder. Useful if your NAS is slow or your browser can play the format natively. |
 | **Default initial sweep** | Start brand-new videos at N seconds instead of 0. Applies only when the file has no saved progress yet. `0` disables it globally. |
 | **Home roots** | Named root folders shown on the home screen. Add or remove them in **Settings → Home roots**. |
-| **Download folder** | Target folder, relative to `MEDIA_ROOT` (default: `Downloads`). Created automatically if it does not exist. |
+| **Download folder** | Target folder, relative to the media root (default: `Downloads`). The **full path** is shown under the field, with a warning when the folder does not exist yet — it gets created on the first download. **📂 Parcourir…** picks it by browsing instead of typing. |
 | **Cookies file path** | Absolute path to a Netscape `cookies.txt` file. Useful for sites that require authentication. |
 | **Download history** | Days of download history kept (**Settings → Maintenance**). `0` = unlimited (default). |
 
