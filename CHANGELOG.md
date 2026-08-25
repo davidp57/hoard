@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v2.6.0] - 2026-08-25
+
+### Added
+- **Relancer un téléchargement depuis l'historique (BL-084)** : bouton **↻** sur chaque entrée, qui remet la même URL dans la file via `POST /api/downloads/{id}/retry`. Répond au besoin né des pertes silencieuses : les fichiers perdus ne sont pas récupérables, mais leur URL est toujours dans l'historique. Le **`referer` est désormais persisté** (migration `ALTER TABLE downloads`) — sans lui, relancer une URL de CDN direct, cas le plus fréquent puisque la bookmarklet envoie la source vidéo et la page en referer, serait rejeté sur les contrôles d'origine. Les cookies restent volontairement non stockés (identifiants de session) : un site authentifié s'appuie sur le réglage `download_cookies_path`. La relance passe par `_queue_download()`, factorisé depuis `start_download`, donc par la même validation SSRF — une entrée d'historique ne contourne rien, et l'URL est revalidée. Chaque relance crée sa propre entrée, préservant la trace de l'échec initial. Une entrée déjà réussie demande confirmation, la relance produisant un second fichier suffixé ` (2)`.
+
+### Changed
+- **Cibles tactiles des boutons-icônes de l'historique** : `↻` et `✕` faisaient 8×12 et 11×13 px. Portés à 24×26 par padding compensé d'une marge négative, donc sans augmenter la hauteur des lignes. Le navigateur tourne sur un laptop tactile et un iPad, où un glyphe de 11 px n'est pas une cible.
+
 ## [v2.5.2] - 2026-08-25
 
 ### Fixed

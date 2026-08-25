@@ -6,6 +6,15 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ## [Non publié]
 
+## [v2.6.0] — 2026-08-25
+
+### Nouveautés
+- **Relancer un téléchargement depuis l'historique** : un bouton **↻** sur chaque ligne remet la même vidéo en file d'attente. C'est la réponse aux vidéos perdues : le fichier n'est pas récupérable, mais son adresse est toujours dans l'historique, donc un clic suffit pour retenter. Hoard conserve désormais aussi la page d'origine du téléchargement, sans quoi beaucoup de sites refuseraient la relance. Si tu relances quelque chose qui avait déjà réussi, Hoard prévient : tu obtiendras un second fichier à côté du premier.
+  - À savoir : les cookies de ta session ne sont pas conservés (ce sont des identifiants). Pour les sites qui demandent une connexion, c'est le fichier `cookies.txt` des réglages qui prend le relais.
+
+### Améliorations
+- **Boutons plus faciles à toucher** dans l'historique des téléchargements : les icônes ↻ et ✕ étaient minuscules, leur zone de clic est maintenant confortable au doigt.
+
 ## [v2.5.2] — 2026-08-25
 
 ### Corrections

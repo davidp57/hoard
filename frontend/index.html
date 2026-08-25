@@ -714,8 +714,15 @@
   /* Transient highlight when jumping to a file from the download history */
   @keyframes entry-flash { 0%, 100% { background: transparent; } 30% { background: color-mix(in srgb, var(--accent) 22%, transparent); } }
   .entry.flash { animation: entry-flash 1.6s ease-in-out 2; }
-  .dl-job-dismiss { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 13px; padding: 0; line-height: 1; flex-shrink: 0; }
-  .dl-job-dismiss:hover { color: var(--text); }
+  /* Icon-only buttons need a finger-sized hit area: the browser runs on a
+     touch laptop and an iPad, where an 11px glyph is not a target. */
+  .dl-job-dismiss, .dl-job-retry {
+    background: none; border: none; color: var(--text-dim); cursor: pointer;
+    font-size: 13px; line-height: 1; flex-shrink: 0;
+    padding: 6px; margin: -6px 0; min-width: 24px; min-height: 24px;
+  }
+  .dl-job-dismiss:hover, .dl-job-retry:hover { color: var(--text); }
+  .dl-job-retry { color: var(--accent); font-size: 14px; }
 
   /* ── Toast ── */
   #toast {
@@ -3542,6 +3549,7 @@ function _renderDlHistory() {
         <div class="dl-job-status ${label.cls}">${label.icon} ${_esc(label.text)}</div>
         <div style="display:flex;align-items:center;gap:8px">
           ${canOpen ? `<button class="dl-job-link" onclick="goToDownloadedFile('${_esc(item.output_path)}')">Aller au fichier</button>` : ''}
+          <button class="dl-job-retry" onclick="retryDownload('${_esc(item.id)}', ${item.status === 'done'})" title="Relancer ce téléchargement" aria-label="Relancer ce téléchargement">↻</button>
           <span class="dl-job-meta">${_esc(when)}</span>
           <button class="dl-job-dismiss" onclick="deleteDlHistoryEntry('${_esc(item.id)}')" title="Retirer de l'historique">✕</button>
         </div>
@@ -3594,6 +3602,23 @@ async function clearDlHistory() {
   _dlHistory = [];
   _dlHistoryTotal = 0;
   _renderDlHistory();
+}
+
+async function retryDownload(id, alreadyDone) {
+  // Relaunching something that succeeded produces a second file, suffixed
+  // "(2)" — worth a warning rather than a surprise.
+  if (alreadyDone && !confirm('Ce téléchargement a réussi.\n\nLe relancer créera un second fichier à côté du premier. Continuer ?')) return;
+  const resp = await fetch(`${API}/api/downloads/${encodeURIComponent(id)}/retry`, { method: 'POST' })
+    .catch(() => null);
+  if (!resp || !resp.ok) {
+    const err = resp ? await resp.json().catch(() => ({})) : {};
+    showToast('Relance impossible : ' + (err.detail || (resp ? resp.status : 'Hoard ne répond pas')));
+    return;
+  }
+  showToast('📥 Téléchargement relancé…');
+  _startDlQueuePoller();
+  await _pollDlQueue();
+  await refreshDlHistory();
 }
 
 function goToDownloadedFile(relPath) {
