@@ -21,7 +21,7 @@ Convention détaillée : [`docs/agents/issue-tracker.md`](../docs/agents/issue-t
 | [ARCH-PERF](ARCH-PERF/PRD.md) — Architecture & Performance (split `main.py` BL-041, transcodage HW BL-042) | ⬜ |
 | [FEAT-GALLERY](FEAT-GALLERY/PRD.md) — Galeries d'images (dossier comme média opaque, comme une archive) | ✅ |
 | [OPS-VISIBILITY](OPS-VISIBILITY/PRD.md) — Traçabilité & exploitation (historique de téléchargement BL-075, rétention des logs BL-076, redémarrage depuis l'UI BL-077, résilience du worker BL-078) | ✅ |
-| [DL-INTEGRITY](DL-INTEGRITY/PRD.md) — Un téléchargement « terminé » doit exister (skip silencieux BL-079, destination visible BL-080, sûreté du test de redémarrage BL-081) | ✅ |
+| [DL-INTEGRITY](DL-INTEGRITY/PRD.md) — Un téléchargement « terminé » doit exister (skip silencieux BL-079, destination visible BL-080, sûreté du test de redémarrage BL-081, sélecteur de dossier BL-082) | ✅ |
 
 ## Lots archivés
 
