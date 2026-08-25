@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v2.5.2] - 2026-08-25
+
 ### Fixed
 - **Le bouton « Parcourir… » du dossier de téléchargement ne faisait rien (BL-082)** : deux défauts cumulés, tous deux introduits ou exposés par BL-080.
   1. `dest-picker-overlay` est en `z-index: 300` alors que la page des réglages est en `500` : le sélecteur s'ouvrait **derrière** elle, donc invisible. Il passe à `700`.
