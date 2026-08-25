@@ -3443,3 +3443,78 @@ class TestDownloadSocketTimeout:
         opts = mock.YoutubeDL.call_args[0][0]
         assert opts["socket_timeout"] == main_mod.DOWNLOAD_SOCKET_TIMEOUT
         assert main_mod.DOWNLOAD_SOCKET_TIMEOUT > 0
+
+
+# ── Retry from history (BL-084) ───────────────────────────────────────────────
+
+
+class TestRetryDownload:
+    def _history(self):
+        return client.get("/api/downloads").json()["items"]
+
+    def test_retry_queues_the_same_url(self, monkeypatch):
+        monkeypatch.setitem(sys.modules, "yt_dlp", _make_yt_dlp_mock())
+        _sync_thread_patch(monkeypatch)
+        client.post("/api/download", json={"url": "https://example.com/v", "title": "Sujet"})
+        first = self._history()[0]
+
+        resp = client.post(f"/api/downloads/{first['id']}/retry")
+        assert resp.status_code == 200
+        assert "job_id" in resp.json()
+
+        entries = self._history()
+        assert len(entries) == 2, "the retry must leave its own history entry"
+        assert entries[0]["url"] == first["url"]
+        assert entries[0]["id"] != first["id"]
+
+    def test_retry_preserves_the_referer(self, monkeypatch):
+        """The bookmarklet sends a direct CDN URL plus the page as Referer.
+
+        Without carrying it over, a retry is rejected by origin checks — which
+        would make the button useless in the very case it exists for.
+        """
+        mock = _make_yt_dlp_mock()
+        monkeypatch.setitem(sys.modules, "yt_dlp", mock)
+        _sync_thread_patch(monkeypatch)
+        client.post(
+            "/api/download",
+            json={
+                "url": "https://cdn.example.com/stream.mp4",
+                "referer": "https://example.com/page",
+                "title": "Depuis la page",
+            },
+        )
+        original = self._history()[0]
+        assert original["referer"] == "https://example.com/page"
+
+        client.post(f"/api/downloads/{original['id']}/retry")
+        retried = self._history()[0]
+        assert retried["referer"] == "https://example.com/page"
+        assert retried["title"] == "Depuis la page"
+
+    def test_retry_of_a_failed_entry(self, monkeypatch):
+        """The point of the feature: rescue what was lost."""
+        monkeypatch.setitem(sys.modules, "yt_dlp", _make_yt_dlp_mock(transfers=False))
+        _sync_thread_patch(monkeypatch)
+        client.post("/api/download", json={"url": "https://example.com/ko", "title": "Rate"})
+        failed = self._history()[0]
+        assert failed["status"] == "error"
+
+        monkeypatch.setitem(sys.modules, "yt_dlp", _make_yt_dlp_mock())
+        resp = client.post(f"/api/downloads/{failed['id']}/retry")
+        assert resp.status_code == 200
+        assert self._history()[0]["status"] == "done"
+
+    def test_retry_of_unknown_entry_is_404(self):
+        assert client.post("/api/downloads/nope/retry").status_code == 404
+
+    def test_retry_revalidates_the_url(self, monkeypatch):
+        """A history row is not a free pass around the SSRF guard."""
+        with main_mod.get_db() as conn:
+            conn.execute(
+                "INSERT INTO downloads (id, url, status) VALUES (?, ?, ?)",
+                ("sneaky", "http://127.0.0.1/admin", "error"),
+            )
+            conn.commit()
+        monkeypatch.setitem(sys.modules, "yt_dlp", _make_yt_dlp_mock())
+        assert client.post("/api/downloads/sneaky/retry").status_code == 400

@@ -374,6 +374,16 @@ Each row shows the filename, the date, and the outcome:
 
 History is kept **without any limit** by default — that is precisely what lets you find an old download again. To bound it: **Settings → Maintenance → Historique des téléchargements**, in days (`0` = unlimited).
 
+### Retrying a Download
+
+Every history row carries a **↻** button. It queues the same video again, with no need to find the original page.
+
+Handy for **✗ Failed**, **⊘ Cancelled** and **⚠ Interrupted** entries: the file is not there, but its address was kept.
+
+- On an entry that **succeeded**, Hoard asks for confirmation: retrying produces a **second** file next to the first, named `… (2)`.
+- Hoard keeps the page the download came from and sends it along, without which many video hosts would reject the retry.
+- Session cookies, however, are **not** kept — they are credentials. For a site requiring a login, the `cookies.txt` file set in Settings takes over.
+
 ### Where Files Land
 
 The 📥 modal shows the destination twice: the relative name (e.g. `Downloads`) and the **full path** (e.g. `/media/Downloads`). When the folder does not exist yet, a "sera créé" note says so.

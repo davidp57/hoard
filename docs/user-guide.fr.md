@@ -376,6 +376,16 @@ Le bouton **Vider** efface l'historique (les fichiers déjà téléchargés ne s
 
 Par défaut l'historique est conservé **sans limite** — c'est justement ce qui permet de retrouver un ajout ancien. Pour le borner : **Paramètres → Maintenance → Historique des téléchargements**, en nombre de jours (`0` = sans limite).
 
+### Relancer un téléchargement
+
+Chaque ligne de l'historique porte un bouton **↻**. Il remet la même vidéo en file d'attente, sans avoir à retrouver la page d'origine.
+
+C'est utile pour les entrées **✗ Échec**, **⊘ Annulé** et **⚠ Interrompu** : le fichier n'est pas là, mais son adresse est conservée.
+
+- Sur une entrée qui avait **réussi**, Hoard demande confirmation : la relance produit un **second** fichier à côté du premier, nommé `… (2)`.
+- Hoard conserve la page d'origine du téléchargement et la retransmet, sans quoi beaucoup d'hébergeurs vidéo refuseraient la relance.
+- En revanche, **les cookies de la session ne sont pas conservés** — ce sont des identifiants. Pour un site qui demande une connexion, c'est le fichier `cookies.txt` indiqué dans les réglages qui prend le relais.
+
 ### Où atterrissent les fichiers
 
 Le modal 📥 affiche la destination sous deux formes : le nom relatif (ex. `Downloads`) et le **chemin complet** (ex. `/media/Downloads`). Si le dossier n'existe pas encore, la mention « sera créé » l'indique.
