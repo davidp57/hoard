@@ -376,6 +376,18 @@ Le bouton **Vider** efface l'historique (les fichiers déjà téléchargés ne s
 
 Par défaut l'historique est conservé **sans limite** — c'est justement ce qui permet de retrouver un ajout ancien. Pour le borner : **Paramètres → Maintenance → Historique des téléchargements**, en nombre de jours (`0` = sans limite).
 
+### Où atterrissent les fichiers
+
+Le modal 📥 affiche la destination sous deux formes : le nom relatif (ex. `Downloads`) et le **chemin complet** (ex. `/media/Downloads`). Si le dossier n'existe pas encore, la mention « sera créé » l'indique.
+
+C'est important parce que le dossier de destination est **créé automatiquement** : une valeur de travers dans les réglages ne provoque aucune erreur, elle crée simplement un dossier ailleurs, où tous les téléchargements s'accumulent sans que rien ne le signale.
+
+### Deux vidéos, deux fichiers
+
+Quand la bookmarklet envoie le titre de la page comme nom de fichier, deux vidéos différentes d'un même site portent souvent le **même** titre. Hoard ajoute alors un suffixe — `Ma video.mp4`, puis `Ma video (2).mp4` — exactement comme un navigateur.
+
+Sans cela, l'outil de téléchargement voyait un fichier du même nom, **sautait le téléchargement sans rien dire**, et la vidéo était perdue alors que l'interface affichait « Terminé ». Si le cas se présente malgré tout (téléchargement lancé sans nom de fichier), l'entrée passe désormais en **échec** avec un message qui explique quoi faire, jamais en « Terminé ».
+
 ### Paramètres
 
 | Paramètre | Description |
@@ -384,7 +396,7 @@ Par défaut l'historique est conservé **sans limite** — c'est justement ce qu
 | **Activer le transcodage** | Quand désactivé, Hoard envoie toujours le fichier original (`/api/file`) sans appeler le transcodeur. Utile si votre NAS est lent ou si votre navigateur lit nativement le format. |
 | **Initial sweep par défaut** | Démarre les vidéos neuves à N secondes au lieu de 0. S'applique seulement si le fichier n'a aucune progression enregistrée. `0` le désactive globalement. |
 | **Dossiers home** | Liste de dossiers nommés affichés sur l'écran d'accueil. Ajouter/supprimer dans **Paramètres → Dossiers home**. |
-| **Dossier de téléchargement** | Dossier cible, relatif à `MEDIA_ROOT` (défaut : `Downloads`). Créé automatiquement s'il n'existe pas. |
+| **Dossier de téléchargement** | Dossier cible, relatif à la racine média (défaut : `Downloads`). Le **chemin complet** est affiché sous le champ, et un avertissement apparaît si le dossier n'existe pas encore — il sera créé au premier téléchargement. Le bouton **📂 Parcourir…** permet de le choisir par navigation plutôt qu'en le tapant. |
 | **Chemin du fichier cookies** | Chemin absolu vers un fichier `cookies.txt` au format Netscape. Utile pour les sites qui nécessitent une authentification. |
 | **Historique des téléchargements** | Nombre de jours conservés dans l'historique (**Paramètres → Maintenance**). `0` = sans limite (défaut). |
 

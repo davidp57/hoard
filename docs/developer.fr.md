@@ -240,6 +240,16 @@ Au démarrage, `mark_interrupted_downloads()` bascule en `interrupted` toute lig
 
 **Résilience du worker (BL-078).** `_download_worker_loop` intercepte désormais toute exception échappant à `_run_download`. Avant ce correctif, une erreur inattendue (import yt-dlp cassé, job retiré en cours de route) remontait hors de la boucle `while True` et **tuait définitivement** le thread `dl-worker` : tous les téléchargements suivants restaient alors en `pending` pour toujours, sans erreur visible nulle part. Le handler journalise la trace, passe le job en `error` et garde le thread vivant.
 
+**Skip silencieux (BL-079).** yt-dlp **n'écrase pas** un fichier existant et **ne lève rien** quand il saute le téléchargement : `extract_info(download=True)` revient normalement et le hook de progression émet quand même `finished`. Hoard lisait ça comme un succès : un téléchargement dont le nom était déjà pris passait `done` sans qu'aucun fichier soit écrit. La bookmarklet envoyant `document.title`, et un même site donnant souvent le même titre à toutes ses vidéos, la perte était massive. Trois garde-fous :
+
+1. `_unique_output_stem()` libère le nom en amont (`Video.mp4` → `Video (2).mp4`), en testant le préfixe `stem + "."` via `iterdir()` — pas `glob()`, un stem pouvant contenir `[`.
+2. Le hook de progression compte les événements `downloading`. Zéro événement = aucun octet transféré, donc un skip ; le job passe en `error` en expliquant la collision. C'est le filet pour les téléchargements lancés sans titre, dont le nom ne peut pas être réservé à l'avance.
+3. `_confirm_download_landed()` refuse de marquer un job `done` sans constater le fichier sur le disque, et journalise le chemin absolu et la taille.
+
+Le nom stocké vient de `info["requested_downloads"][0]["filepath"]` — ce que yt-dlp a réellement écrit. L'ancien code le reconstruisait via `prepare_filename()` en forçant le suffixe `merge_output_format` : un flux unique écrit en `.webm` était enregistré comme un `.mp4` inexistant.
+
+Les titres passent par `_outtmpl_literal()` avant d'entrer dans le template de sortie : `%` introduit un champ, si bien que `Best of 50%(off) deal` produisait le fichier `Best of 50NAeal.mp4`.
+
 ### Endpoint de téléchargement (`POST /api/download`)
 
 **Corps de la requête** (`DownloadRequest`) :

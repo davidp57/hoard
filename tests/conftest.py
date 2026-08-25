@@ -89,3 +89,21 @@ def subdir_without_video():
     finally:
         if d.exists():
             shutil.rmtree(d)
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _never_kill_the_test_runner():
+    """Neutralise the real process-termination call for the whole session.
+
+    /api/restart terminates the process with SIGTERM. A test that patches it
+    and loses a race would let a lingering thread kill pytest itself, which
+    surfaces as a job dying with no explanation. This is the backstop: no test,
+    present or future, can reach the real call. Individual tests still patch
+    what they need to assert on (BL-081).
+    """
+    import backend.main as _main
+
+    original = _main._terminate_process
+    _main._terminate_process = lambda: None
+    yield
+    _main._terminate_process = original

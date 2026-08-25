@@ -99,6 +99,12 @@
 - [ ] **PDF reader** (BL-056): PDF.js-powered reader with page navigation, zoom, keyboard/gamepad control, and saved progress
 - [ ] **Audio player** (BL-057): native audio playback for `.mp3`, `.flac`, `.ogg`, `.m4a`, `.aac`, `.wav`, `.opus` using existing player infrastructure
 
+## v2.5.1 — Download integrity *(done)*
+
+- [x] **No more silent losses** (BL-079): yt-dlp skips a download whose target name is taken, raises nothing and still emits `finished` — Hoard reported it as done for a file it never wrote. Output names are now made unique up front, a skip is detected and surfaced as an error, and no job reaches `done` without the file being on disk
+- [x] **Visible destination** (BL-080): the download folder is created on demand, so a mistyped setting silently sent everything to a folder nobody could locate. The full resolved path is now shown, a warning flags a folder that does not exist yet, and it can be picked by browsing
+- [x] **Restart test can no longer kill the test runner** (BL-081): session-wide backstop plus a race-free patch point
+
 ## v2.5 — Traceability & Operations *(done)*
 
 - [x] **Download history** (BL-075): persist download jobs in SQLite (table `downloads`), history view in the 📥 modal with final status and error message, unlimited retention by default, jobs interrupted by a restart marked as such

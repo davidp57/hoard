@@ -4,7 +4,8 @@ import json
 import sys
 import threading
 import time
-from unittest.mock import MagicMock
+from pathlib import Path
+from unittest.mock import DEFAULT, MagicMock
 
 import pytest
 from starlette.testclient import TestClient  # bundled with fastapi
@@ -1442,19 +1443,57 @@ class TestSegments:
 # ── /api/download ─────────────────────────────────────────────────────────────
 
 
-def _make_yt_dlp_mock(output_name: str = "video.mp4") -> MagicMock:
-    """Return a sys.modules-compatible yt_dlp mock."""
+def _make_yt_dlp_mock(output_name: str = "video.mp4", *, transfers: bool = True) -> MagicMock:
+    """Return a sys.modules-compatible yt_dlp mock.
+
+    It mimics what the real yt-dlp does on a successful run: it fires a
+    'downloading' progress event, writes the file, and reports the path it
+    wrote in `requested_downloads`. Hoard relies on all three to tell a real
+    download from a silently skipped one (BL-079).
+
+    `transfers=False` reproduces a skip: yt-dlp writes nothing and fires only
+    'finished', without raising.
+    """
     ydl_instance = MagicMock()
     ydl_instance.__enter__ = MagicMock(return_value=ydl_instance)
     ydl_instance.__exit__ = MagicMock(return_value=False)
-    ydl_instance.extract_info = MagicMock(return_value={"title": "test", "ext": "mp4"})
+
+    def _extract_info(url, download=False):
+        opts = ydl_instance._hoard_opts or {}
+        outtmpl = opts.get("outtmpl") or f"/tmp/{output_name}"
+        # Mirror yt-dlp: resolve the ext field, then unescape doubled percents
+        target = Path(str(outtmpl).replace("%(ext)s", "mp4").replace("%%", "%"))
+        for hook in opts.get("progress_hooks") or []:
+            if transfers:
+                hook(
+                    {
+                        "status": "downloading",
+                        "downloaded_bytes": 512,
+                        "total_bytes": 512,
+                        "filename": str(target),
+                    }
+                )
+            hook({"status": "finished", "filename": str(target)})
+        if transfers:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(bytes(512))
+        return {"title": "test", "ext": "mp4", "requested_downloads": [{"filepath": str(target)}]}
+
+    ydl_instance._hoard_opts = None
+    ydl_instance.extract_info = MagicMock(side_effect=_extract_info)
     ydl_instance.prepare_filename = MagicMock(return_value=f"/tmp/{output_name}")
+
+    def _capture_opts(opts=None, *a, **kw):
+        # Returning DEFAULT keeps `YoutubeDL.return_value` as the instance, so
+        # tests can still swap `mock.YoutubeDL.return_value.extract_info`.
+        ydl_instance._hoard_opts = opts or {}
+        return DEFAULT
 
     class _FakeDownloadError(Exception):
         pass
 
     mock_module = MagicMock()
-    mock_module.YoutubeDL = MagicMock(return_value=ydl_instance)
+    mock_module.YoutubeDL = MagicMock(return_value=ydl_instance, side_effect=_capture_opts)
     mock_module.utils = MagicMock()
     mock_module.utils.DownloadError = _FakeDownloadError
     return mock_module
@@ -3063,9 +3102,14 @@ class TestLogs:
 
 class TestRestart:
     def _capture_terminate(self, monkeypatch):
-        """Replace the real process kill with an event, so tests survive."""
+        """Capture the restart without ever arming the real kill.
+
+        Patching `_delayed_terminate` (not `_terminate_process`) means no thread
+        is left sleeping with a reference that could outlive the patch — the
+        race that could take pytest down with it. See BL-081.
+        """
         fired = threading.Event()
-        monkeypatch.setattr(main_mod, "_terminate_process", fired.set)
+        monkeypatch.setattr(main_mod, "_delayed_terminate", lambda *a, **kw: fired.set())
         return fired
 
     def test_restart_answers_then_terminates(self, monkeypatch):
@@ -3111,6 +3155,13 @@ class TestRestart:
         }
         assert client.post("/api/restart").status_code == 200
         assert fired.wait(timeout=5)
+
+    def test_delayed_terminate_calls_the_real_terminator(self, monkeypatch):
+        """The indirection itself, exercised synchronously — no thread, no race."""
+        called = []
+        monkeypatch.setattr(main_mod, "_terminate_process", lambda: called.append(True))
+        main_mod._delayed_terminate(0)
+        assert called == [True]
 
     def test_supervised_flag_follows_env_override(self, monkeypatch):
         monkeypatch.setenv("RESTART_SUPERVISED", "0")
@@ -3237,3 +3288,120 @@ class TestDownloadHistoryReviewFixes:
         assert by_id["weird"]["status"] == "interrupted"
         for state in main_mod._TERMINAL_DOWNLOAD_STATES:
             assert by_id[f"term-{state}"]["status"] == state
+
+
+# ── Download integrity (BL-079) ───────────────────────────────────────────────
+
+
+class TestDownloadIntegrity:
+    """The bug that lost videos: yt-dlp skips a download whose target name is
+    already taken, raises nothing, still emits 'finished' — and Hoard reported
+    success for a file it never wrote."""
+
+    def _dl_dir(self):
+        return MEDIA_ROOT / "Downloads"
+
+    def test_same_title_twice_produces_two_files(self, monkeypatch):
+        monkeypatch.setitem(sys.modules, "yt_dlp", _make_yt_dlp_mock())
+        _sync_thread_patch(monkeypatch)
+        for url in ("https://example.com/a", "https://example.com/b"):
+            resp = client.post("/api/download", json={"url": url, "title": "Meme titre"})
+            assert resp.status_code == 200
+        names = sorted(p.name for p in self._dl_dir().iterdir())
+        assert names == ["Meme titre (2).mp4", "Meme titre.mp4"], names
+        statuses = [i["status"] for i in client.get("/api/downloads").json()["items"]]
+        assert statuses == ["done", "done"]
+
+    def test_skipped_download_is_an_error_not_a_success(self, monkeypatch):
+        """A transfer that moves zero bytes must never be reported as done."""
+        monkeypatch.setitem(sys.modules, "yt_dlp", _make_yt_dlp_mock(transfers=False))
+        _sync_thread_patch(monkeypatch)
+        client.post("/api/download", json={"url": "https://example.com/x", "title": "Rien"})
+        entry = client.get("/api/downloads").json()["items"][0]
+        assert entry["status"] == "error"
+        assert "existait déjà" in entry["error"]
+
+    def test_missing_final_file_is_an_error(self, monkeypatch):
+        """Bytes moved but nothing on disk afterwards is still a failure."""
+        mock = _make_yt_dlp_mock()
+        inst = mock.YoutubeDL.return_value
+        real_extract = inst.extract_info.side_effect
+
+        def extract_then_delete(url, download=False):
+            info = real_extract(url, download=download)
+            Path(info["requested_downloads"][0]["filepath"]).unlink(missing_ok=True)
+            return info
+
+        inst.extract_info = MagicMock(side_effect=extract_then_delete)
+        monkeypatch.setitem(sys.modules, "yt_dlp", mock)
+        _sync_thread_patch(monkeypatch)
+        client.post("/api/download", json={"url": "https://example.com/y", "title": "Evapore"})
+        entry = client.get("/api/downloads").json()["items"][0]
+        assert entry["status"] == "error"
+        assert "aucun fichier" in entry["error"]
+
+    def test_stored_name_matches_the_file_on_disk(self, monkeypatch):
+        """The history must not claim a .mp4 that yt-dlp never produced."""
+        monkeypatch.setitem(sys.modules, "yt_dlp", _make_yt_dlp_mock())
+        _sync_thread_patch(monkeypatch)
+        client.post("/api/download", json={"url": "https://example.com/z", "title": "Reel"})
+        entry = client.get("/api/downloads").json()["items"][0]
+        assert entry["status"] == "done"
+        assert (MEDIA_ROOT / entry["output_path"]).is_file()
+        assert entry["output_name"] == Path(entry["output_path"]).name
+
+    def test_percent_in_title_survives(self, monkeypatch):
+        """'%' starts a field reference in a yt-dlp template: it must be escaped."""
+        monkeypatch.setitem(sys.modules, "yt_dlp", _make_yt_dlp_mock())
+        _sync_thread_patch(monkeypatch)
+        client.post(
+            "/api/download",
+            json={"url": "https://example.com/p", "title": "Best of 50%(off) deal"},
+        )
+        names = [p.name for p in self._dl_dir().iterdir()]
+        assert names == ["Best of 50%(off) deal.mp4"], names
+
+
+class TestUniqueOutputStem:
+    def test_returns_the_stem_when_free(self, tmp_path):
+        assert main_mod._unique_output_stem(tmp_path, "Video") == "Video"
+
+    def test_suffixes_until_free(self, tmp_path):
+        (tmp_path / "Video.mp4").write_bytes(b"x")
+        assert main_mod._unique_output_stem(tmp_path, "Video") == "Video (2)"
+        (tmp_path / "Video (2).webm").write_bytes(b"x")
+        assert main_mod._unique_output_stem(tmp_path, "Video") == "Video (3)"
+
+    def test_any_extension_counts_as_taken(self, tmp_path):
+        (tmp_path / "Video.webm").write_bytes(b"x")
+        assert main_mod._unique_output_stem(tmp_path, "Video") == "Video (2)"
+
+    def test_glob_metacharacters_in_stem(self, tmp_path):
+        """A '[' in the stem must not be read as a glob pattern — the real
+        `[[_downloads` folder is exactly that case."""
+        (tmp_path / "[[Video].mp4").write_bytes(b"x")
+        assert main_mod._unique_output_stem(tmp_path, "[[Video]") == "[[Video] (2)"
+        assert main_mod._unique_output_stem(tmp_path, "[[Other]") == "[[Other]"
+
+    def test_missing_directory_is_not_an_error(self, tmp_path):
+        assert main_mod._unique_output_stem(tmp_path / "nope", "Video") == "Video"
+
+
+# ── Download destination visibility (BL-080) ──────────────────────────────────
+
+
+class TestDownloadDestination:
+    def test_settings_expose_the_resolved_path(self):
+        data = client.get("/api/settings").json()
+        assert data["download_folder_abs"].endswith("/Downloads")
+        assert data["download_folder_exists"] is False  # not created yet
+
+    def test_exists_flag_follows_reality(self):
+        (MEDIA_ROOT / "Downloads").mkdir(exist_ok=True)
+        assert client.get("/api/settings").json()["download_folder_exists"] is True
+
+    def test_resolved_path_follows_the_setting(self):
+        client.post("/api/settings", json={"download_folder": "Ailleurs/Sous-dossier"})
+        data = client.get("/api/settings").json()
+        assert data["download_folder_abs"].endswith("/Ailleurs/Sous-dossier")
+        assert data["download_folder_exists"] is False
