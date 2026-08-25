@@ -6,6 +6,9 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ## [Non publié]
 
+### Corrections
+- **Le bouton « Parcourir… » pour choisir le dossier de téléchargement ne répondait pas** : la fenêtre de sélection s'ouvrait bel et bien, mais **derrière** la page des réglages — donc invisible. Et même au premier plan elle serait apparue vide lorsque le dossier configuré n'existait pas encore. Les deux sont corrigés : la fenêtre passe devant, et si le dossier est introuvable elle revient à la racine en le signalant.
+
 ## [v2.5.1] — 2026-08-25
 
 ### Corrections

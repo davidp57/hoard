@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Le bouton « Parcourir… » du dossier de téléchargement ne faisait rien (BL-082)** : deux défauts cumulés, tous deux introduits ou exposés par BL-080.
+  1. `dest-picker-overlay` est en `z-index: 300` alors que la page des réglages est en `500` : le sélecteur s'ouvrait **derrière** elle, donc invisible. Il passe à `700`.
+  2. Même au premier plan, il se serait ouvert **vide** : le sélecteur démarre sur le dossier courant, et `_loadDestPickerDir()` faisait `r.json()` sans vérifier le statut HTTP. Sur un dossier absent — précisément le cas d'une destination « qui n'existe pas encore » — l'API répond 404 avec un corps JSON `{detail: ...}`, valeur *truthy* qui passait le garde `if (!r)`, puis `r.entries.filter()` levait une exception silencieuse : ni liste, ni message. Le statut est désormais vérifié et un chemin introuvable replie sur la racine avec un toast explicite. Ce défaut préexistait dans le sélecteur de déplacement de fichiers, qui en bénéficie aussi.
+
 ## [v2.5.1] - 2026-08-25
 
 ### Fixed
