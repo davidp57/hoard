@@ -821,6 +821,76 @@ def _sanitize_filename(name: str) -> str:
     return name[:180] or "video"
 
 
+def _stem_is_taken(output_dir: Path, stem: str) -> bool:
+    """Whether any file named `stem.<something>` already sits in output_dir.
+
+    The extension isn't known before yt-dlp runs, so the whole prefix is tested.
+    Deliberately not glob(): a stem may contain '[', a glob metacharacter — the
+    real-world `[[_downloads` folder is exactly that case.
+    """
+    prefix = f"{stem}."
+    try:
+        return any(p.name.startswith(prefix) for p in output_dir.iterdir())
+    except OSError:
+        return False
+
+
+def _unique_output_stem(output_dir: Path, stem: str) -> str:
+    """Free filename stem, suffixing ' (2)', ' (3)'... the way a browser does.
+
+    Without this, yt-dlp silently SKIPS a download whose target already exists —
+    no exception, and a 'finished' progress event all the same — so Hoard would
+    report success for a file it never wrote. See BL-079.
+    """
+    if not _stem_is_taken(output_dir, stem):
+        return stem
+    for n in range(2, 1000):
+        candidate = f"{stem} ({n})"
+        if not _stem_is_taken(output_dir, candidate):
+            return candidate
+    return f"{stem} ({uuid.uuid4().hex[:8]})"
+
+
+def _confirm_download_landed(job: dict, output_dir: Path, chunks: int) -> None:
+    """Settle a finished job as 'done' only if a file really landed.
+
+    yt-dlp raises nothing when it skips a download whose target already exists,
+    and still emits a 'finished' progress event, so reaching this point proves
+    nothing on its own. Two things are checked: bytes actually moved, and the
+    file is on disk. Anything else is an error the user must see (BL-079).
+    """
+    name = job.get("output_name") or ""
+    target = Path(job.get("_output_file") or (output_dir / name if name else ""))
+
+    if chunks == 0:
+        job["status"] = "error"
+        job["error"] = (
+            f"yt-dlp n'a téléchargé aucune donnée : un fichier nommé « {name} » "
+            "existait déjà. Renomme ou supprime ce fichier, puis relance."
+        )
+        logger.warning("download skipped by yt-dlp, target already present: %s", target)
+        return
+
+    if not target.name or not target.exists():
+        job["status"] = "error"
+        job["error"] = f"Téléchargement terminé mais aucun fichier écrit ({target})."
+        logger.warning("download reported success but no file at %s", target)
+        return
+
+    job["status"] = "done"
+    job["progress"] = 100
+    logger.info("download completed: path=%s size=%d", target, target.stat().st_size)
+
+
+def _outtmpl_literal(text: str) -> str:
+    """Escape a literal string for a yt-dlp output template.
+
+    '%' starts a field reference: an unescaped title like 'Best of 50%(off) deal'
+    silently became 'Best of 50NAeal'.
+    """
+    return text.replace("%", "%%")
+
+
 # Known video-hosting domains whose embed URLs yt-dlp can extract directly.
 # Mirrors the bookmarklet's iframe-detection strategy.
 _VIDEO_HOSTS_RE = re.compile(
@@ -968,8 +1038,12 @@ def _run_download(
         # Build yt-dlp options
         # If a title hint was supplied (from bookmarklet page title), use it
         # directly as the output filename so we don't get the embed page title.
+        # Two pages often share one title, so the stem is made unique first:
+        # yt-dlp would otherwise skip the download entirely and report success.
         if title:
-            outtmpl = str(output_dir / f"{_sanitize_filename(title)}.%(ext)s")
+            stem = _unique_output_stem(output_dir, _sanitize_filename(title))
+            job["output_name"] = f"{stem}.mp4"  # provisional, corrected after download
+            outtmpl = str(output_dir / f"{_outtmpl_literal(stem)}.%(ext)s")
         else:
             outtmpl = str(output_dir / "%(title)s.%(ext)s")
 
@@ -1005,11 +1079,17 @@ def _run_download(
                 raise
             ydl_opts["cookiefile"] = tmp_cookies_file
 
+        # yt-dlp emits a 'finished' event even when it skipped the download
+        # because the target file already existed, so 'finished' alone proves
+        # nothing. Actual bytes moving is what emits 'downloading'.
+        transfer = {"chunks": 0}
+
         def _progress_hook(d: dict) -> None:
             # Abort as soon as the user cancels — yt-dlp propagates the exception
             if cancel_event.is_set():
                 raise Exception("Download cancelled by user")
             if d.get("status") == "downloading":
+                transfer["chunks"] += 1
                 total = d.get("total_bytes") or d.get("total_bytes_estimate") or 0
                 downloaded = d.get("downloaded_bytes") or 0
                 if total > 0:
@@ -1030,11 +1110,21 @@ def _run_download(
         def _extract(target_url: str, opts: dict) -> None:
             with yt_dlp.YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(target_url, download=True)
-                if info:
-                    final = ydl.prepare_filename(info)
-                    if opts.get("merge_output_format"):
-                        final = str(Path(final).with_suffix(f".{opts['merge_output_format']}"))
-                    job["output_name"] = Path(final).name
+                if not info:
+                    return
+                # yt-dlp reports the file it actually wrote; prepare_filename()
+                # is only a fallback. Never force merge_output_format onto the
+                # name — a single-stream download isn't merged and keeps its own
+                # extension, which used to leave the history pointing at a .mp4
+                # that never existed.
+                written = [
+                    d.get("filepath")
+                    for d in (info.get("requested_downloads") or [])
+                    if d.get("filepath")
+                ]
+                final = written[0] if written else ydl.prepare_filename(info)
+                job["output_name"] = Path(final).name
+                job["_output_file"] = final
 
         try:
             _extract(url, ydl_opts)
@@ -1057,9 +1147,7 @@ def _run_download(
         if cancel_event.is_set():
             job["status"] = "cancelled"
         else:
-            job["status"] = "done"
-            job["progress"] = 100
-            logger.info("download completed: name=%s", job.get("source_name"))
+            _confirm_download_landed(job, output_dir, transfer["chunks"])
 
     except Exception as e:
         if cancel_event.is_set():
@@ -2264,9 +2352,13 @@ def start_download(body: DownloadRequest, request: Request):
     download_folder_rel = s.get("download_folder", "Downloads")
     cookies_file_path = s.get("download_cookies_path", "")
 
-    # Resolve (and create if needed) the download destination
+    # Resolve (and create if needed) the download destination. Creating it in
+    # silence is how a mistyped setting produced a folder the user could not
+    # find, so the event is logged (BL-080).
     output_dir = safe_path(download_folder_rel)
-    output_dir.mkdir(parents=True, exist_ok=True)
+    if not output_dir.is_dir():
+        output_dir.mkdir(parents=True, exist_ok=True)
+        logger.info("created download folder: %s", output_dir)
 
     job_id = str(uuid.uuid4())
     _jobs[job_id] = {
@@ -2693,6 +2785,16 @@ def get_settings():
     result["app_version"] = VERSION
     # Lets the UI word the restart confirmation correctly before calling /api/restart
     result["restart_supervised"] = _is_supervised()
+    # Where downloads actually land. The setting is a free-text relative path and
+    # the folder is created on demand, so a typo used to silently produce a folder
+    # nobody could locate — the UI now shows the resolved path (BL-080).
+    try:
+        dl_dir = safe_path(s.get("download_folder", "Downloads"))
+        result["download_folder_abs"] = str(dl_dir).replace("\\", "/")
+        result["download_folder_exists"] = dl_dir.is_dir()
+    except HTTPException:
+        result["download_folder_abs"] = ""
+        result["download_folder_exists"] = False
     return result
 
 
