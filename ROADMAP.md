@@ -99,6 +99,10 @@
 - [ ] **PDF reader** (BL-056): PDF.js-powered reader with page navigation, zoom, keyboard/gamepad control, and saved progress
 - [ ] **Audio player** (BL-057): native audio playback for `.mp3`, `.flac`, `.ogg`, `.m4a`, `.aac`, `.wav`, `.opus` using existing player infrastructure
 
+## v2.6 — Retry from history *(done)*
+
+- [x] **Relaunch a download from its history entry** (BL-084): a ↻ button on every row queues the same URL again, carrying over the title and the Referer (now persisted — without it a direct CDN URL is rejected on origin checks). A successful entry asks for confirmation first, since the retry produces a second file suffixed `(2)`. Cookies are deliberately not stored, so authenticated sites rely on the persistent cookies.txt setting
+
 ## v2.5.2 — Destination picker follow-up *(done)*
 
 - [x] **Tests reached the real yt-dlp** (BL-083): download threads outliving their test imported the genuine module and issued a real, timeout-less HTTP request — the suite stalled locally one run in two, and CI's "Run tests" step hung until the 6-hour limit (blamed on faulty runners across three releases). A session fixture now makes the real module unreachable, and production passes a `socket_timeout` so a silent server cannot pin the sequential queue

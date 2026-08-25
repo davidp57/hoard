@@ -318,9 +318,15 @@ def init_db():
                 status      TEXT NOT NULL,
                 error       TEXT,
                 created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                finished_at TIMESTAMP
+                finished_at TIMESTAMP,
+                referer     TEXT
             )
         """)
+        # Migration: retrying a download needs the Referer the bookmarklet sent.
+        # Without it a re-run of a direct CDN URL is rejected on origin checks.
+        dl_cols = [r["name"] for r in conn.execute("PRAGMA table_info(downloads)").fetchall()]
+        if "referer" not in dl_cols:
+            conn.execute("ALTER TABLE downloads ADD COLUMN referer TEXT")
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_downloads_created ON downloads(created_at DESC)"
         )
@@ -525,8 +531,8 @@ def _persist_download(job: dict) -> None:
             conn.execute(
                 """
                 INSERT INTO downloads (id, url, title, output_name, output_path,
-                                       status, error, finished_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, CASE WHEN ? THEN CURRENT_TIMESTAMP END)
+                                       status, error, finished_at, referer)
+                VALUES (?, ?, ?, ?, ?, ?, ?, CASE WHEN ? THEN CURRENT_TIMESTAMP END, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     output_name = excluded.output_name,
                     output_path = excluded.output_path,
@@ -543,6 +549,7 @@ def _persist_download(job: dict) -> None:
                     job.get("status", ""),
                     job.get("error"),
                     1 if finished else 0,
+                    params.get("referer"),
                 ),
             )
             conn.commit()
@@ -2295,6 +2302,29 @@ def clear_download_history():
     return {"ok": True, "deleted": cur.rowcount}
 
 
+@app.post("/api/downloads/{download_id}/retry")
+def retry_download(download_id: str, request: Request):
+    """Queue the same URL again from a history entry.
+
+    The history keeps the URL, the title hint and the Referer, which is enough
+    to reproduce the original request. Cookies captured by the bookmarklet are
+    deliberately **not** stored — they are session credentials — so a site that
+    needs authentication relies on the persistent cookies.txt setting instead.
+    """
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT url, title, referer FROM downloads WHERE id = ?", (download_id,)
+        ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="History entry not found")
+
+    logger.info(
+        "download retried: from=%s url=%s ip=%s", download_id, row["url"], _client_ip(request)
+    )
+    job_id = _queue_download(row["url"], title=row["title"], referer=row["referer"])
+    return {"job_id": job_id}
+
+
 @app.delete("/api/downloads/{download_id}")
 def delete_download_entry(download_id: str):
     """Remove a single history entry (the file itself is never touched)."""
@@ -2347,11 +2377,19 @@ def _validate_download_url(url: str) -> None:
         pass  # hostname (not a literal IP) — allow
 
 
-@app.post("/api/download")
-def start_download(body: DownloadRequest, request: Request):
-    """Start a yt-dlp download in the background and return a job_id."""
-    _validate_download_url(body.url)
-    logger.info("download started: url=%s ip=%s", body.url, _client_ip(request))
+def _queue_download(
+    url: str,
+    *,
+    title: str | None = None,
+    referer: str | None = None,
+    cookies: str | None = None,
+) -> str:
+    """Create a download job and hand it to the sequential queue.
+
+    Shared by the download endpoint and by retry, so a relaunched download goes
+    through exactly the same validation, destination and queue as the original.
+    """
+    _validate_download_url(url)
 
     with get_db() as conn:
         s = _read_all_settings(conn)
@@ -2371,8 +2409,8 @@ def start_download(body: DownloadRequest, request: Request):
     _jobs[job_id] = {
         "id": job_id,
         "type": "download",
-        "url": body.url,
-        "source_name": body.url,
+        "url": url,
+        "source_name": url,
         "output_name": "",
         "status": "pending",
         "progress": 0,
@@ -2380,12 +2418,12 @@ def start_download(body: DownloadRequest, request: Request):
         # Private fields: not exposed via the API (stripped by _job_for_api)
         "_cancel_event": threading.Event(),
         "_params": {
-            "url": body.url,
+            "url": url,
             "output_dir": output_dir,
-            "cookies": body.cookies,
+            "cookies": cookies,
             "cookies_file_path": cookies_file_path,
-            "referer": body.referer,
-            "title": body.title,
+            "referer": referer,
+            "title": title,
         },
     }
     # Record the attempt right away: a download that never gets off the ground
@@ -2396,6 +2434,14 @@ def start_download(body: DownloadRequest, request: Request):
     # then 'pending', so the bookmarklet toast shows meaningful states even when
     # another download is already running.
     threading.Thread(target=_prepare_download, args=(job_id,), daemon=True).start()
+    return job_id
+
+
+@app.post("/api/download")
+def start_download(body: DownloadRequest, request: Request):
+    """Start a yt-dlp download in the background and return a job_id."""
+    logger.info("download started: url=%s ip=%s", body.url, _client_ip(request))
+    job_id = _queue_download(body.url, title=body.title, referer=body.referer, cookies=body.cookies)
     return {"job_id": job_id}
 
 

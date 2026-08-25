@@ -139,6 +139,7 @@ are not sent in clear text.
 | GET | `/api/downloads` | Persistent download history `?limit=&offset=&status=` → `{total, items}` |
 | DELETE | `/api/downloads` | Clear the whole history (files untouched) |
 | DELETE | `/api/downloads/{id}` | Remove one history entry |
+| POST | `/api/downloads/{id}/retry` | Queue the same URL again from a history entry → `{job_id}` |
 | GET | `/api/logs` | Tail of the log file `?lines=&level=` → `{enabled, path, retention_days, lines}` |
 | POST | `/api/restart` | Terminate the process so the supervisor restarts it `{force?}` → `{ok, supervised}` |
 
@@ -220,7 +221,8 @@ CREATE TABLE downloads (
     status      TEXT NOT NULL,      -- pending|resolving|running|done|error|cancelled|interrupted
     error       TEXT,
     created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    finished_at TIMESTAMP
+    finished_at TIMESTAMP,
+    referer     TEXT                -- needed to replay a direct CDN URL
 );
 -- index: idx_downloads_created ON downloads(created_at DESC)
 ```
@@ -250,6 +252,8 @@ All job state is held in memory in `_jobs: dict[str, dict]`. Fields prefixed wit
 **Download persistence.** `_jobs` is the hot store only — entries are purged `JOB_TTL_SECONDS` after reaching a terminal state and vanish on restart. Every meaningful transition of a `download` job is therefore mirrored into the `downloads` table by `_persist_download()`, which the `/api/downloads` history reads back. A DB failure there is logged and swallowed: persistence must never break a download.
 
 At startup, `mark_interrupted_downloads()` flips any row still in a non-terminal state to `interrupted` — the process died mid-download, and without this the history would show jobs stuck `running` forever. Retention is driven by the `download_history_days` setting (`0` = keep forever, the default) and applied by `_purge_download_history()`.
+
+**Retry (BL-084).** `_queue_download()` is shared by `/api/download` and the retry endpoint, so a relaunched download goes through the same SSRF validation, destination and sequential queue — a history row is not a free pass, the URL is revalidated. The `referer` is persisted precisely so a retry of a direct CDN URL survives origin checks; cookies are deliberately not stored (session credentials), so authenticated sites depend on the `download_cookies_path` setting.
 
 **Worker resilience (BL-078).** `_download_worker_loop` catches every exception escaping `_run_download`. Before that fix, any unexpected error (a broken yt-dlp import, a job removed mid-flight) propagated out of the `while True` loop and killed the `dl-worker` thread permanently: all later downloads then sat in `pending` forever with no error surfaced anywhere. The handler now logs the traceback, marks the job `error`, and keeps the thread alive.
 

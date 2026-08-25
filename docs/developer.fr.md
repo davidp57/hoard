@@ -135,6 +135,7 @@ comptes — utiliser HTTPS pour ne pas transmettre les identifiants en clair.
 | GET | `/api/downloads` | Historique persistant des téléchargements `?limit=&offset=&status=` → `{total, items}` |
 | DELETE | `/api/downloads` | Vide tout l'historique (les fichiers ne sont pas touchés) |
 | DELETE | `/api/downloads/{id}` | Retire une entrée de l'historique |
+| POST | `/api/downloads/{id}/retry` | Relance la même URL depuis une entrée d'historique → `{job_id}` |
 | GET | `/api/logs` | Fin du fichier de log `?lines=&level=` → `{enabled, path, retention_days, lines}` |
 | POST | `/api/restart` | Termine le processus pour que le superviseur le relance `{force?}` → `{ok, supervised}` |
 
@@ -208,7 +209,8 @@ CREATE TABLE downloads (
     status      TEXT NOT NULL,      -- pending|resolving|running|done|error|cancelled|interrupted
     error       TEXT,
     created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    finished_at TIMESTAMP
+    finished_at TIMESTAMP,
+    referer     TEXT                -- nécessaire pour rejouer une URL de CDN directe
 );
 -- index : idx_downloads_created ON downloads(created_at DESC)
 ```
@@ -238,6 +240,8 @@ Tout l'état des jobs est conservé en mémoire dans `_jobs : dict[str, dict]`. 
 **Persistance des téléchargements.** `_jobs` n'est que le store chaud : les entrées sont purgées `JOB_TTL_SECONDS` après leur état terminal et disparaissent au redémarrage. Chaque transition significative d'un job `download` est donc recopiée dans la table `downloads` par `_persist_download()`, que l'historique `/api/downloads` relit. Une erreur DB y est journalisée et absorbée : la persistance ne doit jamais casser un téléchargement.
 
 Au démarrage, `mark_interrupted_downloads()` bascule en `interrupted` toute ligne encore dans un état non terminal — le processus est mort en plein téléchargement, et sans ça l'historique afficherait des jobs éternellement `running`. La rétention est pilotée par le réglage `download_history_days` (`0` = illimité, le défaut) et appliquée par `_purge_download_history()`.
+
+**Relance (BL-084).** `_queue_download()` est partagé par `/api/download` et l'endpoint de relance : un téléchargement relancé passe par la même validation SSRF, la même destination et la même file séquentielle — une ligne d'historique n'est pas un laissez-passer, l'URL est revalidée. Le `referer` est persisté précisément pour qu'une relance d'URL de CDN directe survive aux contrôles d'origine ; les cookies ne sont volontairement pas stockés (identifiants de session), donc les sites authentifiés dépendent du réglage `download_cookies_path`.
 
 **Résilience du worker (BL-078).** `_download_worker_loop` intercepte désormais toute exception échappant à `_run_download`. Avant ce correctif, une erreur inattendue (import yt-dlp cassé, job retiré en cours de route) remontait hors de la boucle `while True` et **tuait définitivement** le thread `dl-worker` : tous les téléchargements suivants restaient alors en `pending` pour toujours, sans erreur visible nulle part. Le handler journalise la trace, passe le job en `error` et garde le thread vivant.
 
