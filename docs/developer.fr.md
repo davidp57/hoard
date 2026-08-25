@@ -58,6 +58,7 @@ hoard/
 | `SSL_CERTFILE` | *(non défini)* | Chemin vers un fichier de certificat PEM. Quand défini (avec `SSL_KEYFILE`), uvicorn sert le HTTPS nativement. |
 | `SSL_KEYFILE` | *(non défini)* | Chemin vers la clé privée PEM correspondante. |
 | `JOB_TTL_SECONDS` | `3600` | Durée (s) de conservation en mémoire d'un job de téléchargement/export terminé avant purge. |
+| `DOWNLOAD_SOCKET_TIMEOUT` | `30` | Secondes de silence sur la socket avant que yt-dlp n'abandonne un téléchargement. Sans cela, un serveur qui se tait immobilise indéfiniment le worker séquentiel. |
 | `LOG_LEVEL` | `INFO` | Niveau de log du logger `hoard` (journal d'audit). |
 | `LOG_DIR` | `<dossier de DB_PATH>/logs` | Dossier du fichier de log rotatif. Chaîne vide = journalisation fichier désactivée (stdout seul) — la suite de tests la met à vide. |
 | `LOG_RETENTION_DAYS` | `30` | `backupCount` du `TimedRotatingFileHandler` (rotation quotidienne à minuit). |

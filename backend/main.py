@@ -473,6 +473,9 @@ def _job_for_api(job: dict) -> dict:
 _TERMINAL_JOB_STATES = ("done", "error", "cancelled")
 JOB_TTL_SECONDS = int(os.environ.get("JOB_TTL_SECONDS", "3600"))
 
+# Seconds of silence on a download socket before yt-dlp gives up.
+DOWNLOAD_SOCKET_TIMEOUT = int(os.environ.get("DOWNLOAD_SOCKET_TIMEOUT", "30"))
+
 
 def _purge_old_jobs() -> None:
     """Drop terminal jobs whose TTL has elapsed.
@@ -1057,6 +1060,10 @@ def _run_download(
             "impersonate": yt_dlp.networking.impersonate.ImpersonateTarget.from_str("chrome"),
             "no_warnings": True,
             "noprogress": False,
+            # Without this a server that accepts the connection and then goes
+            # quiet hangs the worker forever — and the queue is sequential, so
+            # every later download waits behind it.
+            "socket_timeout": DOWNLOAD_SOCKET_TIMEOUT,
         }
 
         # When downloading a direct video URL extracted from a page, send the

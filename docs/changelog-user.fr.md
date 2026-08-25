@@ -9,6 +9,7 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 ## [v2.5.2] — 2026-08-25
 
 ### Corrections
+- **Un site qui ne répond plus ne bloque plus la file** : si un serveur acceptait la connexion puis se taisait, le téléchargement restait suspendu pour toujours — et comme Hoard télécharge un fichier à la fois, tous les suivants attendaient derrière sans jamais démarrer. Un délai d'attente est désormais appliqué (30 secondes de silence), après quoi le téléchargement échoue proprement et la file repart.
 - **Le bouton « Parcourir… » pour choisir le dossier de téléchargement ne répondait pas** : la fenêtre de sélection s'ouvrait bel et bien, mais **derrière** la page des réglages — donc invisible. Et même au premier plan elle serait apparue vide lorsque le dossier configuré n'existait pas encore. Les deux sont corrigés : la fenêtre passe devant, et si le dossier est introuvable elle revient à la racine en le signalant.
 
 ## [v2.5.1] — 2026-08-25
