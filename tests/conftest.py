@@ -107,3 +107,41 @@ def _never_kill_the_test_runner():
     _main._terminate_process = lambda: None
     yield
     _main._terminate_process = original
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _forbid_real_yt_dlp():
+    """Make the real yt-dlp unreachable for the whole session.
+
+    Tests patch sys.modules["yt_dlp"] individually, but monkeypatch restores it
+    when the test ends — while download threads it started may still be running.
+    Such a thread then imports the *real* yt-dlp and issues a real HTTP request
+    with no timeout, which hangs forever: locally the suite stalls at random, and
+    on CI the "Run tests" step sits there until the 6-hour limit.
+
+    yt-dlp is a genuine dependency (requirements-dev pulls backend/requirements),
+    so it really is importable here. Replacing it session-wide means a late
+    thread fails loudly instead of hanging, and monkeypatch restores to this stub
+    rather than to the real module.
+    """
+    import sys
+    from unittest.mock import MagicMock
+
+    class _DownloadError(Exception):
+        pass
+
+    def _refuse(*args, **kwargs):
+        raise RuntimeError("the real yt-dlp was reached from a test — patch sys.modules['yt_dlp']")
+
+    stub = MagicMock()
+    stub.YoutubeDL = MagicMock(side_effect=_refuse)
+    stub.utils = MagicMock()
+    stub.utils.DownloadError = _DownloadError
+
+    saved = sys.modules.get("yt_dlp")
+    sys.modules["yt_dlp"] = stub
+    yield
+    if saved is None:
+        sys.modules.pop("yt_dlp", None)
+    else:
+        sys.modules["yt_dlp"] = saved

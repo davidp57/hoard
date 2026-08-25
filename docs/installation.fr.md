@@ -139,6 +139,7 @@ Toute la configuration passe par des **variables d'environnement** dans `docker-
 | `LOG_RETENTION_DAYS` | `30` | Nombre de fichiers quotidiens conservés (rotation à minuit). |
 | `RESTART_SUPERVISED` | *(auto-détecté)* | `0` / `1`. Indique si un superviseur relance le processus après un arrêt. Détecté automatiquement dans un container ; sert uniquement à formuler le message de confirmation du bouton « Redémarrer Hoard ». |
 | `JOB_TTL_SECONDS` | `3600` | Durée de conservation en mémoire d'un job terminé. N'affecte pas l'historique des téléchargements, qui est en base. |
+| `DOWNLOAD_SOCKET_TIMEOUT` | `30` | Secondes de silence tolérées sur une connexion de téléchargement avant abandon. Évite qu'un serveur muet immobilise la file (séquentielle). |
 
 ### Activer le HTTPS
 

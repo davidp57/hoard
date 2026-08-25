@@ -58,6 +58,7 @@ hoard/
 | `SSL_CERTFILE` | *(unset)* | Path to a PEM certificate file. When set (together with `SSL_KEYFILE`), uvicorn serves HTTPS natively. |
 | `SSL_KEYFILE` | *(unset)* | Path to the matching PEM private key file. |
 | `JOB_TTL_SECONDS` | `3600` | Seconds a terminal download/export job is kept in memory before being purged. |
+| `DOWNLOAD_SOCKET_TIMEOUT` | `30` | Seconds of socket silence before yt-dlp aborts a download. Without it, a server that goes quiet hangs the sequential worker indefinitely. |
 | `LOG_LEVEL` | `INFO` | Logging level for the `hoard` logger (audit trail). |
 | `LOG_DIR` | `<DB_PATH dir>/logs` | Directory for the rotating log file. Empty string disables file logging (stdout only) — the test suite sets it empty. |
 | `LOG_RETENTION_DAYS` | `30` | `backupCount` of the `TimedRotatingFileHandler` (daily rotation at midnight). |
