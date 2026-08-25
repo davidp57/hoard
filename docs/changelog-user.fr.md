@@ -6,6 +6,8 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ## [Non publié]
 
+## [v2.5.1] — 2026-08-25
+
 ### Corrections
 - **Des vidéos disparaissaient alors que Hoard affichait « Terminé »** — c'était la cause des pertes. La bookmarklet donne au fichier le titre de la page web ; or un même site donne souvent le même titre à toutes ses vidéos. Dès qu'un fichier de ce nom existait, l'outil de téléchargement **abandonnait sans rien dire**, et Hoard affichait quand même la barre à 100 % puis « Terminé ». La vidéo n'était nulle part. Désormais Hoard numérote les doublons — `Ma video.mp4`, puis `Ma video (2).mp4` — comme le fait un navigateur, et surtout il **vérifie que le fichier existe** avant d'annoncer un succès : en cas de problème, l'entrée passe en échec avec un message qui explique quoi faire.
 - **Savoir où atterrissent les téléchargements** : le dossier de destination est créé tout seul, donc une adresse mal saisie ne provoquait aucune erreur — elle créait simplement un dossier ailleurs, où tout s'accumulait sans prévenir. Hoard affiche maintenant le **chemin complet** de destination, dans la fenêtre de téléchargement comme dans les réglages, signale quand le dossier n'existe pas encore, et permet de le choisir en naviguant (bouton **Parcourir…**) au lieu de le taper.

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v2.5.1] - 2026-08-25
+
 ### Fixed
 - **Vidéos perdues sans le moindre signal (BL-079)** : quand le fichier cible existait déjà, yt-dlp **sautait le téléchargement** sans lever d'exception, tout en émettant un événement de progression `finished`. Hoard lisait ça comme un succès : la barre montait à 100 %, le job passait `done` et l'historique affichait « Terminé » — pour un fichier jamais écrit. La bookmarklet envoyant `document.title` comme nom, et un même site donnant souvent le même titre à toutes ses vidéos, la perte était massive et invisible. Reproduit : deux vidéos de 5,2 Mo et 11,9 Mo avec un titre identique laissaient un seul fichier de 5,2 Mo, la seconde purement perdue. Correctifs : nom de sortie rendu unique en amont (`Ma video (2).mp4`, comme un navigateur) ; détection du skip via le compteur d'événements `downloading` (zéro octet transféré ⇒ `error` explicite) ; vérification de l'existence du fichier avant tout passage en `done` ; journalisation du chemin absolu et de la taille.
 - **Nom de fichier annoncé mais inexistant (BL-079)** : le nom stocké était reconstruit avec le suffixe `merge_output_format` forcé, alors qu'un téléchargement à flux unique n'est pas fusionné et garde son extension. Un `.webm` était donc enregistré comme un `.mp4` introuvable, et « Aller au fichier » ne trouvait rien. Le nom vient désormais de `requested_downloads[0].filepath`, ce que yt-dlp a réellement écrit.
