@@ -1363,7 +1363,7 @@
 <body>
 
 <!-- PIN screen -->
-<div id="pin-screen" style="display:none">
+<div id="pin-screen" class="gp-modal" style="display:none">
   <h2>🔒 Hoard</h2>
   <div id="pin-dots">
     <div class="pin-dot" id="pd0"></div>
@@ -1626,7 +1626,7 @@
 </div>
 
 <!-- PIN-change mini modal (used from settings page) -->
-<div id="pin-set-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:600;align-items:center;justify-content:center">
+<div id="pin-set-overlay" class="gp-modal" data-gp-close="closePinSetModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:600;align-items:center;justify-content:center">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:28px 24px;width:320px;display:flex;flex-direction:column;gap:16px">
     <div style="font-size:15px;font-weight:700;color:var(--accent)">Définir le PIN</div>
     <div id="pin-set-dots" style="display:flex;gap:10px;justify-content:center">
@@ -1802,7 +1802,7 @@
 </div>
 
 <!-- Download queue modal -->
-<div id="dl-queue-overlay" onclick="_dlQueueOverlayClick(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
+<div id="dl-queue-overlay" class="gp-modal" data-gp-close="closeDlQueueModal" onclick="_dlQueueOverlayClick(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
   <div id="dl-queue-modal" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:480px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;gap:14px;overflow:hidden">
     <!-- Header row -->
     <div style="display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
@@ -1849,7 +1849,7 @@
 </div>
 
 <!-- Move modal -->
-<div id="move-dialog" onclick="if(event.target===this)closeModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
+<div id="move-dialog" class="gp-modal" data-gp-close="closeModal" onclick="if(event.target===this)closeModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
   <div id="modal">
     <h3>Déplacer vers…</h3>
     <div id="modal-filename"></div>
@@ -1863,7 +1863,7 @@
 </div>
 
 <!-- Browse modal -->
-<div id="browse-overlay" onclick="closeBrowseModal(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
+<div id="browse-overlay" class="gp-modal" data-gp-close="closeBrowseModal" onclick="closeBrowseModal(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
   <div id="browse-modal" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:480px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;gap:10px">
     <div id="browse-modal-title" style="font-size:15px;font-weight:700;color:var(--accent)">Choisir le dossier de départ</div>
     <div style="display:flex;gap:6px">
@@ -1881,7 +1881,7 @@
 </div>
 
 <!-- Destination picker modal (free move) -->
-<div id="dest-picker-overlay" onclick="closeDestPicker(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:700;align-items:center;justify-content:center">
+<div id="dest-picker-overlay" class="gp-modal" data-gp-close="closeDestPicker" onclick="closeDestPicker(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:700;align-items:center;justify-content:center">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:480px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;gap:10px">
     <div id="dest-picker-title" style="font-size:15px;font-weight:700;color:var(--accent)">Déplacer vers…</div>
     <div id="dest-picker-crumb" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim);word-break:break-all;min-height:16px"></div>
@@ -1894,7 +1894,7 @@
 </div>
 
 <!-- Tag modal -->
-<div id="tag-modal" onclick="closeTagModal(event)">
+<div id="tag-modal" class="gp-modal" data-gp-close="closeTagModal" onclick="closeTagModal(event)">
   <div class="modal-box" onclick="event.stopPropagation()">
     <div style="font-size:15px;font-weight:700;color:var(--accent);margin-bottom:4px">🏷 Tags</div>
     <div id="tag-modal-filename" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim);word-break:break-all;margin-bottom:4px"></div>
@@ -1911,7 +1911,7 @@
 </div>
 
 <!-- Cut modal -->
-<div id="export-dialog" onclick="if(event.target===this)closeExportModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
+<div id="export-dialog" class="gp-modal" data-gp-close="closeExportModal" onclick="if(event.target===this)closeExportModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:440px;max-width:95vw;display:flex;flex-direction:column;gap:14px">
     <div style="font-size:15px;font-weight:700;color:var(--accent)">&#x2702; Exporter les segments</div>
     <div id="export-filename" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim);word-break:break-all"></div>
@@ -1944,7 +1944,7 @@
 <div id="jobs-panel"></div>
 
 <!-- Mkdir modal -->
-<div id="mkdir-overlay" onclick="closeMkdirModal(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
+<div id="mkdir-overlay" class="gp-modal" data-gp-close="closeMkdirModal" onclick="closeMkdirModal(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:360px;max-width:95vw;display:flex;flex-direction:column;gap:14px">
     <div style="font-size:15px;font-weight:700;color:var(--accent)">Nouveau dossier</div>
     <input id="mkdir-input" type="text" placeholder="Nom du dossier" autocomplete="off"
@@ -1958,7 +1958,7 @@
 </div>
 
 <!-- Rename modal -->
-<div id="rename-overlay" onclick="closeRenameModal(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
+<div id="rename-overlay" class="gp-modal" data-gp-close="closeRenameModal" onclick="closeRenameModal(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
   <div style="background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:12px;padding:24px;width:360px;max-width:95vw;display:flex;flex-direction:column;gap:14px">
     <div style="font-size:15px;font-weight:700;color:var(--accent)">Renommer</div>
     <input id="rename-input" type="text" placeholder="Nouveau nom" autocomplete="off"
@@ -1972,7 +1972,7 @@
 </div>
 
 <!-- Delete confirmation dialog -->
-<div id="delete-dialog" onclick="if(event.target===this)closeDeleteDialog()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
+<div id="delete-dialog" class="gp-modal" data-gp-close="closeDeleteDialog" onclick="if(event.target===this)closeDeleteDialog()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:340px;max-width:90vw;display:flex;flex-direction:column;gap:14px">
     <div style="font-size:15px;font-weight:700;color:#e55">Supprimer ?</div>
     <div id="delete-dialog-filename" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim);word-break:break-all"></div>
@@ -6259,6 +6259,29 @@ const GP_DEFAULT_MAPPING = {
   },
 };
 
+// BL-087: the browser layer is declared, not inherited. It used to fall back on
+// `base`, which handed X, Y, L3 and R3 to `toggle_watched`, `fullscreen`, `mute` and
+// `speed_cycle` — four actions that test `hasVideo` first and therefore did nothing.
+// A button that does not answer reads as a broken pad, so the layer now lists exactly
+// what works here and nothing else.
+// Start used to be diverted to the settings, which Select already opened; it now
+// gives back `open_overlay` (the pad help) as in the player.
+const GP_BROWSER_MAPPING = {
+  0: 'nav_enter',      // A
+  1: 'nav_back',       // B
+  2: 'toggle_watched', // X — acts on the cursor entry (BL-003)
+  8: 'open_settings',  // Select
+  9: 'open_overlay',   // Start
+  12: 'nav_up',
+  13: 'nav_down',
+  14: 'nav_up',
+  15: 'nav_down',
+};
+
+// Of the L1+R1 layer, only these two know how to target the list cursor; the rest
+// (jump_0, jump_100, open_export) are playback actions with no meaning in the browser.
+const GP_BROWSER_LR = new Set(['delete_current', 'move_current']);
+
 // Active gamepad state
 let _gpPollId = null;
 let _gpConnected = {};          // index -> true
@@ -6593,13 +6616,24 @@ let pendingMoveSelectedDest = null;
 let pendingMoveSelectedDestName = null;
 
 // BL-046: detect open modals regardless of whether they are <dialog> or <div> overlays
+// An element counts as shown only if it is laid out: overlays are hidden either by
+// `display:none` or by dropping an `open` class, so neither test alone is enough.
+function _gpIsShown(el) {
+  if (!el) return false;
+  if (getComputedStyle(el).display === 'none') return false;
+  return el.getClientRects().length > 0;
+}
+
+// BL-088: the open modal is found from the `gp-modal` class carried by the overlay
+// itself, not from a list of ids kept here. The previous list knew three overlays out
+// of nine; the six it ignored let the pad drive the file list *behind* them — D-pad
+// moving an invisible cursor, A opening a file underneath. Declaring membership next
+// to each overlay is what keeps the two from drifting apart again.
+// `gp-overlay` is absent on purpose: _gpDispatch handles it before reaching here.
 function _gpOpenModal() {
-  const del = document.getElementById('delete-dialog');
-  if (del?.style.display === 'flex') return del;
-  const mov = document.getElementById('move-dialog');
-  if (mov?.style.display === 'flex') return mov;
-  const exportDlg = document.getElementById('export-dialog');
-  if (exportDlg?.style.display === 'flex') return exportDlg;
+  for (const el of document.querySelectorAll('.gp-modal')) {
+    if (_gpIsShown(el)) return el;
+  }
   return document.querySelector('dialog[open]');
 }
 
@@ -6741,6 +6775,52 @@ function _gpHandleDialog(dlg, btnIdx, gp) {
       _gpCursorIdx = -1;
       confirmExport(); _gpVibrate(gp, 100);
     }
+    return;
+  }
+
+  // BL-088: every other modal gets a generic roving focus, so no screen is a dead end
+  // for a pad user. Specialised handlers above keep their own behaviour untouched.
+  _gpHandleGenericModal(dlg, btnIdx, gp);
+}
+
+// Focusable controls of a modal, in document order, skipping what cannot be used.
+function _gpModalControls(dlg) {
+  const sel = 'button, input:not([type="hidden"]), select, textarea, a[href], [tabindex]:not([tabindex="-1"])';
+  return [...dlg.querySelectorAll(sel)].filter(el => !el.disabled && _gpIsShown(el));
+}
+
+function _gpHandleGenericModal(dlg, btnIdx, gp) {
+  if (btnIdx === 1) { // B = close
+    // data-gp-close names a global closer. The lock screen carries none on
+    // purpose — B must not dismiss it.
+    const closer = window[dlg.dataset.gpClose ?? ''];
+    if (typeof closer === 'function') {
+      dlg.querySelectorAll('.gp-cursor').forEach(el => el.classList.remove('gp-cursor'));
+      dlg._gpIdx = undefined;
+      closer();
+      _gpVibrate(gp, 60);
+    }
+    return;
+  }
+  const ctrls = _gpModalControls(dlg);
+  if (!ctrls.length) return;
+  let idx = dlg._gpIdx ?? -1;
+  if (btnIdx === 12 || btnIdx === 13) {
+    const step = btnIdx === 12 ? -1 : 1;
+    idx = idx < 0 ? (step > 0 ? 0 : ctrls.length - 1)
+                  : Math.min(ctrls.length - 1, Math.max(0, idx + step));
+    dlg._gpIdx = idx;
+    ctrls.forEach((el, i) => el.classList.toggle('gp-cursor', i === idx));
+    ctrls[idx].scrollIntoView({ block: 'nearest' });
+    _gpVibrate(gp, 40);
+    return;
+  }
+  if (btnIdx === 0 && idx >= 0) { // A = activate
+    const el = ctrls[idx];
+    // A text field has nothing to activate: hand it the keyboard instead.
+    if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') el.focus();
+    else el.click();
+    _gpVibrate(gp, 60);
   }
 }
 
@@ -6791,7 +6871,7 @@ function _gpDispatch(btnIdx, l1, r1, gp) {
 
   if (l1 && r1) {
     const act = GP_DEFAULT_MAPPING.lr[btnIdx];
-    if (act) { _gpAction(act, gp); return; }
+    if (act && (hasVideo || GP_BROWSER_LR.has(act))) { _gpAction(act, gp); return; }
   }
   if (l1) {
     if (hasVideo) {
@@ -6810,10 +6890,7 @@ function _gpDispatch(btnIdx, l1, r1, gp) {
     const act = GP_DEFAULT_MAPPING.player_base[btnIdx] ?? GP_DEFAULT_MAPPING.base[btnIdx];
     if (act) { _gpAction(act, gp); return; }
   } else {
-    // Browser nav when no video
-    const browserMap = { 12: 'nav_up', 13: 'nav_down', 15: 'nav_down', 14: 'nav_up',
-                         0: 'nav_enter', 1: 'nav_back', 9: 'open_settings' };
-    const act = browserMap[btnIdx] ?? GP_DEFAULT_MAPPING.base[btnIdx];
+    const act = GP_BROWSER_MAPPING[btnIdx];
     if (act) { _gpAction(act, gp); return; }
   }
 }
