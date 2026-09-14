@@ -1,6 +1,6 @@
 # Lot PAD-REACH — Toute l'UI atteignable à la manette
 
-Status: 🔄 in-progress
+Status: ✅ done
 Branch: feature/pad-reach → PR → develop
 
 ## Problem Statement
@@ -94,7 +94,7 @@ modals sans lesquels ce menu mènerait à des impasses.
 
 | ID | Titre | Type | Statut |
 |----|-------|------|--------|
-| BL-088 | Le pad doit voir les modals `div` | fix | ⬜ |
-| BL-087 | Retirer les actions inertes du dispatch browser | fix | ⬜ |
-| BL-003 | Marquer vu / non vu depuis la liste | feat | ⬜ |
-| BL-086 | Menu contextuel manette (Select) | feat | ⬜ |
+| BL-088 | Le pad doit voir les modals `div` | fix | ✅ done |
+| BL-087 | Retirer les actions inertes du dispatch browser | fix | ✅ done |
+| BL-003 | Marquer vu / non vu depuis la liste | feat | ✅ done |
+| BL-086 | Menu contextuel manette (Select) | feat | ✅ done |

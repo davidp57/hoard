@@ -1,6 +1,6 @@
 # BL-086 — Menu contextuel manette (Select)
 
-Status: ⬜ ready
+Status: ✅ done
 Type: feat
 Files: `frontend/index.html`, `docs/user-guide.*.md`
 
@@ -34,10 +34,10 @@ Select fait aujourd'hui doublon avec Start dans le browser : il est libre.
 
 ## Acceptance criteria
 
-- [ ] Select ouvre le menu depuis la liste, B le ferme
-- [ ] Les 5 critères de tri et le sens sont applicables au pad
-- [ ] Renommer, Tags, Épingler, Déplacer, Supprimer, Marquer vu sont applicables
+- [x] Select ouvre le menu depuis la liste, B le ferme
+- [x] Les 5 critères de tri et le sens sont applicables au pad
+- [x] Renommer, Tags, Épingler, Déplacer, Supprimer, Marquer vu sont applicables
       à l'entrée au curseur
-- [ ] Le critère de tri courant est visuellement marqué
-- [ ] La section entrée disparaît quand aucun curseur n'est posé
-- [ ] Le menu n'apparaît pas par-dessus un modal ou le player
+- [x] Le critère de tri courant est visuellement marqué
+- [x] La section entrée disparaît quand aucun curseur n'est posé
+- [x] Le menu n'apparaît pas par-dessus un modal ou le player

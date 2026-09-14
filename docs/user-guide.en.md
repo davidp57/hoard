@@ -303,7 +303,28 @@ Hoard supports game controllers via the browser's **Gamepad API** (Xbox, PlaySta
 | **Left stick Y** | Move cursor (analog) |
 | **A** | Open the selected file or folder |
 | **B** | Go up one level |
-| **Start** | Open Settings |
+| **X** | Mark the selected entry watched / unwatched |
+| **Select** | Open the **context menu** |
+| **Start** | Show the button map |
+| **L1+R1+B** | Delete the selected entry |
+| **L1+R1+X** | Move the selected entry |
+
+### Context Menu (Select)
+
+Everything the sort bar and the row buttons offer is reachable from the pad through a single button: **Select** opens a menu listing what applies where you stand. **D-pad** to walk it, **A** to confirm, **B** to close.
+
+The menu has two parts:
+
+- **The entry under the cursor** (when one is set) — Open, Mark watched / unwatched, Rename, Tags, Quick folder, Move, Delete.
+- **The current folder** — the five sort criteria and the direction, the tags present in the folder to filter by, New folder, Refresh, Search, Home screen, Downloads, Settings, Pad help.
+
+Lines that do not apply to the entry are not shown: "Quick folder" only appears on a folder, "Mark watched" only on a media or a gallery.
+
+### Marking Watched Without Opening the File
+
+From the list, **X** or the matching menu entry toggles a media's state without playing it — handy for a film watched elsewhere, or to reset a series you want to start over.
+
+Marking **unwatched** also rewinds the saved position: an entry shown as unwatched must not resume mid-way. And reopening a file marked watched puts it back to "in progress" — actual playback has the last word.
 
 ### Modifier Layers (L1 / R1)
 
@@ -312,6 +333,10 @@ Hold **L1** or **R1** to access extra command layers. Holding both (L1+R1) activ
 ### Button Map Overlay
 
 Press **Start** (or the « Show button map » button in Settings) to display an overlay listing all actions per layer, dynamically updated with your configured seek durations.
+
+### Dialogs and the Pad
+
+Every Hoard dialog (tags, rename, new folder, folder picker, download queue, PIN screen) can be driven from the pad: **D-pad** walks the fields and buttons, **A** activates the selected one, **B** closes the dialog. No screen asks you to reach back for the mouse.
 
 ### Controller Settings
 

@@ -99,6 +99,13 @@
 - [ ] **PDF reader** (BL-056): PDF.js-powered reader with page navigation, zoom, keyboard/gamepad control, and saved progress
 - [ ] **Audio player** (BL-057): native audio playback for `.mp3`, `.flac`, `.ogg`, `.m4a`, `.aac`, `.wav`, `.opus` using existing player infrastructure
 
+## v2.6.2 — Everything reachable from the pad *(done)*
+
+- [x] **Pad context menu** (BL-086): the sort bar, the row actions and half the header had no pad path at all — the sort had no keyboard path either. **Select** now opens a menu listing what applies where the user stands, in two sections: the entry under the cursor, and the current folder. Select rather than LB/RB, which never fire an action — the polling loop skips them as pure modifiers — and which was a duplicate of Start in the browser anyway
+- [x] **Mark watched without opening the file** (BL-003, pending since v1.2): a new explicit `watched` column wins over the position percentage, because a file that was never opened has no duration to express the state with
+- [x] **The pad passed through six dialogs out of nine** (BL-088): tags, rename, new folder, browse, destination picker and download queue are plain divs the modal detection ignored, so the pad kept driving the list behind them. Membership now lives on the overlay itself, and any unspecialised dialog gets a generic roving focus — the PIN screen gains pad-driven entry for free
+- [x] **Four inert buttons in the browser** (BL-087): X, Y, L3 and R3 fell back on player actions that test `hasVideo` first and did nothing. The browser layer is declared explicitly now, and Start gives back the button map
+
 ## v2.6.1 — Sort by last watched *(done)*
 
 - [x] **Sort by last watched** (BL-085): the "Date" sort orders by filesystem `mtime`, which cannot answer "what did I watch last" — playing a media writes nothing to disk, and a folder's `mtime` never picks up a change from the depth below it. A watched video two levels down left its top folder in 14th place. A fifth criterion, **Vu**, now orders by `progress.updated_at`, a column stored since day one and never read: every folder inherits the date of the most recent media found anywhere below it. Never-watched entries group at the end of the list whatever the direction. "Date" keeps its own meaning — what just arrived in this folder

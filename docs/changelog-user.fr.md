@@ -7,6 +7,14 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 ## [Non publié]
 
 ### Nouveautés
+- **Toute la navigation à la manette, par un seul bouton.** **Select** ouvre un menu qui propose ce qui s'applique là où tu es : le tri (les cinq critères et le sens), le filtrage par tag, créer un dossier, rafraîchir, chercher, l'accueil, les téléchargements, les réglages — et, sur le fichier ou le dossier sélectionné, l'ouvrir, le renommer, le tagger, l'épingler, le déplacer, le supprimer ou le marquer vu. D-pad pour parcourir, A pour valider, B pour fermer. Jusqu'ici la barre de tri et les boutons de ligne n'étaient accessibles qu'au doigt ou à la souris.
+- **Marquer un média vu ou non vu sans l'ouvrir** : dans le menu, ou avec **X** directement sur la liste. Pratique pour un film déjà vu ailleurs, ou pour repartir de zéro sur une série. Marquer « non vu » efface aussi la position de lecture, pour ne pas reprendre au milieu d'un fichier affiché comme jamais ouvert.
+
+### Corrections
+- **La manette ne traverse plus les fenêtres.** Quand une fenêtre était ouverte (tags, renommage, nouveau dossier, téléchargements…), la manette continuait de piloter la liste **derrière** : le D-pad y déplaçait une sélection invisible et A pouvait ouvrir un fichier par-dessous. Ces fenêtres se parcourent maintenant à la manette, et **B** les ferme. L'écran de code PIN se saisit lui aussi à la manette.
+- **Plus de boutons qui ne répondent pas** dans la liste de fichiers : quatre d'entre eux étaient associés à des commandes du lecteur vidéo et ne faisaient rien tant qu'aucune vidéo n'était ouverte. **Start** réaffiche la carte des boutons, qui était devenue inaccessible depuis la liste.
+
+### Nouveautés
 - **Nouveau tri « Vu »** dans la barre de tri : il classe par date du dernier visionnage. Un dossier remonte en tête dès que tu regardes une vidéo **quelque part en dessous**, même enfouie dans plusieurs sous-dossiers — ce que le tri « Date » ne pouvait pas faire, puisqu'il montre la date des fichiers sur le disque et que regarder une vidéo ne change rien sur le disque. Les deux tris coexistent : « Date » pour voir ce qui vient d'arriver, « Vu » pour retrouver où tu en étais. Ce que tu n'as jamais ouvert est regroupé en fin de liste.
 
 ## [v2.6.0] — 2026-08-25

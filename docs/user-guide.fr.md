@@ -140,6 +140,8 @@ Les fichiers audio s'ouvrent dans un lecteur minimaliste.
 
 L'état **vu / en cours / non vu** fonctionne pour tous les types de médias, pas seulement les vidéos. Le pourcentage est calculé sur la même base (position / durée pour vidéo et audio ; page / total pour PDF et archives).
 
+L'état peut aussi être **posé à la main**, sans ouvrir le fichier — voir *Marquer vu / non vu sans ouvrir le fichier*.
+
 ---
 
 ## Player vidéo
@@ -305,7 +307,28 @@ Hoard supporte les manettes de jeu via la **Gamepad API** du navigateur (Xbox, P
 | **Stick gauche Y** | Déplacer le curseur (analogique) |
 | **A** | Ouvrir le fichier ou dossier sélectionné |
 | **B** | Remonter d'un niveau |
-| **Start** | Ouvrir les Paramètres |
+| **X** | Marquer l'entrée sélectionnée vue / non vue |
+| **Select** | Ouvrir le **menu contextuel** |
+| **Start** | Afficher la carte des boutons |
+| **L1+R1+B** | Supprimer l'entrée sélectionnée |
+| **L1+R1+X** | Déplacer l'entrée sélectionnée |
+
+### Menu contextuel (Select)
+
+Tout ce que la barre de tri et les boutons de ligne proposent est accessible à la manette par un seul bouton : **Select** ouvre un menu qui liste ce qui s'applique là où tu te trouves. **D-pad** pour parcourir, **A** pour valider, **B** pour fermer.
+
+Le menu comporte deux parties :
+
+- **L'entrée sous le curseur** (si le curseur est posé) — Ouvrir, Marquer vu / non vu, Renommer, Tags, Accès rapide, Déplacer, Supprimer.
+- **Le dossier courant** — les cinq critères de tri et le sens, les tags présents dans le dossier pour filtrer, Nouveau dossier, Rafraîchir, Rechercher, Écran d'accueil, Téléchargements, Paramètres, Aide manette.
+
+Ce qui ne s'applique pas à l'entrée n'est pas affiché : « Accès rapide » n'apparaît que sur un dossier, « Marquer vu » que sur un média ou une galerie.
+
+### Marquer vu / non vu sans ouvrir le fichier
+
+Depuis la liste, **X** ou l'entrée du menu bascule l'état d'un média sans le lire. C'est utile pour un film vu ailleurs, ou pour remettre à zéro une série qu'on veut reprendre.
+
+Marquer **non vu** remet aussi la position de lecture à zéro — un fichier affiché comme non vu ne doit pas reprendre au milieu. Et rouvrir un fichier marqué vu pour le regarder le refait passer « en cours » : c'est la lecture réelle qui a le dernier mot.
 
 ### Modificateurs (L1 / R1)
 
@@ -314,6 +337,10 @@ Maintenir **L1** ou **R1** active une couche de commandes supplémentaires. Les 
 ### Carte des boutons
 
 Appuie sur **Start** (ou le bouton « Afficher la carte des boutons » dans Paramètres) pour afficher un overlay listant toutes les actions disponibles par couche, mis à jour dynamiquement avec les durées de seek configurées.
+
+### Fenêtres et manette
+
+Toutes les fenêtres de Hoard (tags, renommage, nouveau dossier, sélecteur de dossier, file de téléchargements, écran de code PIN) se pilotent à la manette : **D-pad** parcourt les champs et les boutons, **A** active celui qui est sélectionné, **B** ferme la fenêtre. Aucun écran ne demande de reprendre la souris.
 
 ### Paramètres manette
 

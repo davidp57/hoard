@@ -1,6 +1,6 @@
 # BL-003 — Marquer vu / non vu depuis la liste
 
-Status: ⬜ ready
+Status: ✅ done
 Type: feat
 Files: `backend/main.py`, `frontend/index.html`, `tests/test_api.py`, `docs/user-guide.*.md`
 
@@ -38,14 +38,21 @@ un clic, et un échec possible sur un fichier illisible), ou d'écrire
 
 - Action « Marquer vu / non vu » dans le menu contextuel (BL-086), section entrée.
 - `_gpToggleWatched()` accepte une entrée de liste et passe par le nouvel endpoint
-  quand la durée est inconnue.
-- La touche `W` du player, déjà documentée, emprunte le même chemin.
+  quand aucune vidéo n'est ouverte.
+- **Le player garde son chemin actuel** (écrire la position au seuil). Le faire passer
+  par le nouvel endpoint, comme prévu initialement, se serait retourné contre le
+  marquage : la sauvegarde automatique de position, toutes les 5 s puis à la
+  fermeture, efface le drapeau explicite. Là où la durée est connue, écrire la
+  position reste la façon durable de dire « vu ».
+- Marquer ne s'applique qu'à un média ou à une galerie : un dossier ordinaire tire
+  son état de son contenu, lui écrire une ligne de progression n'aurait pas de sens.
 
 ## Acceptance criteria
 
-- [ ] Marquer vu un fichier sans aucune ligne de progression le montre vu dans la liste
-- [ ] Marquer non vu un fichier lu à 100 % le montre non vu
-- [ ] Un dossier dont tous les fichiers sont marqués vus est `seen`
-- [ ] Reprendre la lecture efface l'état explicite
-- [ ] Un marquage manuel remonte l'entrée dans le tri « Vu »
-- [ ] La migration fonctionne sur une base créée sans la colonne
+- [x] Marquer vu un fichier sans aucune ligne de progression le montre vu dans la liste
+- [x] Marquer non vu un fichier lu à 100 % le montre non vu
+- [x] Un dossier dont tous les fichiers sont marqués vus est `seen`
+- [x] Reprendre la lecture efface l'état explicite
+- [x] Un marquage manuel remonte l'entrée dans le tri « Vu »
+- [x] La migration fonctionne sur une base créée sans la colonne
+- [x] Marquer n'est proposé que sur un média ou une galerie

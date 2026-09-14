@@ -1,6 +1,6 @@
 # BL-088 — Le pad doit voir les modals `div`
 
-Status: ⬜ ready
+Status: ✅ done
 Type: fix
 Files: `frontend/index.html`
 
@@ -28,8 +28,8 @@ Préalable au menu (BL-086), qui mène précisément à Renommer et Tags.
 
 ## Acceptance criteria
 
-- [ ] Ouvrir Tags, Renommer, Nouveau dossier, Browse, sélecteur de destination ou
+- [x] Ouvrir Tags, Renommer, Nouveau dossier, Browse, sélecteur de destination ou
       la file de téléchargements neutralise le curseur de la liste
-- [ ] `B` ferme chacun de ces modals
-- [ ] `D↑`/`D↓` + `A` permettent d'atteindre et d'activer leurs boutons
-- [ ] Les quatre modals déjà spécialisés se comportent comme avant
+- [x] `B` ferme chacun de ces modals
+- [x] `D↑`/`D↓` + `A` permettent d'atteindre et d'activer leurs boutons
+- [x] Les quatre modals déjà spécialisés se comportent comme avant

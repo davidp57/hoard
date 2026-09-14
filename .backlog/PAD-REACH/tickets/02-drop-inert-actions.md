@@ -1,6 +1,6 @@
 # BL-087 — Retirer les actions inertes du dispatch browser
 
-Status: ⬜ ready
+Status: ✅ done
 Type: fix
 Files: `frontend/index.html`
 
@@ -29,7 +29,7 @@ Un bouton qui ne répond pas ne se distingue pas d'une manette en panne.
 
 ## Acceptance criteria
 
-- [ ] Aucun bouton du browser ne déclenche une action sans effet
-- [ ] Start ouvre l'aide manette dans le browser comme dans le player
-- [ ] Les réglages restent atteignables au pad
-- [ ] Le comportement du player est inchangé
+- [x] Aucun bouton du browser ne déclenche une action sans effet
+- [x] Start ouvre l'aide manette dans le browser comme dans le player
+- [x] Les réglages restent atteignables au pad
+- [x] Le comportement du player est inchangé
