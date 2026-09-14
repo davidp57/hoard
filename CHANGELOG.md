@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Tri « Vu » par date de dernier visionnage (BL-085)** : le tri « Date » classe sur le `st_mtime` du système de fichiers, qui ne répond pas à « qu'ai-je regardé en dernier » — lire une vidéo n'écrit rien sur le disque, et le `mtime` d'un dossier ne bouge que sur un ajout / retrait d'enfant **direct**, jamais depuis la profondeur. Symptôme : une vidéo regardée deux niveaux plus bas laissait son dossier de tête en 14ᵉ position. La donnée manquante était en base depuis toujours — `progress.updated_at`, rafraîchie à chaque sauvegarde de position et jamais lue. Nouveau champ `last_watched` sur les entrées de `/api/files` et `/api/search` : `_last_watched_index()` fait une passe unique sur `progress` et remonte la chaîne des ancêtres de chaque ligne en gardant le maximum, donc un dossier hérite de la date du média le plus récent **n'importe où en dessous de lui**, sans `stat` ni `rglob` — c'est ce qui permet de servir aussi la recherche, dont `get_folder_state()` est justement exclu pour son coût. Le tri « Date » reste inchangé : il répond à l'autre question, « qu'est-ce qui vient d'arriver ici ». Les entrées jamais ouvertes (`last_watched = 0`) sont groupées en fin de liste quel que soit le sens du tri — les intercaler aurait mis les non-vus en tête dès l'inversion — et départagées entre elles par date fichier.
+
 ## [v2.6.0] - 2026-08-25
 
 ### Added

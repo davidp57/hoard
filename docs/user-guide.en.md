@@ -29,6 +29,22 @@ Each file or folder is shown with:
   - Yellow background + progress bar + percentage → **in progress**
   - Green background → **watched** (≥ 90 % viewed)
 
+### Sorting the List
+
+The sort bar offers five criteria, each reversible with the **↓ / ↑** button:
+
+| Criterion | What it orders by |
+|-----------|-------------------|
+| **Date** | The file or folder date on disk (handy to spot newly arrived content) |
+| **Nom** (Name) | Alphabetical order |
+| **Taille** (Size) | File size |
+| **État** (State) | Unseen, then in progress, then seen |
+| **Vu** (Watched) | Date of the last viewing |
+
+The **Vu** sort answers "what did I watch last". A folder takes the date of the most recently watched media found **anywhere below it**, however deep: resuming a video buried in a sub-folder lifts its whole top-level folder to the head of the list. Entries never opened have no watch date: they are grouped at the end of the list, ordered between themselves by file date.
+
+The criterion chosen in **Settings → Default sort** applies when the app opens.
+
 ### Search
 
 A **🔍** field is available in the sort bar. The search is case-insensitive and recursive within the current folder. Results replace the list; clearing the field (or pressing ✕) returns to normal browsing.

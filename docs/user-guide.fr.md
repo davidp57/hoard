@@ -29,6 +29,22 @@ Chaque fichier ou dossier est affiché avec :
   - Fond jaune + barre de progression + pourcentage → **en cours**
   - Fond vert → **vu** (≥ 90 % regardé)
 
+### Tri de la liste
+
+La barre de tri propose cinq critères, chacun inversable avec le bouton **↓ / ↑** :
+
+| Critère | Ce qu'il classe |
+|---------|-----------------|
+| **Date** | Date du fichier ou du dossier sur le disque (utile pour voir les nouveautés arrivées) |
+| **Nom** | Ordre alphabétique |
+| **Taille** | Taille du fichier |
+| **État** | Non vu, puis en cours, puis vu |
+| **Vu** | Date du dernier visionnage |
+
+Le tri **Vu** répond à « qu'ai-je regardé en dernier ». Un dossier prend la date du média le plus récemment regardé **n'importe où en dessous de lui**, même à plusieurs niveaux de profondeur : reprendre une vidéo enfouie dans un sous-dossier fait remonter tout le dossier parent en tête de liste. Les entrées jamais ouvertes n'ont pas de date de visionnage : elles sont regroupées en fin de liste, classées entre elles par date de fichier.
+
+Le critère choisi dans **Paramètres → Tri par défaut** s'applique à l'ouverture de l'application.
+
 ### Recherche
 
 Un champ **🔍** est disponible dans la barre de tri. La recherche est insensible à la casse et récursive dans le dossier courant. Le résultat remplace la liste ; effacer le champ (ou appuyer sur ✕) revient à la navigation normale.
