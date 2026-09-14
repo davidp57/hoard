@@ -39,3 +39,6 @@ Thumbs.db
 
 # Claude Code local state (worktrees, launch config)
 .claude/
+
+# Temporary PR description (never committed — see CLAUDE.md, PR preparation workflow)
+.github/pull_request_description.md

@@ -23,7 +23,8 @@ Convention détaillée : [`docs/agents/issue-tracker.md`](../docs/agents/issue-t
 | [OPS-VISIBILITY](OPS-VISIBILITY/PRD.md) — Traçabilité & exploitation (historique de téléchargement BL-075, rétention des logs BL-076, redémarrage depuis l'UI BL-077, résilience du worker BL-078) | ✅ |
 | [DL-INTEGRITY](DL-INTEGRITY/PRD.md) — Un téléchargement « terminé » doit exister (skip silencieux BL-079, destination visible BL-080, sûreté du test de redémarrage BL-081, sélecteur de dossier BL-082, isolation réseau des tests BL-083) | ✅ |
 | [DL-RETRY](DL-RETRY/PRD.md) — Relancer un téléchargement depuis l'historique (BL-084) | ✅ |
-| [SORT-WATCHED](SORT-WATCHED/PRD.md) — Trier par date de dernier visionnage (BL-085) | 🔄 |
+| [SORT-WATCHED](SORT-WATCHED/PRD.md) — Trier par date de dernier visionnage (BL-085) | ✅ |
+| [PAD-REACH](PAD-REACH/PRD.md) — Toute l'UI atteignable à la manette (modals BL-088, actions inertes BL-087, marquer vu BL-003, menu contextuel BL-086) | 🔄 |
 
 ## Lots archivés
 

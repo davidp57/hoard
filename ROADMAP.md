@@ -99,9 +99,9 @@
 - [ ] **PDF reader** (BL-056): PDF.js-powered reader with page navigation, zoom, keyboard/gamepad control, and saved progress
 - [ ] **Audio player** (BL-057): native audio playback for `.mp3`, `.flac`, `.ogg`, `.m4a`, `.aac`, `.wav`, `.opus` using existing player infrastructure
 
-## v2.6.1 — Sort by last watched
+## v2.6.1 — Sort by last watched *(done)*
 
-- [ ] **Sort by last watched** (BL-085): the "Date" sort orders by filesystem `mtime`, which cannot answer "what did I watch last" — playing a media writes nothing to disk, and a folder's `mtime` never picks up a change from the depth below it. A watched video two levels down left its top folder in 14th place. A fifth criterion, **Vu**, now orders by `progress.updated_at`, a column stored since day one and never read: every folder inherits the date of the most recent media found anywhere below it. Never-watched entries group at the end of the list whatever the direction. "Date" keeps its own meaning — what just arrived in this folder
+- [x] **Sort by last watched** (BL-085): the "Date" sort orders by filesystem `mtime`, which cannot answer "what did I watch last" — playing a media writes nothing to disk, and a folder's `mtime` never picks up a change from the depth below it. A watched video two levels down left its top folder in 14th place. A fifth criterion, **Vu**, now orders by `progress.updated_at`, a column stored since day one and never read: every folder inherits the date of the most recent media found anywhere below it. Never-watched entries group at the end of the list whatever the direction. "Date" keeps its own meaning — what just arrived in this folder
 
 ## v2.6 — Retry from history *(done)*
 
