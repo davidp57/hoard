@@ -268,6 +268,68 @@ class TestListFiles:
         assert entry["folder_state"] == "seen"
 
 
+class TestLastWatched:
+    """`last_watched` answers "when did I last watch something in here?".
+
+    The filesystem cannot answer it: playing a media writes nothing to disk, so a
+    folder never inherits the watch date of a media buried below it.
+    """
+
+    def test_unwatched_entries_report_zero(self, subdir_with_video, video_file):
+        entries = client.get("/api/files").json()["entries"]
+        assert all(e["last_watched"] == 0 for e in entries)
+
+    def test_file_carries_its_own_watch_date(self, video_file):
+        client.post(
+            "/api/progress?path=sample.mp4",
+            json={"position": 30.0, "duration": 600.0},
+        )
+        entry = next(
+            e for e in client.get("/api/files").json()["entries"] if e["name"] == "sample.mp4"
+        )
+        assert entry["last_watched"] > 0
+
+    def test_folder_inherits_a_nested_watch_date(self):
+        """A media two levels down must bubble its date up to the top folder."""
+        deep = MEDIA_ROOT / "pack" / "season" / "ep.mp4"
+        deep.parent.mkdir(parents=True)
+        deep.write_bytes(bytes(64))
+        client.post(
+            "/api/progress?path=pack/season/ep.mp4",
+            json={"position": 42.0, "duration": 600.0},
+        )
+        top = next(e for e in client.get("/api/files").json()["entries"] if e["name"] == "pack")
+        mid = next(
+            e for e in client.get("/api/files?path=pack").json()["entries"] if e["name"] == "season"
+        )
+        assert top["last_watched"] > 0
+        assert top["last_watched"] == mid["last_watched"]
+
+    def test_sibling_folder_stays_at_zero(self):
+        for rel in ("seen/ep.mp4", "untouched/ep.mp4"):
+            f = MEDIA_ROOT / rel
+            f.parent.mkdir(parents=True)
+            f.write_bytes(bytes(64))
+        client.post(
+            "/api/progress?path=seen/ep.mp4",
+            json={"position": 42.0, "duration": 600.0},
+        )
+        entries = {e["name"]: e for e in client.get("/api/files").json()["entries"]}
+        assert entries["seen"]["last_watched"] > 0
+        assert entries["untouched"]["last_watched"] == 0
+
+    def test_search_entries_expose_last_watched(self):
+        deep = MEDIA_ROOT / "pack" / "season" / "ep.mp4"
+        deep.parent.mkdir(parents=True)
+        deep.write_bytes(bytes(64))
+        client.post(
+            "/api/progress?path=pack/season/ep.mp4",
+            json={"position": 42.0, "duration": 600.0},
+        )
+        entries = {e["name"]: e for e in client.get("/api/search?q=ep").json()["entries"]}
+        assert entries["ep.mp4"]["last_watched"] > 0
+
+
 # ── Galleries (image folder as a single media) ──────────────────────────────────
 
 

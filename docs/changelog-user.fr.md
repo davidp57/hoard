@@ -6,6 +6,9 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ## [Non publié]
 
+### Nouveautés
+- **Nouveau tri « Vu »** dans la barre de tri : il classe par date du dernier visionnage. Un dossier remonte en tête dès que tu regardes une vidéo **quelque part en dessous**, même enfouie dans plusieurs sous-dossiers — ce que le tri « Date » ne pouvait pas faire, puisqu'il montre la date des fichiers sur le disque et que regarder une vidéo ne change rien sur le disque. Les deux tris coexistent : « Date » pour voir ce qui vient d'arriver, « Vu » pour retrouver où tu en étais. Ce que tu n'as jamais ouvert est regroupé en fin de liste.
+
 ## [v2.6.0] — 2026-08-25
 
 ### Nouveautés

@@ -1657,6 +1657,32 @@ def _get_initial_sweep_state(folder_path: str) -> dict[str, int | str | None]:
     }
 
 
+def _last_watched_index(conn) -> dict[str, int]:
+    """Map every watched path — and each of its parent folders — to the most recent
+    watch timestamp found beneath it.
+
+    Filesystem mtimes cannot answer "what did I watch last": playing a media writes
+    nothing to disk, and a change deep in a tree never propagates to its ancestors.
+    The answer lives in the ``progress`` table instead. Each row is attributed to its
+    own path and walked up its ancestor chain, keeping the maximum timestamp, so a
+    folder inherits the watch date of the most recent media anywhere below it.
+    """
+    index: dict[str, int] = {}
+    rows = conn.execute(
+        "SELECT path, CAST(strftime('%s', updated_at) AS INTEGER) AS ts FROM progress"
+    ).fetchall()
+    for row in rows:
+        ts = row["ts"] or 0
+        if ts <= 0:
+            continue
+        rel = (row["path"] or "").strip("/")
+        while rel:
+            if ts > index.get(rel, 0):
+                index[rel] = ts
+            rel = rel.rpartition("/")[0]
+    return index
+
+
 def get_folder_state(folder: Path, progress_map: dict) -> str:
     """Return 'new', 'inprogress', or 'seen' based on recursive video file progress."""
     video_files = [f for f in folder.rglob("*") if f.is_file() and is_video(f)]
@@ -1764,6 +1790,7 @@ def list_files(path: str = ""):
             "SELECT path, position, duration FROM progress WHERE duration > 0"
         ).fetchall()
         progress_map = {row["path"]: row["position"] / row["duration"] * 100 for row in rows}
+        watched_map = _last_watched_index(conn)
         tag_rows = conn.execute("SELECT path, tag FROM file_tags").fetchall()
 
     tags_map: dict[str, list[str]] = {}
@@ -1806,6 +1833,7 @@ def list_files(path: str = ""):
             "media_type": _media_type,
             "size": st.st_size if item.is_file() else 0,
             "mtime": st.st_mtime,
+            "last_watched": watched_map.get(rel, 0),
             "is_quick_folder": rel in qf_paths if is_directory else False,
             "folder_state": folder_state,
         }
@@ -1839,6 +1867,7 @@ def search_files(q: str, path: str = ""):
             row["path"] for row in conn.execute("SELECT path FROM quick_folders").fetchall()
         }
         tag_rows_s = conn.execute("SELECT path, tag FROM file_tags").fetchall()
+        watched_map_s = _last_watched_index(conn)
 
     tags_map_s: dict[str, list[str]] = {}
     for tr in tag_rows_s:
@@ -1866,6 +1895,7 @@ def search_files(q: str, path: str = ""):
             "media_type": _media_type_s,
             "size": st.st_size if item.is_file() else 0,
             "mtime": st.st_mtime,
+            "last_watched": watched_map_s.get(rel, 0),
             "is_quick_folder": rel in qf_paths if item.is_dir() else False,
             "folder_state": None,  # skip get_folder_state to avoid nested rglob in search
         }
@@ -2711,7 +2741,7 @@ _SETTINGS_KEYS = {
     "privacy_timeout",  # minutes (int), 0 = disabled
     "watched_threshold",  # percent (int), default 90
     "home_folder",  # relative path from MEDIA_ROOT
-    "sort_by",  # 'date' | 'name' | 'size' | 'state'
+    "sort_by",  # 'date' | 'name' | 'size' | 'state' | 'watched'
     "sort_dir",  # 'asc' | 'desc'
     "gesture_enabled",  # '1' | '0'
     "gesture_seek",  # '1' | '0'

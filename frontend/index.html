@@ -1431,6 +1431,7 @@
             <option value="name">Nom</option>
             <option value="size">Taille</option>
             <option value="state">État de lecture</option>
+            <option value="watched">Vu récemment</option>
           </select>
           <select class="s-select" id="s-sort-dir">
             <option value="desc">Décroissant</option>
@@ -1668,6 +1669,7 @@
       <button class="sort-btn" id="sort-name-btn" onclick="setSortBy('name')">Nom</button>
       <button class="sort-btn" id="sort-size-btn" onclick="setSortBy('size')">Taille</button>
       <button class="sort-btn" id="sort-state-btn" onclick="setSortBy('state')">État</button>
+      <button class="sort-btn" id="sort-watched-btn" onclick="setSortBy('watched')" title="Vu récemment (date du dernier visionnage, dossiers inclus)">Vu</button>
       <button class="sort-btn" id="sort-dir-btn" onclick="toggleSortDir()" title="Inverser l'ordre">&#x2193;</button>
       <div id="refresh-indicator" title="Mise à jour en cours…"></div>
       <button class="sort-btn" onclick="openMkdirModal()" title="Nouveau dossier" style="margin-left:4px">&#x2795;</button>
@@ -2477,6 +2479,7 @@ function updateSortUI() {
   document.getElementById('sort-name-btn').classList.toggle('active', sortBy === 'name');
   document.getElementById('sort-size-btn').classList.toggle('active', sortBy === 'size');
   document.getElementById('sort-state-btn').classList.toggle('active', sortBy === 'state');
+  document.getElementById('sort-watched-btn').classList.toggle('active', sortBy === 'watched');
   const dirBtn = document.getElementById('sort-dir-btn');
   dirBtn.textContent = sortDir === 'desc' ? '\u2193' : '\u2191';
   dirBtn.title = sortDir === 'desc' ? 'Plus récent / A→Z : cliquer pour inverser' : 'Plus ancien / Z→A : cliquer pour inverser';
@@ -2495,6 +2498,20 @@ function sortedList(list) {
     } else if (sortBy === 'state') {
       cmp = watchStateRank(a) - watchStateRank(b);
       if (cmp === 0) cmp = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+    } else if (sortBy === 'watched') {
+      // Never-watched entries carry last_watched = 0. Sorting them among the rest
+      // would bury them in an arbitrary order, so they are kept together at the
+      // far end of the list (past the watched ones in descending order) and
+      // ordered between themselves by file date.
+      const aw = a.last_watched || 0, bw = b.last_watched || 0;
+      if (aw === 0 && bw === 0) {
+        cmp = (a.mtime || 0) - (b.mtime || 0);
+      } else if (aw === 0 || bw === 0) {
+        // Force the unwatched one to the end whatever the sort direction is.
+        return aw === 0 ? 1 : -1;
+      } else {
+        cmp = aw - bw;
+      }
     } else {
       cmp = (a.mtime || 0) - (b.mtime || 0);
     }
