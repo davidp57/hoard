@@ -1,6 +1,6 @@
 # Lot SORT-WATCHED — Trier par date de dernier visionnage
 
-Status: 🔄 in-progress
+Status: ✅ done
 Branch: feature/sort-last-watched → PR → develop
 
 ## Problem Statement
@@ -73,4 +73,4 @@ quelle profondeur.
 
 | ID | Titre | Type | Statut |
 |----|-------|------|--------|
-| BL-085 | Tri « Vu » par date de dernier visionnage | feat | 🔄 |
+| BL-085 | Tri « Vu » par date de dernier visionnage | feat | ✅ done |

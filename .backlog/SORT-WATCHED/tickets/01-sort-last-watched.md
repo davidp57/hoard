@@ -1,6 +1,6 @@
 # BL-085 — Tri « Vu » par date de dernier visionnage
 
-Status: 🔄 in-progress
+Status: ✅ done
 Type: feat
 Files: `backend/main.py`, `frontend/index.html`, `tests/test_api.py`, `docs/user-guide.*.md`
 

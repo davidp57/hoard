@@ -248,6 +248,7 @@ def init_db():
                 duration REAL DEFAULT 0,
                 cut_in REAL DEFAULT NULL,
                 cut_out REAL DEFAULT NULL,
+                watched INTEGER DEFAULT 0,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
@@ -257,6 +258,12 @@ def init_db():
                 conn.execute(f"ALTER TABLE progress ADD COLUMN {col} REAL DEFAULT NULL")
             except Exception:
                 pass
+        # Migration (BL-003): explicit watched flag. "Watched" is a state, not a
+        # position — a file that was never opened has no duration to express it with.
+        try:
+            conn.execute("ALTER TABLE progress ADD COLUMN watched INTEGER DEFAULT 0")
+        except Exception:
+            pass
         conn.execute("""
             CREATE TABLE IF NOT EXISTS quick_folders (
                 path TEXT PRIMARY KEY,
@@ -410,6 +417,10 @@ class ProgressUpdate(BaseModel):
     duration: float
     cut_in: float | None = None
     cut_out: float | None = None
+
+
+class WatchedUpdate(BaseModel):
+    watched: bool
 
 
 class MoveRequest(BaseModel):
@@ -1601,19 +1612,30 @@ def to_rel(path: Path) -> str:
     return str(path.relative_to(MEDIA_ROOT)).replace("\\", "/")
 
 
+def _watch_percent(row) -> float:
+    """Watched percentage of a progress row, the explicit flag winning over the
+    position. Marking a file watched from the list cannot rely on a percentage: the
+    file may never have been opened, so its duration is unknown."""
+    if row["watched"]:
+        return 100.0
+    dur = row["duration"]
+    return (row["position"] / dur * 100) if dur > 0 else 0.0
+
+
 def get_progress(path: Path) -> dict:
     rel = to_rel(path)
     with get_db() as conn:
         row = conn.execute(
-            "SELECT position, duration, cut_in, cut_out FROM progress WHERE path = ?", (rel,)
+            "SELECT position, duration, cut_in, cut_out, watched FROM progress WHERE path = ?",
+            (rel,),
         ).fetchone()
     if row:
         pos, dur = row["position"], row["duration"]
-        pct = (pos / dur * 100) if dur > 0 else 0
         return {
             "position": pos,
             "duration": dur,
-            "percent": round(pct, 1),
+            "percent": round(_watch_percent(row), 1),
+            "watched": bool(row["watched"]),
             "cut_in": row["cut_in"],
             "cut_out": row["cut_out"],
             "has_saved_progress": True,
@@ -1622,6 +1644,7 @@ def get_progress(path: Path) -> dict:
         "position": 0,
         "duration": 0,
         "percent": 0,
+        "watched": False,
         "cut_in": None,
         "cut_out": None,
         "has_saved_progress": False,
@@ -1786,10 +1809,8 @@ def list_files(path: str = ""):
         qf_paths = {
             row["path"] for row in conn.execute("SELECT path FROM quick_folders").fetchall()
         }
-        rows = conn.execute(
-            "SELECT path, position, duration FROM progress WHERE duration > 0"
-        ).fetchall()
-        progress_map = {row["path"]: row["position"] / row["duration"] * 100 for row in rows}
+        rows = conn.execute("SELECT path, position, duration, watched FROM progress").fetchall()
+        progress_map = {row["path"]: _watch_percent(row) for row in rows}
         watched_map = _last_watched_index(conn)
         tag_rows = conn.execute("SELECT path, tag FROM file_tags").fetchall()
 
@@ -1930,12 +1951,42 @@ def save_progress(path: str, body: ProgressUpdate):
                 duration=excluded.duration,
                 cut_in=excluded.cut_in,
                 cut_out=excluded.cut_out,
+                watched=0,
                 updated_at=CURRENT_TIMESTAMP
         """,
             (rel, body.position, body.duration, body.cut_in, body.cut_out),
         )
         conn.commit()
     return {"ok": True}
+
+
+@app.post("/api/progress/watched")
+def set_watched(path: str, body: WatchedUpdate):
+    """Mark a media watched or unwatched without playing it (BL-003).
+
+    Unmarking also rewinds the position: leaving a file at 80 % while showing it as
+    unwatched would make it resume mid-way from a list that says it was never opened.
+    Marking watched leaves the position alone — a film finished elsewhere keeps its
+    bookmark harmlessly.
+    """
+    file = safe_path(path)
+    if not file.exists():
+        raise HTTPException(status_code=404)
+    rel = to_rel(file)
+    with get_db() as conn:
+        conn.execute(
+            """
+            INSERT INTO progress (path, position, duration, watched, updated_at)
+            VALUES (?, 0, 0, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(path) DO UPDATE SET
+                watched=excluded.watched,
+                position=CASE WHEN excluded.watched THEN progress.position ELSE 0 END,
+                updated_at=CURRENT_TIMESTAMP
+        """,
+            (rel, 1 if body.watched else 0),
+        )
+        conn.commit()
+    return get_progress(file)
 
 
 @app.delete("/api/files")

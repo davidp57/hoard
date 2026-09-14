@@ -811,6 +811,7 @@
   #gp-overlay.open { display: flex; }
   /* When moved inside the fullscreen element */
   #gp-overlay.in-fullscreen { position: absolute; }
+  #gp-menu.in-fullscreen { position: absolute; }
   #gp-overlay-box {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -841,6 +842,63 @@
   .gp-tab:hover { color: var(--text); border-color: var(--accent); }
   .gp-tab.active { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 700; }
   #gp-ctrl-container { width: 100%; display: flex; justify-content: center; align-items: center; }
+  /* Pad context menu (BL-086) */
+  #gp-menu {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.82);
+    z-index: 9999;
+    display: none;
+    align-items: center;
+    justify-content: center;
+  }
+  #gp-menu.open { display: flex; }
+  #gp-menu-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    padding: 16px 0 10px;
+    width: 380px;
+    max-width: 94vw;
+    max-height: 86vh;
+  }
+  #gp-menu-items { overflow-y: auto; padding: 0 10px; }
+  .gp-menu-section {
+    color: var(--text-dim);
+    font-size: 10px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    padding: 10px 10px 4px;
+  }
+  .gp-menu-section:first-child { padding-top: 0; }
+  .gp-menu-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 10px;
+    border-radius: 7px;
+    font-size: 13px;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .gp-menu-item .gp-menu-value { color: var(--text-dim); font-size: 11px; }
+  .gp-menu-item.gp-cursor {
+    background: var(--accent);
+    color: #000;
+    font-weight: 700;
+  }
+  .gp-menu-item.gp-cursor .gp-menu-value { color: #000; }
+  .gp-menu-hint {
+    color: var(--text-dim);
+    font-size: 10px;
+    text-align: center;
+    padding: 10px 10px 0;
+    border-top: 1px solid var(--border);
+    margin: 8px 10px 0;
+  }
   /* Analogue footer */
   .gp-analog-row { font-size: 10px; color: var(--text-dim); display:flex; gap:12px; justify-content:center; margin-top:6px; }
   .gp-analog-row span { background:var(--surface2); border:1px solid var(--border); border-radius:4px; padding:2px 8px; }
@@ -1363,7 +1421,7 @@
 <body>
 
 <!-- PIN screen -->
-<div id="pin-screen" style="display:none">
+<div id="pin-screen" class="gp-modal" style="display:none">
   <h2>🔒 Hoard</h2>
   <div id="pin-dots">
     <div class="pin-dot" id="pd0"></div>
@@ -1626,7 +1684,7 @@
 </div>
 
 <!-- PIN-change mini modal (used from settings page) -->
-<div id="pin-set-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:600;align-items:center;justify-content:center">
+<div id="pin-set-overlay" class="gp-modal" data-gp-close="closePinSetModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:600;align-items:center;justify-content:center">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:28px 24px;width:320px;display:flex;flex-direction:column;gap:16px">
     <div style="font-size:15px;font-weight:700;color:var(--accent)">Définir le PIN</div>
     <div id="pin-set-dots" style="display:flex;gap:10px;justify-content:center">
@@ -1802,7 +1860,7 @@
 </div>
 
 <!-- Download queue modal -->
-<div id="dl-queue-overlay" onclick="_dlQueueOverlayClick(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
+<div id="dl-queue-overlay" class="gp-modal" data-gp-close="closeDlQueueModal" onclick="_dlQueueOverlayClick(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
   <div id="dl-queue-modal" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:480px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;gap:14px;overflow:hidden">
     <!-- Header row -->
     <div style="display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
@@ -1849,7 +1907,7 @@
 </div>
 
 <!-- Move modal -->
-<div id="move-dialog" onclick="if(event.target===this)closeModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
+<div id="move-dialog" class="gp-modal" data-gp-close="closeModal" onclick="if(event.target===this)closeModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
   <div id="modal">
     <h3>Déplacer vers…</h3>
     <div id="modal-filename"></div>
@@ -1863,7 +1921,7 @@
 </div>
 
 <!-- Browse modal -->
-<div id="browse-overlay" onclick="closeBrowseModal(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
+<div id="browse-overlay" class="gp-modal" data-gp-close="closeBrowseModal" onclick="closeBrowseModal(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
   <div id="browse-modal" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:480px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;gap:10px">
     <div id="browse-modal-title" style="font-size:15px;font-weight:700;color:var(--accent)">Choisir le dossier de départ</div>
     <div style="display:flex;gap:6px">
@@ -1881,7 +1939,7 @@
 </div>
 
 <!-- Destination picker modal (free move) -->
-<div id="dest-picker-overlay" onclick="closeDestPicker(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:700;align-items:center;justify-content:center">
+<div id="dest-picker-overlay" class="gp-modal" data-gp-close="closeDestPicker" onclick="closeDestPicker(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:700;align-items:center;justify-content:center">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:480px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;gap:10px">
     <div id="dest-picker-title" style="font-size:15px;font-weight:700;color:var(--accent)">Déplacer vers…</div>
     <div id="dest-picker-crumb" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim);word-break:break-all;min-height:16px"></div>
@@ -1894,7 +1952,7 @@
 </div>
 
 <!-- Tag modal -->
-<div id="tag-modal" onclick="closeTagModal(event)">
+<div id="tag-modal" class="gp-modal" data-gp-close="closeTagModal" onclick="closeTagModal(event)">
   <div class="modal-box" onclick="event.stopPropagation()">
     <div style="font-size:15px;font-weight:700;color:var(--accent);margin-bottom:4px">🏷 Tags</div>
     <div id="tag-modal-filename" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim);word-break:break-all;margin-bottom:4px"></div>
@@ -1911,7 +1969,7 @@
 </div>
 
 <!-- Cut modal -->
-<div id="export-dialog" onclick="if(event.target===this)closeExportModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
+<div id="export-dialog" class="gp-modal" data-gp-close="closeExportModal" onclick="if(event.target===this)closeExportModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:440px;max-width:95vw;display:flex;flex-direction:column;gap:14px">
     <div style="font-size:15px;font-weight:700;color:var(--accent)">&#x2702; Exporter les segments</div>
     <div id="export-filename" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim);word-break:break-all"></div>
@@ -1944,7 +2002,7 @@
 <div id="jobs-panel"></div>
 
 <!-- Mkdir modal -->
-<div id="mkdir-overlay" onclick="closeMkdirModal(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
+<div id="mkdir-overlay" class="gp-modal" data-gp-close="closeMkdirModal" onclick="closeMkdirModal(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:360px;max-width:95vw;display:flex;flex-direction:column;gap:14px">
     <div style="font-size:15px;font-weight:700;color:var(--accent)">Nouveau dossier</div>
     <input id="mkdir-input" type="text" placeholder="Nom du dossier" autocomplete="off"
@@ -1958,7 +2016,7 @@
 </div>
 
 <!-- Rename modal -->
-<div id="rename-overlay" onclick="closeRenameModal(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
+<div id="rename-overlay" class="gp-modal" data-gp-close="closeRenameModal" onclick="closeRenameModal(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
   <div style="background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:12px;padding:24px;width:360px;max-width:95vw;display:flex;flex-direction:column;gap:14px">
     <div style="font-size:15px;font-weight:700;color:var(--accent)">Renommer</div>
     <input id="rename-input" type="text" placeholder="Nouveau nom" autocomplete="off"
@@ -1972,7 +2030,7 @@
 </div>
 
 <!-- Delete confirmation dialog -->
-<div id="delete-dialog" onclick="if(event.target===this)closeDeleteDialog()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
+<div id="delete-dialog" class="gp-modal" data-gp-close="closeDeleteDialog" onclick="if(event.target===this)closeDeleteDialog()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:340px;max-width:90vw;display:flex;flex-direction:column;gap:14px">
     <div style="font-size:15px;font-weight:700;color:#e55">Supprimer ?</div>
     <div id="delete-dialog-filename" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim);word-break:break-all"></div>
@@ -2053,6 +2111,14 @@
 
 <!-- Gamepad layer HUD badge -->
 <div id="gp-hud"></div>
+
+<!-- Pad context menu (BL-086) -->
+<div id="gp-menu" onclick="_gpMenuBackdropClose(event)">
+  <div id="gp-menu-box">
+    <div id="gp-menu-items"></div>
+    <div class="gp-menu-hint">D-pad parcourir &middot; A valider &middot; B fermer</div>
+  </div>
+</div>
 
 <!-- Gamepad mapping overlay (div déplacé dans l'élément fullscreen pour visibilité native) -->
 <div id="gp-overlay" onclick="_gpOverlayBackdropClose(event)">
@@ -5992,23 +6058,23 @@ function toggleFullscreen(opts = {}) {
 
 document.addEventListener('fullscreenchange', () => {
   syncFullscreenUI();
-  // Move gp-overlay into the fullscreen element so it stays visible in native fullscreen
-  const gpOverlay = document.getElementById('gp-overlay');
-  const deleteDlg = document.getElementById('delete-dialog');
-  const moveDlg = document.getElementById('move-dialog');
-  const exportDlg = document.getElementById('export-dialog');
-  if (document.fullscreenElement) {
-    document.fullscreenElement.appendChild(gpOverlay);
-    gpOverlay.classList.add('in-fullscreen');
-    document.fullscreenElement.appendChild(deleteDlg);
-    document.fullscreenElement.appendChild(moveDlg);
-    document.fullscreenElement.appendChild(exportDlg);
-  } else {
-    document.body.appendChild(gpOverlay);
-    gpOverlay.classList.remove('in-fullscreen');
-    document.body.appendChild(deleteDlg);
-    document.body.appendChild(moveDlg);
-    document.body.appendChild(exportDlg);
+  // Overlays live in <body>, which native fullscreen hides. Move them into the
+  // fullscreen element so they stay visible. The list used to name three dialogs;
+  // since the context menu can now open any of them from fullscreen, every modal
+  // follows — except the lock screen, whose own flow leaves fullscreen first.
+  const floating = [
+    document.getElementById('gp-overlay'),
+    document.getElementById('gp-menu'),
+    ...document.querySelectorAll('.gp-modal:not(#pin-screen)'),
+  ].filter(Boolean);
+  for (const el of floating) {
+    if (document.fullscreenElement) {
+      document.fullscreenElement.appendChild(el);
+      el.classList.add('in-fullscreen');
+    } else {
+      document.body.appendChild(el);
+      el.classList.remove('in-fullscreen');
+    }
   }
 });
 
@@ -6199,6 +6265,177 @@ function openShortcutsDialog() {
   dlg.showModal();
 }
 
+// ── Pad context menu (BL-086) ─────────────────────────────────────────────────
+// The sort bar, the row actions and half the header have no pad path at all — the
+// sort has no keyboard path either. Rather than spending buttons on each of them,
+// Select opens a menu listing what applies where the user stands.
+//
+// Select, not LB/RB: those two never fire an action, the polling loop skips them as
+// pure modifiers. Giving them one would mean acting on release, on condition that no
+// other button was pressed meanwhile — a perceived delay and one more rule to learn.
+// Select was a duplicate of Start in the browser, so it was free.
+
+let _gpMenuItems = [];   // [{ section, label, value, run }]
+let _gpMenuIdx = 0;
+
+const SORT_LABELS = { date: 'Date', name: 'Nom', size: 'Taille', state: 'État', watched: 'Vu récemment' };
+
+// The player is otherwise fully mapped; the menu is there for what has no button of
+// its own — the folder start position — and for the rarely used actions that would
+// not be worth a combo.
+function _gpMenuBuildPlayer() {
+  const items = [];
+  const name = currentFile.name.length > 28 ? currentFile.name.slice(0, 27) + '…' : currentFile.name;
+  const seen = (currentFile.progress?.percent ?? 0) >= cfg.watched_threshold;
+
+  items.push({
+    section: name,
+    label: '⏱ ' + (currentInitialSweepState?.override_seconds != null
+      ? 'Mettre à jour le départ du dossier' : 'Départ du dossier ici'),
+    run: () => saveCurrentPositionAsInitialSweep(),
+  });
+  items.push({
+    label: seen ? '🎬 Marquer non vu' : '✅ Marquer vu',
+    run: () => _gpToggleWatched(),
+  });
+  items.push({ label: '💬 Sous-titres', run: () => cycleSubtitles() });
+  items.push({ label: '◪ Fit / Fill', run: () => toggleVideoFit() });
+  items.push({
+    label: '⏩ Vitesse de lecture',
+    value: `${video.playbackRate}×`,
+    run: () => cycleSpeed(1),
+  });
+  if (_gpIsShown(document.getElementById('segments-export-btn'))) {
+    items.push({ label: '✂ Exporter les segments', run: () => openExportModal() });
+  }
+
+  items.push({ section: 'Fichier', label: '✏ Renommer', run: () => openRenameModal(currentFile.path, currentFile.name) });
+  items.push({ label: '🏷 Tags', run: () => openTagModal(currentFile.path, currentFile.name) });
+  items.push({ label: '↗ Déplacer', run: () => openMoveModal(currentFile.path, currentFile.name) });
+  items.push({ label: '🗑 Supprimer', run: () => confirmDelete(currentFile.path, currentFile.name) });
+  items.push({ label: '✕ Fermer le lecteur', run: () => privacyClose() });
+
+  items.push({ section: 'Hoard', label: '⚙️ Paramètres', run: () => openSettings() });
+  items.push({ label: '🎮 Aide manette', run: () => openGpOverlay() });
+  return items;
+}
+
+// Lines that do not apply are left out rather than greyed: what is shown is what works.
+function _gpMenuBuild() {
+  const items = [];
+  const entry = _gpCursorIdx >= 0 ? _gpRenderedList[_gpCursorIdx] : null;
+
+  if (entry) {
+    const name = entry.name.length > 28 ? entry.name.slice(0, 27) + '…' : entry.name;
+    items.push({ section: name, label: '▶ Ouvrir', run: () => _gpActivateCursor() });
+    if (_canMarkWatched(entry)) {
+      const seen = _entryIsSeen(entry);
+      items.push({
+        label: seen ? '🎬 Marquer non vu' : '✅ Marquer vu',
+        run: () => markWatched(entry, !seen),
+      });
+    }
+    items.push({ label: '✏ Renommer', run: () => openRenameModal(entry.path, entry.name) });
+    items.push({ label: '🏷 Tags', run: () => openTagModal(entry.path, entry.name) });
+    if (entry.is_dir) {
+      items.push({
+        label: entry.is_quick_folder ? '📌 Retirer des accès rapides' : '📌 Accès rapide',
+        run: () => togglePin(entry.path, entry.is_quick_folder),
+      });
+    }
+    items.push({ label: '↗ Déplacer', run: () => openMoveModal(entry.path, entry.name) });
+    items.push({ label: '🗑 Supprimer', run: () => confirmDelete(entry.path, entry.name) });
+  }
+
+  for (const [key, label] of Object.entries(SORT_LABELS)) {
+    items.push({
+      section: key === 'date' ? 'Trier par' : undefined,
+      label,
+      value: sortBy === key ? '●' : '',
+      run: () => setSortBy(key),
+    });
+  }
+  items.push({
+    label: 'Inverser l\'ordre',
+    value: sortDir === 'desc' ? '↓ décroissant' : '↑ croissant',
+    run: () => toggleSortDir(),
+  });
+
+  // Tag filtering has no modal of its own: the tags present in this folder are listed
+  // directly, so no sub-menu is needed to reach them.
+  const tags = [...new Set(entries.flatMap(e => e.tags || []))].sort();
+  if (tags.length) {
+    tags.forEach((t, i) => items.push({
+      section: i === 0 ? 'Filtrer par tag' : undefined,
+      label: `🏷 ${t}`,
+      value: activeTagFilter === t ? '●' : '',
+      run: () => toggleTagFilter(t),
+    }));
+    if (activeTagFilter) {
+      items.push({ label: '✕ Effacer le filtre', run: () => toggleTagFilter(activeTagFilter) });
+    }
+  }
+
+  items.push({ section: 'Dossier', label: '➕ Nouveau dossier', run: () => openMkdirModal() });
+  items.push({ label: '↻ Rafraîchir', run: () => refreshCurrentFolder() });
+  items.push({ label: '🔍 Rechercher', run: () => document.getElementById('search-input').focus() });
+  items.push({ label: '⌂ Écran d\'accueil', run: () => navigateHome() });
+  items.push({ section: 'Hoard', label: '📥 Téléchargements', run: () => openDlQueueModal() });
+  items.push({ label: '⚙️ Paramètres', run: () => openSettings() });
+  items.push({ label: '🎮 Aide manette', run: () => openGpOverlay() });
+
+  return items;
+}
+
+function _gpMenuRender() {
+  const box = document.getElementById('gp-menu-items');
+  box.innerHTML = _gpMenuItems.map((it, i) => {
+    const head = it.section ? `<div class="gp-menu-section">${esc(it.section)}</div>` : '';
+    const value = it.value ? `<span class="gp-menu-value">${esc(it.value)}</span>` : '';
+    return `${head}<div class="gp-menu-item ${i === _gpMenuIdx ? 'gp-cursor' : ''}" data-i="${i}" onclick="_gpMenuActivate(${i})">
+      <span>${esc(it.label)}</span>${value}
+    </div>`;
+  }).join('');
+  box.querySelector('.gp-cursor')?.scrollIntoView({ block: 'nearest' });
+}
+
+function openGpMenu() {
+  if (!currentFile && showingHomeScreen) return;
+  _gpMenuItems = currentFile ? _gpMenuBuildPlayer() : _gpMenuBuild();
+  _gpMenuIdx = 0;
+  _gpMenuRender();
+  document.getElementById('gp-menu').classList.add('open');
+}
+
+function closeGpMenu() {
+  document.getElementById('gp-menu').classList.remove('open');
+}
+
+function _gpMenuBackdropClose(e) {
+  if (e.target === document.getElementById('gp-menu')) closeGpMenu();
+}
+
+function _gpMenuMove(step) {
+  if (!_gpMenuItems.length) return;
+  _gpMenuIdx = Math.min(_gpMenuItems.length - 1, Math.max(0, _gpMenuIdx + step));
+  _gpMenuRender();
+}
+
+// The menu always closes first: every action it runs either opens a modal of its own
+// or re-renders the list underneath.
+function _gpMenuActivate(idx) {
+  const item = _gpMenuItems[idx ?? _gpMenuIdx];
+  closeGpMenu();
+  item?.run?.();
+}
+
+function _gpHandleMenu(btnIdx, gp) {
+  if (btnIdx === 1 || btnIdx === 8) { closeGpMenu(); _gpVibrate(gp, 60); return; }
+  if (btnIdx === 12) { _gpMenuMove(-1); _gpVibrate(gp, 40); return; }
+  if (btnIdx === 13) { _gpMenuMove(1); _gpVibrate(gp, 40); return; }
+  if (btnIdx === 0) { _gpMenuActivate(); _gpVibrate(gp, 60); }
+}
+
 // ── Gamepad engine ────────────────────────────────────────────────────────────
 // Standard mapping indices (gamepad.mapping === 'standard')
 // Buttons: 0=A, 1=B, 2=X, 3=Y, 4=L1, 5=R1, 6=L2, 7=R2, 8=Select, 9=Start
@@ -6223,6 +6460,7 @@ const GP_DEFAULT_MAPPING = {
   },
   // D-pad overrides in player context
   player_base: {
+    8: 'open_menu',   // Select — same rule everywhere: Select opens the menu
     12: 'volume_up',
     13: 'volume_down',
     14: 'seek_back_medium',
@@ -6258,6 +6496,30 @@ const GP_DEFAULT_MAPPING = {
     13: 'jump_100',       // L1+R1+D↓
   },
 };
+
+// BL-087: the browser layer is declared, not inherited. It used to fall back on
+// `base`, which handed X, Y, L3 and R3 to `toggle_watched`, `fullscreen`, `mute` and
+// `speed_cycle` — four actions that test `hasVideo` first and therefore did nothing.
+// A button that does not answer reads as a broken pad, so the layer now lists exactly
+// what works here and nothing else.
+// Select opens the context menu (BL-086); Start used to be diverted to the settings,
+// which Select already opened, and now gives back `open_overlay` (the pad help) as in
+// the player — the settings staying reachable from the menu.
+const GP_BROWSER_MAPPING = {
+  0: 'nav_enter',      // A
+  1: 'nav_back',       // B
+  2: 'toggle_watched', // X — acts on the cursor entry (BL-003)
+  8: 'open_menu',      // Select
+  9: 'open_overlay',   // Start
+  12: 'nav_up',
+  13: 'nav_down',
+  14: 'nav_up',
+  15: 'nav_down',
+};
+
+// Of the L1+R1 layer, only these two know how to target the list cursor; the rest
+// (jump_0, jump_100, open_export) are playback actions with no meaning in the browser.
+const GP_BROWSER_LR = new Set(['delete_current', 'move_current']);
 
 // Active gamepad state
 let _gpPollId = null;
@@ -6311,6 +6573,9 @@ function _gpAction(action, gamepad) {
       break;
     case 'open_overlay':
       openGpOverlay();
+      break;
+    case 'open_menu':
+      openGpMenu();
       break;
     case 'open_shortcuts':
       openShortcutsDialog();
@@ -6426,8 +6691,40 @@ function navigateUp() {
 }
 
 // ── Gamepad async toggle watched ──────────────────────────────────────────────
+// BL-003: mark an entry of the list watched or unwatched without opening it.
+// The player keeps its own path below: there the duration is known, and writing the
+// position at the threshold prevents the next autosave from contradicting the mark.
+// From the list there is no duration to write, which is what the explicit flag is for.
+async function markWatched(entry, watched) {
+  if (!entry) return;
+  const resp = await apiFetch(`${API}/api/progress/watched?path=${encodeURIComponent(entry.path)}`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ watched }),
+  });
+  if (!resp.ok) { showToast('❌ Erreur lors de la mise à jour'); return; }
+  showToast(watched ? '✅ Marqué vu' : '🎬 Marqué non vu');
+  await refreshCurrentFolder();
+}
+
+// Only a media carries a watched state of its own. A plain folder derives its state
+// from what it contains, so marking it would write a progress row for a path that is
+// not a media; a gallery, which is read as a single media, does carry one.
+function _canMarkWatched(entry) {
+  return !!entry && (isGallery(entry) || (!entry.is_dir && entry.media_type !== 'other'));
+}
+
+// Watched state of a list entry, as the list itself shows it.
+function _entryIsSeen(entry) {
+  return (entry.progress?.percent ?? 0) >= cfg.watched_threshold;
+}
+
 async function _gpToggleWatched() {
-  if (!currentFile || !video.duration) return;
+  if (!currentFile || !video.duration) {
+    const entry = _gpCursorIdx >= 0 ? _gpRenderedList[_gpCursorIdx] : null;
+    if (_canMarkWatched(entry)) await markWatched(entry, !_entryIsSeen(entry));
+    return;
+  }
   const isSeen = (currentFile.progress?.percent ?? 0) >= cfg.watched_threshold;
   const newPos = isSeen ? 0 : video.duration * (cfg.watched_threshold / 100);
   const resp = await apiFetch(`${API}/api/progress?path=${encodeURIComponent(currentFile.path)}`, {
@@ -6593,13 +6890,24 @@ let pendingMoveSelectedDest = null;
 let pendingMoveSelectedDestName = null;
 
 // BL-046: detect open modals regardless of whether they are <dialog> or <div> overlays
+// An element counts as shown only if it is laid out: overlays are hidden either by
+// `display:none` or by dropping an `open` class, so neither test alone is enough.
+function _gpIsShown(el) {
+  if (!el) return false;
+  if (getComputedStyle(el).display === 'none') return false;
+  return el.getClientRects().length > 0;
+}
+
+// BL-088: the open modal is found from the `gp-modal` class carried by the overlay
+// itself, not from a list of ids kept here. The previous list knew three overlays out
+// of nine; the six it ignored let the pad drive the file list *behind* them — D-pad
+// moving an invisible cursor, A opening a file underneath. Declaring membership next
+// to each overlay is what keeps the two from drifting apart again.
+// `gp-overlay` is absent on purpose: _gpDispatch handles it before reaching here.
 function _gpOpenModal() {
-  const del = document.getElementById('delete-dialog');
-  if (del?.style.display === 'flex') return del;
-  const mov = document.getElementById('move-dialog');
-  if (mov?.style.display === 'flex') return mov;
-  const exportDlg = document.getElementById('export-dialog');
-  if (exportDlg?.style.display === 'flex') return exportDlg;
+  for (const el of document.querySelectorAll('.gp-modal')) {
+    if (_gpIsShown(el)) return el;
+  }
   return document.querySelector('dialog[open]');
 }
 
@@ -6741,6 +7049,52 @@ function _gpHandleDialog(dlg, btnIdx, gp) {
       _gpCursorIdx = -1;
       confirmExport(); _gpVibrate(gp, 100);
     }
+    return;
+  }
+
+  // BL-088: every other modal gets a generic roving focus, so no screen is a dead end
+  // for a pad user. Specialised handlers above keep their own behaviour untouched.
+  _gpHandleGenericModal(dlg, btnIdx, gp);
+}
+
+// Focusable controls of a modal, in document order, skipping what cannot be used.
+function _gpModalControls(dlg) {
+  const sel = 'button, input:not([type="hidden"]), select, textarea, a[href], [tabindex]:not([tabindex="-1"])';
+  return [...dlg.querySelectorAll(sel)].filter(el => !el.disabled && _gpIsShown(el));
+}
+
+function _gpHandleGenericModal(dlg, btnIdx, gp) {
+  if (btnIdx === 1) { // B = close
+    // data-gp-close names a global closer. The lock screen carries none on
+    // purpose — B must not dismiss it.
+    const closer = window[dlg.dataset.gpClose ?? ''];
+    if (typeof closer === 'function') {
+      dlg.querySelectorAll('.gp-cursor').forEach(el => el.classList.remove('gp-cursor'));
+      dlg._gpIdx = undefined;
+      closer();
+      _gpVibrate(gp, 60);
+    }
+    return;
+  }
+  const ctrls = _gpModalControls(dlg);
+  if (!ctrls.length) return;
+  let idx = dlg._gpIdx ?? -1;
+  if (btnIdx === 12 || btnIdx === 13) {
+    const step = btnIdx === 12 ? -1 : 1;
+    idx = idx < 0 ? (step > 0 ? 0 : ctrls.length - 1)
+                  : Math.min(ctrls.length - 1, Math.max(0, idx + step));
+    dlg._gpIdx = idx;
+    ctrls.forEach((el, i) => el.classList.toggle('gp-cursor', i === idx));
+    ctrls[idx].scrollIntoView({ block: 'nearest' });
+    _gpVibrate(gp, 40);
+    return;
+  }
+  if (btnIdx === 0 && idx >= 0) { // A = activate
+    const el = ctrls[idx];
+    // A text field has nothing to activate: hand it the keyboard instead.
+    if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') el.focus();
+    else el.click();
+    _gpVibrate(gp, 60);
   }
 }
 
@@ -6764,6 +7118,13 @@ function _gpDispatch(btnIdx, l1, r1, gp) {
   // 1. Gamepad overlay open → only allow closing
   if (document.getElementById('gp-overlay').classList.contains('open')) {
     if (btnIdx === 1 || btnIdx === 9) closeGpOverlay(); // B or Start
+    return;
+  }
+
+  // 1b. Context menu open → it owns the pad (its own cursor, not DOM focus, so it is
+  // handled here rather than through the generic modal path)
+  if (document.getElementById('gp-menu').classList.contains('open')) {
+    _gpHandleMenu(btnIdx, gp);
     return;
   }
 
@@ -6791,7 +7152,7 @@ function _gpDispatch(btnIdx, l1, r1, gp) {
 
   if (l1 && r1) {
     const act = GP_DEFAULT_MAPPING.lr[btnIdx];
-    if (act) { _gpAction(act, gp); return; }
+    if (act && (hasVideo || GP_BROWSER_LR.has(act))) { _gpAction(act, gp); return; }
   }
   if (l1) {
     if (hasVideo) {
@@ -6810,10 +7171,7 @@ function _gpDispatch(btnIdx, l1, r1, gp) {
     const act = GP_DEFAULT_MAPPING.player_base[btnIdx] ?? GP_DEFAULT_MAPPING.base[btnIdx];
     if (act) { _gpAction(act, gp); return; }
   } else {
-    // Browser nav when no video
-    const browserMap = { 12: 'nav_up', 13: 'nav_down', 15: 'nav_down', 14: 'nav_up',
-                         0: 'nav_enter', 1: 'nav_back', 9: 'open_settings' };
-    const act = browserMap[btnIdx] ?? GP_DEFAULT_MAPPING.base[btnIdx];
+    const act = GP_BROWSER_MAPPING[btnIdx];
     if (act) { _gpAction(act, gp); return; }
   }
 }
@@ -6959,14 +7317,16 @@ function _gpRenderCtrl(map, AL, lbAct = false, rbAct = false) {
 }
 function openGpOverlay() {
   const body = document.getElementById('gp-overlay-body');
-  const browserMap = { 12: 'nav_up', 13: 'nav_down', 14: 'nav_up', 15: 'nav_down',
-                       0: 'nav_enter', 1: 'nav_back', 8: 'open_settings', 9: 'open_overlay' };
+  // Read from the single source of truth: this help used to carry its own copy of the
+  // browser layer, which is how it kept describing buttons that no longer did that.
+  const browserMap = GP_BROWSER_MAPPING;
   let ctx = 'player';
   let prevLb = null, prevRb = null;
   const AL = {
     play_pause: 'Lecture / Pause',
     close_player: 'Fermer le lecteur',
     toggle_watched: 'Marquer vu / non vu',
+  open_menu: 'Menu contextuel',
     fullscreen: 'Plein écran',
     open_settings: 'Paramètres',
     open_overlay: 'Overlay manette',

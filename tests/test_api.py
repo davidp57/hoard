@@ -330,6 +330,91 @@ class TestLastWatched:
         assert entries["ep.mp4"]["last_watched"] > 0
 
 
+class TestMarkWatched:
+    """`watched` is an explicit state, not a percentage (BL-003).
+
+    A file that was never opened has no known duration, so its watched state cannot
+    be expressed as a position.
+    """
+
+    def _mark(self, rel, watched):
+        return client.post(f"/api/progress/watched?path={rel}", json={"watched": watched})
+
+    def test_mark_watched_without_any_progress_row(self, video_file):
+        resp = self._mark("sample.mp4", True)
+        assert resp.status_code == 200
+        assert resp.json()["percent"] == 100
+        entry = next(
+            e for e in client.get("/api/files").json()["entries"] if e["name"] == "sample.mp4"
+        )
+        assert entry["progress"]["percent"] == 100
+        assert entry["progress"]["watched"] is True
+
+    def test_unmark_a_fully_watched_file(self, video_file):
+        client.post(
+            "/api/progress?path=sample.mp4",
+            json={"position": 600.0, "duration": 600.0},
+        )
+        self._mark("sample.mp4", False)
+        entry = next(
+            e for e in client.get("/api/files").json()["entries"] if e["name"] == "sample.mp4"
+        )
+        assert entry["progress"]["percent"] == 0
+        # Unmarking rewinds: an entry shown as unwatched must not resume mid-way.
+        assert entry["progress"]["position"] == 0
+
+    def test_folder_is_seen_when_every_child_is_marked(self, subdir_with_video):
+        self._mark("series/episode01.mp4", True)
+        entry = next(e for e in client.get("/api/files").json()["entries"] if e["name"] == "series")
+        assert entry["folder_state"] == "seen"
+
+    def test_saving_a_position_clears_the_explicit_flag(self, video_file):
+        self._mark("sample.mp4", True)
+        client.post(
+            "/api/progress?path=sample.mp4",
+            json={"position": 30.0, "duration": 600.0},
+        )
+        prog = client.get("/api/progress?path=sample.mp4").json()
+        assert prog["watched"] is False
+        assert prog["percent"] == 5.0
+
+    def test_marking_counts_as_an_access_for_the_watched_sort(self, video_file):
+        self._mark("sample.mp4", True)
+        entry = next(
+            e for e in client.get("/api/files").json()["entries"] if e["name"] == "sample.mp4"
+        )
+        assert entry["last_watched"] > 0
+
+    def test_unknown_path_is_404(self):
+        assert self._mark("nope.mp4", True).status_code == 404
+
+    def test_migration_adds_the_column_to_an_old_database(self, tmp_path, monkeypatch):
+        """A database created before BL-003 must gain the column on startup."""
+        import sqlite3
+
+        db = tmp_path / "old.db"
+        conn = sqlite3.connect(db)
+        conn.execute(
+            "CREATE TABLE progress (path TEXT PRIMARY KEY, position REAL DEFAULT 0, "
+            "duration REAL DEFAULT 0, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"
+        )
+        conn.execute("INSERT INTO progress (path, position, duration) VALUES ('a.mp4', 5, 10)")
+        conn.commit()
+        conn.close()
+
+        monkeypatch.setattr(main_mod, "DB_PATH", db)
+        main_mod.init_db()
+
+        conn = sqlite3.connect(db)
+        try:
+            cols = [r[1] for r in conn.execute("PRAGMA table_info(progress)").fetchall()]
+            assert "watched" in cols
+            row = conn.execute("SELECT watched FROM progress WHERE path = 'a.mp4'").fetchone()
+            assert row[0] == 0
+        finally:
+            conn.close()
+
+
 # ── Galleries (image folder as a single media) ──────────────────────────────────
 
 
