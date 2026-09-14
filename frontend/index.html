@@ -811,6 +811,7 @@
   #gp-overlay.open { display: flex; }
   /* When moved inside the fullscreen element */
   #gp-overlay.in-fullscreen { position: absolute; }
+  #gp-menu.in-fullscreen { position: absolute; }
   #gp-overlay-box {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -6057,23 +6058,23 @@ function toggleFullscreen(opts = {}) {
 
 document.addEventListener('fullscreenchange', () => {
   syncFullscreenUI();
-  // Move gp-overlay into the fullscreen element so it stays visible in native fullscreen
-  const gpOverlay = document.getElementById('gp-overlay');
-  const deleteDlg = document.getElementById('delete-dialog');
-  const moveDlg = document.getElementById('move-dialog');
-  const exportDlg = document.getElementById('export-dialog');
-  if (document.fullscreenElement) {
-    document.fullscreenElement.appendChild(gpOverlay);
-    gpOverlay.classList.add('in-fullscreen');
-    document.fullscreenElement.appendChild(deleteDlg);
-    document.fullscreenElement.appendChild(moveDlg);
-    document.fullscreenElement.appendChild(exportDlg);
-  } else {
-    document.body.appendChild(gpOverlay);
-    gpOverlay.classList.remove('in-fullscreen');
-    document.body.appendChild(deleteDlg);
-    document.body.appendChild(moveDlg);
-    document.body.appendChild(exportDlg);
+  // Overlays live in <body>, which native fullscreen hides. Move them into the
+  // fullscreen element so they stay visible. The list used to name three dialogs;
+  // since the context menu can now open any of them from fullscreen, every modal
+  // follows — except the lock screen, whose own flow leaves fullscreen first.
+  const floating = [
+    document.getElementById('gp-overlay'),
+    document.getElementById('gp-menu'),
+    ...document.querySelectorAll('.gp-modal:not(#pin-screen)'),
+  ].filter(Boolean);
+  for (const el of floating) {
+    if (document.fullscreenElement) {
+      document.fullscreenElement.appendChild(el);
+      el.classList.add('in-fullscreen');
+    } else {
+      document.body.appendChild(el);
+      el.classList.remove('in-fullscreen');
+    }
   }
 });
 
@@ -6279,6 +6280,46 @@ let _gpMenuIdx = 0;
 
 const SORT_LABELS = { date: 'Date', name: 'Nom', size: 'Taille', state: 'État', watched: 'Vu récemment' };
 
+// The player is otherwise fully mapped; the menu is there for what has no button of
+// its own — the folder start position — and for the rarely used actions that would
+// not be worth a combo.
+function _gpMenuBuildPlayer() {
+  const items = [];
+  const name = currentFile.name.length > 28 ? currentFile.name.slice(0, 27) + '…' : currentFile.name;
+  const seen = (currentFile.progress?.percent ?? 0) >= cfg.watched_threshold;
+
+  items.push({
+    section: name,
+    label: '⏱ ' + (currentInitialSweepState?.override_seconds != null
+      ? 'Mettre à jour le départ du dossier' : 'Départ du dossier ici'),
+    run: () => saveCurrentPositionAsInitialSweep(),
+  });
+  items.push({
+    label: seen ? '🎬 Marquer non vu' : '✅ Marquer vu',
+    run: () => _gpToggleWatched(),
+  });
+  items.push({ label: '💬 Sous-titres', run: () => cycleSubtitles() });
+  items.push({ label: '◪ Fit / Fill', run: () => toggleVideoFit() });
+  items.push({
+    label: '⏩ Vitesse de lecture',
+    value: `${video.playbackRate}×`,
+    run: () => cycleSpeed(1),
+  });
+  if (_gpIsShown(document.getElementById('segments-export-btn'))) {
+    items.push({ label: '✂ Exporter les segments', run: () => openExportModal() });
+  }
+
+  items.push({ section: 'Fichier', label: '✏ Renommer', run: () => openRenameModal(currentFile.path, currentFile.name) });
+  items.push({ label: '🏷 Tags', run: () => openTagModal(currentFile.path, currentFile.name) });
+  items.push({ label: '↗ Déplacer', run: () => openMoveModal(currentFile.path, currentFile.name) });
+  items.push({ label: '🗑 Supprimer', run: () => confirmDelete(currentFile.path, currentFile.name) });
+  items.push({ label: '✕ Fermer le lecteur', run: () => privacyClose() });
+
+  items.push({ section: 'Hoard', label: '⚙️ Paramètres', run: () => openSettings() });
+  items.push({ label: '🎮 Aide manette', run: () => openGpOverlay() });
+  return items;
+}
+
 // Lines that do not apply are left out rather than greyed: what is shown is what works.
 function _gpMenuBuild() {
   const items = [];
@@ -6359,8 +6400,8 @@ function _gpMenuRender() {
 }
 
 function openGpMenu() {
-  if (showingHomeScreen) return;
-  _gpMenuItems = _gpMenuBuild();
+  if (!currentFile && showingHomeScreen) return;
+  _gpMenuItems = currentFile ? _gpMenuBuildPlayer() : _gpMenuBuild();
   _gpMenuIdx = 0;
   _gpMenuRender();
   document.getElementById('gp-menu').classList.add('open');
@@ -6419,6 +6460,7 @@ const GP_DEFAULT_MAPPING = {
   },
   // D-pad overrides in player context
   player_base: {
+    8: 'open_menu',   // Select — same rule everywhere: Select opens the menu
     12: 'volume_up',
     13: 'volume_down',
     14: 'seek_back_medium',

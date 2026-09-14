@@ -38,6 +38,11 @@ Un **menu contextuel** ouvert par **Select**, qui expose ce qui s'applique à
 l'endroit où l'utilisateur se trouve, plus la remise en état du dispatch et des
 modals sans lesquels ce menu mènerait à des impasses.
 
+Le lot a été élargi d'un cran en cours de route (BL-089) : le lecteur était le seul
+endroit où Select voulait dire autre chose, et ⏱ *Départ dossier* le dernier bouton
+de l'interface sans chemin manette. La règle est désormais uniforme — *Select ouvre
+le menu, partout*.
+
 ## User Stories
 
 1. En tant qu'utilisateur à la manette, je veux changer le tri de la liste sans
@@ -85,8 +90,6 @@ modals sans lesquels ce menu mènerait à des impasses.
 ## Out of Scope
 
 - Le remappage utilisateur du menu (il reste sur Select, non reconfigurable).
-- Un menu contextuel dans le player : le player est déjà couvert, à l'exception de
-  ⏱ *Départ dossier*, ajouté au menu côté liste si le contexte s'y prête.
 - La recherche au pad par clavier virtuel : le champ est exposé dans le menu, la
   saisie reste au clavier physique ou tactile.
 
@@ -98,3 +101,4 @@ modals sans lesquels ce menu mènerait à des impasses.
 | BL-087 | Retirer les actions inertes du dispatch browser | fix | ✅ done |
 | BL-003 | Marquer vu / non vu depuis la liste | feat | ✅ done |
 | BL-086 | Menu contextuel manette (Select) | feat | ✅ done |
+| BL-089 | Menu contextuel dans le lecteur | feat | ✅ done |

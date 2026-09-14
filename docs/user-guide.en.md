@@ -320,6 +320,8 @@ The menu has two parts:
 
 Lines that do not apply to the entry are not shown: "Quick folder" only appears on a folder, "Mark watched" only on a media or a gallery.
 
+**Select opens the menu during playback too**, with the player's own contents: folder start position, mark watched / unwatched, subtitles, fit/fill, playback speed, export segments (when there are any), rename, tags, move, delete, close the player, settings and pad help. It is the only pad path to the **folder start position**, which has no button of its own.
+
 ### Marking Watched Without Opening the File
 
 From the list, **X** or the matching menu entry toggles a media's state without playing it — handy for a film watched elsewhere, or to reset a series you want to start over.

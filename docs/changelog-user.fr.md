@@ -8,6 +8,7 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ### Nouveautés
 - **Toute la navigation à la manette, par un seul bouton.** **Select** ouvre un menu qui propose ce qui s'applique là où tu es : le tri (les cinq critères et le sens), le filtrage par tag, créer un dossier, rafraîchir, chercher, l'accueil, les téléchargements, les réglages — et, sur le fichier ou le dossier sélectionné, l'ouvrir, le renommer, le tagger, l'épingler, le déplacer, le supprimer ou le marquer vu. D-pad pour parcourir, A pour valider, B pour fermer. Jusqu'ici la barre de tri et les boutons de ligne n'étaient accessibles qu'au doigt ou à la souris.
+- **Le même menu pendant la lecture** : **Select** l'ouvre aussi quand une vidéo est en cours, avec ce qui sert là — régler le départ du dossier, marquer vu, les sous-titres, l'affichage, la vitesse, l'export des segments, renommer, déplacer, supprimer, fermer. Le réglage **⏱ Départ du dossier** n'était atteignable qu'au doigt ou à la souris : c'était le dernier bouton de Hoard dans ce cas.
 - **Marquer un média vu ou non vu sans l'ouvrir** : dans le menu, ou avec **X** directement sur la liste. Pratique pour un film déjà vu ailleurs, ou pour repartir de zéro sur une série. Marquer « non vu » efface aussi la position de lecture, pour ne pas reprendre au milieu d'un fichier affiché comme jamais ouvert.
 
 ### Corrections

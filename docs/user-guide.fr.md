@@ -324,6 +324,8 @@ Le menu comporte deux parties :
 
 Ce qui ne s'applique pas à l'entrée n'est pas affiché : « Accès rapide » n'apparaît que sur un dossier, « Marquer vu » que sur un média ou une galerie.
 
+**Select ouvre aussi le menu pendant la lecture**, avec le contenu du lecteur : ⏱ Départ du dossier, Marquer vu / non vu, Sous-titres, Fit/Fill, Vitesse de lecture, Exporter les segments (s'il y en a), Renommer, Tags, Déplacer, Supprimer, Fermer le lecteur, Paramètres et Aide manette. C'est le seul chemin manette vers **⏱ Départ du dossier**, qui n'a pas de bouton dédié.
+
 ### Marquer vu / non vu sans ouvrir le fichier
 
 Depuis la liste, **X** ou l'entrée du menu bascule l'état d'un média sans le lire. C'est utile pour un film vu ailleurs, ou pour remettre à zéro une série qu'on veut reprendre.
