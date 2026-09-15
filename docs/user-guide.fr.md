@@ -73,6 +73,24 @@ Le modal de déplacement propose deux modes :
 - **Dossiers épinglés** : déplacement rapide vers un dossier prédéfini.
 - **📂 Parcourir…** : ouvre un sélecteur qui parcourt toute l'arborescence pour choisir n'importe quel dossier de destination.
 
+### Un fichier du même nom existe déjà à destination
+
+Hoard ne remplace jamais un fichier sans le demander. Si le dossier de destination
+contient déjà un fichier portant le même nom, une fenêtre s'ouvre et propose deux
+choix :
+
+- **Écraser** : le fichier déplacé remplace définitivement celui qui s'y trouvait
+  et reprend sa place dans la liste — progression, tags et segments suivent le
+  fichier déplacé.
+- **Annuler** : rien ne bouge.
+
+La fenêtre s'utilise aussi bien à la manette (D-pad ↑/↓ pour choisir, **A** pour
+valider, **B** pour annuler) qu'au clavier (↑/↓, `Entrée`, `Échap`). Le curseur
+démarre sur **Annuler** : écraser est définitif, ça doit être un choix.
+
+Un **dossier** déjà présent à destination ne peut pas être remplacé — Hoard le
+signale et laisse tout en place.
+
 ---
 
 ## Lecteurs alternatifs

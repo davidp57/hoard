@@ -74,6 +74,23 @@ The move modal offers two modes:
 - **Pinned folders**: one-tap move to a predefined folder.
 - **📂 Browse…**: opens a destination picker that browses the full folder tree so you can choose any destination.
 
+### A File of the Same Name Already Exists at the Destination
+
+Hoard never replaces a file without asking. When the destination folder already
+holds a file with the same name, a dialog opens and offers two choices:
+
+- **Overwrite**: the moved file permanently replaces the one already there and
+  takes its place in the list — watch progress, tags and segments follow the moved
+  file.
+- **Cancel**: nothing changes.
+
+The dialog works with a gamepad (D-pad ↑/↓ to choose, **A** to confirm, **B** to
+cancel) as well as with the keyboard (↑/↓, `Enter`, `Esc`). The cursor starts on
+**Cancel**: overwriting cannot be undone, so it has to be a choice.
+
+A **folder** already present at the destination cannot be replaced — Hoard says so
+and leaves everything in place.
+
 ---
 
 ## Alternative Media Viewers
