@@ -99,6 +99,13 @@
 - [ ] **PDF reader** (BL-056): PDF.js-powered reader with page navigation, zoom, keyboard/gamepad control, and saved progress
 - [ ] **Audio player** (BL-057): native audio playback for `.mp3`, `.flac`, `.ogg`, `.m4a`, `.aac`, `.wav`, `.opus` using existing player infrastructure
 
+## v2.6.4 — Moving onto a taken destination *(done)*
+
+- [x] **A taken destination crashed the move job** (BL-090): `_run_move` rewrote the progress row's path onto the destination without checking one was already there — `progress.path` is a PRIMARY KEY. The `IntegrityError` went up an unguarded job thread, so the job stayed `running` for ever and the UI waited on a move that never came. The crash was in fact an accidental guard: nothing checked the destination was free, and on Linux `shutil.move()` goes through `os.rename()`, which clobbers in silence. The endpoint now refuses with a **409** carrying what the client needs to ask, and the UI offers **Overwrite / Cancel** — pad cursor starting on Cancel, since overwriting cannot be undone. The replaced file is set aside and only deleted once the move lands
+- [x] **A moved folder lost its contents' metadata** (BL-091): the move rewrote its own path only, while rename already migrated descendants. `file_tags` was migrated nowhere and purged nowhere — tags were lost on both move and rename, and deleting a folder left every row below it behind
+- [x] **A failed move job now reports itself** (BL-092): the job body is guarded, so a failure surfaces as an errored job instead of a spinner that never resolves
+- [x] **The generic pad cursor was invisible** (BL-093): BL-088 gave every unspecialised dialog a roving focus, but the `gp-cursor` class it sets was only styled on `.entry`, `.modal-folder-btn` and three named buttons — in the eight other dialogs the cursor moved with nothing to show for it
+
 ## v2.6.2 — Everything reachable from the pad *(done)*
 
 - [x] **Pad context menu** (BL-086): the sort bar, the row actions and half the header had no pad path at all — the sort had no keyboard path either. **Select** now opens a menu listing what applies where the user stands, in two sections: the entry under the cursor, and the current folder. Select rather than LB/RB, which never fire an action — the polling loop skips them as pure modifiers — and which was a duplicate of Start in the browser anyway

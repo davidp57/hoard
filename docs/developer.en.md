@@ -105,10 +105,10 @@ are not sent in clear text.
 | GET | `/api/progress?path=` | Read watch progress for a file |
 | POST | `/api/progress?path=` | Save `{position, duration}` (clears the explicit watched flag) |
 | POST | `/api/progress/watched?path=` | Set `{watched}` without playing the media; unmarking rewinds the position |
-| DELETE | `/api/files?path=` | Delete a file or folder |
-| POST | `/api/files/move?path=` | Move to `{destination}` (relative path) |
+| DELETE | `/api/files?path=` | Delete a file or folder (drops progress/segments/tags of the entry and, for a folder, of everything below it) |
+| POST | `/api/files/move?path=` | Move to `{destination}` (relative path), optional `{overwrite}` — starts a background job; **409** with `{code: "destination_exists", name, overwritable}` when the target is taken, `{code: "same_location"}` when it is the file's own place |
 | POST | `/api/files/mkdir` | Create a folder `{path}` |
-| POST | `/api/files/rename?path=` | Rename to `{new_name}` (base name only); migrates progress/segments, including folder descendants |
+| POST | `/api/files/rename?path=` | Rename to `{new_name}` (base name only); migrates progress/segments/tags, including folder descendants |
 | GET | `/api/subtitles?path=` | List sidecar subtitles for a video (same folder, sharing its stem) |
 | GET | `/api/subtitle?path=` | Serve a sidecar subtitle converted to WebVTT (.srt/.ass → VTT, .vtt passthrough) |
 | POST | `/api/files/cut` | Cut video via ffmpeg `{path, start, end, output}` |

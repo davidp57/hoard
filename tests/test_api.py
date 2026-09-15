@@ -722,6 +722,152 @@ class TestMoveFile:
         assert resp.json()["position"] == 30
 
 
+# ── Move collisions: a taken destination (BL-090) ─────────────────────────────
+
+
+def _rows(table, rel):
+    import backend.main as m
+
+    with m.get_db() as conn:
+        if table == "progress":
+            q = "SELECT COUNT(*) AS n FROM progress WHERE path = ?"
+        elif table == "segments":
+            q = "SELECT COUNT(*) AS n FROM segments WHERE path = ?"
+        else:
+            q = "SELECT COUNT(*) AS n FROM file_tags WHERE path = ?"
+        return conn.execute(q, (rel,)).fetchone()["n"]
+
+
+class TestMoveDestinationTaken:
+    def _sync_thread(self, monkeypatch):
+        import threading as _threading
+
+        class SyncThread:
+            def __init__(self, target, args, daemon=True):
+                self._target = target
+                self._args = args
+
+            def start(self):
+                self._target(*self._args)
+
+        monkeypatch.setattr(_threading, "Thread", SyncThread)
+
+    def test_same_name_at_destination_is_refused(self, video_file, subdir_with_video):
+        (MEDIA_ROOT / subdir_with_video / "sample.mp4").write_bytes(b"VICTIM!!")
+        resp = client.post(
+            f"/api/files/move?path={video_file}",
+            json={"destination": subdir_with_video},
+        )
+        assert resp.status_code == 409
+        detail = resp.json()["detail"]
+        assert detail["code"] == "destination_exists"
+        assert detail["name"] == "sample.mp4"
+        assert detail["overwritable"] is True
+        # Nothing moved, nothing clobbered.
+        assert (MEDIA_ROOT / video_file).exists()
+        assert (MEDIA_ROOT / subdir_with_video / "sample.mp4").read_bytes() == b"VICTIM!!"
+
+    def test_overwrite_replaces_file_and_metadata(self, video_file, subdir_with_video, monkeypatch):
+        self._sync_thread(monkeypatch)
+        victim = MEDIA_ROOT / subdir_with_video / "sample.mp4"
+        victim.write_bytes(b"VICTIM!!")
+        client.post("/api/progress?path=series/sample.mp4", json={"position": 99, "duration": 100})
+        client.post("/api/tags?path=series/sample.mp4", json={"tag": "old"})
+        client.post(f"/api/progress?path={video_file}", json={"position": 12, "duration": 200})
+        resp = client.post(
+            f"/api/files/move?path={video_file}",
+            json={"destination": subdir_with_video, "overwrite": True},
+        )
+        assert resp.status_code == 200
+        assert not (MEDIA_ROOT / video_file).exists()
+        assert victim.read_bytes() == bytes(1024)  # the moved file won
+        # The victim's metadata is gone, the mover's followed it.
+        assert client.get("/api/progress?path=series/sample.mp4").json()["position"] == 12
+        assert _rows("file_tags", "series/sample.mp4") == 0
+        # No leftover of the aside copy kept during the swap.
+        assert not any(p.name.startswith(".") for p in (MEDIA_ROOT / subdir_with_video).iterdir())
+
+    def test_orphan_row_at_destination_does_not_break_the_move(
+        self, video_file, subdir_with_video, monkeypatch
+    ):
+        """The reported crash: a progress row sits at the destination path while no file
+        does — the previous occupant was removed outside Hoard."""
+        self._sync_thread(monkeypatch)
+        import backend.main as m
+
+        with m.get_db() as conn:
+            conn.execute(
+                "INSERT INTO progress (path, position, duration) VALUES (?, ?, ?)",
+                ("series/sample.mp4", 42, 100),
+            )
+            conn.commit()
+        client.post(f"/api/progress?path={video_file}", json={"position": 7, "duration": 200})
+        resp = client.post(
+            f"/api/files/move?path={video_file}",
+            json={"destination": subdir_with_video},
+        )
+        assert resp.status_code == 200
+        assert (MEDIA_ROOT / subdir_with_video / "sample.mp4").exists()
+        assert client.get("/api/progress?path=series/sample.mp4").json()["position"] == 7
+
+    def test_move_onto_itself_is_refused(self, video_file):
+        resp = client.post(f"/api/files/move?path={video_file}", json={"destination": ""})
+        assert resp.status_code == 409
+        assert resp.json()["detail"]["code"] == "same_location"
+
+    def test_folder_destination_is_not_overwritable(self, subdir_with_video, tmp_path):
+        (MEDIA_ROOT / "box").mkdir()
+        (MEDIA_ROOT / "box" / "series").mkdir()
+        resp = client.post(
+            f"/api/files/move?path={subdir_with_video}",
+            json={"destination": "box"},
+        )
+        assert resp.status_code == 409
+        assert resp.json()["detail"]["overwritable"] is False
+
+    def test_moving_a_folder_carries_its_children_metadata(self, subdir_with_video, monkeypatch):
+        self._sync_thread(monkeypatch)
+        client.post(
+            "/api/progress?path=series/episode01.mp4", json={"position": 55, "duration": 100}
+        )
+        client.post("/api/tags?path=series/episode01.mp4", json={"tag": "keep"})
+        (MEDIA_ROOT / "box").mkdir()
+        resp = client.post(f"/api/files/move?path={subdir_with_video}", json={"destination": "box"})
+        assert resp.status_code == 200
+        assert (MEDIA_ROOT / "box" / "series" / "episode01.mp4").exists()
+        assert client.get("/api/progress?path=box/series/episode01.mp4").json()["position"] == 55
+        assert client.get("/api/tags?path=box/series/episode01.mp4").json()["tags"] == ["keep"]
+        assert _rows("progress", "series/episode01.mp4") == 0
+
+    def test_job_reports_an_error_instead_of_hanging(self, video_file, monkeypatch):
+        """A failure inside the job thread must surface as an errored job, never as a
+        job stuck on 'running' for ever."""
+        self._sync_thread(monkeypatch)
+        import backend.main as m
+
+        def boom(*a, **k):
+            raise OSError("disk on fire")
+
+        monkeypatch.setattr(m, "_move_with_retry", boom)
+        (MEDIA_ROOT / "box").mkdir()
+        resp = client.post(f"/api/files/move?path={video_file}", json={"destination": "box"})
+        job_id = resp.json()["job_id"]
+        job = next(j for j in client.get("/api/jobs").json() if j["id"] == job_id)
+        assert job["status"] == "error"
+        assert "disk on fire" in job["error"]
+        # Rolled back: the source keeps its path in the DB.
+        assert (MEDIA_ROOT / video_file).exists()
+
+
+class TestDeletePurgesDescendants:
+    def test_deleting_a_folder_clears_children_metadata(self, subdir_with_video):
+        client.post("/api/progress?path=series/episode01.mp4", json={"position": 5, "duration": 10})
+        client.post("/api/tags?path=series/episode01.mp4", json={"tag": "gone"})
+        assert client.delete(f"/api/files?path={subdir_with_video}").status_code == 200
+        assert _rows("progress", "series/episode01.mp4") == 0
+        assert _rows("file_tags", "series/episode01.mp4") == 0
+
+
 # Note: the legacy /api/stream endpoint was removed (BL-067). Playback of any
 # media file now goes through /api/file — see TestFile (range, multi-range,
 # 404 and path-traversal coverage).
