@@ -43,3 +43,5 @@ Files: `backend/main.py`, `frontend/index.html`, `tests/test_api.py`, `docs/user
 - [x] Un dossier à destination n'est pas proposé à l'écrasement
 - [x] Déplacer un fichier vers son propre dossier est refusé proprement
 - [x] La fenêtre se pilote entièrement à la manette (D-pad, A, B) et au clavier
+- [x] Annuler laisse le lecteur ouvert : le fichier n'est relâché qu'une fois le
+      déplacement lancé, la reprise sur `PermissionError` couvrant le verrou Windows

@@ -2872,6 +2872,8 @@ async function moveFileToPath(srcPath, destFolderRel) {
   const destPath = destFolderRel ? `${destFolderRel}/${fileName}` : fileName;
   const r = await requestMove(srcPath, destPath);
   if (!r) return;
+  const { job_id } = await r.json();
+  trackJob(job_id, currentPath);  // without it a job that errors out goes unreported
   showToast(`↗ Déplacé vers ${destFolderRel || 'racine'}`);
   dirCache.clear();  // a folder's gallery-ness/state depends on contents → drop all
   navigate(currentPath);
@@ -5730,6 +5732,7 @@ function askOverwrite(name) {
   return new Promise(resolve => {
     _overwriteResolve = resolve;
     document.getElementById('overwrite-dialog-confirm').onclick = () => {
+      _gpCursorIdx = -1;  // BL-044: the move that follows navigates away from the entry
       _overwriteResolve = null;
       dlg.style.display = 'none';
       btns.forEach(b => b.classList.remove('gp-cursor'));
@@ -5787,10 +5790,14 @@ async function moveToFolder(destPath, destName) {
       && (isInFullscreen() || _galleryViewerFullscreen())) {
     _fsReenterFullscreen = true; _fsReenterFullscreenPath = fromPath;
   }
-  if (galMoveIdx == null) releaseVideoIfCurrent(sourcePath);
   closeModal();
   const resp = await requestMove(sourcePath, destPath);
   if (!resp) { _fsReenterFullscreen = false; return; }  // nothing moved: disarm the re-entry
+  // Released only once the move is actually under way: the answer can be a question
+  // (a same-named file at the destination), and cancelling must leave the player,
+  // its subtitles and its pending segment marks alone. The job's PermissionError
+  // retries cover the moment the handle takes to drop on Windows.
+  if (galMoveIdx == null) releaseVideoIfCurrent(sourcePath);
   const { job_id } = await resp.json();
   showToast(`Déplacement vers \u00ab\u00a0${destName}\u00a0\u00bb en cours…`);
   // Restore cursor to same index after re-render (works for gamepad, keyboard, click)

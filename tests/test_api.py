@@ -859,6 +859,40 @@ class TestMoveDestinationTaken:
         assert (MEDIA_ROOT / video_file).exists()
 
 
+class TestRenameOverOrphanRows:
+    """Rename migrates onto the destination path too, so a row left there by a file
+    removed outside Hoard breaks it the same way it broke the move."""
+
+    def test_rename_over_an_orphan_tag_row(self):
+        f = MEDIA_ROOT / "orig.mp4"
+        f.write_bytes(bytes(16))
+        client.post("/api/tags?path=orig.mp4", json={"tag": "keep"})
+        import backend.main as m
+
+        with m.get_db() as conn:
+            conn.execute("INSERT INTO file_tags (path, tag) VALUES (?, ?)", ("renamed.mp4", "keep"))
+            conn.commit()
+        resp = client.post("/api/files/rename?path=orig.mp4", json={"new_name": "renamed.mp4"})
+        assert resp.status_code == 200
+        assert client.get("/api/tags?path=renamed.mp4").json()["tags"] == ["keep"]
+
+    def test_rename_over_an_orphan_progress_row(self):
+        f = MEDIA_ROOT / "orig2.mp4"
+        f.write_bytes(bytes(16))
+        client.post("/api/progress?path=orig2.mp4", json={"position": 8, "duration": 100})
+        import backend.main as m
+
+        with m.get_db() as conn:
+            conn.execute(
+                "INSERT INTO progress (path, position, duration) VALUES (?, ?, ?)",
+                ("renamed2.mp4", 77, 100),
+            )
+            conn.commit()
+        resp = client.post("/api/files/rename?path=orig2.mp4", json={"new_name": "renamed2.mp4"})
+        assert resp.status_code == 200
+        assert client.get("/api/progress?path=renamed2.mp4").json()["position"] == 8
+
+
 class TestDeletePurgesDescendants:
     def test_deleting_a_folder_clears_children_metadata(self, subdir_with_video):
         client.post("/api/progress?path=series/episode01.mp4", json={"position": 5, "duration": 10})

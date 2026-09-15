@@ -840,14 +840,25 @@ def _run_move(job_id: str, source: Path, destination: Path, overwrite: bool = Fa
             except Exception as e:
                 conn.rollback()
                 if replaced is not None:
-                    replaced.rename(final_dest)
+                    try:
+                        # os.replace, not rename: a cross-device move can die halfway
+                        # and leave a truncated file the victim has to win over.
+                        os.replace(replaced, final_dest)
+                    except OSError:
+                        # Nothing left to do but say where it went — losing the
+                        # original error here would hide why the move failed.
+                        logger.exception("could not restore %s", final_dest)
                 job["status"] = "error"
                 locked = isinstance(e, PermissionError)
                 job["error"] = "File is locked by another process" if locked else str(e)
                 return
             conn.commit()
             if replaced is not None:
-                replaced.unlink(missing_ok=True)
+                # The move is committed: a leftover aside copy is untidy, never a failure.
+                try:
+                    replaced.unlink(missing_ok=True)
+                except OSError:
+                    logger.warning("could not remove the replaced copy %s", replaced)
         job["status"] = "done"
         job["progress"] = 100
     except Exception as e:
@@ -2188,6 +2199,10 @@ def rename_path(path: str, body: RenameRequest, request: Request):
     # DB-first atomicity (BL-034 pattern): migrate metadata, then rename on disk,
     # rolling back the DB if the filesystem op fails.
     with get_db() as conn:
+        # dest.exists() being false does not mean the destination is free in the DB:
+        # metadata outlives a file removed outside Hoard, and progress.path and
+        # file_tags(path, tag) are unique. Purge it first, as the move does.
+        _purge_paths(conn, new_rel)
         _migrate_renamed_paths(conn, old_rel, new_rel)
         try:
             source.rename(dest)
