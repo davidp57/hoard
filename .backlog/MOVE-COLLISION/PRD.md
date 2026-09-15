@@ -1,6 +1,6 @@
 # Lot MOVE-COLLISION — Déplacer vers une destination occupée
 
-Status: 🔄 in-progress
+Status: ✅ done
 Branch: fix/move-collision → PR → develop
 
 ## Problem Statement
@@ -102,7 +102,7 @@ clavier. L'écrasement est explicite, jamais implicite.
 
 | ID | Titre | Type | Statut |
 |----|-------|------|--------|
-| BL-090 | Destination occupée : choix écraser / annuler | fix | 🔄 |
-| BL-091 | Métadonnées des dossiers : descendants et tags | fix | 🔄 |
-| BL-092 | Un job de déplacement en échec doit se signaler | fix | 🔄 |
-| BL-093 | Curseur manette générique invisible | fix | 🔄 |
+| BL-090 | Destination occupée : choix écraser / annuler | fix | ✅ done |
+| BL-091 | Métadonnées des dossiers : descendants et tags | fix | ✅ done |
+| BL-092 | Un job de déplacement en échec doit se signaler | fix | ✅ done |
+| BL-093 | Curseur manette générique invisible | fix | ✅ done |

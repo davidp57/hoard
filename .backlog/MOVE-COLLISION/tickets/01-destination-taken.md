@@ -1,6 +1,6 @@
 # BL-090 — Destination occupée : choix écraser / annuler
 
-Status: 🔄 in-progress
+Status: ✅ done
 Type: fix
 Files: `backend/main.py`, `frontend/index.html`, `tests/test_api.py`, `docs/user-guide.*.md`, `docs/developer.en.md`
 

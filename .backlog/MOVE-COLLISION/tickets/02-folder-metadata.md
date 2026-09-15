@@ -1,6 +1,6 @@
 # BL-091 — Métadonnées des dossiers : descendants et tags
 
-Status: 🔄 in-progress
+Status: ✅ done
 Type: fix
 Files: `backend/main.py`, `tests/test_api.py`, `docs/developer.en.md`
 

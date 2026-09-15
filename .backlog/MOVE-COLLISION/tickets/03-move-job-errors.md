@@ -1,6 +1,6 @@
 # BL-092 — Un job de déplacement en échec doit se signaler
 
-Status: 🔄 in-progress
+Status: ✅ done
 Type: fix
 Files: `backend/main.py`, `tests/test_api.py`
 

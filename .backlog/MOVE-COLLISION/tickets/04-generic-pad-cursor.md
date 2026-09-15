@@ -1,6 +1,6 @@
 # BL-093 — Curseur manette générique invisible
 
-Status: 🔄 in-progress
+Status: ✅ done
 Type: fix
 Files: `frontend/index.html`, `docs/user-guide.*.md`
 
