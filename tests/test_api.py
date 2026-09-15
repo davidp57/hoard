@@ -268,6 +268,153 @@ class TestListFiles:
         assert entry["folder_state"] == "seen"
 
 
+class TestLastWatched:
+    """`last_watched` answers "when did I last watch something in here?".
+
+    The filesystem cannot answer it: playing a media writes nothing to disk, so a
+    folder never inherits the watch date of a media buried below it.
+    """
+
+    def test_unwatched_entries_report_zero(self, subdir_with_video, video_file):
+        entries = client.get("/api/files").json()["entries"]
+        assert all(e["last_watched"] == 0 for e in entries)
+
+    def test_file_carries_its_own_watch_date(self, video_file):
+        client.post(
+            "/api/progress?path=sample.mp4",
+            json={"position": 30.0, "duration": 600.0},
+        )
+        entry = next(
+            e for e in client.get("/api/files").json()["entries"] if e["name"] == "sample.mp4"
+        )
+        assert entry["last_watched"] > 0
+
+    def test_folder_inherits_a_nested_watch_date(self):
+        """A media two levels down must bubble its date up to the top folder."""
+        deep = MEDIA_ROOT / "pack" / "season" / "ep.mp4"
+        deep.parent.mkdir(parents=True)
+        deep.write_bytes(bytes(64))
+        client.post(
+            "/api/progress?path=pack/season/ep.mp4",
+            json={"position": 42.0, "duration": 600.0},
+        )
+        top = next(e for e in client.get("/api/files").json()["entries"] if e["name"] == "pack")
+        mid = next(
+            e for e in client.get("/api/files?path=pack").json()["entries"] if e["name"] == "season"
+        )
+        assert top["last_watched"] > 0
+        assert top["last_watched"] == mid["last_watched"]
+
+    def test_sibling_folder_stays_at_zero(self):
+        for rel in ("seen/ep.mp4", "untouched/ep.mp4"):
+            f = MEDIA_ROOT / rel
+            f.parent.mkdir(parents=True)
+            f.write_bytes(bytes(64))
+        client.post(
+            "/api/progress?path=seen/ep.mp4",
+            json={"position": 42.0, "duration": 600.0},
+        )
+        entries = {e["name"]: e for e in client.get("/api/files").json()["entries"]}
+        assert entries["seen"]["last_watched"] > 0
+        assert entries["untouched"]["last_watched"] == 0
+
+    def test_search_entries_expose_last_watched(self):
+        deep = MEDIA_ROOT / "pack" / "season" / "ep.mp4"
+        deep.parent.mkdir(parents=True)
+        deep.write_bytes(bytes(64))
+        client.post(
+            "/api/progress?path=pack/season/ep.mp4",
+            json={"position": 42.0, "duration": 600.0},
+        )
+        entries = {e["name"]: e for e in client.get("/api/search?q=ep").json()["entries"]}
+        assert entries["ep.mp4"]["last_watched"] > 0
+
+
+class TestMarkWatched:
+    """`watched` is an explicit state, not a percentage (BL-003).
+
+    A file that was never opened has no known duration, so its watched state cannot
+    be expressed as a position.
+    """
+
+    def _mark(self, rel, watched):
+        return client.post(f"/api/progress/watched?path={rel}", json={"watched": watched})
+
+    def test_mark_watched_without_any_progress_row(self, video_file):
+        resp = self._mark("sample.mp4", True)
+        assert resp.status_code == 200
+        assert resp.json()["percent"] == 100
+        entry = next(
+            e for e in client.get("/api/files").json()["entries"] if e["name"] == "sample.mp4"
+        )
+        assert entry["progress"]["percent"] == 100
+        assert entry["progress"]["watched"] is True
+
+    def test_unmark_a_fully_watched_file(self, video_file):
+        client.post(
+            "/api/progress?path=sample.mp4",
+            json={"position": 600.0, "duration": 600.0},
+        )
+        self._mark("sample.mp4", False)
+        entry = next(
+            e for e in client.get("/api/files").json()["entries"] if e["name"] == "sample.mp4"
+        )
+        assert entry["progress"]["percent"] == 0
+        # Unmarking rewinds: an entry shown as unwatched must not resume mid-way.
+        assert entry["progress"]["position"] == 0
+
+    def test_folder_is_seen_when_every_child_is_marked(self, subdir_with_video):
+        self._mark("series/episode01.mp4", True)
+        entry = next(e for e in client.get("/api/files").json()["entries"] if e["name"] == "series")
+        assert entry["folder_state"] == "seen"
+
+    def test_saving_a_position_clears_the_explicit_flag(self, video_file):
+        self._mark("sample.mp4", True)
+        client.post(
+            "/api/progress?path=sample.mp4",
+            json={"position": 30.0, "duration": 600.0},
+        )
+        prog = client.get("/api/progress?path=sample.mp4").json()
+        assert prog["watched"] is False
+        assert prog["percent"] == 5.0
+
+    def test_marking_counts_as_an_access_for_the_watched_sort(self, video_file):
+        self._mark("sample.mp4", True)
+        entry = next(
+            e for e in client.get("/api/files").json()["entries"] if e["name"] == "sample.mp4"
+        )
+        assert entry["last_watched"] > 0
+
+    def test_unknown_path_is_404(self):
+        assert self._mark("nope.mp4", True).status_code == 404
+
+    def test_migration_adds_the_column_to_an_old_database(self, tmp_path, monkeypatch):
+        """A database created before BL-003 must gain the column on startup."""
+        import sqlite3
+
+        db = tmp_path / "old.db"
+        conn = sqlite3.connect(db)
+        conn.execute(
+            "CREATE TABLE progress (path TEXT PRIMARY KEY, position REAL DEFAULT 0, "
+            "duration REAL DEFAULT 0, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"
+        )
+        conn.execute("INSERT INTO progress (path, position, duration) VALUES ('a.mp4', 5, 10)")
+        conn.commit()
+        conn.close()
+
+        monkeypatch.setattr(main_mod, "DB_PATH", db)
+        main_mod.init_db()
+
+        conn = sqlite3.connect(db)
+        try:
+            cols = [r[1] for r in conn.execute("PRAGMA table_info(progress)").fetchall()]
+            assert "watched" in cols
+            row = conn.execute("SELECT watched FROM progress WHERE path = 'a.mp4'").fetchone()
+            assert row[0] == 0
+        finally:
+            conn.close()
+
+
 # ── Galleries (image folder as a single media) ──────────────────────────────────
 
 
@@ -573,6 +720,186 @@ class TestMoveFile:
         resp = client.get("/api/progress?path=series/sample.mp4")
         assert resp.status_code == 200
         assert resp.json()["position"] == 30
+
+
+# ── Move collisions: a taken destination (BL-090) ─────────────────────────────
+
+
+def _rows(table, rel):
+    import backend.main as m
+
+    with m.get_db() as conn:
+        if table == "progress":
+            q = "SELECT COUNT(*) AS n FROM progress WHERE path = ?"
+        elif table == "segments":
+            q = "SELECT COUNT(*) AS n FROM segments WHERE path = ?"
+        else:
+            q = "SELECT COUNT(*) AS n FROM file_tags WHERE path = ?"
+        return conn.execute(q, (rel,)).fetchone()["n"]
+
+
+class TestMoveDestinationTaken:
+    def _sync_thread(self, monkeypatch):
+        import threading as _threading
+
+        class SyncThread:
+            def __init__(self, target, args, daemon=True):
+                self._target = target
+                self._args = args
+
+            def start(self):
+                self._target(*self._args)
+
+        monkeypatch.setattr(_threading, "Thread", SyncThread)
+
+    def test_same_name_at_destination_is_refused(self, video_file, subdir_with_video):
+        (MEDIA_ROOT / subdir_with_video / "sample.mp4").write_bytes(b"VICTIM!!")
+        resp = client.post(
+            f"/api/files/move?path={video_file}",
+            json={"destination": subdir_with_video},
+        )
+        assert resp.status_code == 409
+        detail = resp.json()["detail"]
+        assert detail["code"] == "destination_exists"
+        assert detail["name"] == "sample.mp4"
+        assert detail["overwritable"] is True
+        # Nothing moved, nothing clobbered.
+        assert (MEDIA_ROOT / video_file).exists()
+        assert (MEDIA_ROOT / subdir_with_video / "sample.mp4").read_bytes() == b"VICTIM!!"
+
+    def test_overwrite_replaces_file_and_metadata(self, video_file, subdir_with_video, monkeypatch):
+        self._sync_thread(monkeypatch)
+        victim = MEDIA_ROOT / subdir_with_video / "sample.mp4"
+        victim.write_bytes(b"VICTIM!!")
+        client.post("/api/progress?path=series/sample.mp4", json={"position": 99, "duration": 100})
+        client.post("/api/tags?path=series/sample.mp4", json={"tag": "old"})
+        client.post(f"/api/progress?path={video_file}", json={"position": 12, "duration": 200})
+        resp = client.post(
+            f"/api/files/move?path={video_file}",
+            json={"destination": subdir_with_video, "overwrite": True},
+        )
+        assert resp.status_code == 200
+        assert not (MEDIA_ROOT / video_file).exists()
+        assert victim.read_bytes() == bytes(1024)  # the moved file won
+        # The victim's metadata is gone, the mover's followed it.
+        assert client.get("/api/progress?path=series/sample.mp4").json()["position"] == 12
+        assert _rows("file_tags", "series/sample.mp4") == 0
+        # No leftover of the aside copy kept during the swap.
+        assert not any(p.name.startswith(".") for p in (MEDIA_ROOT / subdir_with_video).iterdir())
+
+    def test_orphan_row_at_destination_does_not_break_the_move(
+        self, video_file, subdir_with_video, monkeypatch
+    ):
+        """The reported crash: a progress row sits at the destination path while no file
+        does — the previous occupant was removed outside Hoard."""
+        self._sync_thread(monkeypatch)
+        import backend.main as m
+
+        with m.get_db() as conn:
+            conn.execute(
+                "INSERT INTO progress (path, position, duration) VALUES (?, ?, ?)",
+                ("series/sample.mp4", 42, 100),
+            )
+            conn.commit()
+        client.post(f"/api/progress?path={video_file}", json={"position": 7, "duration": 200})
+        resp = client.post(
+            f"/api/files/move?path={video_file}",
+            json={"destination": subdir_with_video},
+        )
+        assert resp.status_code == 200
+        assert (MEDIA_ROOT / subdir_with_video / "sample.mp4").exists()
+        assert client.get("/api/progress?path=series/sample.mp4").json()["position"] == 7
+
+    def test_move_onto_itself_is_refused(self, video_file):
+        resp = client.post(f"/api/files/move?path={video_file}", json={"destination": ""})
+        assert resp.status_code == 409
+        assert resp.json()["detail"]["code"] == "same_location"
+
+    def test_folder_destination_is_not_overwritable(self, subdir_with_video, tmp_path):
+        (MEDIA_ROOT / "box").mkdir()
+        (MEDIA_ROOT / "box" / "series").mkdir()
+        resp = client.post(
+            f"/api/files/move?path={subdir_with_video}",
+            json={"destination": "box"},
+        )
+        assert resp.status_code == 409
+        assert resp.json()["detail"]["overwritable"] is False
+
+    def test_moving_a_folder_carries_its_children_metadata(self, subdir_with_video, monkeypatch):
+        self._sync_thread(monkeypatch)
+        client.post(
+            "/api/progress?path=series/episode01.mp4", json={"position": 55, "duration": 100}
+        )
+        client.post("/api/tags?path=series/episode01.mp4", json={"tag": "keep"})
+        (MEDIA_ROOT / "box").mkdir()
+        resp = client.post(f"/api/files/move?path={subdir_with_video}", json={"destination": "box"})
+        assert resp.status_code == 200
+        assert (MEDIA_ROOT / "box" / "series" / "episode01.mp4").exists()
+        assert client.get("/api/progress?path=box/series/episode01.mp4").json()["position"] == 55
+        assert client.get("/api/tags?path=box/series/episode01.mp4").json()["tags"] == ["keep"]
+        assert _rows("progress", "series/episode01.mp4") == 0
+
+    def test_job_reports_an_error_instead_of_hanging(self, video_file, monkeypatch):
+        """A failure inside the job thread must surface as an errored job, never as a
+        job stuck on 'running' for ever."""
+        self._sync_thread(monkeypatch)
+        import backend.main as m
+
+        def boom(*a, **k):
+            raise OSError("disk on fire")
+
+        monkeypatch.setattr(m, "_move_with_retry", boom)
+        (MEDIA_ROOT / "box").mkdir()
+        resp = client.post(f"/api/files/move?path={video_file}", json={"destination": "box"})
+        job_id = resp.json()["job_id"]
+        job = next(j for j in client.get("/api/jobs").json() if j["id"] == job_id)
+        assert job["status"] == "error"
+        assert "disk on fire" in job["error"]
+        # Rolled back: the source keeps its path in the DB.
+        assert (MEDIA_ROOT / video_file).exists()
+
+
+class TestRenameOverOrphanRows:
+    """Rename migrates onto the destination path too, so a row left there by a file
+    removed outside Hoard breaks it the same way it broke the move."""
+
+    def test_rename_over_an_orphan_tag_row(self):
+        f = MEDIA_ROOT / "orig.mp4"
+        f.write_bytes(bytes(16))
+        client.post("/api/tags?path=orig.mp4", json={"tag": "keep"})
+        import backend.main as m
+
+        with m.get_db() as conn:
+            conn.execute("INSERT INTO file_tags (path, tag) VALUES (?, ?)", ("renamed.mp4", "keep"))
+            conn.commit()
+        resp = client.post("/api/files/rename?path=orig.mp4", json={"new_name": "renamed.mp4"})
+        assert resp.status_code == 200
+        assert client.get("/api/tags?path=renamed.mp4").json()["tags"] == ["keep"]
+
+    def test_rename_over_an_orphan_progress_row(self):
+        f = MEDIA_ROOT / "orig2.mp4"
+        f.write_bytes(bytes(16))
+        client.post("/api/progress?path=orig2.mp4", json={"position": 8, "duration": 100})
+        import backend.main as m
+
+        with m.get_db() as conn:
+            conn.execute(
+                "INSERT INTO progress (path, position, duration) VALUES (?, ?, ?)",
+                ("renamed2.mp4", 77, 100),
+            )
+            conn.commit()
+        resp = client.post("/api/files/rename?path=orig2.mp4", json={"new_name": "renamed2.mp4"})
+        assert resp.status_code == 200
+        assert client.get("/api/progress?path=renamed2.mp4").json()["position"] == 8
+
+
+class TestDeletePurgesDescendants:
+    def test_deleting_a_folder_clears_children_metadata(self, subdir_with_video):
+        client.post("/api/progress?path=series/episode01.mp4", json={"position": 5, "duration": 10})
+        client.post("/api/tags?path=series/episode01.mp4", json={"tag": "gone"})
+        assert client.delete(f"/api/files?path={subdir_with_video}").status_code == 200
+        assert _rows("progress", "series/episode01.mp4") == 0
+        assert _rows("file_tags", "series/episode01.mp4") == 0
 
 
 # Note: the legacy /api/stream endpoint was removed (BL-067). Playback of any

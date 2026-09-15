@@ -29,6 +29,22 @@ Chaque fichier ou dossier est affiché avec :
   - Fond jaune + barre de progression + pourcentage → **en cours**
   - Fond vert → **vu** (≥ 90 % regardé)
 
+### Tri de la liste
+
+La barre de tri propose cinq critères, chacun inversable avec le bouton **↓ / ↑** :
+
+| Critère | Ce qu'il classe |
+|---------|-----------------|
+| **Date** | Date du fichier ou du dossier sur le disque (utile pour voir les nouveautés arrivées) |
+| **Nom** | Ordre alphabétique |
+| **Taille** | Taille du fichier |
+| **État** | Non vu, puis en cours, puis vu |
+| **Vu** | Date du dernier visionnage |
+
+Le tri **Vu** répond à « qu'ai-je regardé en dernier ». Un dossier prend la date du média le plus récemment regardé **n'importe où en dessous de lui**, même à plusieurs niveaux de profondeur : reprendre une vidéo enfouie dans un sous-dossier fait remonter tout le dossier parent en tête de liste. Les entrées jamais ouvertes n'ont pas de date de visionnage : elles sont regroupées en fin de liste, classées entre elles par date de fichier.
+
+Le critère choisi dans **Paramètres → Tri par défaut** s'applique à l'ouverture de l'application.
+
 ### Recherche
 
 Un champ **🔍** est disponible dans la barre de tri. La recherche est insensible à la casse et récursive dans le dossier courant. Le résultat remplace la liste ; effacer le champ (ou appuyer sur ✕) revient à la navigation normale.
@@ -56,6 +72,24 @@ Le modal de déplacement propose deux modes :
 
 - **Dossiers épinglés** : déplacement rapide vers un dossier prédéfini.
 - **📂 Parcourir…** : ouvre un sélecteur qui parcourt toute l'arborescence pour choisir n'importe quel dossier de destination.
+
+### Un fichier du même nom existe déjà à destination
+
+Hoard ne remplace jamais un fichier sans le demander. Si le dossier de destination
+contient déjà un fichier portant le même nom, une fenêtre s'ouvre et propose deux
+choix :
+
+- **Écraser** : le fichier déplacé remplace définitivement celui qui s'y trouvait
+  et reprend sa place dans la liste — progression, tags et segments suivent le
+  fichier déplacé.
+- **Annuler** : rien ne bouge.
+
+La fenêtre s'utilise aussi bien à la manette (D-pad ↑/↓ pour choisir, **A** pour
+valider, **B** pour annuler) qu'au clavier (↑/↓, `Entrée`, `Échap`). Le curseur
+démarre sur **Annuler** : écraser est définitif, ça doit être un choix.
+
+Un **dossier** déjà présent à destination ne peut pas être remplacé — Hoard le
+signale et laisse tout en place.
 
 ---
 
@@ -123,6 +157,8 @@ Les fichiers audio s'ouvrent dans un lecteur minimaliste.
 ### Suivi de progression
 
 L'état **vu / en cours / non vu** fonctionne pour tous les types de médias, pas seulement les vidéos. Le pourcentage est calculé sur la même base (position / durée pour vidéo et audio ; page / total pour PDF et archives).
+
+L'état peut aussi être **posé à la main**, sans ouvrir le fichier — voir *Marquer vu / non vu sans ouvrir le fichier*.
 
 ---
 
@@ -289,7 +325,30 @@ Hoard supporte les manettes de jeu via la **Gamepad API** du navigateur (Xbox, P
 | **Stick gauche Y** | Déplacer le curseur (analogique) |
 | **A** | Ouvrir le fichier ou dossier sélectionné |
 | **B** | Remonter d'un niveau |
-| **Start** | Ouvrir les Paramètres |
+| **X** | Marquer l'entrée sélectionnée vue / non vue |
+| **Select** | Ouvrir le **menu contextuel** |
+| **Start** | Afficher la carte des boutons |
+| **L1+R1+B** | Supprimer l'entrée sélectionnée |
+| **L1+R1+X** | Déplacer l'entrée sélectionnée |
+
+### Menu contextuel (Select)
+
+Tout ce que la barre de tri et les boutons de ligne proposent est accessible à la manette par un seul bouton : **Select** ouvre un menu qui liste ce qui s'applique là où tu te trouves. **D-pad** pour parcourir, **A** pour valider, **B** pour fermer.
+
+Le menu comporte deux parties :
+
+- **L'entrée sous le curseur** (si le curseur est posé) — Ouvrir, Marquer vu / non vu, Renommer, Tags, Accès rapide, Déplacer, Supprimer.
+- **Le dossier courant** — les cinq critères de tri et le sens, les tags présents dans le dossier pour filtrer, Nouveau dossier, Rafraîchir, Rechercher, Écran d'accueil, Téléchargements, Paramètres, Aide manette.
+
+Ce qui ne s'applique pas à l'entrée n'est pas affiché : « Accès rapide » n'apparaît que sur un dossier, « Marquer vu » que sur un média ou une galerie.
+
+**Select ouvre aussi le menu pendant la lecture**, avec le contenu du lecteur : ⏱ Départ du dossier, Marquer vu / non vu, Sous-titres, Fit/Fill, Vitesse de lecture, Exporter les segments (s'il y en a), Renommer, Tags, Déplacer, Supprimer, Fermer le lecteur, Paramètres et Aide manette. C'est le seul chemin manette vers **⏱ Départ du dossier**, qui n'a pas de bouton dédié.
+
+### Marquer vu / non vu sans ouvrir le fichier
+
+Depuis la liste, **X** ou l'entrée du menu bascule l'état d'un média sans le lire. C'est utile pour un film vu ailleurs, ou pour remettre à zéro une série qu'on veut reprendre.
+
+Marquer **non vu** remet aussi la position de lecture à zéro — un fichier affiché comme non vu ne doit pas reprendre au milieu. Et rouvrir un fichier marqué vu pour le regarder le refait passer « en cours » : c'est la lecture réelle qui a le dernier mot.
 
 ### Modificateurs (L1 / R1)
 
@@ -298,6 +357,10 @@ Maintenir **L1** ou **R1** active une couche de commandes supplémentaires. Les 
 ### Carte des boutons
 
 Appuie sur **Start** (ou le bouton « Afficher la carte des boutons » dans Paramètres) pour afficher un overlay listant toutes les actions disponibles par couche, mis à jour dynamiquement avec les durées de seek configurées.
+
+### Fenêtres et manette
+
+Toutes les fenêtres de Hoard (tags, renommage, nouveau dossier, sélecteur de dossier, file de téléchargements, écran de code PIN) se pilotent à la manette : **D-pad** parcourt les champs et les boutons, **A** active celui qui est sélectionné, **B** ferme la fenêtre. Aucun écran ne demande de reprendre la souris.
 
 ### Paramètres manette
 

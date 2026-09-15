@@ -248,6 +248,7 @@ def init_db():
                 duration REAL DEFAULT 0,
                 cut_in REAL DEFAULT NULL,
                 cut_out REAL DEFAULT NULL,
+                watched INTEGER DEFAULT 0,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
@@ -257,6 +258,12 @@ def init_db():
                 conn.execute(f"ALTER TABLE progress ADD COLUMN {col} REAL DEFAULT NULL")
             except Exception:
                 pass
+        # Migration (BL-003): explicit watched flag. "Watched" is a state, not a
+        # position — a file that was never opened has no duration to express it with.
+        try:
+            conn.execute("ALTER TABLE progress ADD COLUMN watched INTEGER DEFAULT 0")
+        except Exception:
+            pass
         conn.execute("""
             CREATE TABLE IF NOT EXISTS quick_folders (
                 path TEXT PRIMARY KEY,
@@ -412,8 +419,13 @@ class ProgressUpdate(BaseModel):
     cut_out: float | None = None
 
 
+class WatchedUpdate(BaseModel):
+    watched: bool
+
+
 class MoveRequest(BaseModel):
     destination: str  # relative path from MEDIA_ROOT
+    overwrite: bool = False  # replace a same-named file at the destination
 
 
 class QuickFolderRequest(BaseModel):
@@ -604,13 +616,18 @@ def _run_cut(
             return
         # Move source to destination
         dest_source = dest_dir / source.name
-        if dest_source.resolve() != source.resolve():
+        if dest_source.exists() and dest_source.resolve() != source.resolve():
+            # Never clobber a same-named file as a side effect of an export: report it
+            # and leave the source where it is.
+            job["move_error"] = "Destination already exists"
+        elif dest_source.resolve() != source.resolve():
             try:
                 shutil.move(str(source), str(dest_source))
-                old_rel = str(source.relative_to(MEDIA_ROOT))
-                new_rel = str(dest_source.relative_to(MEDIA_ROOT))
+                old_rel = to_rel(source)
+                new_rel = to_rel(dest_source)
                 with get_db() as conn:
-                    conn.execute("UPDATE progress SET path = ? WHERE path = ?", (new_rel, old_rel))
+                    _purge_paths(conn, new_rel)  # orphaned rows would break the unique path
+                    _migrate_renamed_paths(conn, old_rel, new_rel)
                     conn.commit()
             except Exception as e:
                 job["move_error"] = str(e)
@@ -731,16 +748,20 @@ def _run_export_segments(
         rel_path = to_rel(source)
         if not keep_original and dest_dir.resolve() != source.parent.resolve():
             dest_source = dest_dir / source.name
-            try:
-                shutil.move(str(source), str(dest_source))
-                new_rel = to_rel(dest_source)
-                with get_db() as conn:
-                    conn.execute("UPDATE progress SET path = ? WHERE path = ?", (new_rel, rel_path))
-                    conn.execute("UPDATE segments SET path = ? WHERE path = ?", (new_rel, rel_path))
-                    conn.commit()
-                rel_path = new_rel
-            except Exception as e:
-                job["move_error"] = str(e)
+            if dest_source.exists():
+                # Never clobber a same-named file as a side effect of an export.
+                job["move_error"] = "Destination already exists"
+            else:
+                try:
+                    shutil.move(str(source), str(dest_source))
+                    new_rel = to_rel(dest_source)
+                    with get_db() as conn:
+                        _purge_paths(conn, new_rel)  # orphaned rows would break the unique path
+                        _migrate_renamed_paths(conn, rel_path, new_rel)
+                        conn.commit()
+                    rel_path = new_rel
+                except Exception as e:
+                    job["move_error"] = str(e)
 
         # Clear segments for this file after successful export
         with get_db() as conn:
@@ -757,39 +778,95 @@ def _run_export_segments(
         job["error"] = str(e)
 
 
-def _run_move(job_id: str, source: Path, destination: Path) -> None:
+def move_target(source: Path, destination: Path) -> Path:
+    """Where `source` actually lands: inside `destination` when it is an existing
+    folder, at `destination` itself otherwise. Both callers of the move must agree
+    on this, or the endpoint would check a path the job does not use."""
+    return (destination / source.name) if destination.is_dir() else destination
+
+
+def _move_with_retry(source: Path, final_dest: Path, attempts: int = 5, delay: float = 0.6) -> None:
+    """Move a file, retrying while it is still locked — a player can hold a handle
+    for a moment after playback stops. Re-raises once it never frees up."""
+    for attempt in range(attempts):
+        try:
+            shutil.move(str(source), str(final_dest))
+            return
+        except PermissionError:
+            if attempt == attempts - 1:
+                raise
+            time.sleep(delay)
+
+
+def _run_move(job_id: str, source: Path, destination: Path, overwrite: bool = False) -> None:
     job = _jobs[job_id]
     job["status"] = "running"
-    final_dest = (destination / source.name) if destination.is_dir() else destination
-    final_dest.parent.mkdir(parents=True, exist_ok=True)
-    old_rel = to_rel(source)
-    new_rel = to_rel(final_dest)
-    # DB-first atomicity: stage the metadata move, perform the filesystem move,
-    # and only commit if it succeeds. Roll back on failure so progress/segments
-    # rows never point at a path the file was not actually moved to.
-    with get_db() as conn:
-        conn.execute("UPDATE progress SET path = ? WHERE path = ?", (new_rel, old_rel))
-        conn.execute("UPDATE segments SET path = ? WHERE path = ?", (new_rel, old_rel))
-        for attempt in range(5):
+    try:
+        final_dest = move_target(source, destination)
+        # Replacing is only ever a file-for-file swap: moving a folder onto an existing
+        # one would nest it inside instead of replacing it, which is not what "overwrite"
+        # means to the user.
+        replaceable = overwrite and source.is_file() and final_dest.is_file()
+        # Defence in depth: the endpoint already refused a taken destination, but the
+        # job runs later and something may have appeared since. Never overwrite in
+        # silence — on Linux shutil.move() clobbers the destination without a word.
+        if final_dest.exists() and not replaceable:
+            job["status"] = "error"
+            job["error"] = "Destination already exists"
+            return
+        final_dest.parent.mkdir(parents=True, exist_ok=True)
+        old_rel = to_rel(source)
+        new_rel = to_rel(final_dest)
+        # DB-first atomicity: stage the metadata move, perform the filesystem move,
+        # and only commit if it succeeds. Roll back on failure so progress/segments
+        # rows never point at a path the file was not actually moved to.
+        with get_db() as conn:
+            # The destination path must be free in the DB before the source takes it:
+            # progress.path is a PRIMARY KEY and file_tags is keyed on (path, tag).
+            # Rows can sit there because the occupant is being replaced on purpose, or
+            # because it was removed outside Hoard and left its metadata orphaned.
+            _purge_paths(conn, new_rel)
+            _migrate_renamed_paths(conn, old_rel, new_rel)
+            # Move the replaced file aside rather than deleting it: if the move then
+            # fails we put it back, so a failed overwrite costs nothing.
+            replaced = None
+            if replaceable:
+                replaced = final_dest.with_name(
+                    f".{final_dest.name}.hoard-replaced-{uuid.uuid4().hex[:8]}"
+                )
+                final_dest.rename(replaced)
             try:
-                shutil.move(str(source), str(final_dest))
-                break
-            except PermissionError:
-                if attempt < 4:
-                    time.sleep(0.6)
-                else:
-                    conn.rollback()
-                    job["status"] = "error"
-                    job["error"] = "File is locked by another process"
-                    return
+                _move_with_retry(source, final_dest)
             except Exception as e:
                 conn.rollback()
+                if replaced is not None:
+                    try:
+                        # os.replace, not rename: a cross-device move can die halfway
+                        # and leave a truncated file the victim has to win over.
+                        os.replace(replaced, final_dest)
+                    except OSError:
+                        # Nothing left to do but say where it went — losing the
+                        # original error here would hide why the move failed.
+                        logger.exception("could not restore %s", final_dest)
                 job["status"] = "error"
-                job["error"] = str(e)
+                locked = isinstance(e, PermissionError)
+                job["error"] = "File is locked by another process" if locked else str(e)
                 return
-        conn.commit()
-    job["status"] = "done"
-    job["progress"] = 100
+            conn.commit()
+            if replaced is not None:
+                # The move is committed: a leftover aside copy is untidy, never a failure.
+                try:
+                    replaced.unlink(missing_ok=True)
+                except OSError:
+                    logger.warning("could not remove the replaced copy %s", replaced)
+        job["status"] = "done"
+        job["progress"] = 100
+    except Exception as e:
+        # A job thread that dies on an unhandled error leaves the UI waiting on a
+        # "running" job for ever. Every exit reports a status.
+        logger.exception("move job failed: %s", job_id)
+        job["status"] = "error"
+        job["error"] = str(e)
 
 
 # ── Download helpers ──────────────────────────────────────────────────────────
@@ -1601,19 +1678,30 @@ def to_rel(path: Path) -> str:
     return str(path.relative_to(MEDIA_ROOT)).replace("\\", "/")
 
 
+def _watch_percent(row) -> float:
+    """Watched percentage of a progress row, the explicit flag winning over the
+    position. Marking a file watched from the list cannot rely on a percentage: the
+    file may never have been opened, so its duration is unknown."""
+    if row["watched"]:
+        return 100.0
+    dur = row["duration"]
+    return (row["position"] / dur * 100) if dur > 0 else 0.0
+
+
 def get_progress(path: Path) -> dict:
     rel = to_rel(path)
     with get_db() as conn:
         row = conn.execute(
-            "SELECT position, duration, cut_in, cut_out FROM progress WHERE path = ?", (rel,)
+            "SELECT position, duration, cut_in, cut_out, watched FROM progress WHERE path = ?",
+            (rel,),
         ).fetchone()
     if row:
         pos, dur = row["position"], row["duration"]
-        pct = (pos / dur * 100) if dur > 0 else 0
         return {
             "position": pos,
             "duration": dur,
-            "percent": round(pct, 1),
+            "percent": round(_watch_percent(row), 1),
+            "watched": bool(row["watched"]),
             "cut_in": row["cut_in"],
             "cut_out": row["cut_out"],
             "has_saved_progress": True,
@@ -1622,6 +1710,7 @@ def get_progress(path: Path) -> dict:
         "position": 0,
         "duration": 0,
         "percent": 0,
+        "watched": False,
         "cut_in": None,
         "cut_out": None,
         "has_saved_progress": False,
@@ -1655,6 +1744,32 @@ def _get_initial_sweep_state(folder_path: str) -> dict[str, int | str | None]:
         "effective_seconds": effective_seconds,
         "source": "override" if override_seconds is not None else "default",
     }
+
+
+def _last_watched_index(conn) -> dict[str, int]:
+    """Map every watched path — and each of its parent folders — to the most recent
+    watch timestamp found beneath it.
+
+    Filesystem mtimes cannot answer "what did I watch last": playing a media writes
+    nothing to disk, and a change deep in a tree never propagates to its ancestors.
+    The answer lives in the ``progress`` table instead. Each row is attributed to its
+    own path and walked up its ancestor chain, keeping the maximum timestamp, so a
+    folder inherits the watch date of the most recent media anywhere below it.
+    """
+    index: dict[str, int] = {}
+    rows = conn.execute(
+        "SELECT path, CAST(strftime('%s', updated_at) AS INTEGER) AS ts FROM progress"
+    ).fetchall()
+    for row in rows:
+        ts = row["ts"] or 0
+        if ts <= 0:
+            continue
+        rel = (row["path"] or "").strip("/")
+        while rel:
+            if ts > index.get(rel, 0):
+                index[rel] = ts
+            rel = rel.rpartition("/")[0]
+    return index
 
 
 def get_folder_state(folder: Path, progress_map: dict) -> str:
@@ -1760,10 +1875,9 @@ def list_files(path: str = ""):
         qf_paths = {
             row["path"] for row in conn.execute("SELECT path FROM quick_folders").fetchall()
         }
-        rows = conn.execute(
-            "SELECT path, position, duration FROM progress WHERE duration > 0"
-        ).fetchall()
-        progress_map = {row["path"]: row["position"] / row["duration"] * 100 for row in rows}
+        rows = conn.execute("SELECT path, position, duration, watched FROM progress").fetchall()
+        progress_map = {row["path"]: _watch_percent(row) for row in rows}
+        watched_map = _last_watched_index(conn)
         tag_rows = conn.execute("SELECT path, tag FROM file_tags").fetchall()
 
     tags_map: dict[str, list[str]] = {}
@@ -1806,6 +1920,7 @@ def list_files(path: str = ""):
             "media_type": _media_type,
             "size": st.st_size if item.is_file() else 0,
             "mtime": st.st_mtime,
+            "last_watched": watched_map.get(rel, 0),
             "is_quick_folder": rel in qf_paths if is_directory else False,
             "folder_state": folder_state,
         }
@@ -1839,6 +1954,7 @@ def search_files(q: str, path: str = ""):
             row["path"] for row in conn.execute("SELECT path FROM quick_folders").fetchall()
         }
         tag_rows_s = conn.execute("SELECT path, tag FROM file_tags").fetchall()
+        watched_map_s = _last_watched_index(conn)
 
     tags_map_s: dict[str, list[str]] = {}
     for tr in tag_rows_s:
@@ -1866,6 +1982,7 @@ def search_files(q: str, path: str = ""):
             "media_type": _media_type_s,
             "size": st.st_size if item.is_file() else 0,
             "mtime": st.st_mtime,
+            "last_watched": watched_map_s.get(rel, 0),
             "is_quick_folder": rel in qf_paths if item.is_dir() else False,
             "folder_state": None,  # skip get_folder_state to avoid nested rglob in search
         }
@@ -1900,12 +2017,57 @@ def save_progress(path: str, body: ProgressUpdate):
                 duration=excluded.duration,
                 cut_in=excluded.cut_in,
                 cut_out=excluded.cut_out,
+                watched=0,
                 updated_at=CURRENT_TIMESTAMP
         """,
             (rel, body.position, body.duration, body.cut_in, body.cut_out),
         )
         conn.commit()
     return {"ok": True}
+
+
+@app.post("/api/progress/watched")
+def set_watched(path: str, body: WatchedUpdate):
+    """Mark a media watched or unwatched without playing it (BL-003).
+
+    Unmarking also rewinds the position: leaving a file at 80 % while showing it as
+    unwatched would make it resume mid-way from a list that says it was never opened.
+    Marking watched leaves the position alone — a film finished elsewhere keeps its
+    bookmark harmlessly.
+    """
+    file = safe_path(path)
+    if not file.exists():
+        raise HTTPException(status_code=404)
+    rel = to_rel(file)
+    with get_db() as conn:
+        conn.execute(
+            """
+            INSERT INTO progress (path, position, duration, watched, updated_at)
+            VALUES (?, 0, 0, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(path) DO UPDATE SET
+                watched=excluded.watched,
+                position=CASE WHEN excluded.watched THEN progress.position ELSE 0 END,
+                updated_at=CURRENT_TIMESTAMP
+        """,
+            (rel, 1 if body.watched else 0),
+        )
+        conn.commit()
+    return get_progress(file)
+
+
+def _purge_paths(conn, rel: str) -> None:
+    """Drop every metadata row attached to a path: the entry itself and, when it is a
+    folder, everything below it (prefix match). Uses substr equality (not LIKE) so
+    '_' / '%' in names are not treated as wildcards. Table names are literal (no string
+    interpolation) to keep the queries parameterised and injection-safe."""
+    tail_start = len(rel) + 1
+    prefix = rel + "/"
+    conn.execute("DELETE FROM progress WHERE path = ?", (rel,))
+    conn.execute("DELETE FROM progress WHERE substr(path, 1, ?) = ?", (tail_start, prefix))
+    conn.execute("DELETE FROM segments WHERE path = ?", (rel,))
+    conn.execute("DELETE FROM segments WHERE substr(path, 1, ?) = ?", (tail_start, prefix))
+    conn.execute("DELETE FROM file_tags WHERE path = ?", (rel,))
+    conn.execute("DELETE FROM file_tags WHERE substr(path, 1, ?) = ?", (tail_start, prefix))
 
 
 @app.delete("/api/files")
@@ -1918,8 +2080,7 @@ def delete_file(path: str, request: Request):
     # delete, and only commit if it succeeds. If the FS op fails, roll back so
     # we never leave stale progress/segments rows for a file that still exists.
     with get_db() as conn:
-        conn.execute("DELETE FROM progress WHERE path = ?", (rel,))
-        conn.execute("DELETE FROM segments WHERE path = ?", (rel,))
+        _purge_paths(conn, rel)
         try:
             if target.is_dir():
                 shutil.rmtree(target)
@@ -1944,10 +2105,26 @@ def move_file(path: str, body: MoveRequest, request: Request):
     destination = safe_path(body.destination)
     if not source.exists():
         raise HTTPException(status_code=404)
+    final_dest = move_target(source, destination)
+    if final_dest.resolve() == source.resolve():
+        raise HTTPException(status_code=409, detail={"code": "same_location"})
+    # A taken destination is refused here rather than in the job: the client needs the
+    # answer synchronously to offer the choice between replacing and cancelling.
+    if final_dest.exists() and not body.overwrite:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "destination_exists",
+                "name": final_dest.name,
+                # Only a file can be replaced — see _run_move().
+                "overwritable": source.is_file() and final_dest.is_file(),
+            },
+        )
     logger.info(
-        "file move requested: src=%s dest=%s ip=%s",
+        "file move requested: src=%s dest=%s overwrite=%s ip=%s",
         to_rel(source),
         body.destination,
+        body.overwrite,
         _client_ip(request),
     )
     job_id = str(uuid.uuid4())
@@ -1961,7 +2138,7 @@ def move_file(path: str, body: MoveRequest, request: Request):
     }
     threading.Thread(
         target=_run_move,
-        args=(job_id, source, destination),
+        args=(job_id, source, destination, body.overwrite),
         daemon=True,
     ).start()
     return {"job_id": job_id}
@@ -1999,6 +2176,11 @@ def _migrate_renamed_paths(conn, old_rel: str, new_rel: str) -> None:
         "UPDATE segments SET path = ? || substr(path, ?) WHERE substr(path, 1, ?) = ?",
         (new_rel, tail_start, tail_start, prefix),
     )
+    conn.execute("UPDATE file_tags SET path = ? WHERE path = ?", (new_rel, old_rel))
+    conn.execute(
+        "UPDATE file_tags SET path = ? || substr(path, ?) WHERE substr(path, 1, ?) = ?",
+        (new_rel, tail_start, tail_start, prefix),
+    )
 
 
 @app.post("/api/files/rename")
@@ -2017,6 +2199,10 @@ def rename_path(path: str, body: RenameRequest, request: Request):
     # DB-first atomicity (BL-034 pattern): migrate metadata, then rename on disk,
     # rolling back the DB if the filesystem op fails.
     with get_db() as conn:
+        # dest.exists() being false does not mean the destination is free in the DB:
+        # metadata outlives a file removed outside Hoard, and progress.path and
+        # file_tags(path, tag) are unique. Purge it first, as the move does.
+        _purge_paths(conn, new_rel)
         _migrate_renamed_paths(conn, old_rel, new_rel)
         try:
             source.rename(dest)
@@ -2711,7 +2897,7 @@ _SETTINGS_KEYS = {
     "privacy_timeout",  # minutes (int), 0 = disabled
     "watched_threshold",  # percent (int), default 90
     "home_folder",  # relative path from MEDIA_ROOT
-    "sort_by",  # 'date' | 'name' | 'size' | 'state'
+    "sort_by",  # 'date' | 'name' | 'size' | 'state' | 'watched'
     "sort_dir",  # 'asc' | 'desc'
     "gesture_enabled",  # '1' | '0'
     "gesture_seek",  # '1' | '0'

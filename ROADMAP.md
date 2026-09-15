@@ -99,6 +99,25 @@
 - [ ] **PDF reader** (BL-056): PDF.js-powered reader with page navigation, zoom, keyboard/gamepad control, and saved progress
 - [ ] **Audio player** (BL-057): native audio playback for `.mp3`, `.flac`, `.ogg`, `.m4a`, `.aac`, `.wav`, `.opus` using existing player infrastructure
 
+## v2.6.4 — Moving onto a taken destination *(done)*
+
+- [x] **A taken destination crashed the move job** (BL-090): `_run_move` rewrote the progress row's path onto the destination without checking one was already there — `progress.path` is a PRIMARY KEY. The `IntegrityError` went up an unguarded job thread, so the job stayed `running` for ever and the UI waited on a move that never came. The crash was in fact an accidental guard: nothing checked the destination was free, and on Linux `shutil.move()` goes through `os.rename()`, which clobbers in silence. The endpoint now refuses with a **409** carrying what the client needs to ask, and the UI offers **Overwrite / Cancel** — pad cursor starting on Cancel, since overwriting cannot be undone. The replaced file is set aside and only deleted once the move lands
+- [x] **A moved folder lost its contents' metadata** (BL-091): the move rewrote its own path only, while rename already migrated descendants. `file_tags` was migrated nowhere and purged nowhere — tags were lost on both move and rename, and deleting a folder left every row below it behind
+- [x] **A failed move job now reports itself** (BL-092): the job body is guarded, so a failure surfaces as an errored job instead of a spinner that never resolves
+- [x] **The generic pad cursor was invisible** (BL-093): BL-088 gave every unspecialised dialog a roving focus, but the `gp-cursor` class it sets was only styled on `.entry`, `.modal-folder-btn` and three named buttons — in the eight other dialogs the cursor moved with nothing to show for it
+
+## v2.6.2 — Everything reachable from the pad *(done)*
+
+- [x] **Pad context menu** (BL-086): the sort bar, the row actions and half the header had no pad path at all — the sort had no keyboard path either. **Select** now opens a menu listing what applies where the user stands, in two sections: the entry under the cursor, and the current folder. Select rather than LB/RB, which never fire an action — the polling loop skips them as pure modifiers — and which was a duplicate of Start in the browser anyway
+- [x] **Mark watched without opening the file** (BL-003, pending since v1.2): a new explicit `watched` column wins over the position percentage, because a file that was never opened has no duration to express the state with
+- [x] **The pad passed through six dialogs out of nine** (BL-088): tags, rename, new folder, browse, destination picker and download queue are plain divs the modal detection ignored, so the pad kept driving the list behind them. Membership now lives on the overlay itself, and any unspecialised dialog gets a generic roving focus — the PIN screen gains pad-driven entry for free
+- [x] **Context menu in the player** (BL-089): the player was the last place where Select meant something else, and the folder start position the last button in the app with no pad path. L2 and R2 are in fact free everywhere — no layer, no context, no read of `buttons[6]`/`buttons[7]` — but the button map draws neither, so an action mapped there would have been undiscoverable; the menu needs no redrawing and makes the rule uniform: Select opens the menu, everywhere
+- [x] **Four inert buttons in the browser** (BL-087): X, Y, L3 and R3 fell back on player actions that test `hasVideo` first and did nothing. The browser layer is declared explicitly now, and Start gives back the button map
+
+## v2.6.1 — Sort by last watched *(done)*
+
+- [x] **Sort by last watched** (BL-085): the "Date" sort orders by filesystem `mtime`, which cannot answer "what did I watch last" — playing a media writes nothing to disk, and a folder's `mtime` never picks up a change from the depth below it. A watched video two levels down left its top folder in 14th place. A fifth criterion, **Vu**, now orders by `progress.updated_at`, a column stored since day one and never read: every folder inherits the date of the most recent media found anywhere below it. Never-watched entries group at the end of the list whatever the direction. "Date" keeps its own meaning — what just arrived in this folder
+
 ## v2.6 — Retry from history *(done)*
 
 - [x] **Relaunch a download from its history entry** (BL-084): a ↻ button on every row queues the same URL again, carrying over the title and the Referer (now persisted — without it a direct CDN URL is rejected on origin checks). A successful entry asks for confirmation first, since the retry produces a second file suffixed `(2)`. Cookies are deliberately not stored, so authenticated sites rely on the persistent cookies.txt setting

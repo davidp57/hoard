@@ -6,6 +6,22 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ## [Non publié]
 
+## [v2.6.4] — 2026-09-15
+
+### Nouveautés
+- **Toute la navigation à la manette, par un seul bouton.** **Select** ouvre un menu qui propose ce qui s'applique là où tu es : le tri (les cinq critères et le sens), le filtrage par tag, créer un dossier, rafraîchir, chercher, l'accueil, les téléchargements, les réglages — et, sur le fichier ou le dossier sélectionné, l'ouvrir, le renommer, le tagger, l'épingler, le déplacer, le supprimer ou le marquer vu. D-pad pour parcourir, A pour valider, B pour fermer. Jusqu'ici la barre de tri et les boutons de ligne n'étaient accessibles qu'au doigt ou à la souris.
+- **Le même menu pendant la lecture** : **Select** l'ouvre aussi quand une vidéo est en cours, avec ce qui sert là — régler le départ du dossier, marquer vu, les sous-titres, l'affichage, la vitesse, l'export des segments, renommer, déplacer, supprimer, fermer. Le réglage **⏱ Départ du dossier** n'était atteignable qu'au doigt ou à la souris : c'était le dernier bouton de Hoard dans ce cas.
+- **Marquer un média vu ou non vu sans l'ouvrir** : dans le menu, ou avec **X** directement sur la liste. Pratique pour un film déjà vu ailleurs, ou pour repartir de zéro sur une série. Marquer « non vu » efface aussi la position de lecture, pour ne pas reprendre au milieu d'un fichier affiché comme jamais ouvert.
+
+- **Nouveau tri « Vu »** dans la barre de tri : il classe par date du dernier visionnage. Un dossier remonte en tête dès que tu regardes une vidéo **quelque part en dessous**, même enfouie dans plusieurs sous-dossiers — ce que le tri « Date » ne pouvait pas faire, puisqu'il montre la date des fichiers sur le disque et que regarder une vidéo ne change rien sur le disque. Les deux tris coexistent : « Date » pour voir ce qui vient d'arriver, « Vu » pour retrouver où tu en étais. Ce que tu n'as jamais ouvert est regroupé en fin de liste.
+
+### Corrections
+- **Un fichier du même nom à destination ne bloque plus le déplacement.** Déplacer une vidéo vers un dossier qui contenait déjà ce nom pouvait laisser le déplacement « en cours » indéfiniment, sans message ni résultat. Hoard demande maintenant quoi faire : **Écraser** remplace définitivement le fichier qui s'y trouvait, **Annuler** ne touche à rien. La fenêtre se pilote à la manette comme au clavier, et démarre sur *Annuler*. Au passage, un fichier ne peut plus être remplacé sans qu'on l'ait demandé — ce qui pouvait arriver en silence jusqu'ici.
+- **Un dossier déplacé emporte tout ce qu'il contient**, progression de lecture et tags compris. Jusqu'ici ils étaient perdus. Les tags survivent aussi à un renommage, et supprimer un dossier ne laisse plus traîner les informations de son contenu.
+- **La sélection à la manette est enfin visible dans toutes les fenêtres.** Dans huit d'entre elles — tags, renommage, nouveau dossier, parcourir, sélecteur de destination, téléchargements, code PIN — le curseur se déplaçait sans rien afficher : on validait à l'aveugle.
+- **La manette ne traverse plus les fenêtres.** Quand une fenêtre était ouverte (tags, renommage, nouveau dossier, téléchargements…), la manette continuait de piloter la liste **derrière** : le D-pad y déplaçait une sélection invisible et A pouvait ouvrir un fichier par-dessous. Ces fenêtres se parcourent maintenant à la manette, et **B** les ferme. L'écran de code PIN se saisit lui aussi à la manette.
+- **Plus de boutons qui ne répondent pas** dans la liste de fichiers : quatre d'entre eux étaient associés à des commandes du lecteur vidéo et ne faisaient rien tant qu'aucune vidéo n'était ouverte. **Start** réaffiche la carte des boutons, qui était devenue inaccessible depuis la liste.
+
 ## [v2.6.0] — 2026-08-25
 
 ### Nouveautés

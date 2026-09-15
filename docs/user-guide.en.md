@@ -29,6 +29,22 @@ Each file or folder is shown with:
   - Yellow background + progress bar + percentage → **in progress**
   - Green background → **watched** (≥ 90 % viewed)
 
+### Sorting the List
+
+The sort bar offers five criteria, each reversible with the **↓ / ↑** button:
+
+| Criterion | What it orders by |
+|-----------|-------------------|
+| **Date** | The file or folder date on disk (handy to spot newly arrived content) |
+| **Nom** (Name) | Alphabetical order |
+| **Taille** (Size) | File size |
+| **État** (State) | Unseen, then in progress, then seen |
+| **Vu** (Watched) | Date of the last viewing |
+
+The **Vu** sort answers "what did I watch last". A folder takes the date of the most recently watched media found **anywhere below it**, however deep: resuming a video buried in a sub-folder lifts its whole top-level folder to the head of the list. Entries never opened have no watch date: they are grouped at the end of the list, ordered between themselves by file date.
+
+The criterion chosen in **Settings → Default sort** applies when the app opens.
+
 ### Search
 
 A **🔍** field is available in the sort bar. The search is case-insensitive and recursive within the current folder. Results replace the list; clearing the field (or pressing ✕) returns to normal browsing.
@@ -57,6 +73,23 @@ The move modal offers two modes:
 
 - **Pinned folders**: one-tap move to a predefined folder.
 - **📂 Browse…**: opens a destination picker that browses the full folder tree so you can choose any destination.
+
+### A File of the Same Name Already Exists at the Destination
+
+Hoard never replaces a file without asking. When the destination folder already
+holds a file with the same name, a dialog opens and offers two choices:
+
+- **Overwrite**: the moved file permanently replaces the one already there and
+  takes its place in the list — watch progress, tags and segments follow the moved
+  file.
+- **Cancel**: nothing changes.
+
+The dialog works with a gamepad (D-pad ↑/↓ to choose, **A** to confirm, **B** to
+cancel) as well as with the keyboard (↑/↓, `Enter`, `Esc`). The cursor starts on
+**Cancel**: overwriting cannot be undone, so it has to be a choice.
+
+A **folder** already present at the destination cannot be replaced — Hoard says so
+and leaves everything in place.
 
 ---
 
@@ -287,7 +320,30 @@ Hoard supports game controllers via the browser's **Gamepad API** (Xbox, PlaySta
 | **Left stick Y** | Move cursor (analog) |
 | **A** | Open the selected file or folder |
 | **B** | Go up one level |
-| **Start** | Open Settings |
+| **X** | Mark the selected entry watched / unwatched |
+| **Select** | Open the **context menu** |
+| **Start** | Show the button map |
+| **L1+R1+B** | Delete the selected entry |
+| **L1+R1+X** | Move the selected entry |
+
+### Context Menu (Select)
+
+Everything the sort bar and the row buttons offer is reachable from the pad through a single button: **Select** opens a menu listing what applies where you stand. **D-pad** to walk it, **A** to confirm, **B** to close.
+
+The menu has two parts:
+
+- **The entry under the cursor** (when one is set) — Open, Mark watched / unwatched, Rename, Tags, Quick folder, Move, Delete.
+- **The current folder** — the five sort criteria and the direction, the tags present in the folder to filter by, New folder, Refresh, Search, Home screen, Downloads, Settings, Pad help.
+
+Lines that do not apply to the entry are not shown: "Quick folder" only appears on a folder, "Mark watched" only on a media or a gallery.
+
+**Select opens the menu during playback too**, with the player's own contents: folder start position, mark watched / unwatched, subtitles, fit/fill, playback speed, export segments (when there are any), rename, tags, move, delete, close the player, settings and pad help. It is the only pad path to the **folder start position**, which has no button of its own.
+
+### Marking Watched Without Opening the File
+
+From the list, **X** or the matching menu entry toggles a media's state without playing it — handy for a film watched elsewhere, or to reset a series you want to start over.
+
+Marking **unwatched** also rewinds the saved position: an entry shown as unwatched must not resume mid-way. And reopening a file marked watched puts it back to "in progress" — actual playback has the last word.
 
 ### Modifier Layers (L1 / R1)
 
@@ -296,6 +352,10 @@ Hold **L1** or **R1** to access extra command layers. Holding both (L1+R1) activ
 ### Button Map Overlay
 
 Press **Start** (or the « Show button map » button in Settings) to display an overlay listing all actions per layer, dynamically updated with your configured seek durations.
+
+### Dialogs and the Pad
+
+Every Hoard dialog (tags, rename, new folder, folder picker, download queue, PIN screen) can be driven from the pad: **D-pad** walks the fields and buttons, **A** activates the selected one, **B** closes the dialog. No screen asks you to reach back for the mouse.
 
 ### Controller Settings
 
