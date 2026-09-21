@@ -1,5 +1,25 @@
 # Roadmap — Hoard
 
+## VR 180° side-by-side in the web player *(in progress, target version to be agreed)*
+
+180° stereoscopic side-by-side files opened as ordinary video — two squashed
+pictures, unwatchable. The web player now deprojects the hemisphere onto a WebGL
+canvas laid over the `<video>`, which keeps driving playback and progress. Two
+outputs: a flat view to pan on a normal screen, and a side-by-side output for XR
+glasses in 3D mode (Steam Deck + Viture Beast). See lot
+[FEAT-VR180](.backlog/FEAT-VR180/PRD.md).
+
+- [x] **Deprojection, flat view and look controls** (BL-119) — the gate ticket
+- [ ] **Side-by-side output** for XR glasses (BL-120)
+- [ ] **VR file detection and per-file memory** (BL-121)
+- [ ] **Settings**: field of view, convergence, look speed (BL-122)
+
+This does not reopen [ADR 0003](docs/adr/0003-client-natif.md): an immersive
+OpenXR session for the Steam Frame stays out of scope and unverifiable until the
+headset ships. What the ADR ruled out was a stereo OpenXR renderer, not a
+deprojection in the browser — and the Deck-plus-glasses half of the need is met
+by a plain side-by-side picture, with no OpenXR at all.
+
 ## v3.0 — Native client *(in progress)*
 
 Native Flutter client talking to the existing HTTP API, targeting Steam Deck

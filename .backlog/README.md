@@ -19,6 +19,7 @@ Convention détaillée : [`docs/agents/issue-tracker.md`](../docs/agents/issue-t
 |-----|--------|
 | [SEC-AUTH](SEC-AUTH/PRD.md) — Une instance ouverte doit se voir (contrôle de santé BL-105, annonce de l'état d'authentification BL-106) | ✅ |
 | [CLIENT-NATIVE](CLIENT-NATIVE/PRD.md) — Client natif Flutter pour Steam Deck, Steam Frame et Windows (faisabilité BL-104 ✅, puis BL-107..117) | 🔄 |
+| [FEAT-VR180](FEAT-VR180/PRD.md) — Lecture des vidéos 180° SBS dans le lecteur web (socle BL-119, sortie SBS BL-120, détection BL-121, réglages BL-122) | 🔄 |
 | [FEAT-ADVANCED](FEAT-ADVANCED/PRD.md) — Fonctionnalités avancées (thème clair BL-013, multi-utilisateur BL-015) | ⬜ |
 | [ARCH-PERF](ARCH-PERF/PRD.md) — Architecture & Performance (split `main.py` BL-041, transcodage HW BL-042) | ⬜ |
 | [FEAT-GALLERY](FEAT-GALLERY/PRD.md) — Galeries d'images (dossier comme média opaque, comme une archive) | ✅ |

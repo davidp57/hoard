@@ -212,6 +212,24 @@ The `[IN` and `OUT]` buttons define a restricted playback zone (without modifyin
 
 The file list refreshes automatically every 30 seconds when the tab is visible, the video is paused, and no search is active. This makes new files appear without a manual page reload.
 
+### 180° Side-by-Side (VR) Videos
+
+A VR 180° video holds two pictures side by side, one per eye, each stretched to cover half a horizon. Shown as-is it is unwatchable. The player's 🥽 button (or the **V** key) straightens the image and lets you look around.
+
+Each press moves to the next state:
+
+| State | What you see | When to use it |
+|-------|--------------|----------------|
+| Off | the raw file | ordinary video |
+| **Flat** | a single straightened view you can pan | on a normal screen — computer, tablet |
+| **Side by side** | two views, one per eye | with XR glasses in 3D mode, which split the two pictures themselves |
+
+To look around: **drag your finger** on the image, **drag with the mouse**, or push the **right stick** on the gamepad. The mouse wheel zooms in and out. **Shift+V** re-centres the view.
+
+While VR mode is on, dragging no longer seeks or changes the volume — it looks around. Seeking and volume stay available from the keyboard, the player buttons and the gamepad's left stick.
+
+> **What your machine has to manage.** These files are often very large (up to 8K) and encoded in HEVC. Hoard serves them untouched, without converting them: the device doing the watching has to decode them. If playback stutters or refuses to start, that is the limit you are hitting, not the VR mode.
+
 ---
 
 ## Touch Gestures

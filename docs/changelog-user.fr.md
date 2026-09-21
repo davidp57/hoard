@@ -6,6 +6,23 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ## [Non publié]
 
+### Ajouté
+
+- **Les vidéos VR 180° sont enfin regardables.** Ces fichiers contiennent deux
+  images accolées, une par œil, chacune étirée pour couvrir un demi-tour
+  d'horizon : affichés tels quels, ils ne ressemblaient à rien. Le bouton 🥽 du
+  lecteur (ou la touche **V**) redresse l'image et te laisse regarder autour de
+  toi — au doigt, à la souris, ou au stick droit de la manette. Un deuxième appui
+  passe en affichage côte à côte, celui qu'attendent des lunettes XR en mode 3D ;
+  un troisième revient à l'image normale. **Maj+V** remet le regard au centre.
+  Tant que le mode est actif, glisser le doigt sert à regarder et non plus à
+  avancer dans la vidéo ou à régler le son, qui restent au clavier, aux boutons et
+  au stick gauche.
+
+  Une précision utile : ces fichiers sont très lourds, et Hoard te les envoie sans
+  les convertir. C'est donc l'appareil sur lequel tu regardes qui doit savoir les
+  lire. Si ça saccade, c'est là qu'est la limite.
+
 ### Corrigé
 
 - **Le tri de la liste reste celui que tu as choisi.** Passer la liste en « Vu »

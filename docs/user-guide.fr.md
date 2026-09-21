@@ -217,6 +217,24 @@ Des boutons `[IN` et `OUT]` permettent de définir une zone de lecture restreint
 
 La liste de fichiers se met à jour toutes les 30 secondes quand l'onglet est visible, la vidéo en pause et aucune recherche active. Cela permet de voir apparaître de nouveaux fichiers sans recharger la page.
 
+### Vidéos 180° côte à côte (VR)
+
+Une vidéo VR 180° contient deux images accolées, une par œil, chacune déformée pour couvrir un demi-tour d'horizon. Affichée telle quelle, elle est illisible. Le bouton 🥽 du lecteur (ou la touche **V**) redresse l'image et vous laisse regarder autour de vous.
+
+Trois états se succèdent à chaque appui :
+
+| État | Ce que vous voyez | Quand l'utiliser |
+|------|-------------------|------------------|
+| Désactivé | l'image brute du fichier | vidéo ordinaire |
+| **Plat** | une seule vue, redressée, que vous promenez | sur un écran normal — ordinateur, tablette |
+| **Côte à côte** | deux vues, une par œil | avec des lunettes XR en mode 3D, qui séparent elles-mêmes les deux images |
+
+Pour regarder autour de vous : **glissez le doigt** sur l'image, **tirez à la souris**, ou poussez le **stick droit** de la manette. La molette de la souris rapproche ou éloigne la vue. **Maj+V** remet le regard au centre.
+
+Tant que le mode VR est actif, le glissement ne fait plus ni avance rapide ni réglage du volume — il sert à regarder. L'avance et le volume restent accessibles au clavier, aux boutons du lecteur et au stick gauche de la manette.
+
+> **Ce que votre machine doit pouvoir faire.** Ces fichiers sont souvent très définis (jusqu'à 8K) et encodés en HEVC. Hoard les envoie tels quels, sans les convertir : c'est l'appareil qui regarde qui doit savoir les décoder. Si l'image saccade ou refuse de s'ouvrir, c'est cette limite-là, et non le mode VR.
+
 ---
 
 ## Gestes tactiles
