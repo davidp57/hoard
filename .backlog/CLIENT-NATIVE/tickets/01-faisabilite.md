@@ -1,6 +1,6 @@
 # BL-104 — Faisabilité du client natif
 
-Status: ⬜ ready
+Status: ✅ done
 Type: spike
 Parent: CLIENT-NATIVE ([PRD](../PRD.md))
 Files: `client/` (nouveau), `.github/workflows/`
@@ -170,6 +170,57 @@ La mesure est un **delta** de `/proc/self/stat` sur l'intervalle, pas un
 compteur cumulé divisé par une durée — ce dernier décrirait la moyenne depuis
 le lancement, pas la charge pendant la lecture. L'unité est le pourcentage d'un
 cœur, comme `top` : 400 % signifie quatre cœurs saturés.
+
+## Résultats — Steam Deck (2026-09-21)
+
+SteamOS `BUILD_ID 20260716.1`, glibc 2.41, mode Gaming, serveur de production
+en HTTPS avec authentification Basic.
+
+**Les trois inconnues sont levées, et toutes les trois positivement.**
+
+| Inconnue | Verdict |
+|---|---|
+| libmpv embarquée | **oui** — 61 bibliothèques, pas 178, voir ci-dessous |
+| décodage matériel | **oui** — `auto-safe` donne `vaapi-copy`, à 102 % d'un cœur contre 118 % en logiciel |
+| saisie en mode Gaming | **oui** — `Steam+X` fonctionne dans une application native |
+
+**Le clavier.** C'était la motivation première du lot, et la réponse est la plus
+simple possible : le défaut ne touchait **qu'Edge**. Une application native
+reçoit la saisie du clavier Steam sans rien faire de particulier. Le clavier
+maison reste utile à la manette, mais il n'est plus une nécessité.
+
+**L'empaquetage : liste blanche, pas liste noire.** La première tentative
+embarquait la fermeture de dépendances de libmpv moins quelques familles
+exclues. Elle **ne démarrait pas du tout** : l'exclusion visait `libglib` et
+`libgio` mais pas leurs dépendances transitives, si bien que le `libgio-2.0` de
+SteamOS rencontrait un `libmount` d'Ubuntu, exigeait `MOUNT_2_40` qu'il ne
+fournit pas, et l'éditeur de liens abandonnait. Une liste noire doit nommer
+chaque dépendance transitive de tout ce qu'elle exclut, et en oublier une échoue
+en silence. Mesure faite sur l'appareil : **118 des 178 bibliothèques étaient
+déjà sur SteamOS**. La liste des 60 absentes, plus `libXpresent`, vit dans
+`client/tools/steamos-missing-libs.txt` avec la commande pour la régénérer.
+
+**Le vrai obstacle n'était dans aucune des trois questions.**
+
+La lecture plafonnait à 8 images par seconde. Ce n'était ni le décodage, ni la
+taille d'affichage : **`media_kit` ne signale pas ses nouvelles images à
+Flutter**. La vidéo n'avance que lorsque l'interface est repeinte pour une autre
+raison — 8 fps au repos, 25 dès qu'une animation quelconque tourne à l'écran.
+Vérifié par un interrupteur qui force un redessin à chaque trame : le compteur
+de Steam passe de 8 à 25 quand on l'active, rien d'autre ne changeant.
+
+Trois itérations de diagnostic ont visé le décodeur, à tort, parce que les
+compteurs interrogés étaient **ceux de mpv** : `frame-drop-count` affichait
+`0.0 /s` pendant que l'image se traînait, et il disait vrai — mpv remplissait
+fidèlement une texture que personne ne redessinait. La grandeur qui manquait est
+le nombre de trames **rendues par Flutter**, que seul le moteur graphique
+connaît. Deux mesures fausses en chemin, à noter pour ne pas les refaire :
+`estimated-vf-fps` est le débit de la **source** (il affiche 25 qu'on en voie 25
+ou 8), et les compteurs de perte de mpv ne décrivent que mpv.
+
+Détail non expliqué : le passage de 8 à 25 prend une vingtaine de secondes après
+activation, là où un redessin forcé devrait agir aussitôt. Moyenne glissante du
+compteur de Steam, ou retard accumulé dans le pipeline — non vérifié.
 
 ## Notes
 
