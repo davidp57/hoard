@@ -141,6 +141,56 @@ Toute la configuration passe par des **variables d'environnement** dans `docker-
 | `JOB_TTL_SECONDS` | `3600` | Durée de conservation en mémoire d'un job terminé. N'affecte pas l'historique des téléchargements, qui est en base. |
 | `DOWNLOAD_SOCKET_TIMEOUT` | `30` | Secondes de silence tolérées sur une connexion de téléchargement avant abandon. Évite qu'un serveur muet immobilise la file (séquentielle). |
 
+### Authentification — à lire avant d'exposer Hoard
+
+**Hoard n'a aucune authentification tant que tu ne l'actives pas.** Par défaut,
+toutes les routes sont ouvertes à qui peut joindre le port : lister et lire
+toute l'arborescence média, supprimer et déplacer des fichiers, lancer des
+téléchargements arbitraires sur le NAS, redémarrer le container, modifier les
+réglages.
+
+C'est un choix raisonnable sur un réseau local. Ça ne l'est pas derrière un
+reverse proxy avec un nom de domaine public.
+
+Le code PIN des paramètres **ne couvre pas ça** : il verrouille l'interface web,
+et aucune route de l'API ne le vérifie. Tout ce qui parle directement à l'API
+passe à travers.
+
+Définis les deux variables pour exiger une authentification HTTP Basic sur
+chaque requête :
+
+```yaml
+environment:
+  - HOARD_AUTH_USER=david
+  - HOARD_AUTH_PASS=nT8vQ2xK9mR4wL7pZ1sB3dF6
+```
+
+Génère le mot de passe plutôt que de l'inventer :
+
+```bash
+openssl rand -base64 24
+```
+
+Deux pièges :
+
+- **Pas de guillemets.** Sous cette forme de liste, `docker-compose` garde les
+  guillemets dans la valeur : `HOARD_AUTH_PASS="abc"` donne un mot de passe de
+  cinq caractères, guillemets compris.
+- **HTTPS obligatoire.** Le Basic envoie le mot de passe à chaque requête,
+  simplement encodé en base64. Active le HTTPS ci-dessous, ou termine le TLS
+  sur ton reverse proxy.
+
+Hoard affiche son état d'authentification à chaque démarrage, vérifiable dans
+le journal du container :
+
+```
+Auth: HTTP Basic enabled for user 'david'
+Auth: DISABLED — every endpoint is open, including file deletion and moves. …
+```
+
+`/healthz` reste joignable sans identifiants — le contrôle de santé du
+container en a besoin — et ne répond rien d'autre que `{"status": "ok"}`.
+
 ### Activer le HTTPS
 
 Pour servir Hoard en HTTPS sans reverse proxy, génère un certificat et définis les deux variables :
