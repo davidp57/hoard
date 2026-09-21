@@ -72,6 +72,11 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ### Corrigé
 
+- **La vieille fenêtre grise du navigateur ne s'invite plus avant l'écran de
+  connexion.** Elle réapparaissait juste avant, et il fallait l'annuler pour voir
+  l'écran de Hoard. Elle ne s'affiche plus du tout : tu vas directement sur
+  l'écran de connexion.
+
 - **Le bouton de téléchargement de ta barre de favoris refonctionne.** Depuis que
   Hoard demande un identifiant et un mot de passe, cliquer sur le favori depuis une
   page vidéo ne faisait plus rien d'utile : il annonçait « Site incompatible » et

@@ -358,10 +358,31 @@ external reader.
 | `Secure` | `HOARD_COOKIE_SECURE`, default on | The backend is spoken to in plain HTTP behind the Synology reverse proxy, so it cannot detect HTTPS. A setting, not introspection. |
 | `HttpOnly` | always | Keeps the cookie out of reach of any script on the page. |
 
-**`WWW-Authenticate` is withheld from HTML callers.** While it is sent, the browser
-opens its own credentials dialog and the in-app login screen never appears. It is
-still sent to everything else, because `curl -u` only sends credentials once
-challenged, and `curl` does not ask for `text/html`.
+**`WWW-Authenticate` is withheld from browsers**, in every request mode. While it
+is sent, the browser opens its own credentials dialog and the in-app login screen
+never appears.
+
+`_looks_like_a_browser()` decides, on three signals of which any one is enough: a
+`Sec-Fetch-*` header, `text/html` in `Accept`, or `Mozilla` in the `User-Agent`.
+Testing `Accept: text/html` alone — the first version of this — was wrong in
+exactly the case that mattered. Measured, per client:
+
+| Client | `Accept` | `Sec-Fetch-Mode` |
+|---|---|---|
+| navigation | `text/html,…` | `navigate` |
+| `fetch()` | `*/*` | `cors` |
+| curl | `*/*` | *(absent)* |
+
+A page's first act is `fetch('/api/settings')`, which is indistinguishable from
+curl by `Accept` alone — so it got the challenge, and **Firefox pops its native
+dialog on a fetch**. Chrome suppresses that dialog for fetch/XHR, which is why a
+Chrome-only check missed it and the defect reached production.
+
+The challenge is kept for non-browsers, though **no client here needs it**:
+`curl -u` sends `Authorization` on the *first* request, without waiting to be
+challenged. Waiting for a challenge is Digest behaviour, not Basic. An earlier
+version of this document claimed the opposite and used it to justify the
+`Accept`-based split.
 
 **The app shell is served without credentials** (`SHELL_PATHS`: `/`,
 `/index.html`, `/service-worker.js`, `/manifest.webmanifest`). This follows from

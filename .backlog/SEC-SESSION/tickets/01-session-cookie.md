@@ -40,6 +40,11 @@ de l'interface.
   text/html`). Tant qu'il part vers un navigateur, celui-ci ouvre sa propre fenêtre
   et l'écran de connexion ne s'affiche jamais. Il reste nécessaire à `curl -u`, qui
   n'envoie ses identifiants qu'après avoir reçu le défi.
+
+  **Faux sur les deux points, corrigé le 2026-09-21** (voir *Défaut trouvé en
+  production* en fin de ticket) : le critère `Accept: text/html` laissait le défi
+  partir vers les `fetch()` du navigateur, et `curl -u` n'a jamais eu besoin du
+  défi — Basic est envoyé préventivement.
 - `POST /api/logout` : efface le cookie. Corollaire technique d'un cookie, pas un
   objectif du lot.
 
@@ -98,3 +103,29 @@ Le câblage a été vérifié autrement (`form.requestSubmit()` déclenche bien
 avec un `<button type="submit">` ; aucun gestionnaire n'appelle `preventDefault`
 sur Entrée (mesuré : `defaultPrevented=false` après tous les gestionnaires de
 l'application).
+
+## Défaut trouvé en production après le merge (2026-09-21)
+
+**La fenêtre native de Firefox apparaissait quand même**, avant l'écran de
+connexion, en navigation privée. Signalé par David sur l'instance de production.
+
+Cause mesurée, par type de requête :
+
+| Client | `Accept` | `Sec-Fetch-Mode` | défi envoyé ? |
+|---|---|---|---|
+| navigation | `text/html,…` | `navigate` | non |
+| **`fetch()`** | `*/*` | `cors` | **oui** |
+| curl | `*/*` | absent | oui |
+
+Le premier geste de la page est `fetch('/api/settings')`, indiscernable de curl par
+le seul `Accept`. **Chrome supprime la fenêtre native sur un `fetch`, Firefox non** :
+la vérification avait été faite sur Chrome, elle ne pouvait pas voir le défaut.
+
+Corrigé par `_looks_like_a_browser()` — trois signaux, un seul suffit
+(`Sec-Fetch-*`, `text/html` dans `Accept`, `Mozilla` dans le `User-Agent`). Quatre
+tests ajoutés, dont celui qui manquait : le cas du `fetch`. Vérifié qu'ils échouent
+contre l'ancien critère.
+
+**Au passage, la justification d'origine était fausse** : `curl -u` envoie
+`Authorization` dès la première requête, sans attendre de défi (mesuré). Le défi
+est conservé pour les non-navigateurs, mais aucun client d'ici n'en dépend.

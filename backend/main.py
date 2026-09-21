@@ -378,8 +378,30 @@ def _set_session_cookie(response: Response, user: str) -> None:
     )
 
 
-def _wants_html(request: Request) -> bool:
-    return "text/html" in request.headers.get("accept", "")
+def _looks_like_a_browser(request: Request) -> bool:
+    """Whether this request came from a browser, in any of its request modes.
+
+    Testing `Accept: text/html` alone was wrong, and only wrong for the case that
+    matters. Measured, per client:
+
+        navigation      Accept: text/html,...   Sec-Fetch-Mode: navigate
+        fetch()         Accept: */*             Sec-Fetch-Mode: cors
+        curl            Accept: */*             (no Sec-Fetch-* at all)
+
+    A page's first act is fetch('/api/settings'), which looks exactly like curl by
+    the Accept header — so it got the challenge, and Firefox popped its native
+    dialog on a fetch. Chrome suppresses that dialog for fetch/XHR, which is why a
+    Chrome-only check missed it entirely.
+
+    Three signals, any one of which is enough. Sec-Fetch-* is the reliable one
+    (every request from a modern browser carries it, navigation or not); the other
+    two cover a browser old enough not to send it. curl sends none of the three.
+    """
+    if any(name.startswith("sec-fetch-") for name in request.headers):
+        return True
+    if "text/html" in request.headers.get("accept", ""):
+        return True
+    return "Mozilla" in request.headers.get("user-agent", "")
 
 
 @app.middleware("http")
@@ -410,9 +432,15 @@ async def require_basic_auth(request: Request, call_next):
 
     # WWW-Authenticate is withheld from browsers on purpose: while it is sent, the
     # browser opens its own credentials dialog and the in-app login screen never
-    # gets a chance to appear. curl -u still needs it — it only sends credentials
-    # after being challenged — and curl does not ask for text/html.
-    headers = {} if _wants_html(request) else {"WWW-Authenticate": 'Basic realm="Hoard"'}
+    # gets a chance to appear.
+    #
+    # It is kept for everything else, though measurement says no client we use
+    # actually needs it: `curl -u` sends Authorization on the FIRST request,
+    # without waiting to be challenged — that wait is a Digest behaviour, not a
+    # Basic one. (An earlier comment here claimed the opposite and was the stated
+    # reason for this branch.) Keeping it costs nothing and leaves a client that
+    # does wait for a challenge able to authenticate.
+    headers = {} if _looks_like_a_browser(request) else {"WWW-Authenticate": 'Basic realm="Hoard"'}
     return Response(status_code=401, headers=headers)
 
 

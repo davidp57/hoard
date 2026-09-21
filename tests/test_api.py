@@ -4374,13 +4374,21 @@ class TestSessionCookie:
 
     def test_no_challenge_for_a_browser_but_one_for_curl(self, monkeypatch):
         """While WWW-Authenticate is sent, the browser opens its own credentials
-        dialog and the in-app login screen never gets a chance to appear. curl -u
-        still needs it: it only sends credentials once challenged."""
+        dialog and the in-app login screen never gets a chance to appear.
+
+        This test only ever covered a navigation (`Accept: text/html`) and curl,
+        which is why it passed while a browser *fetch* — `Accept: */*`, and so
+        indistinguishable from curl here — kept getting the challenge. See
+        test_no_challenge_on_a_browser_fetch. The claim this docstring used to
+        carry, that curl needs the challenge, is also false: Basic credentials are
+        sent preemptively (see test_curl_authenticates_without_ever_being_challenged).
+        """
         self._enable_auth(monkeypatch)
         browser = client.get("/api/settings", headers={"Accept": "text/html"})
         assert browser.status_code == 401
         assert "www-authenticate" not in browser.headers
-        curl = client.get("/api/settings", headers={"Accept": "*/*"})
+        # No Sec-Fetch-*, no Mozilla, no text/html: nothing says "browser".
+        curl = client.get("/api/settings", headers={"Accept": "*/*", "User-Agent": "curl/8.21.0"})
         assert curl.status_code == 401
         assert curl.headers["www-authenticate"].startswith("Basic")
 
@@ -4494,3 +4502,66 @@ class TestSessionCookie:
         for _ in range(20):
             m._session_secret()
         assert calls == [], "the session secret hit the database again"
+
+    def test_no_challenge_on_a_browser_fetch(self, monkeypatch):
+        """The case the original test missed, and the one that mattered.
+
+        A page's first act is fetch('/api/settings'), which sends `Accept: */*` —
+        indistinguishable from curl by that header alone, so it got the challenge
+        and Firefox popped its native credentials dialog on a fetch. Chrome
+        suppresses that dialog for fetch/XHR, which is why checking only Chrome
+        missed it. Reported from production on 2026-09-21.
+        """
+        self._enable_auth(monkeypatch)
+        # Headers measured from a real browser fetch, not invented.
+        resp = client.get(
+            "/api/settings",
+            headers={
+                "Accept": "*/*",
+                "Sec-Fetch-Mode": "cors",
+                "Sec-Fetch-Dest": "empty",
+                "Sec-Fetch-Site": "same-origin",
+            },
+        )
+        assert resp.status_code == 401
+        assert "www-authenticate" not in resp.headers
+
+    def test_no_challenge_for_any_browser_signal(self, monkeypatch):
+        """Three signals, any one of which is enough. Sec-Fetch-* is the reliable
+        one; the others cover a browser old enough not to send it."""
+        self._enable_auth(monkeypatch)
+        browsery = [
+            {"Accept": "*/*", "Sec-Fetch-Mode": "cors"},  # modern fetch
+            {"Accept": "text/html,application/xhtml+xml", "Sec-Fetch-Mode": "navigate"},
+            {"Accept": "text/html"},  # old browser, navigation
+            {"Accept": "*/*", "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) Gecko/20100101"},
+        ]
+        for headers in browsery:
+            resp = client.get("/api/settings", headers=headers)
+            assert resp.status_code == 401, headers
+            assert "www-authenticate" not in resp.headers, headers
+
+    def test_a_non_browser_still_gets_the_challenge(self, monkeypatch):
+        """curl does not need it — it sends Authorization on the first request,
+        which is Basic behaviour, not Digest. Kept anyway: it costs nothing and
+        leaves a client that does wait for a challenge able to authenticate."""
+        self._enable_auth(monkeypatch)
+        resp = client.get("/api/settings", headers={"Accept": "*/*", "User-Agent": "curl/8.21.0"})
+        assert resp.status_code == 401
+        assert resp.headers["www-authenticate"].startswith("Basic")
+
+    def test_curl_authenticates_without_ever_being_challenged(self, monkeypatch):
+        """The measurement that invalidated the original justification: Basic
+        credentials are sent preemptively, so the challenge is not what makes
+        curl work."""
+        import base64
+
+        self._enable_auth(monkeypatch)
+        resp = client.get(
+            "/api/settings",
+            headers={
+                "Authorization": "Basic " + base64.b64encode(b"alice:secret").decode(),
+                "User-Agent": "curl/8.21.0",
+            },
+        )
+        assert resp.status_code == 200
