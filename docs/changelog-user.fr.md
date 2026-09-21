@@ -84,11 +84,15 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ### Corrigé
 
-- **La couche R2 ne répondait pas sur la manette.** Maintenir R2 ne changeait
-  rien : le stick gauche continuait d'avancer dans la vidéo. R2 et L2 sont des
-  gâchettes progressives, et Hoard ne les considérait appuyées qu'écrasées à
-  fond. Un quart de course suffit maintenant. Le **badge en coin** affiche aussi
-  **R2**, pour que tu voies d'un coup d'œil que la couche est bien active.
+- **Le badge en coin affiche maintenant R2**, en plus de L1 et R1. Il ne montrait
+  pas la couche VR, alors qu'elle en est une : une gâchette qui n'arrive pas
+  jusqu'à Hoard — parce qu'elle est remappée dans la configuration de ta manette,
+  par exemple — ressemblait exactement à une gâchette qui arrive.
+
+- **Le stick droit ne sert plus à regarder autour sans maintenir R2.** Il le
+  faisait tout le temps, ce qui coûtait le **volume** pendant toute une lecture
+  VR : le regard occupait le stick, et le volume n'avait plus où aller. Maintiens
+  R2 pour regarder autour, relâche pour régler le volume comme partout ailleurs.
 
 - **Le menu de la manette est enfin lisible en mode côte à côte.** Il s'affichait
   une seule fois, au milieu, donc à cheval sur la coupure entre les deux yeux :

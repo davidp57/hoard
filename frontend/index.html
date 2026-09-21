@@ -7503,12 +7503,6 @@ let _gpNavRepeat = { btn: -1, start: 0, last: 0 }; // D-pad hold-to-repeat state
 const _GP_NAV_INITIAL_MS = 400; // delay before auto-repeat kicks in
 const _GP_NAV_REPEAT_MS  = 100; // interval between repeated moves (~10/s)
 const _GP_SCRUB_THROTTLE_MS = 100;
-// L2 and R2 are analogue triggers: `pressed` only flips past a threshold the
-// driver picks, often near the end of the travel. That was harmless while they
-// did nothing, but L2 carries the side-by-side toggle (BL-125) and R2 the whole
-// VR layer (BL-128), so they are read from `value` with a low threshold — a
-// quarter of the pull is a deliberate press by anyone's reckoning.
-const _GP_TRIGGER_THRESHOLD = 0.25;
 let _gpLastScrubTime = 0;
 
 function _gpDeadzone(v) {
@@ -7770,8 +7764,7 @@ function _gpPoll() {
       _gpPrevButtons[idx] = new Array(gp.buttons.length).fill(false);
     }
     const prev = _gpPrevButtons[idx];
-    const cur = gp.buttons.map((b, i) =>
-      (i === 6 || i === 7) ? (b.value > _GP_TRIGGER_THRESHOLD || b.pressed) : b.pressed);
+    const cur = gp.buttons.map(b => b.pressed);
 
     // Detect modifier buttons (L1=4, R1=5, and R2=7 for the VR layer, BL-128)
     const l1 = cur[4];
@@ -7842,15 +7835,19 @@ function _gpPoll() {
       const now = performance.now();
       const dt = vr.lastPollTs ? Math.min(0.1, (now - vr.lastPollTs) / 1000) : 0;
       vr.lastPollTs = now;
-      const vrx = _gpDeadzone(gp.axes[2] ?? 0);
-      const vry = _gpDeadzone(gp.axes[3] ?? 0);
-      const sp = vrLookSpeed();
-      if (vrx || vry) vrLook(vrx * sp * dt, -vry * sp * dt);
-      // BL-128: the R2 layer's continuous half. Held rather than pressed, so it
-      // is read here on every frame instead of going through _gpDispatch, which
-      // only fires on a rising edge — a setting judged by eye has to move while
-      // you watch it, not one notch per press.
+      // The whole VR layer, held rather than pressed, so it is read here on every
+      // frame instead of going through _gpDispatch, which only fires on a rising
+      // edge — a setting judged by eye has to move while you watch it.
+      //
+      // Looking around moved in here too (David, 2026-09-21). It used to answer
+      // with or without R2, which cost the volume for the whole of a VR playback:
+      // the right stick was taken by the view, so the volume had nowhere to go.
+      // Under R2 the view owns the stick, outside it the volume gets it back.
       if (r2) {
+        const vrx = _gpDeadzone(gp.axes[2] ?? 0);
+        const vry = _gpDeadzone(gp.axes[3] ?? 0);
+        const sp = vrLookSpeed();
+        if (vrx || vry) vrLook(vrx * sp * dt, -vry * sp * dt);
         const zy = _gpDeadzone(gp.axes[1] ?? 0);        // left stick Y: up = zoom in
         if (zy) vrZoom(zy * VR_ZOOM_RATE * dt);
         const cx = (cur[15] ? 1 : 0) - (cur[14] ? 1 : 0);  // D-pad right − left
@@ -7861,6 +7858,9 @@ function _gpPoll() {
     }
 
     const _swap = cfg.gamepad_swap_sticks;
+    // In VR the left stick keeps the seek whatever the swap says: under R2 the
+    // right one is the view, and a control that moves between layers is worse
+    // than one that stays put.
     const seekAxisIdx  = (vrIsActive() || !_swap) ? 0 : 2;  // LX unless swapped
     const volAxisIdx   = _swap ? 1 : 3;  // LY vs RY
 
@@ -7880,8 +7880,10 @@ function _gpPoll() {
       }
     }
 
-    // Volume stick Y — skipped when VR mode owns that stick
-    const ry = (vrIsActive() && volAxisIdx === 3) ? 0 : _gpDeadzone(gp.axes[volAxisIdx] ?? 0);
+    // Volume stick Y — suppressed only while R2 holds the VR layer, where both
+    // sticks are spoken for. Outside it the volume works during a VR playback
+    // like anywhere else, which it did not before.
+    const ry = (r2 && vrIsActive()) ? 0 : _gpDeadzone(gp.axes[volAxisIdx] ?? 0);
     if (ry !== 0 && currentFile) {
       setVolume(Math.max(0, Math.min(1, video.volume - ry * 0.02)));
     }
@@ -8356,7 +8358,7 @@ function openGpOverlay() {
     [swap ? 'Stick droit ↔' : 'Stick gauche ↔', 'Avance / recul'],
     [swap ? 'Stick gauche ↕' : 'Stick droit ↕', 'Volume (lecture)'],
     ['Stick gauche ↕', 'Curseur (browser)'],
-    ['Stick droit', 'Regarder autour (mode VR)'],
+    ['Stick droit', 'Regarder autour : en mode VR, sous R2'],
   ];
 
   body.innerHTML =
@@ -8374,6 +8376,7 @@ function openGpOverlay() {
       row('L3', AL.vr_reset_zoom),
       row('R3', AL.vr_recenter_view),
       row('Stick droit', 'Regarder autour'),
+      row('(sans R2)', 'Stick droit ↕ → volume'),
     ].join('')) +
     group('Sticks', sticks.map(([b, a]) => row(b, a)).join(''));
 
