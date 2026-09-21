@@ -1,6 +1,6 @@
 # Lot PAD-VR — Piloter le VR à la manette, en voyant ce qu'on règle
 
-Status: 🧑 waiting-human
+Status: ✅ done
 Branch: `feature/pad-vr`
 
 ## Problem Statement
@@ -63,6 +63,30 @@ doit pas contaminer les autres.
 | 01 | [BL-127](tickets/01-fenetres-sbs.md) — Fenêtres manette lisibles en côte à côte | — | ✅ |
 | 02 | [BL-128](tickets/02-couche-r2.md) — Couche VR sous R2 | — | ✅ |
 | 03 | [BL-129](tickets/03-convergence-par-fichier.md) — Convergence retenue par fichier | BL-128 | ✅ |
+
+## Vérifié sur le matériel (2026-09-21)
+
+Essayé par David sur Deck + Beast après déploiement. **Deux corrections en ont
+découlé**, livrées par la PR #62 :
+
+- **La couche R2 ne répondait pas**, et la cause n'était pas dans Hoard : les
+  détentes n'étaient plus mappées dans la configuration Steam du Deck, elles
+  envoyaient des boutons de souris. Trouvé par David. Ce que le lot avait
+  vraiment oublié, c'est que **le badge de couche n'affichait pas R2** — sans
+  lui, une gâchette qui n'arrive pas ressemble à une gâchette qui arrive, et ça a
+  coûté un aller-retour au lieu d'un coup d'œil.
+- **Le stick droit regardait autour sans R2**, ce qui coûtait le volume pendant
+  toute une lecture VR. Le regard passe sous la couche, le volume récupère son
+  stick.
+
+Et une leçon de méthode : les vérifications du lot passaient le modificateur
+`r2` **à la main** à `_gpDispatch`. Elles seraient passées au vert avec une
+manette débranchée. Elles passent désormais par une manette simulée rendue à
+`navigator.getGamepads`.
+
+**Ce que l'essai a révélé au-delà du lot** : les lunettes coupent l'image en deux
+en permanence, donc toute l'interface est illisible, pas seulement pendant une
+lecture. D'où le lot [PAD-SBS-UI](../PAD-SBS-UI/PRD.md).
 
 ## Hors périmètre
 

@@ -67,6 +67,22 @@ picture — covered by lot [PAD-VR](.backlog/PAD-VR/PRD.md):
 - [x] **Per-file convergence** (BL-129) — the strain comes from how a file was
       shot, so it is remembered per file rather than globally.
 
+## The whole UI side by side, on a toggle *(planned)*
+
+XR glasses in 3D mode split the picture in two **all the time**, not only during
+playback, so every screen of Hoard is drawn once astride the split and each eye
+gets half of it. Leaving 3D mode is not a way out — it costs ten seconds of black
+screen and sometimes loses the glasses' settings. PAD-VR mirrored the three
+things you drive a playback with; this covers the rest, which is what you spend
+the most time in: you browse far more than you adjust.
+
+A toggle, device-local, covering the whole application — PIN screen, browser,
+images, PDF, video and dialogs. See lot [PAD-SBS-UI](.backlog/PAD-SBS-UI/PRD.md).
+It is not stereoscopy: both eyes are shown the same picture, which is exactly
+what makes an interface readable rather than tiring.
+
+The same constraint is expected from the **Steam Frame**.
+
 This does not reopen [ADR 0003](docs/adr/0003-client-natif.md): an immersive
 OpenXR session for the Steam Frame stays out of scope and unverifiable until the
 headset ships. What the ADR ruled out was a stereo OpenXR renderer, not a
