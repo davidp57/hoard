@@ -39,9 +39,21 @@ glasses in 3D mode (Steam Deck + Viture Beast). See lot
 - [x] **VR file detection and per-file memory** (BL-121)
 - [x] **Settings**: field of view, convergence, look speed, sbs layout (BL-122)
 
-One check is still owed and cannot be done from a desktop: a Steam Deck driving
-the Viture glasses. It is also what decides which side-by-side layout is the
-right one — `half` (the default) or `full`, switchable with **B**.
+The Deck-and-glasses check was done on 2026-09-21 and found two usability
+defects, fixed by lot [FIX-XR-DISPLAY](.backlog/FIX-XR-DISPLAY/PRD.md):
+
+- [x] **Pad windows at the screen's scale** (BL-126) — the Select menu kept a
+      fixed 380px width, and the button map was an SVG drawing that never grew,
+      so its callouts rendered at 5.7px whatever the resolution. The drawing is
+      now a text list flowing into columns.
+- [x] **Guess the side-by-side layout** (BL-125) — 3840×1080, the output those
+      glasses need for 3D, is full-SBS, while the setting defaulted to `half`
+      and so halved the vertical field of view. The layout is now deduced from
+      the canvas shape; an explicit choice still wins, and **L2** toggles it on
+      the pad, **B** on the keyboard.
+
+One check remains owed on that lot and cannot be done from a desktop: that the
+guess lands on the right layout on the real hardware.
 
 This does not reopen [ADR 0003](docs/adr/0003-client-natif.md): an immersive
 OpenXR session for the Steam Frame stays out of scope and unverifiable until the

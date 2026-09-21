@@ -3465,6 +3465,10 @@ _SETTINGS_DEFAULTS: dict[str, str] = {
     "gamepad_mapping": "{}",
     "fs_progress_zoom": "20",
     "gestures_overlay_seen": "0",
+    # Installation flag, not a setting the user picks — declared here so it leaves
+    # GET /api/settings as a decision rather than an oversight, the way BL-123 made
+    # the secret exclusion explicit. Goes away with the BL-125 migration below.
+    "vr_sbs_layout_reset_done": "0",
     "vr_fov": "90",
     "vr_convergence": "0",
     "vr_look_speed": "90",

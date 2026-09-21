@@ -105,6 +105,25 @@ s'y lit comme sur un écran ordinaire. Les contrôles, l'OSD de volume et le
 minuteur restent masqués : ils ne sont pas le moyen par lequel le lecteur dit ce
 qu'il vient de faire.
 
+## Trouvé par la revue
+
+- **`ROADMAP.md` était devenu faux sur trois points** du fait de ce lot : il
+  annonçait la vérification Deck+Beast comme due (elle a eu lieu le 2026-09-21,
+  c'est ce qui a ouvert le lot), `half` comme défaut, et **B** comme seul
+  raccourci. Réécrit, avec les deux tickets listés.
+- **La ligne-marqueur de la migration sortait dans `GET /api/settings`**, cette
+  route renvoyant la table entière moins les secrets. Elle est donc déclarée
+  parmi les réglages, comme `gestures_overlay_seen` — symétrique de ce que BL-123
+  venait de faire avec `SECRET_SETTINGS`, dans l'autre sens : une clé qui part
+  vers le frontend doit être une décision, pas un oubli. Un test le couvre.
+- **Confirmation venue de la PR #49** (BL-086/087/088), dont le corps notait déjà
+  que « L2 and R2 are genuinely free… but the button map draws neither, so an
+  action there would have been undiscoverable ». C'est exactement la difficulté
+  que ce lot lève : L2 reçoit une action *et* la nouvelle fenêtre d'aide la liste.
+- Écarté : la nouvelle liste utilise des `div` en flex plutôt qu'un `table`. C'est
+  la convention déjà établie pour `.gp-menu-item` depuis BL-086 ; s'en écarter ici
+  seul n'apporterait rien.
+
 ## Mesuré
 
 | forme du canvas | ratio | disposition |

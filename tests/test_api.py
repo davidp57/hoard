@@ -4125,6 +4125,15 @@ class TestVrSettings:
         assert s["vr_sbs_layout"] == "auto"
         assert s["vr_fov"] == "75", "the migration must touch nothing else"
 
+    def test_the_migration_marker_is_a_declared_setting(self):
+        """It leaves GET /api/settings, so it has to be declared and not leak.
+
+        BL-123 made the secret exclusion explicit so that the next secret stored
+        here would be a decision and not an oversight; the same holds the other
+        way for a key that ships to the frontend.
+        """
+        assert client.get("/api/settings").json()["vr_sbs_layout_reset_done"] in ("0", "1")
+
     def test_startup_keeps_an_explicit_full(self):
         """Only 'half' was ever written by accident; 'full' is always a choice."""
         import backend.main as _main
