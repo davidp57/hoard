@@ -2696,6 +2696,96 @@ class TestBasicAuth:
         assert resp.status_code == 200
 
 
+# ── Health probe reachable without credentials (BL-105) ───────────────────────
+
+
+class TestHealthz:
+    def test_open_while_everything_else_is_locked(self, monkeypatch):
+        """The container's HEALTHCHECK has no credentials to offer.
+
+        Before this, the probe hit /api/files: turning auth on made every
+        deployment report unhealthy, forever.
+        """
+        import backend.main as m
+
+        monkeypatch.setattr(m, "HOARD_AUTH_USER", "alice")
+        monkeypatch.setattr(m, "HOARD_AUTH_PASS", "secret")
+        monkeypatch.setattr(m, "_AUTH_ENABLED", True)
+
+        assert client.get("/api/settings").status_code == 401
+        assert client.get("/healthz").status_code == 200
+
+    def test_says_nothing_useful_to_a_stranger(self, monkeypatch):
+        """It is the one route an unauthenticated caller can reach, so it must
+        not hand out the version, the media path, or any count."""
+        import backend.main as m
+
+        monkeypatch.setattr(m, "_AUTH_ENABLED", True)
+        assert client.get("/healthz").json() == {"status": "ok"}
+
+    def test_exemption_is_an_exact_match(self, monkeypatch):
+        """A prefix test would have let /healthz-anything through the guard."""
+        import backend.main as m
+
+        monkeypatch.setattr(m, "HOARD_AUTH_USER", "alice")
+        monkeypatch.setattr(m, "HOARD_AUTH_PASS", "secret")
+        monkeypatch.setattr(m, "_AUTH_ENABLED", True)
+
+        for path in ("/healthzz", "/healthz-oops", "/healthz/sub"):
+            # 401 from the middleware, not 404 from the router: the request
+            # must never reach routing.
+            assert client.get(path).status_code == 401, path
+
+    def test_reports_unhealthy_when_media_root_is_gone(self, monkeypatch):
+        """Still a real probe, not a constant: the old one caught a vanished
+        mount, and this one has to keep doing that."""
+        import backend.main as m
+
+        monkeypatch.setattr(m, "get_media_root", lambda: Path("/nonexistent-media-root"))
+        resp = client.get("/healthz")
+        assert resp.status_code == 503
+        assert resp.json() == {"status": "error"}
+
+
+class TestDockerfileProbe:
+    """The HEALTHCHECK URL lives in the Dockerfile, where no test looked.
+
+    It has already been wrong once — commit c4cd7cf, "healthcheck uses
+    /api/files instead of non-existent /api/config" — and nothing caught it.
+    Then /api/files turned out to need credentials, which nothing caught
+    either. Both failures are the same shape: a URL in a Dockerfile that no
+    test reads. This reads it.
+    """
+
+    def _probe_path(self):
+        import re
+
+        dockerfile = Path(__file__).resolve().parent.parent / "Dockerfile"
+        text = dockerfile.read_text(encoding="utf-8")
+        match = re.search(r"://localhost:8000([^'\"\s]*)", text)
+        assert match, "no HEALTHCHECK URL found in the Dockerfile"
+        return match.group(1)
+
+    def test_probe_hits_a_route_that_exists(self):
+        path = self._probe_path()
+        assert client.get(path).status_code != 404, (
+            f"the Dockerfile HEALTHCHECK probes {path}, which is not a route"
+        )
+
+    def test_probe_needs_no_credentials(self, monkeypatch):
+        import backend.main as m
+
+        monkeypatch.setattr(m, "HOARD_AUTH_USER", "alice")
+        monkeypatch.setattr(m, "HOARD_AUTH_PASS", "secret")
+        monkeypatch.setattr(m, "_AUTH_ENABLED", True)
+
+        path = self._probe_path()
+        assert client.get(path).status_code == 200, (
+            f"the Dockerfile HEALTHCHECK probes {path}, which is behind auth: "
+            "enabling credentials would mark every deployment unhealthy"
+        )
+
+
 # ── PIN hashing: scrypt (BL-030) ───────────────────────────────────────────────
 
 

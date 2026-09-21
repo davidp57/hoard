@@ -141,6 +141,53 @@ All configuration is done via **environment variables** in `docker-compose.yml` 
 | `JOB_TTL_SECONDS` | `3600` | How long a finished job stays in memory. Does not affect the download history, which lives in the database. |
 | `DOWNLOAD_SOCKET_TIMEOUT` | `30` | Seconds of silence tolerated on a download socket before giving up. Stops a silent server from pinning the (sequential) queue. |
 
+### Authentication — read this before exposing Hoard
+
+**Hoard has no authentication unless you switch it on.** Out of the box, every
+endpoint is open to anyone who can reach the port — including listing and
+reading your whole media tree, deleting and moving files, starting arbitrary
+downloads onto your NAS, restarting the container, and changing the settings.
+
+That is a reasonable default on a private LAN. It is not one behind a reverse
+proxy with a public domain name.
+
+The PIN in Settings does **not** cover this: it locks the web interface, and no
+API route checks it. Anything that talks to the API directly goes straight
+through.
+
+Set both variables to require HTTP Basic on every request:
+
+```yaml
+environment:
+  - HOARD_AUTH_USER=david
+  - HOARD_AUTH_PASS=nT8vQ2xK9mR4wL7pZ1sB3dF6
+```
+
+Generate the password rather than inventing one:
+
+```bash
+openssl rand -base64 24
+```
+
+Two things that bite:
+
+- **No quotes.** In this list form, `docker-compose` keeps the quotes as part
+  of the value, so `HOARD_AUTH_PASS="abc"` is a password of five characters
+  including the quotes.
+- **HTTPS only.** Basic sends the password in every request, merely base64
+  encoded. Either enable HTTPS below, or terminate TLS at your reverse proxy.
+
+Hoard prints its authentication state at every start, so you can check it in
+the container log:
+
+```
+Auth: HTTP Basic enabled for user 'david'
+Auth: DISABLED — every endpoint is open, including file deletion and moves. …
+```
+
+`/healthz` stays reachable without credentials — the container's health check
+needs it, and it answers `{"status": "ok"}` and nothing else.
+
 ### Enabling HTTPS
 
 To serve Hoard over HTTPS without a reverse proxy, generate a certificate and set the two env vars:

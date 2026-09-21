@@ -1,5 +1,18 @@
 # Roadmap — Hoard
 
+## v2.6.5 — An open instance must be visible *(done)*
+
+HTTP Basic auth (BL-011) was correct but switched itself off in silence when
+its env vars were unset, so a publicly reachable instance logged exactly like a
+protected one. Startup now states the auth state and names what "disabled"
+means; `docker-compose.yml` and the installation docs carry the warning. A new
+public `/healthz` route fixes the container health check, which hit a protected
+route with no credentials and marked every authenticated deployment unhealthy.
+See lot [SEC-AUTH](.backlog/SEC-AUTH/PRD.md).
+
+- [x] **Health probe surviving auth** (BL-105)
+- [x] **Auth state announced at startup, in compose and in the docs** (BL-106)
+
 ## v1.0 — Initial release *(done)*
 
 - [x] Filesystem browser with breadcrumb navigation

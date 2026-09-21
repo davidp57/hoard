@@ -30,6 +30,6 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
 import urllib.request, os, ssl; \
 s = os.environ.get('SSL_CERTFILE', ''); \
 ctx = ssl._create_unverified_context() if s else None; \
-urllib.request.urlopen(('https' if s else 'http') + '://localhost:8000/api/files?path=', context=ctx)" || exit 1
+urllib.request.urlopen(('https' if s else 'http') + '://localhost:8000/healthz', context=ctx)" || exit 1
 
 CMD ["/app/entrypoint.sh"]

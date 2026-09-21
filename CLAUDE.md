@@ -194,7 +194,12 @@ When the user asks to do a release, follow these steps in order:
 
 ### Commands
 
-> **Version policy**: Never change the version number in `pyproject.toml` unless the user has confirmed it.
+> **Version policy** (clarified 2026-09-21): bump the **patch** version in
+> `pyproject.toml` autonomously, as step 8 of the per-change checklist below —
+> that is routine bookkeeping. **Minor and major bumps need the user's explicit
+> confirmation**: they say something about the release, and that is their call.
+> Previously this read "never change the version unless the user has confirmed
+> it", which flatly contradicted the checklist and left no workable reading.
 
 ```bash
 # Install dev dependencies
@@ -251,6 +256,13 @@ This project follows **Git Flow**:
 - `release/*` — release preparation branched from `develop`
 
 Never commit directly to `main` or `develop`.
+
+**One exception, agreed 2026-09-21: backlog work may be committed straight to
+`develop`.** This covers everything under `.backlog/` — PRDs, tickets, status
+changes, the lot index, archiving. These artifacts carry no code, break no
+build, and gating them behind a branch and a PR costs more than it protects.
+Anything else — code, tests, docs, `ROADMAP.md`, ADRs — still goes through a
+feature branch.
 
 ### Branch naming
 
