@@ -72,6 +72,40 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ### Corrigé
 
+- **L'image côte à côte a enfin les bonnes proportions dans les lunettes XR.**
+  Sur le Steam Deck avec des Viture Beast, les personnages paraissaient trop
+  hauts et trop étroits. Hoard devine maintenant tout seul comment tes lunettes
+  consomment l'image, à partir de sa forme : un affichage deux fois plus large
+  que la normale — celui qu'il faut régler pour obtenir la 3D — n'a pas besoin
+  d'être réétiré, un affichage ordinaire si. Il te dit ce qu'il a deviné par un
+  message au moment où le mode s'active, et ton propre choix l'emporte toujours.
+
+- **Les messages du lecteur sont enfin lisibles en mode côte à côte.** Ils
+  n'apparaissaient tout simplement pas : écrits une seule fois sur une image
+  coupée en deux, ils tombaient à moitié dans chaque œil. Ils sont maintenant
+  écrits une fois par œil.
+
+- **Changer la disposition côte à côte se fait à la manette, avec L2.** Il
+  fallait jusqu'ici un clavier — que le Steam Deck n'a pas — ou passer par deux
+  menus. L2 fait le tour des trois réglages : automatique, étirée, non étirée.
+  Le bouton B garde son rôle habituel.
+
+- **Le menu de la manette et la carte des boutons s'adaptent enfin à la taille de
+  ton écran.** Sur un affichage très large — celui qu'il faut régler pour obtenir
+  la 3D sur des lunettes XR — le menu **Select** occupait deux fois moins de place
+  qu'ailleurs et devenait pénible à lire. Il grandit maintenant avec l'écran, et
+  son texte avec lui. Rien ne change sur un écran ordinaire ni sur téléphone.
+
+- **La carte des boutons — touche Start — n'est plus un dessin de manette, mais
+  une liste.** Le dessin gardait la même petite taille quel que soit l'écran, si bien
+  que les noms d'actions écrits autour étaient trop petits pour être lus, même sur
+  un écran normal. À la place : la liste de toutes les actions, rangée par couche,
+  répartie en autant de colonnes que l'écran est large. Deux commandes qui
+  n'apparaissaient nulle part y sont enfin — **L3** coupe le son, **R3** change la
+  vitesse de lecture — et les sticks y sont décrits dans le bon sens quand tu as
+  inversé les deux. Le **D-pad ↑/↓** fait défiler la liste si elle est plus longue
+  que l'écran.
+
 - **La vieille fenêtre grise du navigateur ne s'invite plus avant l'écran de
   connexion.** Elle réapparaissait juste avant, et il fallait l'annuler pour voir
   l'écran de Hoard. Elle ne s'affiche plus du tout : tu vas directement sur

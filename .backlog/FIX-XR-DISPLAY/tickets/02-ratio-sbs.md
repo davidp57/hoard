@@ -1,6 +1,6 @@
 # BL-125 — Deviner la disposition côte à côte
 
-Status: ⬜ ready
+Status: ✅ done
 Type: fix
 Files: `frontend/index.html`, `tests/test_api.py` (si un réglage change),
 `docs/user-guide.*.md`, `docs/developer.*.md`
@@ -67,17 +67,95 @@ les Beast ne réétirent rien.
   la manette est déjà pris** (« annuler / fermer » partout) : ne pas le
   réutiliser, trouver un geste libre dans la couche de lecture.
 
+## Ce qui a été fait
+
+- **La disposition se déduit de la forme du canvas** (`vrResolvedSbsLayout`), avec
+  un seuil à **2,4**. Le raisonnement : la forme perçue par chaque œil doit
+  ressembler à un écran (4:3 à 21:9, soit 1,3 à 2,1) ; en `half` c'est le canvas
+  entier, en `full` une moitié. Un canvas 16:9 (1,78) tombe donc en `half`, un
+  32:9 (3,56) en `full`, chacun loin de la frontière — 2,4 est entre les deux
+  bandes admissibles et dans aucune.
+- **Le réglage gagne une valeur `auto`, qui devient le défaut.** Sans elle, rien
+  ne distinguait « pas de choix » de « choix `half` » : les deux valaient `half`.
+- **Une migration ponctuelle efface au démarrage une ligne `vr_sbs_layout` valant
+  `half`**, et c'est ce qui rend le correctif effectif. Le formulaire de réglages
+  poste tous ses champs, donc enregistrer n'importe quel réglage écrivait l'ancien
+  défaut dans la table, où il se serait lu comme un choix délibéré. Tranché par
+  David le 2026-09-21. À retirer une fois toutes les instances redémarrées.
+- **Le toast est écrit une fois par œil** (25 % et 75 %). Voir ci-dessous : il
+  était purement et simplement invisible en mode côte à côte.
+- **Raccourci manette : L2**, libre dans toutes les couches — base, lecteur, L1,
+  R1, L1+R1, browser — vérifié une par une. `B` garde son rôle d'annulation. Le
+  cycle couvre les trois états, sinon `auto` deviendrait injoignable après une
+  correction manuelle. Conditionné à `vrIsActive()` et non au seul mode côte à
+  côte, comme le clavier : `setVrMode` ne réinitialise la disposition qu'en
+  venant de `off`, donc la régler en mode plat avant de basculer est un usage réel.
+
+## Ce que la vérification a corrigé au ticket
+
+**Le toast n'était pas visible en mode côte à côte**, contrairement à ce
+qu'affirmait ce ticket (« le basculement affiche déjà un toast »). BL-120 masquait
+`#toast` avec les autres incrustations — `index.html:362` — pour la bonne raison
+qu'une incrustation dessinée une fois sur une image coupée en deux tombe à moitié
+dans chaque œil. Le critère « la disposition retenue est visible par l'utilisateur »
+était donc intenable en l'état, et le toast de BL-120 lui-même ne servait à rien.
+Corrigé à la cause : deux nœuds, un par œil, chacun centré dans sa moitié. Aucun
+changement de taille — à 3840×1080 chaque moitié fait 1920 de large, donc 13 px
+s'y lit comme sur un écran ordinaire. Les contrôles, l'OSD de volume et le
+minuteur restent masqués : ils ne sont pas le moyen par lequel le lecteur dit ce
+qu'il vient de faire.
+
+## Trouvé par la revue
+
+- **`ROADMAP.md` était devenu faux sur trois points** du fait de ce lot : il
+  annonçait la vérification Deck+Beast comme due (elle a eu lieu le 2026-09-21,
+  c'est ce qui a ouvert le lot), `half` comme défaut, et **B** comme seul
+  raccourci. Réécrit, avec les deux tickets listés.
+- **La ligne-marqueur de la migration sortait dans `GET /api/settings`**, cette
+  route renvoyant la table entière moins les secrets. Elle est donc déclarée
+  parmi les réglages, comme `gestures_overlay_seen` — symétrique de ce que BL-123
+  venait de faire avec `SECRET_SETTINGS`, dans l'autre sens : une clé qui part
+  vers le frontend doit être une décision, pas un oubli. Un test le couvre.
+- **Confirmation venue de la PR #49** (BL-086/087/088), dont le corps notait déjà
+  que « L2 and R2 are genuinely free… but the button map draws neither, so an
+  action there would have been undiscoverable ». C'est exactement la difficulté
+  que ce lot lève : L2 reçoit une action *et* la nouvelle fenêtre d'aide la liste.
+- Écarté : la nouvelle liste utilise des `div` en flex plutôt qu'un `table`. C'est
+  la convention déjà établie pour `.gp-menu-item` depuis BL-086 ; s'en écarter ici
+  seul n'apporterait rien.
+
+## Mesuré
+
+| forme du canvas | ratio | disposition |
+|---|---|---|
+| 1920×1080, 1280×720, 3840×2160 | 1,78 | `half` |
+| 2560×1080 | 2,37 | `half` |
+| 3840×1080 | 3,56 | `full` |
+| 1080×1920 | 0,56 | `half` |
+| 0×0 (canvas pas encore dimensionné) | — | `half` |
+
+Vérifié de bout en bout sur un vrai rendu WebGL, vidéo à bandes horizontales : les
+pixels lus diffèrent entre `half` et `full`, donc c'est bien le champ de vision
+qui change. Un `half` forcé sur un canvas 32:9 reste `half`. Le cycle L2 parcourt
+`auto → half → full → auto`. La migration a été éprouvée sur la base de dev réelle :
+la ligne `half` a disparu au redémarrage, `vr_fov` et les autres sont intacts.
+
+Le plafond `VR_MAX_VFOV` n'entre pas en conflit : à 3840×1080 il ne s'applique
+dans aucun des deux cas (champ vertical de 31° en `half`, 59° en `full`, contre un
+plafond à 110°).
+
 ## Acceptance criteria
 
-- [ ] À 3840×1080, l'image côte à côte a les bonnes proportions **sans réglage
+- [x] À 3840×1080, l'image côte à côte a les bonnes proportions **sans réglage
       manuel**
-- [ ] À une résolution 16:9, le comportement actuel est inchangé
-- [ ] Un réglage explicite l'emporte sur la devinette, dans les deux sens
-- [ ] La disposition retenue est visible par l'utilisateur (toast ou menu)
-- [ ] La bascule est atteignable à la manette sans passer par deux menus
-- [ ] Le bouton B de la manette garde son rôle actuel
+- [x] À une résolution 16:9, le comportement actuel est inchangé
+- [x] Un réglage explicite l'emporte sur la devinette, dans les deux sens
+- [x] La disposition retenue est visible par l'utilisateur — toast **et** menu
+      contextuel, tous deux marquant explicitement l'état « auto »
+- [x] La bascule est atteignable à la manette sans passer par deux menus (L2)
+- [x] Le bouton B de la manette garde son rôle actuel
 - [ ] Vérifié sur le matériel réel (Deck + Beast) — ce qui ne peut pas être fait
-      depuis un poste de bureau, comme pour FEAT-VR180
+      depuis un poste de bureau, comme pour FEAT-VR180 *(reste dû par David)*
 
 ## Ce qu'il ne faut pas rater
 
