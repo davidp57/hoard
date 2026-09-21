@@ -1,6 +1,6 @@
 [project]
 name = "hoard"
-version = "2.6.8"
+version = "2.6.9"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

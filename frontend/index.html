@@ -349,6 +349,14 @@
   }
   #vr-canvas.active { display: block; }
 
+  /* Side-by-side output: any 2D overlay is drawn once across a picture that is
+     about to be split between two eyes, so it lands half in each and reads as
+     nothing. Hide them; the gamepad and keyboard still drive the player. */
+  #video-container.vr-sbs #controls,
+  #video-container.vr-sbs #toast,
+  #video-container.vr-sbs #vol-osd,
+  #video-container.vr-sbs #mini-time { display: none !important; }
+
   /* ── Player controls ── */
   #controls {
     background: var(--surface);
@@ -2112,6 +2120,7 @@
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">Échap</td><td style="padding:4px 8px">Quitter plein écran → fermer le player → remonter d'un cran (comme B au pad)</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">A</td><td style="padding:4px 8px">Cycle aspect ratio (Fit / Fill / …)</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">V</td><td style="padding:4px 8px">Mode VR 180° : plat → côte à côte → désactivé <span style="color:var(--text-dim)">— Maj+V pour recentrer</span></td></tr>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">B</td><td style="padding:4px 8px">En mode VR : image côte à côte étirée (lunettes XR) ou non</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">W</td><td style="padding:4px 8px">Marquer vu / non vu</td></tr>
       </tbody>
     </table>
@@ -5321,11 +5330,22 @@ const VR_DEFAULT_FOV = 90;
 // this bound the horizontal fov is derived from the vertical one instead.
 const VR_MAX_VFOV = 110;
 const VR_MODES = ['off', 'flat', 'sbs'];
+// How the display consumes a side-by-side signal (BL-120).
+//  'half' — XR glasses and 3D TVs: each half is stretched back to full width,
+//           so the picture each eye perceives has the aspect of the WHOLE
+//           canvas. Computing the fov from the half-width buffer instead would
+//           squash everything by a factor of two.
+//  'full' — the halves are shown unstretched, side by side.
+// 'half' is the default because that is what the 3D mode of XR glasses expects.
+const VR_SBS_LAYOUTS = ['half', 'full'];
+const VR_CONVERGENCE_MAX = 3;      // degrees; beyond this the eyes stop fusing
+const VR_CONVERGENCE_STEP = 0.5;
 
 const vr = {
   mode: 'off', yaw: 0, pitch: 0, fov: VR_DEFAULT_FOV,
   gl: null, prog: null, tex: null, u: {}, raf: 0, ro: null,
   vfc: 0, pumpGen: 0, lastPollTs: 0, failed: false, lostHooked: false,
+  sbsLayout: 'half', convergence: 0,
 };
 
 function vrIsActive() { return vr.mode !== 'off'; }
@@ -5443,26 +5463,32 @@ function _vrRender() {
   if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
 
   gl.bindTexture(gl.TEXTURE_2D, vr.tex);
-  gl.uniform1f(vr.u.uYaw, vr.yaw * Math.PI / 180);
   gl.uniform1f(vr.u.uPitch, vr.pitch * Math.PI / 180);
   gl.uniform1f(vr.u.uIhFov, Math.PI);   // 180° covered horizontally by one eye
   gl.uniform1f(vr.u.uIvFov, Math.PI);   // and 180° vertically
   const tanH = Math.tan(vr.fov * Math.PI / 360);
+  const sbs = vr.mode === 'sbs';
 
-  // In sbs mode each half of the canvas gets one eye; the glasses do the split.
-  const views = vr.mode === 'sbs'
-    ? [[0, 0, w / 2, h, 0], [w / 2, 0, w / 2, h, 0.5]]
-    : [[0, 0, w, h, 0]];
+  // In sbs mode each half of the canvas gets one eye; the display does the
+  // split. Convergence nudges the two eyes apart in yaw — zero for a correctly
+  // shot VR180 file, adjustable for one that is not.
+  const conv = sbs ? vr.convergence / 2 : 0;
+  const views = sbs
+    ? [[0, 0, w / 2, h, 0, +conv], [w / 2, 0, w / 2, h, 0.5, -conv]]
+    : [[0, 0, w, h, 0, 0]];
 
+  // Perceived width: with 'half' each eye's picture is stretched back to full
+  // width by the display, so it is the whole canvas that sets the shape.
+  const perceivedW = !sbs ? w : (vr.sbsLayout === 'half' ? w : w / 2);
   const tanVMax = Math.tan(VR_MAX_VFOV * Math.PI / 360);
 
   gl.clearColor(0, 0, 0, 1);
   gl.clear(gl.COLOR_BUFFER_BIT);
-  for (const [vx, vy, vw, vh, uOff] of views) {
-    // Aspect of THIS view, not of the canvas: in sbs each view is half as wide.
-    let th = tanH, tv = tanH * vh / vw;
-    if (tv > tanVMax) { tv = tanVMax; th = tv * vw / vh; }
+  for (const [vx, vy, vw, vh, uOff, yawOff] of views) {
+    let th = tanH, tv = tanH * vh / perceivedW;
+    if (tv > tanVMax) { tv = tanVMax; th = tv * perceivedW / vh; }
     gl.viewport(vx, vy, vw, vh);
+    gl.uniform1f(vr.u.uYaw, (vr.yaw + yawOff) * Math.PI / 180);
     gl.uniform2f(vr.u.uUvOrigin, uOff, 0);
     gl.uniform2f(vr.u.uUvSize, 0.5, 1);
     gl.uniform1f(vr.u.uTanHalfH, th);
@@ -5489,11 +5515,36 @@ function vrRecenter() {
   showToast('🥽 recentré');
 }
 
+// Which of the two the display wants cannot be guessed from here — it depends
+// on how the glasses consume the signal — but the wrong one is obvious on
+// sight: the picture is squashed or stretched by a factor of two.
+function cycleVrSbsLayout() {
+  const i = VR_SBS_LAYOUTS.indexOf(vr.sbsLayout);
+  vr.sbsLayout = VR_SBS_LAYOUTS[(i + 1) % VR_SBS_LAYOUTS.length];
+  showToast(vr.sbsLayout === 'half' ? '🥽 SBS étiré (lunettes XR)' : '🥽 SBS non étiré');
+}
+
+function vrAdjustConvergence(deltaDeg) {
+  vr.convergence = Math.max(-VR_CONVERGENCE_MAX,
+                            Math.min(VR_CONVERGENCE_MAX, vr.convergence + deltaDeg));
+  showToast(`🥽 convergence ${vr.convergence.toFixed(1)}°`);
+}
+
+// The gamepad menu only ever offers one direction, so it has to wrap: a
+// one-way stepper would strand the value at the top with no way back to zero.
+function cycleVrConvergence() {
+  let next = vr.convergence + VR_CONVERGENCE_STEP;
+  if (next > VR_CONVERGENCE_MAX + 1e-6) next = -VR_CONVERGENCE_MAX;
+  vr.convergence = Math.round(next / VR_CONVERGENCE_STEP) * VR_CONVERGENCE_STEP;
+  showToast(`🥽 convergence ${vr.convergence.toFixed(1)}°`);
+}
+
 function setVrMode(mode) {
   if (!VR_MODES.includes(mode)) return;
   const canvas = document.getElementById('vr-canvas');
   if (mode !== 'off' && !_vrInit()) return;
 
+  const was = vr.mode;
   vr.mode = mode;
   const btn = document.getElementById('vr-btn');
   if (mode === 'off') {
@@ -5502,17 +5553,29 @@ function setVrMode(mode) {
     if (vr.vfc && video.cancelVideoFrameCallback) video.cancelVideoFrameCallback(vr.vfc);
     vr.vfc = 0;
     canvas.classList.remove('active');
+    videoContainer.classList.remove('vr-sbs');
     if (btn) { btn.style.color = ''; btn.textContent = '🥽'; }
     return;
   }
-  vr.yaw = 0; vr.pitch = 0; vr.fov = VR_DEFAULT_FOV;
+  // Only reset the view when coming from 'off': switching flat <-> sbs is a
+  // comparison, and losing the framing each time would make it useless.
+  if (was === 'off') { vr.yaw = 0; vr.pitch = 0; vr.fov = VR_DEFAULT_FOV; }
   canvas.classList.add('active');
+  videoContainer.classList.toggle('vr-sbs', mode === 'sbs');
   _vrSyncCanvasBox();
   if (!vr.ro) {
     vr.ro = new ResizeObserver(() => { if (vrIsActive()) _vrSyncCanvasBox(); });
     vr.ro.observe(video);
   }
   if (btn) { btn.style.color = 'var(--accent)'; btn.textContent = mode === 'sbs' ? '🥽²' : '🥽'; }
+  // Side-by-side only makes sense filling the display the glasses are showing,
+  // so entering it goes fullscreen — unless we already are, since
+  // toggleFullscreen() would then leave it.
+  if (mode === 'sbs'
+      && !videoContainer.classList.contains('faux-fullscreen')
+      && document.fullscreenElement !== videoContainer) {
+    toggleFullscreen({ forceReal: true });
+  }
   _vrPumpTexture();
   cancelAnimationFrame(vr.raf);
   vr.raf = requestAnimationFrame(_vrRender);
@@ -6641,6 +6704,7 @@ document.addEventListener('keydown', e => {
   if (e.code === 'KeyC') { cycleSubtitles(); return; }
   if (e.code === 'KeyA') { toggleVideoFit(); return; }
   if (e.code === 'KeyV') { e.shiftKey ? vrRecenter() : cycleVrMode(); return; }
+  if (e.code === 'KeyB' && vrIsActive()) { cycleVrSbsLayout(); return; }
   if (e.code === 'KeyW') { _gpToggleWatched(); return; }
   if (e.code === 'BracketLeft')  { cycleSpeed(-1); return; }
   if (e.code === 'BracketRight') { cycleSpeed(1);  return; }
@@ -6728,6 +6792,18 @@ function _gpMenuBuildPlayer() {
     value: vr.mode === 'off' ? 'désactivé' : vr.mode === 'flat' ? 'plat' : 'côte à côte',
     run: () => cycleVrMode(),
   });
+  if (vrIsActive()) {
+    items.push({
+      label: '🥽 Image côte à côte',
+      value: vr.sbsLayout === 'half' ? 'étirée (lunettes XR)' : 'non étirée',
+      run: () => cycleVrSbsLayout(),
+    });
+    items.push({
+      label: '🥽 Convergence',
+      value: `${vr.convergence.toFixed(1)}°`,
+      run: () => cycleVrConvergence(),
+    });
+  }
   items.push({
     label: '⏩ Vitesse de lecture',
     value: `${video.playbackRate}×`,

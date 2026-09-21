@@ -233,6 +233,15 @@ Pour regarder autour de vous : **glissez le doigt** sur l'image, **tirez à la s
 
 Tant que le mode VR est actif, le glissement ne fait plus ni avance rapide ni réglage du volume — il sert à regarder. L'avance et le volume restent accessibles au clavier, aux boutons du lecteur et au stick gauche de la manette.
 
+#### Avec des lunettes XR
+
+Le mode côte à côte passe automatiquement en plein écran : c'est le seul affichage qui ait un sens dans des lunettes. Les commandes du lecteur disparaissent pendant ce temps — affichées une seule fois sur une image qui va être coupée en deux, elles tomberaient à moitié dans chaque œil et ne seraient lisibles nulle part. Pilote à la manette ou au clavier ; sortir du mode fait tout revenir.
+
+Deux réglages selon ce que font tes lunettes :
+
+- **Image étirée ou non** (touche **B**, ou le menu de la manette). La plupart des lunettes XR en mode 3D réétirent chaque moitié sur toute la largeur : c'est le réglage par défaut. Si l'image te paraît écrasée ou étirée du double en hauteur, c'est ce réglage qu'il faut changer — l'effet se voit immédiatement.
+- **Convergence** (menu de la manette). À laisser à zéro : les deux images sont alors rigoureusement alignées, ce qui est correct pour un fichier bien tourné. À n'ajuster que si un fichier particulier te fatigue les yeux.
+
 > **Ce que votre machine doit pouvoir faire.** Ces fichiers sont souvent très définis (jusqu'à 8K) et encodés en HEVC. Hoard les envoie tels quels, sans les convertir : c'est l'appareil qui regarde qui doit savoir les décoder. Si l'image saccade ou refuse de s'ouvrir, c'est cette limite-là, et non le mode VR.
 
 ---

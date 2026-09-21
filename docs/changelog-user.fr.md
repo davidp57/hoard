@@ -23,6 +23,15 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
   les convertir. C'est donc l'appareil sur lequel tu regardes qui doit savoir les
   lire. Si ça saccade, c'est là qu'est la limite.
 
+- **L'affichage côte à côte est prêt pour des lunettes XR.** Il passe tout seul en
+  plein écran et efface les commandes du lecteur pendant ce temps : affichées une
+  seule fois sur une image coupée en deux, elles tomberaient à moitié dans chaque
+  œil. Tu pilotes à la manette ou au clavier, et tout revient en sortant du mode.
+  Si l'image te paraît écrasée ou étirée du double, la touche **B** bascule entre
+  les deux façons dont des lunettes lisent ce genre d'image — l'effet se voit tout
+  de suite. Un réglage de convergence est disponible dans le menu de la manette,
+  à laisser à zéro sauf si un fichier précis te fatigue les yeux.
+
 ### Corrigé
 
 - **Le tri de la liste reste celui que tu as choisi.** Passer la liste en « Vu »

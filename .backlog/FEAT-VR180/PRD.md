@@ -104,7 +104,7 @@ même, l'ajouter plus tard coûtera peu.
 | # | Ticket | Dépend de | Statut |
 |---|---|---|---|
 | 01 | [BL-119](tickets/01-socle-deprojection.md) — Socle : déprojection, vue plate, pilotage | — | ✅ |
-| 02 | [BL-120](tickets/02-sortie-sbs.md) — Sortie côte à côte pour lunettes XR | 01 | ⬜ |
+| 02 | [BL-120](tickets/02-sortie-sbs.md) — Sortie côte à côte pour lunettes XR | 01 | ✅ |
 | 03 | [BL-121](tickets/03-detection-memorisation.md) — Détection des fichiers VR et mémorisation | 01 | ⬜ |
 | 04 | [BL-122](tickets/04-reglages.md) — Réglages : champ de vision, convergence, sensibilité | 01, 02 | ⬜ |
 

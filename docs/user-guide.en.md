@@ -228,6 +228,15 @@ To look around: **drag your finger** on the image, **drag with the mouse**, or p
 
 While VR mode is on, dragging no longer seeks or changes the volume — it looks around. Seeking and volume stay available from the keyboard, the player buttons and the gamepad's left stick.
 
+#### With XR glasses
+
+Side-by-side mode goes fullscreen on its own: that is the only display that makes sense inside glasses. The player controls disappear while it is on — drawn once across a picture about to be split in two, they would land half in each eye and read as nothing anywhere. Drive from the gamepad or the keyboard; leaving the mode brings everything back.
+
+Two settings, depending on what your glasses do:
+
+- **Stretched picture or not** (**B** key, or the gamepad menu). Most XR glasses in 3D mode stretch each half back across the full width, which is the default here. If the picture looks squashed or stretched twice over vertically, this is the setting to flip — the effect is immediate.
+- **Convergence** (gamepad menu). Leave it at zero: the two views are then exactly aligned, which is correct for a properly shot file. Only adjust it if one particular file tires your eyes.
+
 > **What your machine has to manage.** These files are often very large (up to 8K) and encoded in HEVC. Hoard serves them untouched, without converting them: the device doing the watching has to decode them. If playback stutters or refuses to start, that is the limit you are hitting, not the VR mode.
 
 ---
