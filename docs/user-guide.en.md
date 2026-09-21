@@ -43,7 +43,7 @@ The sort bar offers five criteria, each reversible with the **↓ / ↑** button
 
 The **Vu** sort answers "what did I watch last". A folder takes the date of the most recently watched media found **anywhere below it**, however deep: resuming a video buried in a sub-folder lifts its whole top-level folder to the head of the list. Entries never opened have no watch date: they are grouped at the end of the list, ordered between themselves by file date.
 
-The criterion chosen in **Settings → Default sort** applies when the app opens.
+The sort is **remembered**: the criterion and the direction picked in the bar are stored server-side and reapplied when the app reopens, including from another device. **Settings → Tri de la liste** (list sort) shows the current sort and lets you change it without using the bar.
 
 ### Search
 

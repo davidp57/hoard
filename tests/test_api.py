@@ -1262,6 +1262,19 @@ class TestSettings:
         resp = client.post("/api/settings", json={"initial_sweep_seconds": 7201})
         assert resp.status_code == 422
 
+    def test_sort_persists_without_touching_other_settings(self):
+        """The sort bar posts sort_by/sort_dir alone on every click (BL-118)."""
+        before = client.get("/api/settings").json()["watched_threshold"]
+        resp = client.post("/api/settings", json={"sort_by": "watched", "sort_dir": "asc"})
+        assert resp.status_code == 200
+
+        s = client.get("/api/settings").json()
+        assert s["sort_by"] == "watched"
+        assert s["sort_dir"] == "asc"
+        assert s["watched_threshold"] == before
+
+        client.post("/api/settings", json={"sort_by": "date", "sort_dir": "desc"})
+
     def test_gestures_overlay_seen_persists(self):
         client.post("/api/settings", json={"gestures_overlay_seen": True})
         assert client.get("/api/settings").json()["gestures_overlay_seen"] == "1"

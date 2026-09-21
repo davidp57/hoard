@@ -43,7 +43,7 @@ La barre de tri propose cinq critères, chacun inversable avec le bouton **↓ /
 
 Le tri **Vu** répond à « qu'ai-je regardé en dernier ». Un dossier prend la date du média le plus récemment regardé **n'importe où en dessous de lui**, même à plusieurs niveaux de profondeur : reprendre une vidéo enfouie dans un sous-dossier fait remonter tout le dossier parent en tête de liste. Les entrées jamais ouvertes n'ont pas de date de visionnage : elles sont regroupées en fin de liste, classées entre elles par date de fichier.
 
-Le critère choisi dans **Paramètres → Tri par défaut** s'applique à l'ouverture de l'application.
+Le tri est **mémorisé** : le critère et le sens choisis dans la barre sont enregistrés côté serveur et réappliqués à la réouverture de l'application, y compris depuis un autre appareil. **Paramètres → Tri de la liste** affiche le tri en cours et permet de le changer sans passer par la barre.
 
 ### Recherche
 
