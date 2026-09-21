@@ -126,8 +126,10 @@ taille.
 
 ## Défauts trouvés en revue, avant la PR
 
-La revue du diff local a trouvé **deux défauts réels**, invisibles pour la porte de
-qualité (357 tests au vert, aucune erreur console) parce qu'ils sont frontend.
+La revue a trouvé **trois défauts réels**, invisibles pour la porte de qualité
+(tests au vert, aucune erreur console) parce qu'ils sont frontend. Les deux
+premiers sur le diff local avant la PR, le troisième par la passe « historique »
+de la revue de PR, qui lit ce que l'historique git des lignes touchées révèle.
 
 1. **Écran figé en activant le mode VR sur une vidéo en pause.** L'envoi de texture
    ne se faisait que dans le rappel `requestVideoFrameCallback`, or une vidéo en
@@ -143,6 +145,17 @@ qualité (357 tests au vert, aucune erreur console) parce qu'ils sont frontend.
    jeton de génération. Mesuré en déclenchant les rappels à la main (un onglet
    masqué n'en présente aucun) : 3 rappels armés, **1 seul se réarme**, et toujours
    1 à l'image suivante.
+
+3. **La barre de commandes disparaissait sous le canvas en plein écran**, en mode
+   `flat` — le mode `sbs` masque les incrustations, pas celui-là. Trouvé par la
+   passe « historique » de la revue de PR : le canvas était à `z-index: 2`, au
+   dessus du `z-index: 1` qu'un commit ancien avait donné à `#controls` en plein
+   écran, avec pour commentaire *« ensure controls (and seekbar hit area) are
+   above video »*. Mesuré : 132 px de recouvrement, soit la barre entière. Les
+   clics passaient (`pointer-events: none`), mais à l'aveugle. Le canvas descend
+   à `z-index: 0` et passe avant les incrustations dans le DOM — au-dessus du
+   `<video>`, qui n'est pas positionné, en dessous de tout le reste. Vérifié par
+   l'ordre de peinture : `seekbar-wrap → controls → vr-canvas → video`.
 
 Deux autres points, plus légers, corrigés dans la foulée : le message « 🥽 180°
 plat » s'affichait même quand l'initialisation avait échoué (il annonçait un mode

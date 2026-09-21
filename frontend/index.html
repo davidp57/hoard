@@ -340,12 +340,16 @@
 
   /* VR canvas sits on top of the <video>, which keeps playing underneath and
      keeps receiving pointer events — hence pointer-events:none here. */
+  /* Above the <video>, which is not positioned, but below every overlay: at
+     z-index 2 the canvas hid the fullscreen control bar, whose own z-index:1
+     was put there to keep it over the video. The canvas also sits before the
+     overlays in the DOM so painting order does not put it back on top. */
   #vr-canvas {
     position: absolute;
     display: none;
     background: #000;
     pointer-events: none;
-    z-index: 2;
+    z-index: 0;
   }
   #vr-canvas.active { display: block; }
 
@@ -1792,6 +1796,7 @@
     </div>
 
     <div id="video-container">
+      <canvas id="vr-canvas"></canvas>
       <div id="toast"></div>
       <div id="vol-osd">
         <span id="vol-osd-icon">🔊</span>
@@ -1799,7 +1804,6 @@
         <span id="vol-osd-pct">100%</span>
       </div>
       <video id="video" preload="metadata"></video>
-      <canvas id="vr-canvas"></canvas>
       <div id="mini-time">
         <div id="mini-remaining">-0:00</div>
         <div id="mini-progress-wrap">

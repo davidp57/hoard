@@ -4103,3 +4103,15 @@ class TestVrSettings:
         """An unknown value would silently make the player compute the wrong aspect."""
         assert client.post("/api/settings", json={"vr_sbs_layout": "sideways"}).status_code == 422
         assert client.get("/api/settings").json()["vr_sbs_layout"] == "half"
+
+    def test_a_rejected_layout_writes_nothing_at_all(self):
+        """The enum is checked mid-write, so the rest of the body must not land."""
+        before = client.get("/api/settings").json()["watched_threshold"]
+        resp = client.post(
+            "/api/settings",
+            json={"watched_threshold": 81, "vr_sbs_layout": "sideways"},
+        )
+        assert resp.status_code == 422
+        after = client.get("/api/settings").json()
+        assert after["watched_threshold"] == before
+        assert after["vr_sbs_layout"] == "half"
