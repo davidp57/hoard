@@ -82,7 +82,7 @@ hoard/
 │   ├── copilot-instructions.md    # This file
 │   └── workflows/
 │       ├── ci.yml                 # Lint + tests on every push/PR
-│       └── docker-build.yml       # Build Docker image on main / tags
+│       └── docker-build.yml       # Build Docker image on main / develop / tags
 ├── pyproject.toml                 # pytest + ruff config
 ├── requirements-dev.txt           # Dev dependencies (fastapi, uvicorn, pytest, httpx, ruff)
 ├── Dockerfile
@@ -167,7 +167,12 @@ When the user asks to do a release, follow these steps in order:
 
 ### Commands
 
-> **Version policy**: Never change the version number in `pyproject.toml` unless the user has confirmed it.
+> **Version policy** (clarified 2026-09-21): bump the **patch** version in
+> `pyproject.toml` autonomously, as the last step of the per-change checklist —
+> that is routine bookkeeping. **Minor and major bumps need the user's explicit
+> confirmation**: they say something about the release, and that is their call.
+> Previously this read "never change the version unless the user has confirmed
+> it", which flatly contradicted the checklist and left no workable reading.
 
 ```bash
 # Install dev dependencies

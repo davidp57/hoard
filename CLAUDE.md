@@ -109,7 +109,7 @@ hoard/
 │   ├── copilot-instructions.md    # GitHub Copilot instructions (mirror of this file's rules)
 │   └── workflows/
 │       ├── ci.yml                 # Lint + tests on every push/PR
-│       └── docker-build.yml       # Build Docker image on main / tags
+│       └── docker-build.yml       # Build Docker image on main / develop / tags
 ├── pyproject.toml                 # pytest + ruff config
 ├── requirements-dev.txt           # Dev dependencies (fastapi, uvicorn, pytest, httpx, ruff)
 ├── Dockerfile
