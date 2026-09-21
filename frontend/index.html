@@ -7503,6 +7503,12 @@ let _gpNavRepeat = { btn: -1, start: 0, last: 0 }; // D-pad hold-to-repeat state
 const _GP_NAV_INITIAL_MS = 400; // delay before auto-repeat kicks in
 const _GP_NAV_REPEAT_MS  = 100; // interval between repeated moves (~10/s)
 const _GP_SCRUB_THROTTLE_MS = 100;
+// L2 and R2 are analogue triggers: `pressed` only flips past a threshold the
+// driver picks, often near the end of the travel. That was harmless while they
+// did nothing, but L2 carries the side-by-side toggle (BL-125) and R2 the whole
+// VR layer (BL-128), so they are read from `value` with a low threshold — a
+// quarter of the pull is a deliberate press by anyone's reckoning.
+const _GP_TRIGGER_THRESHOLD = 0.25;
 let _gpLastScrubTime = 0;
 
 function _gpDeadzone(v) {
@@ -7764,7 +7770,8 @@ function _gpPoll() {
       _gpPrevButtons[idx] = new Array(gp.buttons.length).fill(false);
     }
     const prev = _gpPrevButtons[idx];
-    const cur = gp.buttons.map(b => b.pressed);
+    const cur = gp.buttons.map((b, i) =>
+      (i === 6 || i === 7) ? (b.value > _GP_TRIGGER_THRESHOLD || b.pressed) : b.pressed);
 
     // Detect modifier buttons (L1=4, R1=5, and R2=7 for the VR layer, BL-128)
     const l1 = cur[4];
@@ -7773,7 +7780,10 @@ function _gpPoll() {
     // Update HUD
     const hud = document.getElementById('gp-hud');
     if (hud) {
-      const label = l1 && r1 ? 'L1+R1' : l1 ? 'L1' : r1 ? 'R1' : null;
+      // R2 belongs here too since BL-128 made it a layer: without it, a trigger
+      // that is not being read looks exactly like one that is.
+      const mods = [l1 && 'L1', r1 && 'R1', r2 && 'R2'].filter(Boolean);
+      const label = mods.length ? mods.join('+') : null;
       hud.textContent = label ? `🎮 ${label}` : '';
       hud.classList.toggle('visible', !!(label));
     }

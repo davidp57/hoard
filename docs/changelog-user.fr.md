@@ -84,6 +84,12 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ### Corrigé
 
+- **La couche R2 ne répondait pas sur la manette.** Maintenir R2 ne changeait
+  rien : le stick gauche continuait d'avancer dans la vidéo. R2 et L2 sont des
+  gâchettes progressives, et Hoard ne les considérait appuyées qu'écrasées à
+  fond. Un quart de course suffit maintenant. Le **badge en coin** affiche aussi
+  **R2**, pour que tu voies d'un coup d'œil que la couche est bien active.
+
 - **Le menu de la manette est enfin lisible en mode côte à côte.** Il s'affichait
   une seule fois, au milieu, donc à cheval sur la coupure entre les deux yeux :
   chacun n'en voyait que la moitié. Le menu **Select** et la carte des boutons
