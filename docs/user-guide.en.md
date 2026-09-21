@@ -230,11 +230,11 @@ While VR mode is on, dragging no longer seeks or changes the volume — it looks
 
 #### With XR glasses
 
-Side-by-side mode goes fullscreen on its own: that is the only display that makes sense inside glasses. The player controls disappear while it is on — drawn once across a picture about to be split in two, they would land half in each eye and read as nothing anywhere. Drive from the gamepad or the keyboard; leaving the mode brings everything back.
+Side-by-side mode goes fullscreen on its own: that is the only display that makes sense inside glasses. The player controls disappear while it is on — drawn once across a picture about to be split in two, they would land half in each eye and read as nothing anywhere. The player's own messages do stay: they are written once per eye, so they read in both. Drive from the gamepad or the keyboard; leaving the mode brings everything back.
 
 Two settings, depending on what your glasses do:
 
-- **Stretched picture or not** (**B** key, or the gamepad menu). Most XR glasses in 3D mode stretch each half back across the full width, which is the default here. If the picture looks squashed or stretched twice over vertically, this is the setting to flip — the effect is immediate.
+- **Stretched picture or not** (**B** key, **L2** on the pad, or the gamepad menu). **Hoard guesses it by default**, from the shape of the picture: to get 3D, glasses like the Viture Beast want an output twice as wide as usual — 3840×1080 — and on a picture that shape each half is already correctly proportioned, so nothing gets stretched. On an ordinary display each half is stretched back across the full width instead. Hoard announces what it guessed with a message as the mode comes on. If the picture still looks squashed or stretched twice over vertically, flip the setting — the effect is immediate, and your choice always wins over the guess. The shortcut cycles the three states: automatic, stretched, unstretched.
 - **Convergence** (gamepad menu). Leave it at zero: the two views are then exactly aligned, which is correct for a properly shot file. Only adjust it if one particular file tires your eyes.
 
 #### Recognition and memory
@@ -339,13 +339,14 @@ Hoard supports game controllers via the browser's **Gamepad API** (Xbox, PlaySta
 | Button | Base | + L1 | + R1 | + L1+R1 |
 |--------|------|------|------|---------|
 | **A** | Play / Pause | Subtitles | Move → Folder 1 | Jump to 0% |
-| **B** | Close player | — | Move → Folder 2 | — |
-| **X** | Toggle watched | Aspect ratio | Move → Folder 3 | Jump to 50% |
-| **Y** | Fullscreen | Jump to 0% | — | Jump to 100% |
+| **B** | Close player | — | Move → Folder 2 | Delete the current file |
+| **X** | Toggle watched | Aspect ratio | Move → Folder 3 | Move the current file |
+| **Y** | Fullscreen | Mark segment IN | Confirm segment OUT | Open the Export dialog |
 | **D-pad ←/→** | Seek medium | Seek long | Seek extra-long | — |
-| **D-pad ↑/↓** | Volume ±10% | Prev/next file | Jump to 25%/75% | — |
-| **Select** | Open Settings | — | — | — |
+| **D-pad ↑/↓** | Volume ±10% | Prev/next file | Jump to 25%/75% | ↓: Jump to 100% |
+| **Select** | Open the context menu | — | — | — |
 | **Start** | Show button map | — | — | — |
+| **L2** | Side-by-side layout: auto / stretched / not (VR mode) | — | — | — |
 | **L3** (stick click) | Mute / Unmute | — | — | — |
 | **R3** (stick click) | Cycle speed (0.5× → 1× → 1.5× → 2× → …) | — | — | — |
 | **Left stick X** | Analog scrubbing | — | — | — |
@@ -390,7 +391,9 @@ Hold **L1** or **R1** to access extra command layers. Holding both (L1+R1) activ
 
 ### Button Map Overlay
 
-Press **Start** (or the « Show button map » button in Settings) to display an overlay listing all actions per layer, dynamically updated with your configured seek durations.
+Press **Start** (or the « Show button map » button in Settings) to list every action, grouped by layer — the player, its three LB / RB / LB+RB layers, the browser and the sticks. Seek durations are the ones you configured, and quick folders appear under their real names.
+
+The list flows into as many columns as the screen is wide: one on a phone, four on a desktop screen, six on a very wide display. **D-pad ↑/↓** scrolls, **B** or **Start** closes.
 
 ### Dialogs and the Pad
 

@@ -662,6 +662,23 @@ def init_db():
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_progress_active ON progress(duration, position, path)"
         )
+        # One-shot migration (BL-125). 'vr_sbs_layout' gained an 'auto' default,
+        # which only applies when no explicit choice is stored. The settings form
+        # posts every field at once, so saving any unrelated setting wrote 'half'
+        # — the old default — into the table, and that row would now read as a
+        # deliberate choice and permanently suppress the guess. The setting was
+        # introduced by BL-122 earlier the same day, so no stored 'half' can be
+        # one. It runs once and leaves a marker: init_db() runs on every start,
+        # and without the marker this would eat a deliberate 'half' at each
+        # restart — which is the very thing the setting exists to let you pick.
+        # Remove this block, and the marker row, once every instance has started.
+        if not conn.execute(
+            "SELECT 1 FROM settings WHERE key = 'vr_sbs_layout_reset_done'"
+        ).fetchone():
+            conn.execute("DELETE FROM settings WHERE key = 'vr_sbs_layout' AND value = 'half'")
+            conn.execute(
+                "INSERT INTO settings (key, value) VALUES ('vr_sbs_layout_reset_done', '1')"
+            )
         conn.commit()
 
 
@@ -3451,7 +3468,7 @@ _SETTINGS_DEFAULTS: dict[str, str] = {
     "vr_fov": "90",
     "vr_convergence": "0",
     "vr_look_speed": "90",
-    "vr_sbs_layout": "half",
+    "vr_sbs_layout": "auto",
 }
 
 
@@ -3689,7 +3706,7 @@ def update_settings(body: SettingsPayload, request: Request):
         # Validated separately: this one is an enum, and an unknown value would
         # leave the player computing the wrong aspect with no way to notice.
         if body.vr_sbs_layout is not None:
-            if body.vr_sbs_layout not in ("half", "full"):
+            if body.vr_sbs_layout not in ("auto", "half", "full"):
                 raise HTTPException(status_code=422, detail="Invalid vr_sbs_layout")
             _write_setting(conn, "vr_sbs_layout", body.vr_sbs_layout)
 

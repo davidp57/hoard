@@ -235,11 +235,11 @@ Tant que le mode VR est actif, le glissement ne fait plus ni avance rapide ni r�
 
 #### Avec des lunettes XR
 
-Le mode côte à côte passe automatiquement en plein écran : c'est le seul affichage qui ait un sens dans des lunettes. Les commandes du lecteur disparaissent pendant ce temps — affichées une seule fois sur une image qui va être coupée en deux, elles tomberaient à moitié dans chaque œil et ne seraient lisibles nulle part. Pilote à la manette ou au clavier ; sortir du mode fait tout revenir.
+Le mode côte à côte passe automatiquement en plein écran : c'est le seul affichage qui ait un sens dans des lunettes. Les commandes du lecteur disparaissent pendant ce temps — affichées une seule fois sur une image qui va être coupée en deux, elles tomberaient à moitié dans chaque œil et ne seraient lisibles nulle part. Les messages du lecteur, eux, restent : ils sont écrits une fois par œil, donc lisibles des deux. Pilote à la manette ou au clavier ; sortir du mode fait tout revenir.
 
 Deux réglages selon ce que font tes lunettes :
 
-- **Image étirée ou non** (touche **B**, ou le menu de la manette). La plupart des lunettes XR en mode 3D réétirent chaque moitié sur toute la largeur : c'est le réglage par défaut. Si l'image te paraît écrasée ou étirée du double en hauteur, c'est ce réglage qu'il faut changer — l'effet se voit immédiatement.
+- **Image étirée ou non** (touche **B** au clavier, **L2** à la manette, ou le menu de la manette). **Par défaut Hoard le devine** à la forme de l'image : pour obtenir la 3D, des lunettes comme les Viture Beast demandent une sortie deux fois plus large que la normale — du 3840×1080 — et sur une image de cette forme chaque moitié est déjà aux bonnes proportions, donc rien n'est réétiré. Sur un affichage ordinaire, à l'inverse, chaque moitié est réétirée sur toute la largeur. Hoard annonce ce qu'il a deviné par un message au moment où le mode s'active. Si l'image te paraît quand même écrasée ou étirée du double en hauteur, change le réglage — l'effet se voit immédiatement, et ton choix l'emporte toujours sur la devinette. Le raccourci fait le tour des trois états : automatique, étirée, non étirée.
 - **Convergence** (menu de la manette). À laisser à zéro : les deux images sont alors rigoureusement alignées, ce qui est correct pour un fichier bien tourné. À n'ajuster que si un fichier particulier te fatigue les yeux.
 
 #### Reconnaissance et mémorisation
@@ -344,13 +344,14 @@ Hoard supporte les manettes de jeu via la **Gamepad API** du navigateur (Xbox, P
 | Bouton | Base | + L1 | + R1 | + L1+R1 |
 |--------|------|------|------|---------|
 | **A** | Lecture / Pause | Sous-titres | Déplacer → Dossier 1 | Aller à 0% |
-| **B** | Fermer le lecteur | — | Déplacer → Dossier 2 | — |
-| **X** | Marquer vu / non vu | Ratio image | Déplacer → Dossier 3 | Aller à 50% |
-| **Y** | Plein écran | Aller à 0% | — | Aller à 100% |
+| **B** | Fermer le lecteur | — | Déplacer → Dossier 2 | Supprimer le fichier courant |
+| **X** | Marquer vu / non vu | Ratio image | Déplacer → Dossier 3 | Déplacer le fichier courant |
+| **Y** | Plein écran | Marquer point IN (segment) | Confirmer segment OUT | Ouvrir la fenêtre Exporter |
 | **D-pad ←/→** | Seek moyen | Seek long | Seek très long | — |
-| **D-pad ↑/↓** | Volume ±10% | Fichier précédent/suivant | Aller à 25%/75% | — |
-| **Select** | Paramètres | — | — | — |
+| **D-pad ↑/↓** | Volume ±10% | Fichier précédent/suivant | Aller à 25%/75% | ↓ : Aller à 100% |
+| **Select** | Menu contextuel | — | — | — |
 | **Start** | Afficher la carte des boutons | — | — | — |
+| **L2** | Image côte à côte : auto / étirée / non (mode VR) | — | — | — |
 | **L3** (clic stick) | Muet / Son | — | — | — |
 | **R3** (clic stick) | Cycle vitesse (0,5× → 1× → 1,5× → 2× → …) | — | — | — |
 | **Stick gauche X** | Scrubbing analogique | — | — | — |
@@ -395,7 +396,9 @@ Maintenir **L1** ou **R1** active une couche de commandes supplémentaires. Les 
 
 ### Carte des boutons
 
-Appuie sur **Start** (ou le bouton « Afficher la carte des boutons » dans Paramètres) pour afficher un overlay listant toutes les actions disponibles par couche, mis à jour dynamiquement avec les durées de seek configurées.
+Appuie sur **Start** (ou le bouton « Afficher la carte des boutons » dans Paramètres) pour afficher la liste de toutes les actions, groupée par couche — le lecteur, ses trois couches LB / RB / LB+RB, le browser et les sticks. Les durées d'avance et de recul y sont celles que tu as réglées, et les dossiers rapides y portent leurs vrais noms.
+
+La liste se répartit en colonnes selon la largeur de l'écran : une seule sur téléphone, quatre sur un écran de bureau, six sur un affichage très large. **D-pad ↑/↓** fait défiler, **B** ou **Start** ferme.
 
 ### Fenêtres et manette
 

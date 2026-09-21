@@ -360,9 +360,16 @@
      about to be split between two eyes, so it lands half in each and reads as
      nothing. Hide them; the gamepad and keyboard still drive the player. */
   #video-container.vr-sbs #controls,
-  #video-container.vr-sbs #toast,
   #video-container.vr-sbs #vol-osd,
   #video-container.vr-sbs #mini-time { display: none !important; }
+  /* BL-125: side-by-side cuts the picture in two, so an overlay drawn once falls
+     half into each eye — which is why BL-120 hid them all. The toast is the one
+     that has to survive: it is how the player says what it just did, and the
+     layout guess is announced through it. It is drawn once per eye instead, each
+     copy centred in its own half. No size change needed: at 3840x1080 each half
+     is 1920 wide, so 13px reads exactly as it does on an ordinary screen. */
+  #video-container.vr-sbs #toast   { left: 25%; }
+  #video-container.vr-sbs #toast-r { left: 75%; display: block; }
 
   /* ── Player controls ── */
   #controls {
@@ -755,7 +762,7 @@
   .dl-job-retry { color: var(--accent); font-size: 14px; }
 
   /* ── Toast ── */
-  #toast {
+  #toast, #toast-r {
     position: absolute;
     bottom: 24px;
     left: 50%;
@@ -771,7 +778,9 @@
     z-index: 200;
     white-space: nowrap;
   }
-  #toast.show { transform: translateX(-50%) translateY(0); }
+  #toast.show, #toast-r.show { transform: translateX(-50%) translateY(0); }
+  /* The right-eye copy only exists in side-by-side. */
+  #toast-r { display: none; }
 
   /* ── Volume OSD ── */
   #vol-osd {
@@ -849,29 +858,42 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
-    padding: 20px 20px 16px;
+    gap: .62em;
+    padding: 1.54em 1.54em 1.23em;
     overflow-y: auto;
     width: 75vw;
+    min-width: min(94vw, 26em);
     max-width: 98vw;
     max-height: 90vh;
+    /* BL-126: one scale for the whole window, so every size below can be an em.
+       Pinned to today's 13px up to 1920px wide, then grows with the viewport —
+       a 3840x1080 headset display is twice as wide for the same height. */
+    font-size: clamp(13px, calc(6.5px + 0.339vw), 19.5px);
   }
   #gp-overlay h2 {
     color: var(--accent);
-    font-size: 15px;
-    margin: 0 0 4px 0;
+    font-size: 1.15em;
+    margin: 0 0 .31em 0;
     letter-spacing: .06em;
   }
-  /* Tab bar for controller layers */
-  .gp-tab-bar { display:flex; gap:4px; flex-wrap:wrap; width:100%; margin-bottom:4px; }
-  .gp-tab {
-    background: var(--surface2); border: 1px solid var(--border);
-    color: var(--text-dim); border-radius: 6px; padding: 4px 12px;
-    font-size: 11px; cursor: pointer; font-family: inherit;
+  /* BL-126: the button map is a text list laid out in columns. It used to be an SVG
+     drawing of a controller whose intrinsic 340px never grew, so its 9pt callouts
+     rendered at 5.7px whatever the screen. Columns fill the width instead of the
+     height, which is what a 32:9 display has to spare. */
+  #gp-overlay-body { width: 100%; columns: 21em; column-gap: 1.6em; }
+  .gp-help-group { break-inside: avoid; margin-bottom: .7em; }
+  .gp-help-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1em;
+    padding: .2em .6em;
+    border-radius: .4em;
   }
-  .gp-tab:hover { color: var(--text); border-color: var(--accent); }
-  .gp-tab.active { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 700; }
-  #gp-ctrl-container { width: 100%; display: flex; justify-content: center; align-items: center; }
+  .gp-help-row:nth-of-type(even) { background: var(--surface2); }
+  .gp-help-btn { color: var(--accent); font-weight: 700; white-space: nowrap; }
+  .gp-help-act { color: var(--text); text-align: right; }
+  .gp-help-foot { color: var(--text-dim); font-size: .77em; text-align: center; margin-top: .62em; }
   /* Pad context menu (BL-086) */
   #gp-menu {
     position: fixed;
@@ -889,32 +911,35 @@
     border-radius: 12px;
     display: flex;
     flex-direction: column;
-    padding: 16px 0 10px;
-    width: 380px;
+    padding: 1.23em 0 .77em;
+    /* BL-126: 380px was 19.8% of a 1920 screen but only 9.9% of a 3840 one, and
+       max-width never makes a box grow. Same scale as #gp-overlay-box below. */
+    width: clamp(380px, 19.79vw, 760px);
     max-width: 94vw;
     max-height: 86vh;
+    font-size: clamp(13px, calc(6.5px + 0.339vw), 19.5px);
   }
-  #gp-menu-items { overflow-y: auto; padding: 0 10px; }
+  #gp-menu-items { overflow-y: auto; padding: 0 .77em; }
   .gp-menu-section {
     color: var(--text-dim);
-    font-size: 10px;
+    font-size: .77em;
     letter-spacing: .08em;
     text-transform: uppercase;
-    padding: 10px 10px 4px;
+    padding: .77em .77em .31em;
   }
   .gp-menu-section:first-child { padding-top: 0; }
   .gp-menu-item {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    padding: 8px 10px;
-    border-radius: 7px;
-    font-size: 13px;
+    gap: .92em;
+    padding: .62em .77em;
+    border-radius: .54em;
+    font-size: 1em;
     color: var(--text);
     cursor: pointer;
   }
-  .gp-menu-item .gp-menu-value { color: var(--text-dim); font-size: 11px; }
+  .gp-menu-item .gp-menu-value { color: var(--text-dim); font-size: .85em; }
   .gp-menu-item.gp-cursor {
     background: var(--accent);
     color: #000;
@@ -923,15 +948,12 @@
   .gp-menu-item.gp-cursor .gp-menu-value { color: #000; }
   .gp-menu-hint {
     color: var(--text-dim);
-    font-size: 10px;
+    font-size: .77em;
     text-align: center;
-    padding: 10px 10px 0;
+    padding: .77em .77em 0;
     border-top: 1px solid var(--border);
-    margin: 8px 10px 0;
+    margin: .62em .77em 0;
   }
-  /* Analogue footer */
-  .gp-analog-row { font-size: 10px; color: var(--text-dim); display:flex; gap:12px; justify-content:center; margin-top:6px; }
-  .gp-analog-row span { background:var(--surface2); border:1px solid var(--border); border-radius:4px; padding:2px 8px; }
 
   /* ── Mobile ── */
   @media (max-width: 700px) {
@@ -1633,8 +1655,8 @@
         <div class="s-right"><input type="number" class="s-num" id="s-vr-look-speed" min="10" max="360" step="10"> <span style="font-size:12px;color:var(--text-dim)">°/s</span></div>
       </div>
       <div class="s-row">
-        <div><div class="s-label">Image VR côte à côte</div><div class="s-desc">La plupart des lunettes XR en mode 3D réétirent chaque moitié sur toute la largeur. Si l'image paraît écrasée ou étirée du double, change ce réglage (touche B pendant la lecture).</div></div>
-        <div class="s-right"><select class="s-num" id="s-vr-sbs-layout" style="width:auto"><option value="half">Étirée (lunettes XR)</option><option value="full">Non étirée</option></select></div>
+        <div><div class="s-label">Image VR côte à côte</div><div class="s-desc">Automatique déduit la disposition de la forme de l'image : un affichage deux fois plus large que la normale (3840×1080) n'étire pas, un affichage ordinaire étire. Ne change ce réglage que si l'image paraît écrasée ou étirée du double — au clavier touche <b>B</b>, à la manette <b>L2</b> pendant la lecture.</div></div>
+        <div class="s-right"><select class="s-num" id="s-vr-sbs-layout" style="width:auto"><option value="auto">Automatique</option><option value="half">Étirée (lunettes XR)</option><option value="full">Non étirée</option></select></div>
       </div>
       <div class="s-row">
         <div><div class="s-label">Convergence VR</div><div class="s-desc">Écart entre les deux yeux. À laisser à 0 : un fichier bien tourné n'en a pas besoin.</div></div>
@@ -1851,6 +1873,7 @@
     <div id="video-container">
       <canvas id="vr-canvas"></canvas>
       <div id="toast"></div>
+      <div id="toast-r"></div>
       <div id="vol-osd">
         <span id="vol-osd-icon">🔊</span>
         <div id="vol-osd-bar-track"><div id="vol-osd-bar-fill" style="width:100%"></div></div>
@@ -2241,7 +2264,8 @@
   <div id="gp-overlay-box">
     <h2>🎮 Manette — Actions</h2>
     <div id="gp-overlay-body"></div>
-    <button onclick="closeGpOverlay()" style="margin-top:14px;background:var(--surface2);border:1px solid var(--border);color:var(--text-mid);font-size:13px;cursor:pointer;padding:8px 20px;border-radius:8px;font-family:inherit">Fermer</button>
+    <div class="gp-help-foot">D-pad &#8597; faire défiler &middot; B ou Start fermer</div>
+    <button onclick="closeGpOverlay()" style="margin-top:1.08em;background:var(--surface2);border:1px solid var(--border);color:var(--text-mid);font-size:1em;cursor:pointer;padding:.62em 1.54em;border-radius:.62em;font-family:inherit">Fermer</button>
   </div>
 </div>
 
@@ -2340,7 +2364,7 @@ let cfg = {
   vr_fov: 90,
   vr_convergence: 0,
   vr_look_speed: 90,
-  vr_sbs_layout: 'half',
+  vr_sbs_layout: 'auto',
 };
 
 function applyCfg(s) {
@@ -2391,7 +2415,7 @@ function applyCfg(s) {
   cfg.vr_fov         = parseInt(s.vr_fov ?? 90, 10);
   cfg.vr_convergence = parseFloat(s.vr_convergence ?? 0);
   cfg.vr_look_speed  = parseInt(s.vr_look_speed ?? 90, 10);
-  cfg.vr_sbs_layout  = s.vr_sbs_layout === 'full' ? 'full' : 'half';
+  cfg.vr_sbs_layout  = ['auto', 'half', 'full'].includes(s.vr_sbs_layout) ? s.vr_sbs_layout : 'auto';
   // propagate navigation prefs
   homeFolder = cfg.home_folder;
   sortBy     = cfg.sort_by;
@@ -5553,8 +5577,19 @@ const VR_MODES = ['off', 'flat', 'sbs'];
 //           canvas. Computing the fov from the half-width buffer instead would
 //           squash everything by a factor of two.
 //  'full' — the halves are shown unstretched, side by side.
-// 'half' is the default because that is what the 3D mode of XR glasses expects.
-const VR_SBS_LAYOUTS = ['half', 'full'];
+//  'auto' — the default (BL-125): deduce it from the canvas shape, see
+//           vrResolvedSbsLayout(). An explicit half/full always wins.
+const VR_SBS_LAYOUTS = ['auto', 'half', 'full'];
+
+// BL-125: what each eye ends up perceiving decides the layout, and the canvas
+// shape says which one is in play. With 'half' the display stretches each half
+// back to full width, so the perceived shape is the WHOLE canvas; with 'full'
+// it is one half, i.e. half the ratio. A perceived shape has to be screen-like
+// — roughly 4:3 to 21:9, so 1.3 to 2.1. That puts a normal canvas (16:9 = 1.78)
+// on the 'half' side and a doubled one (32:9 = 3.56, what the Viture Beast need
+// for their 3D mode) on the 'full' side, each far from the boundary. 2.4 sits
+// between the two admissible bands and belongs to neither.
+const VR_SBS_AUTO_RATIO = 2.4;
 const VR_CONVERGENCE_MAX = 3;      // degrees; beyond this the eyes stop fusing
 const VR_CONVERGENCE_STEP = 0.5;
 
@@ -5562,7 +5597,8 @@ const vr = {
   mode: 'off', yaw: 0, pitch: 0, fov: 90,
   gl: null, prog: null, tex: null, u: {}, raf: 0, ro: null,
   vfc: 0, pumpGen: 0, lastPollTs: 0, failed: false, lostHooked: false,
-  sbsLayout: 'half', convergence: 0,
+  sbsLayout: 'auto', convergence: 0,
+  autoAnnounced: null,   // last layout the guess announced, so it says it once
   armed: false,      // this file looks like VR, the mode is one press away
   blocked: false,    // transcoded stream: deprojecting it is refused
 };
@@ -5673,6 +5709,14 @@ function _vrSyncCanvasBox() {
   cv.style.height = video.offsetHeight + 'px';
 }
 
+// The layout actually in force: an explicit choice, or the guess when the
+// setting is 'auto'. Measured on the canvas and not on the screen — windowed, or
+// with a browser bar, the two differ, and it is the canvas the eyes see.
+function vrResolvedSbsLayout(w, h) {
+  if (vr.sbsLayout === 'half' || vr.sbsLayout === 'full') return vr.sbsLayout;
+  return (h > 0 && w / h >= VR_SBS_AUTO_RATIO) ? 'full' : 'half';
+}
+
 function _vrRender() {
   if (!vrIsActive() || !vr.gl) return;
   const gl = vr.gl, cv = gl.canvas;
@@ -5698,7 +5742,17 @@ function _vrRender() {
 
   // Perceived width: with 'half' each eye's picture is stretched back to full
   // width by the display, so it is the whole canvas that sets the shape.
-  const perceivedW = !sbs ? w : (vr.sbsLayout === 'half' ? w : w / 2);
+  const layout = vrResolvedSbsLayout(w, h);
+  const perceivedW = !sbs ? w : (layout === 'half' ? w : w / 2);
+  // BL-125: announced from here and not from setVrMode, because entering
+  // side-by-side also enters fullscreen — the canvas has not taken its final
+  // shape yet when the mode changes, and the shape is what the guess reads.
+  // Re-announced if it ever crosses the threshold, which is the only case where
+  // the picture changes under the user without them touching anything.
+  if (sbs && vr.sbsLayout === 'auto' && vr.autoAnnounced !== layout) {
+    vr.autoAnnounced = layout;
+    showToast(vrSbsLayoutLabel());
+  }
   const tanVMax = Math.tan(VR_MAX_VFOV * Math.PI / 360);
 
   gl.clearColor(0, 0, 0, 1);
@@ -5734,13 +5788,23 @@ function vrRecenter() {
   showToast('🥽 recentré');
 }
 
-// Which of the two the display wants cannot be guessed from here — it depends
-// on how the glasses consume the signal — but the wrong one is obvious on
-// sight: the picture is squashed or stretched by a factor of two.
+// Says the layout in force, and says when it was guessed: 'auto' renders the
+// same as one of the two explicit values, so without naming the state the user
+// could not tell which of the three they are in.
+function vrSbsLayoutLabel() {
+  const cv = vr.gl?.canvas;
+  const eff = vrResolvedSbsLayout(cv?.width ?? 0, cv?.height ?? 0);
+  const shape = eff === 'half' ? 'étirée (lunettes XR)' : 'non étirée';
+  return vr.sbsLayout === 'auto' ? `🥽 SBS auto : ${shape}` : `🥽 SBS ${shape}`;
+}
+
+// Three states, not two (BL-125): the cycle has to come back to 'auto', which is
+// the only way to undo a manual override without going through the settings.
 function cycleVrSbsLayout() {
   const i = VR_SBS_LAYOUTS.indexOf(vr.sbsLayout);
   vr.sbsLayout = VR_SBS_LAYOUTS[(i + 1) % VR_SBS_LAYOUTS.length];
-  showToast(vr.sbsLayout === 'half' ? '🥽 SBS étiré (lunettes XR)' : '🥽 SBS non étiré');
+  vr.autoAnnounced = vrResolvedSbsLayout(vr.gl?.canvas?.width ?? 0, vr.gl?.canvas?.height ?? 0);
+  showToast(vrSbsLayoutLabel());
 }
 
 function vrAdjustConvergence(deltaDeg) {
@@ -5765,6 +5829,7 @@ function setVrMode(mode) {
 
   const was = vr.mode;
   vr.mode = mode;
+  if (mode !== 'sbs') vr.autoAnnounced = null;   // so re-entering says it again
   const btn = document.getElementById('vr-btn');
   if (mode === 'off') {
     cancelAnimationFrame(vr.raf); vr.raf = 0;
@@ -5780,7 +5845,7 @@ function setVrMode(mode) {
   // comparison, and losing the framing each time would make it useless.
   if (was === 'off') {
     vr.yaw = 0; vr.pitch = 0; vr.fov = vrDefaultFov();
-    vr.sbsLayout = cfg.vr_sbs_layout || 'half';
+    vr.sbsLayout = cfg.vr_sbs_layout || 'auto';
     vr.convergence = cfg.vr_convergence || 0;
   }
   canvas.classList.add('active');
@@ -6655,11 +6720,16 @@ function jsStr(val) {
 
 let toastTimer;
 function showToast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
+  // Two nodes, one per eye (BL-125). Only the left one is visible outside
+  // side-by-side; the CSS decides, this just keeps them in step.
+  const els = [document.getElementById('toast'), document.getElementById('toast-r')];
+  for (const t of els) {
+    if (!t) continue;
+    t.textContent = msg;
+    t.classList.add('show');
+  }
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
+  toastTimer = setTimeout(() => { for (const t of els) t?.classList.remove('show'); }, 2500);
 }
 
 // One-shot touch gesture discovery overlay (BL-038). Shown the first time the
@@ -7085,7 +7155,14 @@ function _gpMenuBuildPlayer() {
   if (vrIsActive()) {
     items.push({
       label: '🥽 Image côte à côte',
-      value: vr.sbsLayout === 'half' ? 'étirée (lunettes XR)' : 'non étirée',
+      // Shows what is in force, and marks it as guessed when it is: the menu is
+      // the one place the state is readable without waiting for a toast.
+      value: (() => {
+        const cv = vr.gl?.canvas;
+        const eff = vrResolvedSbsLayout(cv?.width ?? 0, cv?.height ?? 0);
+        const shape = eff === 'half' ? 'étirée (lunettes XR)' : 'non étirée';
+        return vr.sbsLayout === 'auto' ? `auto : ${shape}` : shape;
+      })(),
       run: () => cycleVrSbsLayout(),
     });
     items.push({
@@ -7247,6 +7324,7 @@ const GP_DEFAULT_MAPPING = {
     9: 'open_overlay',      // Start
     10: 'mute',             // L3
     11: 'speed_cycle',      // R3
+    6: 'vr_sbs_layout',    // L2 — free in every layer; B is "cancel" everywhere
     12: 'seek_back_medium', // D-pad Up  (volume up / base: seek back medium)
     13: 'seek_fwd_medium',  // D-pad Down
     14: 'seek_back_medium', // D-pad Left
@@ -7324,7 +7402,6 @@ let _gpNavRepeat = { btn: -1, start: 0, last: 0 }; // D-pad hold-to-repeat state
 const _GP_NAV_INITIAL_MS = 400; // delay before auto-repeat kicks in
 const _GP_NAV_REPEAT_MS  = 100; // interval between repeated moves (~10/s)
 const _GP_SCRUB_THROTTLE_MS = 100;
-let _gpOverlayRerenderFn = null; // set while overlay open: (lb: bool, rb: bool) => void
 let _gpLastScrubTime = 0;
 
 function _gpDeadzone(v) {
@@ -7358,6 +7435,14 @@ function _gpAction(action, gamepad) {
       break;
     case 'speed_cycle':
       if (hasVideo) { cycleSpeed(1); _gpVibrate(gamepad, 40); }
+      break;
+    // BL-125: the layout toggle had no pad shortcut at all — only keyboard B,
+    // which a Steam Deck does not have, and that is the machine this is for.
+    // Gated on vrIsActive() and not on sbs, same as the keyboard: setVrMode only
+    // resets the layout when coming from 'off', so setting it in flat mode and
+    // then switching to side-by-side is a real way to work.
+    case 'vr_sbs_layout':
+      if (hasVideo && vrIsActive()) { cycleVrSbsLayout(); _gpVibrate(gamepad, 40); }
       break;
     case 'fullscreen':
       if (hasVideo) { toggleFullscreen(); }
@@ -7563,7 +7648,6 @@ function _gpPoll() {
   if (!cfg.gamepad_enabled) { _gpStopPolling(); return; }
 
   const gamepads = navigator.getGamepads();
-  let _ovLb = false, _ovRb = false; // cumulative LB/RB across all gamepads for overlay
   for (const gp of gamepads) {
     if (!gp) continue;
     const idx = gp.index;
@@ -7578,9 +7662,6 @@ function _gpPoll() {
     // Detect modifier buttons (L1=4, R1=5)
     const l1 = cur[4];
     const r1 = cur[5];
-    _ovLb = _ovLb || l1;
-    _ovRb = _ovRb || r1;
-
     // Update HUD
     const hud = document.getElementById('gp-hud');
     if (hud) {
@@ -7688,7 +7769,6 @@ function _gpPoll() {
     }
   }
 
-  if (_gpOverlayRerenderFn) _gpOverlayRerenderFn(_ovLb, _ovRb);
   _gpPollId = requestAnimationFrame(_gpPoll);
 }
 
@@ -7923,9 +8003,14 @@ function _gpHandleSettings(btnIdx, gp) {
 }
 
 function _gpDispatch(btnIdx, l1, r1, gp) {
-  // 1. Gamepad overlay open → only allow closing
+  // 1. Gamepad overlay open → closing, plus D-pad scrolling: BL-126 turned the
+  // drawing into a list that can outgrow the box on a narrow screen, and the pad
+  // had no way to reach what fell below the fold.
   if (document.getElementById('gp-overlay').classList.contains('open')) {
-    if (btnIdx === 1 || btnIdx === 9) closeGpOverlay(); // B or Start
+    if (btnIdx === 1 || btnIdx === 9) { closeGpOverlay(); return; } // B or Start
+    const box = document.getElementById('gp-overlay-box');
+    if (btnIdx === 12) box.scrollBy({ top: -120, behavior: 'smooth' });
+    else if (btnIdx === 13) box.scrollBy({ top: 120, behavior: 'smooth' });
     return;
   }
 
@@ -8040,105 +8125,36 @@ function _gpOverlayBackdropClose(e) {
   if (e.target === document.getElementById('gp-overlay')) closeGpOverlay();
 }
 
-// Generates an Xbox-style controller SVG with callout labels for the given button→action map.
-// lbAct / rbAct: true when the LB / RB shift key is physically held.
-function _gpRenderCtrl(map, AL, lbAct = false, rbAct = false) {
-  const lbl = idx => {
-    const k = map[idx];
-    if (!k) return '';
-    const t = AL[k] ?? k;
-    return t.length > 20 ? t.slice(0, 19) + '\u2026' : t;
-  };
-  const circ = (cx, cy, r, fill, sym, sf = '#fff') =>
-    `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${fill}" stroke="#3a3a4a" stroke-width="1.5"/>` +
-    `<text x="${cx}" y="${cy}" font-size="${r > 11 ? 9 : 7}" fill="${sf}" text-anchor="middle" dominant-baseline="middle" font-weight="700">${esc(sym)}</text>`;
-  const wire = (bx, by, lx, ly, txt, side) => {
-    if (!txt) return '';
-    const anchor = side === 'L' ? 'end' : 'start';
-    const tx = side === 'L' ? lx - 3 : lx + 3;
-    return `<line x1="${bx}" y1="${by}" x2="${lx}" y2="${ly}" stroke="#4a4a5e" stroke-width="0.8"/>` +
-           `<text x="${tx}" y="${ly}" font-size="9" fill="#b8b8cc" text-anchor="${anchor}" dominant-baseline="middle">${esc(txt)}</text>`;
-  };
-  // Bumper rendering: "resting" has an amber outline to hint it's a shift key;
-  // "pressed" flips to bright gold fill + inset (y+2, height-2) to simulate a pressed button.
-  const bumper = (x, act, label) => {
-    const fill   = act ? '#c0960a' : '#16140a';
-    const stroke = act ? '#ffd600' : '#9a7a00';
-    const sw     = act ? 2.5       : 1.5;
-    const y      = act ? 22        : 20;
-    const h      = act ? 9         : 13;
-    const tf     = act ? '#000'    : '#9a7a00';
-    return `<rect x="${x}" y="${y}" width="52" height="${h}" rx="5" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>` +
-           `<text x="${x + 26}" y="${y + h / 2}" font-size="8" fill="${tf}" text-anchor="middle" dominant-baseline="middle" pointer-events="none">${label}</text>`;
-  };
-  return `<svg viewBox="0 0 540 222" style="display:block;max-width:100%;max-height:65vh;width:auto;height:auto;margin:0 auto">
-    <!-- Controller body (Xbox-style silhouette) -->
-    <path d="M 185,47 C 150,40 112,68 106,104 C 100,136 108,168 122,190
-             C 135,208 157,216 180,206 C 198,198 212,186 215,178
-             L 325,178 C 328,186 342,198 360,206
-             C 383,216 405,208 418,190
-             C 432,168 440,136 434,104 C 428,68 390,40 355,47
-             C 334,22 306,12 270,12 C 234,12 206,22 185,47 Z"
-      fill="#15152a" stroke="#44445a" stroke-width="2"/>
-    <!-- LB / RB bumpers (shift keys — highlighted when physically held) -->
-    ${bumper(118, lbAct, 'LB')}
-    ${bumper(370, rbAct, 'RB')}
-    <!-- Left stick -->
-    <circle cx="190" cy="124" r="21" fill="#20203c" stroke="#555" stroke-width="1.5"/>
-    <circle cx="190" cy="124" r="13" fill="#181830" stroke="#444" stroke-width="1"/>
-    <!-- Right stick -->
-    <circle cx="318" cy="153" r="21" fill="#20203c" stroke="#555" stroke-width="1.5"/>
-    <circle cx="318" cy="153" r="13" fill="#181830" stroke="#444" stroke-width="1"/>
-    <!-- D-pad -->
-    <rect x="124" y="147" width="16" height="36" rx="3" fill="#2a2a44" stroke="#444"/>
-    <rect x="108" y="158" width="46" height="14" rx="3" fill="#2a2a44" stroke="#444"/>
-    <text x="132" y="151" font-size="9" fill="#666" text-anchor="middle" dominant-baseline="middle">▲</text>
-    <text x="132" y="179" font-size="9" fill="#666" text-anchor="middle" dominant-baseline="middle">▼</text>
-    <text x="113" y="165" font-size="9" fill="#666" text-anchor="middle" dominant-baseline="middle">◀</text>
-    <text x="151" y="165" font-size="9" fill="#666" text-anchor="middle" dominant-baseline="middle">▶</text>
-    <!-- View / Menu small buttons -->
-    ${circ(220, 114, 10, '#22223c', '\u229e', '#777')}
-    ${circ(300, 114, 10, '#22223c', '\u2261', '#777')}
-    <!-- Xbox guide (decorative) -->
-    <circle cx="260" cy="106" r="15" fill="#0e0e20" stroke="#444" stroke-width="2"/>
-    <circle cx="260" cy="106" r="9" fill="#161628" stroke="#333"/>
-    <!-- Face buttons -->
-    ${circ(357, 145, 14, '#1a4820', 'A')}
-    ${circ(382, 121, 14, '#4a1c1c', 'B')}
-    ${circ(332, 121, 14, '#1c1c4a', 'X')}
-    ${circ(357, 97,  14, '#4a3c00', 'Y', '#ffd600')}
-    <!-- Callouts — Left (text at x=102, anchor=end) -->
-    ${wire(118, 26, 102, 26,  lbl(4),  'L')}
-    ${wire(210, 114, 102, 76,  lbl(8),  'L')}
-    ${wire(132, 147, 102, 112, lbl(12), 'L')}
-    ${wire(108, 165, 102, 130, lbl(14), 'L')}
-    ${wire(132, 183, 102, 148, lbl(13), 'L')}
-    ${wire(154, 165, 102, 166, lbl(15), 'L')}
-    <!-- Callouts — Right (text at x=438, anchor=start) -->
-    ${wire(422, 26,  438, 26,  lbl(5), 'R')}
-    ${wire(310, 114, 438, 76,  lbl(9), 'R')}
-    ${wire(371, 97,  438, 97,  lbl(3), 'R')}
-    ${wire(346, 121, 438, 114, lbl(2), 'R')}
-    ${wire(396, 121, 438, 131, lbl(1), 'R')}
-    ${wire(371, 145, 438, 148, lbl(0), 'R')}
-  </svg>`;
-}
+// BL-126: the button map is a text list. It used to be an SVG drawing of a controller
+// whose intrinsic width (340px) never grew, so its 9pt callouts rendered at 5.7px
+// whatever the screen — and it could only ever show one layer, the one whose shift
+// key was physically held. Every layer is now listed at once, in flowing columns.
+// Buttons are named L1/R1 rather than the drawing's LB/RB: that is what the layer
+// HUD badge shows and what the user guide's tables use.
+const GP_BTN_NAMES = {
+  0: 'A', 1: 'B', 2: 'X', 3: 'Y', 4: 'L1', 5: 'R1', 6: 'L2', 7: 'R2',
+  8: 'Select', 9: 'Start', 10: 'L3', 11: 'R3',
+  12: 'D-pad ↑', 13: 'D-pad ↓', 14: 'D-pad ←', 15: 'D-pad →',
+};
+
 function openGpOverlay() {
   const body = document.getElementById('gp-overlay-body');
   // Read from the single source of truth: this help used to carry its own copy of the
   // browser layer, which is how it kept describing buttons that no longer did that.
-  const browserMap = GP_BROWSER_MAPPING;
-  let ctx = 'player';
-  let prevLb = null, prevRb = null;
+  // Labels are stored raw and escaped once at render time — escaping at both ends
+  // turned an "&" in a quick-folder name into "&amp;amp;".
   const AL = {
     play_pause: 'Lecture / Pause',
     close_player: 'Fermer le lecteur',
     toggle_watched: 'Marquer vu / non vu',
-  open_menu: 'Menu contextuel',
+    open_menu: 'Menu contextuel',
     fullscreen: 'Plein écran',
     open_settings: 'Paramètres',
-    open_overlay: 'Overlay manette',
+    open_overlay: 'Aide manette (cette fenêtre)',
     open_shortcuts: 'Aide raccourcis clavier',
+    mute: 'Couper le son',
+    speed_cycle: 'Vitesse de lecture',
+    vr_sbs_layout: 'Image côte à côte (auto / étirée / non)',
     seek_back_medium: `Reculer ${cfg.seek_medium}s`,
     seek_fwd_medium: `Avancer ${cfg.seek_medium}s`,
     seek_back_long: `Reculer ${cfg.seek_long}s`,
@@ -8156,9 +8172,9 @@ function openGpOverlay() {
     jump_100: 'Aller à 100%',
     aspect_ratio: 'Ratio image',
     subtitles: 'Sous-titres',
-    move_quick_1: `Déplacer → ${esc(quickFolders[0]?.name ?? 'Dossier 1')}`,
-    move_quick_2: `Déplacer → ${esc(quickFolders[1]?.name ?? 'Dossier 2')}`,
-    move_quick_3: `Déplacer → ${esc(quickFolders[2]?.name ?? 'Dossier 3')}`,
+    move_quick_1: `Déplacer → ${quickFolders[0]?.name ?? 'Dossier 1'}`,
+    move_quick_2: `Déplacer → ${quickFolders[1]?.name ?? 'Dossier 2'}`,
+    move_quick_3: `Déplacer → ${quickFolders[2]?.name ?? 'Dossier 3'}`,
     delete_current: 'Supprimer le fichier courant',
     move_current: 'Déplacer le fichier courant',
     seg_in: 'Marquer point IN (segment)',
@@ -8170,60 +8186,44 @@ function openGpOverlay() {
     nav_back: 'Dossier parent',
   };
 
-  const resolveMap = (lb, rb) => {
-    if (ctx === 'browser') return browserMap;
-    const base = { ...GP_DEFAULT_MAPPING.base, ...GP_DEFAULT_MAPPING.player_base };
-    if (lb && rb) return { ...base, ...GP_DEFAULT_MAPPING.lr };
-    if (lb)       return { ...base, ...GP_DEFAULT_MAPPING.l1 };
-    if (rb)       return { ...base, ...GP_DEFAULT_MAPPING.r1 };
-    return base;
-  };
+  const row = (btn, act) =>
+    `<div class="gp-help-row"><span class="gp-help-btn">${esc(btn)}</span>` +
+    `<span class="gp-help-act">${esc(act)}</span></div>`;
 
-  const renderSvg = (lb, rb) => {
-    const c = document.getElementById('gp-ctrl-container');
-    if (c) c.innerHTML = _gpRenderCtrl(resolveMap(lb, rb), AL,
-      lb && ctx === 'player', rb && ctx === 'player');
-  };
+  const group = (title, rows) => rows
+    ? `<div class="gp-help-group"><div class="gp-menu-section">${esc(title)}</div>${rows}</div>`
+    : '';
 
-  const rebuildBody = () => {
-    const ctxTabs = ['player', 'browser'].map(k =>
-      `<button class="gp-tab${k === ctx ? ' active' : ''}" data-ctx="${k}">${k === 'player' ? '🎮 Joueur' : '📁 Browser'}</button>`
-    ).join('');
-    const hint = ctx === 'player'
-      ? `<div style="font-size:10px;color:var(--text-dim);text-align:center;margin-bottom:2px">Maintenez <b style="color:#ffd600">LB</b> / <b style="color:#ffd600">RB</b> sur la manette pour voir les raccourcis de chaque couche</div>`
-      : '';
-    const analog = ctx === 'player'
-      ? `<div class="gp-analog-row"><span>LS-X → seek</span><span>RS-Y → volume</span></div>`
-      : '';
-    body.innerHTML = `<div class="gp-tab-bar">${ctxTabs}</div>${hint}<div id="gp-ctrl-container"></div>${analog}`;
-    prevLb = null; prevRb = null;
-    renderSvg(false, false);
-  };
+  const layer = (title, map) => group(title, Object.keys(GP_BTN_NAMES)
+    .map(Number)
+    .filter(i => map[i])
+    .map(i => row(GP_BTN_NAMES[i], AL[map[i]] ?? map[i]))
+    .join(''));
 
-  rebuildBody();
+  // The base player layer is what _gpDispatch resolves: player_base over base.
+  const playerBase = { ...GP_DEFAULT_MAPPING.base, ...GP_DEFAULT_MAPPING.player_base };
 
-  const handler = e => {
-    const tab = e.target.closest('[data-ctx]');
-    if (!tab) return;
-    ctx = tab.dataset.ctx;
-    rebuildBody();
-  };
-  if (body._gpTabHandler) body.removeEventListener('click', body._gpTabHandler);
-  body._gpTabHandler = handler;
-  body.addEventListener('click', handler);
+  // Sticks follow the swap setting, which the old drawing's fixed footer ignored.
+  const swap = !!cfg.gamepad_swap_sticks;
+  const sticks = [
+    [swap ? 'Stick droit ↔' : 'Stick gauche ↔', 'Avance / recul'],
+    [swap ? 'Stick gauche ↕' : 'Stick droit ↕', 'Volume (lecture)'],
+    ['Stick gauche ↕', 'Curseur (browser)'],
+    ['Stick droit', 'Regarder autour (mode VR)'],
+  ];
 
-  // Live update: re-render SVG when LB/RB physical state changes
-  _gpOverlayRerenderFn = (lb, rb) => {
-    if (lb === prevLb && rb === prevRb) return;
-    prevLb = lb; prevRb = rb;
-    renderSvg(lb, rb);
-  };
+  body.innerHTML =
+    layer('Lecteur', playerBase) +
+    layer('Lecteur + L1', GP_DEFAULT_MAPPING.l1) +
+    layer('Lecteur + R1', GP_DEFAULT_MAPPING.r1) +
+    layer('Lecteur + L1 + R1', GP_DEFAULT_MAPPING.lr) +
+    layer('Browser', GP_BROWSER_MAPPING) +
+    group('Sticks', sticks.map(([b, a]) => row(b, a)).join(''));
 
   document.getElementById('gp-overlay').classList.add('open');
 }
 
 function closeGpOverlay() {
-  _gpOverlayRerenderFn = null;
   document.getElementById('gp-overlay').classList.remove('open');
 }
 

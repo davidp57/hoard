@@ -4057,7 +4057,7 @@ class TestVrSettings:
         assert s["vr_fov"] == "90"
         assert s["vr_look_speed"] == "90"
         assert s["vr_convergence"] == "0"
-        assert s["vr_sbs_layout"] == "half"
+        assert s["vr_sbs_layout"] == "auto"
 
     def test_written_and_read_back(self):
         resp = client.post(
@@ -4102,6 +4102,65 @@ class TestVrSettings:
     def test_unknown_layout_rejected(self):
         """An unknown value would silently make the player compute the wrong aspect."""
         assert client.post("/api/settings", json={"vr_sbs_layout": "sideways"}).status_code == 422
+        assert client.get("/api/settings").json()["vr_sbs_layout"] == "auto"
+
+    def test_startup_drops_the_stale_half_row(self):
+        """The one-shot migration BL-125 rests on.
+
+        'half' was the old default, and the settings form posts every field at
+        once — so saving any unrelated setting wrote it into the table. Left
+        there, it would read as a deliberate choice and suppress the guess for
+        good. init_db() removes exactly that row, and nothing else.
+        """
+        import backend.main as _main
+
+        with _main.get_db() as conn:
+            _main._write_setting(conn, "vr_sbs_layout", "half")
+            _main._write_setting(conn, "vr_fov", "75")
+            conn.commit()
+
+        _main.init_db()
+
+        s = client.get("/api/settings").json()
+        assert s["vr_sbs_layout"] == "auto"
+        assert s["vr_fov"] == "75", "the migration must touch nothing else"
+
+    def test_startup_keeps_an_explicit_full(self):
+        """Only 'half' was ever written by accident; 'full' is always a choice."""
+        import backend.main as _main
+
+        with _main.get_db() as conn:
+            _main._write_setting(conn, "vr_sbs_layout", "full")
+            conn.commit()
+
+        _main.init_db()
+
+        assert client.get("/api/settings").json()["vr_sbs_layout"] == "full"
+
+    def test_explicit_layouts_are_all_accepted(self):
+        """'auto' joins the enum (BL-125) without unseating the two explicit ones."""
+        for value in ("auto", "half", "full"):
+            assert client.post("/api/settings", json={"vr_sbs_layout": value}).status_code == 200
+            assert client.get("/api/settings").json()["vr_sbs_layout"] == value
+
+    def test_an_explicit_half_survives_a_restart(self):
+        """The migration is a one-shot, and this is what makes it one.
+
+        init_db() runs on every start. Without a marker the DELETE would fire
+        again each time and eat a deliberate 'half' at every restart — the very
+        choice the setting exists to allow. So: migrate, then choose 'half', then
+        restart, and it must still be there.
+        """
+        import backend.main as _main
+
+        with _main.get_db() as conn:
+            _main._write_setting(conn, "vr_sbs_layout", "half")
+            conn.commit()
+        _main.init_db()
+        assert client.get("/api/settings").json()["vr_sbs_layout"] == "auto"
+
+        assert client.post("/api/settings", json={"vr_sbs_layout": "half"}).status_code == 200
+        _main.init_db()
         assert client.get("/api/settings").json()["vr_sbs_layout"] == "half"
 
     def test_a_rejected_layout_writes_nothing_at_all(self):
@@ -4114,7 +4173,7 @@ class TestVrSettings:
         assert resp.status_code == 422
         after = client.get("/api/settings").json()
         assert after["watched_threshold"] == before
-        assert after["vr_sbs_layout"] == "half"
+        assert after["vr_sbs_layout"] == "auto"
 
 
 # ── Bookmarklet download token (BL-124) ───────────────────────────────────────

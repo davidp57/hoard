@@ -1,7 +1,7 @@
 # Lot FIX-XR-DISPLAY — Hoard utilisable sur lunettes XR en 3840×1080
 
-Status: ⬜ ready
-Branch: `fix/xr-display` (à créer)
+Status: 🧑 waiting-human
+Branch: `fix/xr-display`
 
 ## Problem Statement
 
@@ -75,8 +75,8 @@ le correctif ne doit pas dégrader les résolutions ordinaires ni le mobile.
 
 | # | Ticket | Dépend de | Statut |
 |---|---|---|---|
-| 01 | [BL-126](tickets/01-ui-resolution.md) — Fenêtres manette à l'échelle de l'écran | — | ⬜ |
-| 02 | [BL-125](tickets/02-ratio-sbs.md) — Deviner la disposition côte à côte | **BL-126** | ⬜ |
+| 01 | [BL-126](tickets/01-ui-resolution.md) — Fenêtres manette à l'échelle de l'écran | — | ✅ |
+| 02 | [BL-125](tickets/02-ratio-sbs.md) — Deviner la disposition côte à côte | **BL-126** | ✅ |
 
 **BL-126 bloque BL-125**, et ce n'était pas prévu : les deux tickets étaient
 écrits comme indépendants, avec BL-125 en premier. David l'a corrigé à l'ouverture
