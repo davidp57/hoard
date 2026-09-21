@@ -1,5 +1,31 @@
 # Roadmap — Hoard
 
+## v3.0 — Native client *(in progress)*
+
+Native Flutter client talking to the existing HTTP API, targeting Steam Deck
+(x86_64), Steam Frame (ARM64) and the Windows touch laptop. Playback uses
+libmpv via `media_kit`, reading raw files from `/api/file` — no server-side
+transcoding. See [ADR 0003](docs/adr/0003-client-natif.md) and lot
+[CLIENT-NATIVE](.backlog/CLIENT-NATIVE/PRD.md).
+
+- [x] **Feasibility spike** (BL-104) — measured on a real Steam Deck
+- [ ] **Renderer decision** (BL-109) — the pivotal ticket, see below
+- [ ] **Full UI parity** with the web frontend (BL-107, BL-108, BL-110..115)
+- [ ] **Packaging**: Flatpak x86_64 then ARM64, Windows build, CI (BL-116, BL-117)
+
+What the spike changed. The keyboard fault that motivated the lot was
+**Edge-only**: Steam+X works in a native app, so the built-in keyboard drops to
+a comfort feature. Hardware decoding engages (`auto-safe` → `vaapi-copy`, 102%
+of one core against 118% in software); forcing `vaapi` is counterproductive.
+The actual blocker is that **`media_kit` never tells Flutter a new frame
+landed** — 8 fps at rest, 25 as soon as any animation runs. That does not
+question Flutter, it questions the video brick, and BL-109 must settle it by
+measurement.
+
+The web frontend stays maintained — it serves the iPad and any browser.
+Immersive VR playback (SBS 180°/360°) is explicitly **out of scope**: it needs
+OpenXR stereo rendering and will be a separate application.
+
 ## v2.6.5 — An open instance must be visible *(done)*
 
 HTTP Basic auth (BL-011) was correct but switched itself off in silence when
