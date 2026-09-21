@@ -1,6 +1,6 @@
 # Roadmap — Hoard
 
-## VR 180° side-by-side in the web player *(in progress, target version to be agreed)*
+## VR 180° side-by-side in the web player *(done, target version to be agreed)*
 
 180° stereoscopic side-by-side files opened as ordinary video — two squashed
 pictures, unwatchable. The web player now deprojects the hemisphere onto a WebGL
@@ -10,9 +10,13 @@ glasses in 3D mode (Steam Deck + Viture Beast). See lot
 [FEAT-VR180](.backlog/FEAT-VR180/PRD.md).
 
 - [x] **Deprojection, flat view and look controls** (BL-119) — the gate ticket
-- [ ] **Side-by-side output** for XR glasses (BL-120)
-- [ ] **VR file detection and per-file memory** (BL-121)
-- [ ] **Settings**: field of view, convergence, look speed (BL-122)
+- [x] **Side-by-side output** for XR glasses (BL-120)
+- [x] **VR file detection and per-file memory** (BL-121)
+- [x] **Settings**: field of view, convergence, look speed, sbs layout (BL-122)
+
+One check is still owed and cannot be done from a desktop: a Steam Deck driving
+the Viture glasses. It is also what decides which side-by-side layout is the
+right one — `half` (the default) or `full`, switchable with **B**.
 
 This does not reopen [ADR 0003](docs/adr/0003-client-natif.md): an immersive
 OpenXR session for the Steam Frame stays out of scope and unverifiable until the
