@@ -1,7 +1,7 @@
 # Lot SEC-AUTH — Une instance ouverte doit se voir
 
-Status: 🔄 in-progress
-Branch: `feature/client-native` (livré avec le lot CLIENT-NATIVE)
+Status: ✅ done
+Branch: `fix/sec-auth` → [PR #53](https://github.com/davidp57/hoard/pull/53) (mergée) → `develop`, v2.6.5
 
 ## Problem Statement
 
