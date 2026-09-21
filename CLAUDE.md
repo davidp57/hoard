@@ -194,7 +194,12 @@ When the user asks to do a release, follow these steps in order:
 
 ### Commands
 
-> **Version policy**: Never change the version number in `pyproject.toml` unless the user has confirmed it.
+> **Version policy** (clarified 2026-09-21): bump the **patch** version in
+> `pyproject.toml` autonomously, as step 8 of the per-change checklist below —
+> that is routine bookkeeping. **Minor and major bumps need the user's explicit
+> confirmation**: they say something about the release, and that is their call.
+> Previously this read "never change the version unless the user has confirmed
+> it", which flatly contradicted the checklist and left no workable reading.
 
 ```bash
 # Install dev dependencies
