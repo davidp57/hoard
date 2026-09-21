@@ -11,6 +11,12 @@ Sur Deck + Viture Beast en 3840×1080, l'image du mode côte à côte a de mauva
 proportions : « les personnages sont trop hauts et trop étroits ». Constaté le
 2026-09-21 sur le matériel réel — la vérification que FEAT-VR180 laissait due.
 
+## Bloqué par BL-126
+
+L'essai qui trancherait ce ticket n'est pas faisable aujourd'hui : à la manette, la
+bascule de disposition ne s'atteint que par le menu Select, et c'est précisément la
+fenêtre illisible que corrige [BL-126](01-ui-resolution.md). Faire BL-126 d'abord.
+
 ## À vérifier d'abord
 
 **Passer le réglage sur « non étirée » corrige-t-il le ratio ?**
@@ -47,8 +53,10 @@ les Beast ne réétirent rien.
   `half`. Mesurer le ratio réel du canvas sur l'appareil avant de figer le seuil —
   la fenêtre du navigateur n'occupe pas forcément tout l'écran.
 - **Le réglage explicite reste prioritaire**, y compris quand il contredit la
-  devinette. Même règle que `vr_mode` face à `vr_hint` dans FEAT-VR180 : une
-  détection fausse doit être corrigeable, pas définitive.
+  devinette — **tranché par David le 2026-09-21** : la devinette ne s'applique
+  qu'en l'absence de choix enregistré, et ne l'écrase jamais. Même règle que
+  `vr_mode` face à `vr_hint` dans FEAT-VR180 : une détection fausse doit être
+  corrigeable, pas définitive.
 - **Dire ce qui a été deviné.** Le basculement affiche déjà un toast
   (`index.html:5743`) ; la devinette doit être aussi lisible, sinon l'utilisateur
   ne peut pas savoir pourquoi son image change.

@@ -75,26 +75,35 @@ le correctif ne doit pas dégrader les résolutions ordinaires ni le mobile.
 
 | # | Ticket | Dépend de | Statut |
 |---|---|---|---|
-| 01 | [BL-125](tickets/01-ratio-sbs.md) — Deviner la disposition côte à côte | — | ⬜ |
-| 02 | [BL-126](tickets/02-ui-resolution.md) — Fenêtres manette à l'échelle de l'écran | — | ⬜ |
+| 01 | [BL-126](tickets/01-ui-resolution.md) — Fenêtres manette à l'échelle de l'écran | — | ⬜ |
+| 02 | [BL-125](tickets/02-ratio-sbs.md) — Deviner la disposition côte à côte | **BL-126** | ⬜ |
 
-Les deux tickets sont indépendants. BL-125 est le plus urgent : l'image est
-inregardable, et son correctif immédiat est un réglage que l'utilisateur peut
-appliquer tout de suite.
+**BL-126 bloque BL-125**, et ce n'était pas prévu : les deux tickets étaient
+écrits comme indépendants, avec BL-125 en premier. David l'a corrigé à l'ouverture
+— « je ne peux pas faire le test avant d'avoir une fenêtre SELECT plus grande ».
 
-## Points à confirmer en ouverture de lot
+C'est exact et vérifié : à la manette, **tout** passe par le menu Select.
+`openSettings()` n'est appelé que depuis le bouton ⚙️ de l'en-tête
+(`index.html:1818`, donc au doigt ou au trackpad) et depuis le menu Select
+(`index.html:7112`). Il n'existe aucun autre chemin manette vers les réglages, ni
+vers la bascule de disposition. La fenêtre illisible est donc celle qui commande
+le réglage à vérifier.
 
-1. **Est-ce que passer le réglage sur « non étirée » corrige le ratio ?**
-   (Select → « 🥽 Image côte à côte », ou Paramètres → Player.) Le diagnostic
-   vient de la lecture du code ; s'il est faux, BL-125 change de forme et le
-   problème est dans le calcul lui-même, pas dans le réglage.
-2. **La détection automatique doit-elle écraser un réglage déjà enregistré ?**
-   Recommandé : non — le choix explicite prime, la devinette ne s'applique qu'en
-   l'absence de choix, comme pour `vr_mode`.
-3. **BL-126 vise-t-il seulement les deux fenêtres de la manette, ou toute
-   l'interface** (liste, barre de tri, commandes du lecteur) ? Recommandé : les
-   deux fenêtres d'abord, puisque ce sont celles qui ont été signalées, et mesurer
-   le reste avant de l'élargir.
+Contournements, pour mémoire, si on veut trancher BL-125 avant : le bouton ⚙️ au
+doigt ou au trackpad, ou un clavier branché (touche **B**, `index.html:6997`).
+
+## Points tranchés à l'ouverture (2026-09-21)
+
+1. **Le réglage « non étirée » corrige-t-il le ratio ? — indéterminé, et il le
+   restera jusqu'à BL-126.** David ne peut pas faire l'essai : la fenêtre qui
+   commande le réglage est celle qui est illisible. D'où l'inversion de l'ordre
+   ci-dessus. Le diagnostic de BL-125 reste donc une lecture de code non
+   confirmée, et son ticket garde son *à vérifier d'abord*.
+2. **La détection automatique n'écrase pas un réglage enregistré.** ✅ Le choix
+   explicite prime, la devinette ne s'applique qu'en son absence — même règle que
+   `vr_mode` face à `vr_hint` dans FEAT-VR180.
+3. **BL-126 se limite aux deux fenêtres de la manette.** ✅ Le reste de
+   l'interface n'est pas dans ce lot ; le mesurer avant d'envisager de l'élargir.
 
 ## Hors périmètre
 
@@ -102,4 +111,5 @@ appliquer tout de suite.
   inchangé.
 - **Le choix de la résolution côté système** : 3840×1080 est imposé par les
   Beast pour obtenir le mode SBS, Hoard n'a pas la main dessus.
-- **Une refonte responsive complète** de l'interface : voir le point 3 ci-dessus.
+- **Une refonte responsive complète** de l'interface : écartée au point 3
+  ci-dessus. Seules les deux fenêtres de la manette sont dans ce lot.

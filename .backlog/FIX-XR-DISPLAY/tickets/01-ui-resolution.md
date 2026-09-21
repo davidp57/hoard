@@ -41,10 +41,22 @@ Le menu contextuel, lui, cumule les deux : boîte fixe **et** contenu fixe
   3840 px. Une régression sur mobile serait un mauvais échange — Hoard sert aussi
   sur iPad.
 
+## Ce ticket en débloque un autre
+
+**BL-125 ne peut pas être testé avant celui-ci.** Le réglage de disposition côte à
+côte ne s'atteint à la manette que par le menu Select — la fenêtre même qui est
+illisible. `openSettings()` n'est appelé que depuis le bouton ⚙️ de l'en-tête
+(`index.html:1818`) et depuis ce menu (`index.html:7112`) : il n'y a pas d'autre
+chemin manette. Donc ce ticket passe en premier, et le critère « lisible à
+3840×1080 » se mesure concrètement par *David arrive-t-il à basculer la
+disposition depuis Select, sur son matériel*.
+
 ## Acceptance criteria
 
 - [ ] À 3840×1080, les deux fenêtres occupent une part de l'écran comparable à ce
       qu'elles occupent à 1920×1080, et leur texte est lisible
+- [ ] **Le menu Select permet de basculer la disposition côte à côte sur le
+      matériel réel** — c'est ce qui débloque BL-125
 - [ ] À 1920×1080, rien ne change visuellement
 - [ ] À 375 px de large, rien ne se dégrade : pas de débordement, pas de
       défilement horizontal
