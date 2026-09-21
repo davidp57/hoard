@@ -851,7 +851,7 @@
   /* When moved inside the fullscreen element */
   #gp-overlay.in-fullscreen { position: absolute; }
   #gp-menu.in-fullscreen { position: absolute; }
-  #gp-overlay-box {
+  #gp-overlay-box, .gp-overlay-box {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 12px;
@@ -880,7 +880,7 @@
      drawing of a controller whose intrinsic 340px never grew, so its 9pt callouts
      rendered at 5.7px whatever the screen. Columns fill the width instead of the
      height, which is what a 32:9 display has to spare. */
-  #gp-overlay-body { width: 100%; columns: 21em; column-gap: 1.6em; }
+  #gp-overlay-body, .gp-overlay-body { width: 100%; columns: 21em; column-gap: 1.6em; }
   .gp-help-group { break-inside: avoid; margin-bottom: .7em; }
   .gp-help-row {
     display: flex;
@@ -905,7 +905,7 @@
     justify-content: center;
   }
   #gp-menu.open { display: flex; }
-  #gp-menu-box {
+  #gp-menu-box, .gp-menu-box {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 12px;
@@ -919,7 +919,7 @@
     max-height: 86vh;
     font-size: clamp(13px, calc(6.5px + 0.339vw), 19.5px);
   }
-  #gp-menu-items { overflow-y: auto; padding: 0 .77em; }
+  #gp-menu-items, .gp-menu-items { overflow-y: auto; padding: 0 .77em; }
   .gp-menu-section {
     color: var(--text-dim);
     font-size: .77em;
@@ -946,6 +946,19 @@
     font-weight: 700;
   }
   .gp-menu-item.gp-cursor .gp-menu-value { color: #000; }
+  /* BL-127: side-by-side cuts the picture in two, so a window drawn once sits
+     astride the split and each eye gets half of it. The toast solved this in
+     BL-125 with a second copy; these two windows do the same. `space-around`
+     with exactly two children puts their centres on 25% and 75% with no
+     arithmetic. The mirror is decorative: no pointer events, no ids, inert.
+     Declared AFTER the two box rules on purpose: `.gp-menu-box` also sets
+     `display: flex`, and at equal specificity the last one wins — leaving an
+     empty mirror in the flex row, which pushed the real window off centre. */
+  .gp-mirror { display: none; pointer-events: none; }
+  body.vr-sbs-active #gp-menu,
+  body.vr-sbs-active #gp-overlay { justify-content: space-around; }
+  body.vr-sbs-active .gp-mirror { display: flex; flex-direction: column; }
+
   .gp-menu-hint {
     color: var(--text-dim);
     font-size: .77em;
@@ -2253,20 +2266,22 @@
 
 <!-- Pad context menu (BL-086) -->
 <div id="gp-menu" onclick="_gpMenuBackdropClose(event)">
-  <div id="gp-menu-box">
-    <div id="gp-menu-items"></div>
+  <div id="gp-menu-box" class="gp-menu-box">
+    <div id="gp-menu-items" class="gp-menu-items"></div>
     <div class="gp-menu-hint">D-pad parcourir &middot; A valider &middot; B fermer</div>
   </div>
+  <div id="gp-menu-box-r" class="gp-menu-box gp-mirror" aria-hidden="true" inert></div>
 </div>
 
 <!-- Gamepad mapping overlay (div déplacé dans l'élément fullscreen pour visibilité native) -->
 <div id="gp-overlay" onclick="_gpOverlayBackdropClose(event)">
-  <div id="gp-overlay-box">
+  <div id="gp-overlay-box" class="gp-overlay-box">
     <h2>🎮 Manette — Actions</h2>
-    <div id="gp-overlay-body"></div>
+    <div id="gp-overlay-body" class="gp-overlay-body"></div>
     <div class="gp-help-foot">D-pad &#8597; faire défiler &middot; B ou Start fermer</div>
     <button onclick="closeGpOverlay()" style="margin-top:1.08em;background:var(--surface2);border:1px solid var(--border);color:var(--text-mid);font-size:1em;cursor:pointer;padding:.62em 1.54em;border-radius:.62em;font-family:inherit">Fermer</button>
   </div>
+  <div id="gp-overlay-box-r" class="gp-overlay-box gp-mirror" aria-hidden="true" inert></div>
 </div>
 
 <!-- One-shot touch gesture discovery overlay (BL-038) — shown once on touch devices -->
@@ -5590,6 +5605,10 @@ const VR_SBS_LAYOUTS = ['auto', 'half', 'full'];
 // for their 3D mode) on the 'full' side, each far from the boundary. 2.4 sits
 // between the two admissible bands and belongs to neither.
 const VR_SBS_AUTO_RATIO = 2.4;
+// BL-128: rates for the R2 layer, which adjusts continuously rather than in
+// steps. Per second at full deflection / full hold, so they read as speeds.
+const VR_ZOOM_RATE = 40;           // degrees of fov per second
+const VR_CONVERGENCE_RATE = 1.2;   // degrees of convergence per second
 const VR_CONVERGENCE_MAX = 3;      // degrees; beyond this the eyes stop fusing
 const VR_CONVERGENCE_STEP = 0.5;
 
@@ -5783,6 +5802,19 @@ function vrZoom(deltaDeg) {
   showToast(`🥽 ${Math.round(vr.fov)}°`);
 }
 
+// BL-128 split these: the pad now has one gesture per reset (R3 for the view,
+// L3 for the zoom). Shift+V on the keyboard still does both, which is what a
+// single key should do.
+function vrRecenterView() {
+  vr.yaw = 0; vr.pitch = 0;
+  showToast('🥽 regard recentré');
+}
+
+function vrResetZoom() {
+  vr.fov = vrDefaultFov();
+  showToast(`🥽 zoom ${Math.round(vr.fov)}°`);
+}
+
 function vrRecenter() {
   vr.yaw = 0; vr.pitch = 0; vr.fov = vrDefaultFov();
   showToast('🥽 recentré');
@@ -5811,6 +5843,7 @@ function vrAdjustConvergence(deltaDeg) {
   vr.convergence = Math.max(-VR_CONVERGENCE_MAX,
                             Math.min(VR_CONVERGENCE_MAX, vr.convergence + deltaDeg));
   showToast(`🥽 convergence ${vr.convergence.toFixed(1)}°`);
+  _vrPersistConvergence(vr.convergence);
 }
 
 // The gamepad menu only ever offers one direction, so it has to wrap: a
@@ -5820,6 +5853,7 @@ function cycleVrConvergence() {
   if (next > VR_CONVERGENCE_MAX + 1e-6) next = -VR_CONVERGENCE_MAX;
   vr.convergence = Math.round(next / VR_CONVERGENCE_STEP) * VR_CONVERGENCE_STEP;
   showToast(`🥽 convergence ${vr.convergence.toFixed(1)}°`);
+  _vrPersistConvergence(vr.convergence);
 }
 
 function setVrMode(mode) {
@@ -5830,6 +5864,11 @@ function setVrMode(mode) {
   const was = vr.mode;
   vr.mode = mode;
   if (mode !== 'sbs') vr.autoAnnounced = null;   // so re-entering says it again
+  // BL-127: flag on <body>, not on #video-container. The pad windows are moved
+  // into the fullscreen element when there is one, and stay in <body> when
+  // fullscreen falls back to the in-window kind — only <body> is an ancestor in
+  // both cases.
+  document.body.classList.toggle('vr-sbs-active', mode === 'sbs');
   const btn = document.getElementById('vr-btn');
   if (mode === 'off') {
     cancelAnimationFrame(vr.raf); vr.raf = 0;
@@ -5846,7 +5885,9 @@ function setVrMode(mode) {
   if (was === 'off') {
     vr.yaw = 0; vr.pitch = 0; vr.fov = vrDefaultFov();
     vr.sbsLayout = cfg.vr_sbs_layout || 'auto';
-    vr.convergence = cfg.vr_convergence || 0;
+    // BL-129: this file's own convergence if it has one, the global default
+    // otherwise. `??` and not `||`, or a deliberate 0 would read as "unset".
+    vr.convergence = currentFile?.vr_convergence ?? cfg.vr_convergence ?? 0;
   }
   canvas.classList.add('active');
   videoContainer.classList.toggle('vr-sbs', mode === 'sbs');
@@ -5896,6 +5937,38 @@ function _vrPersistMode(mode) {
     keepalive: true,
   }).catch(() => {});   // a lost preference must not raise a network toast
 }
+
+// BL-129: convergence is remembered per file, not globally — the strain comes
+// from how a file was shot more than from the viewer's eyes, so a badly mounted
+// file must not contaminate the rest. Written through the same row as the mode.
+//
+// Debounced, unlike the mode: the R2 layer adjusts continuously at frame rate,
+// and a POST per frame would hammer the NAS and fill the audit log that the UI
+// shows. 500ms after the stick settles is still well inside one gesture.
+let _vrConvTimer = null;
+
+function _vrPersistConvergence(value) {
+  if (!currentFile) return;
+  currentFile.vr_convergence = value;
+  const listed = entries.find(e => e.path === currentFile.path);
+  if (listed) listed.vr_convergence = value;
+  clearTimeout(_vrConvTimer);
+  _vrConvTimer = setTimeout(() => {
+    _vrConvTimer = null;
+    if (!currentFile) return;
+    fetch(`${API}/api/vr-mode?path=${encodeURIComponent(currentFile.path)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      // The mode rides along so a convergence set on a file that never had a row
+      // does not get one invented for it by the server's NOT NULL fallback.
+      body: JSON.stringify({ mode: vr.mode === 'off' ? 'flat' : vr.mode, convergence: value }),
+      keepalive: true,
+    }).catch(() => {});   // a lost preference must not raise a network toast
+  }, 500);
+}
+
+// Closing the player must not strand a pending write.
+window.addEventListener('pagehide', () => { if (_vrConvTimer) clearTimeout(_vrConvTimer); });
 
 // The aspect-ratio clue, which the server cannot check: reading it there would
 // mean one ffprobe per file on every folder open. Here the <video> hands over
@@ -6719,6 +6792,21 @@ function jsStr(val) {
 }
 
 let toastTimer;
+// BL-127: copy a window into its per-eye mirror. Ids are stripped from the copy —
+// duplicate ids would shadow the originals for getElementById, and every style the
+// copy needs is reachable by class. Called on every render, because the pad cursor
+// moves: a mirror frozen on the wrong row is worse than no mirror at all.
+function _gpSyncMirror(srcId, dstId) {
+  const dst = document.getElementById(dstId);
+  if (!dst) return;
+  if (!document.body.classList.contains('vr-sbs-active')) { dst.innerHTML = ''; return; }
+  const src = document.getElementById(srcId);
+  if (!src) return;
+  dst.innerHTML = src.innerHTML;
+  for (const el of dst.querySelectorAll('[id]')) el.removeAttribute('id');
+  dst.scrollTop = src.scrollTop;
+}
+
 function showToast(msg) {
   // Two nodes, one per eye (BL-125). Only the left one is visible outside
   // side-by-side; the CSS decides, this just keeps them in step.
@@ -7268,6 +7356,7 @@ function _gpMenuRender() {
     </div>`;
   }).join('');
   box.querySelector('.gp-cursor')?.scrollIntoView({ block: 'nearest' });
+  _gpSyncMirror('gp-menu-box', 'gp-menu-box-r');
 }
 
 function openGpMenu() {
@@ -7389,6 +7478,15 @@ const GP_BROWSER_MAPPING = {
   15: 'nav_down',
 };
 
+// BL-128: the VR layer's buttons. Its continuous half — zoom on the left stick,
+// convergence on the D-pad left/right — is read in _gpPoll, because a setting
+// judged by eye has to move while you watch it. Held R2 also swallows every
+// other button, so nothing from the player layers fires behind the view controls.
+const GP_VR_MAPPING = {
+  10: 'vr_reset_zoom',    // L3 — click the stick that zooms
+  11: 'vr_recenter_view', // R3 — click the stick that looks around
+};
+
 // Of the L1+R1 layer, only these two know how to target the list cursor; the rest
 // (jump_0, jump_100, open_export) are playback actions with no meaning in the browser.
 const GP_BROWSER_LR = new Set(['delete_current', 'move_current']);
@@ -7441,6 +7539,12 @@ function _gpAction(action, gamepad) {
     // Gated on vrIsActive() and not on sbs, same as the keyboard: setVrMode only
     // resets the layout when coming from 'off', so setting it in flat mode and
     // then switching to side-by-side is a real way to work.
+    case 'vr_reset_zoom':
+      if (hasVideo && vrIsActive()) { vrResetZoom(); _gpVibrate(gamepad, 40); }
+      break;
+    case 'vr_recenter_view':
+      if (hasVideo && vrIsActive()) { vrRecenterView(); _gpVibrate(gamepad, 40); }
+      break;
     case 'vr_sbs_layout':
       if (hasVideo && vrIsActive()) { cycleVrSbsLayout(); _gpVibrate(gamepad, 40); }
       break;
@@ -7659,9 +7763,10 @@ function _gpPoll() {
     const prev = _gpPrevButtons[idx];
     const cur = gp.buttons.map(b => b.pressed);
 
-    // Detect modifier buttons (L1=4, R1=5)
+    // Detect modifier buttons (L1=4, R1=5, and R2=7 for the VR layer, BL-128)
     const l1 = cur[4];
     const r1 = cur[5];
+    const r2 = cur[7];
     // Update HUD
     const hud = document.getElementById('gp-hud');
     if (hud) {
@@ -7672,10 +7777,12 @@ function _gpPoll() {
 
     // Button edge detection (pressed this frame, not last)
     for (let i = 0; i < cur.length; i++) {
-      if (i === 4 || i === 5) { prev[i] = cur[i]; continue; } // skip modifier tracking below
+      // Modifiers do nothing on their own. R2 joins them (BL-128); L2 keeps its
+      // own action, so it is deliberately not in this list.
+      if (i === 4 || i === 5 || i === 7) { prev[i] = cur[i]; continue; }
       if (cur[i] && !prev[i]) {
         // Button just pressed — dispatch action
-        _gpDispatch(i, l1, r1, gp);
+        _gpDispatch(i, l1, r1, gp, r2);
       }
       prev[i] = cur[i];
     }
@@ -7694,7 +7801,7 @@ function _gpPoll() {
           now - _gpNavRepeat.last  >= _GP_NAV_REPEAT_MS
         ) {
           _gpNavRepeat.last = now;
-          _gpDispatch(heldBtn, false, false, gp);
+          _gpDispatch(heldBtn, false, false, gp, r2);
         }
       } else {
         _gpNavRepeat.btn = -1;
@@ -7726,6 +7833,16 @@ function _gpPoll() {
       const vry = _gpDeadzone(gp.axes[3] ?? 0);
       const sp = vrLookSpeed();
       if (vrx || vry) vrLook(vrx * sp * dt, -vry * sp * dt);
+      // BL-128: the R2 layer's continuous half. Held rather than pressed, so it
+      // is read here on every frame instead of going through _gpDispatch, which
+      // only fires on a rising edge — a setting judged by eye has to move while
+      // you watch it, not one notch per press.
+      if (r2) {
+        const zy = _gpDeadzone(gp.axes[1] ?? 0);        // left stick Y: up = zoom in
+        if (zy) vrZoom(zy * VR_ZOOM_RATE * dt);
+        const cx = (cur[15] ? 1 : 0) - (cur[14] ? 1 : 0);  // D-pad right − left
+        if (cx) vrAdjustConvergence(cx * VR_CONVERGENCE_RATE * dt);
+      }
     } else {
       vr.lastPollTs = 0;
     }
@@ -7734,8 +7851,10 @@ function _gpPoll() {
     const seekAxisIdx  = (vrIsActive() || !_swap) ? 0 : 2;  // LX unless swapped
     const volAxisIdx   = _swap ? 1 : 3;  // LY vs RY
 
-    // Seek stick X — scrubbing
-    const lx = _gpDeadzone(gp.axes[seekAxisIdx] ?? 0);
+    // Seek stick X — scrubbing. Suppressed while R2 holds the VR layer: the left
+    // stick is the zoom there, and a diagonal push would otherwise scrub the
+    // video while you are only trying to zoom.
+    const lx = (r2 && vrIsActive()) ? 0 : _gpDeadzone(gp.axes[seekAxisIdx] ?? 0);
     if (lx !== 0 && currentFile && video.duration) {
       const now = performance.now();
       if (now - _gpLastScrubTime > _GP_SCRUB_THROTTLE_MS) {
@@ -8002,15 +8121,19 @@ function _gpHandleSettings(btnIdx, gp) {
   }
 }
 
-function _gpDispatch(btnIdx, l1, r1, gp) {
+function _gpDispatch(btnIdx, l1, r1, gp, r2 = false) {
   // 1. Gamepad overlay open → closing, plus D-pad scrolling: BL-126 turned the
   // drawing into a list that can outgrow the box on a narrow screen, and the pad
   // had no way to reach what fell below the fold.
   if (document.getElementById('gp-overlay').classList.contains('open')) {
     if (btnIdx === 1 || btnIdx === 9) { closeGpOverlay(); return; } // B or Start
     const box = document.getElementById('gp-overlay-box');
-    if (btnIdx === 12) box.scrollBy({ top: -120, behavior: 'smooth' });
-    else if (btnIdx === 13) box.scrollBy({ top: 120, behavior: 'smooth' });
+    if (btnIdx === 12 || btnIdx === 13) {
+      box.scrollBy({ top: btnIdx === 12 ? -120 : 120, behavior: 'smooth' });
+      // The mirror scrolls with it, or the eye reading the copy stops following.
+      const mirror = document.getElementById('gp-overlay-box-r');
+      if (mirror) mirror.scrollBy({ top: btnIdx === 12 ? -120 : 120, behavior: 'smooth' });
+    }
     return;
   }
 
@@ -8036,6 +8159,15 @@ function _gpDispatch(btnIdx, l1, r1, gp) {
 
   const hasVideo = !!currentFile;
   const mapping = cfg.gamepad_mapping || {};
+
+  // BL-128: the VR layer under R2. Ahead of the user mapping and of the player
+  // layers, because while R2 is held the pad is driving the view and nothing
+  // else — and it answers only in VR, so R2 costs nothing anywhere else.
+  if (r2 && hasVideo && vrIsActive()) {
+    const act = GP_VR_MAPPING[btnIdx];
+    if (act) { _gpAction(act, gp); return; }
+    return;   // R2 held: swallow the rest rather than fire a player action
+  }
 
   // Try user-defined mapping override first (flat, no layer)
   if (mapping[String(btnIdx)]) {
@@ -8155,6 +8287,8 @@ function openGpOverlay() {
     mute: 'Couper le son',
     speed_cycle: 'Vitesse de lecture',
     vr_sbs_layout: 'Image côte à côte (auto / étirée / non)',
+    vr_reset_zoom: 'Remettre le zoom',
+    vr_recenter_view: 'Recentrer le regard',
     seek_back_medium: `Reculer ${cfg.seek_medium}s`,
     seek_fwd_medium: `Avancer ${cfg.seek_medium}s`,
     seek_back_long: `Reculer ${cfg.seek_long}s`,
@@ -8218,9 +8352,20 @@ function openGpOverlay() {
     layer('Lecteur + R1', GP_DEFAULT_MAPPING.r1) +
     layer('Lecteur + L1 + R1', GP_DEFAULT_MAPPING.lr) +
     layer('Browser', GP_BROWSER_MAPPING) +
+    // BL-128: the VR layer, listed whole — its continuous half lives in _gpPoll
+    // and has no entry in GP_VR_MAPPING, so it is spelled out here. An action the
+    // map does not show is an action nobody finds.
+    group('Mode VR + R2', [
+      row('Stick gauche ↕', 'Zoom'),
+      row('D-pad ←/→', 'Convergence − / +'),
+      row('L3', AL.vr_reset_zoom),
+      row('R3', AL.vr_recenter_view),
+      row('Stick droit', 'Regarder autour'),
+    ].join('')) +
     group('Sticks', sticks.map(([b, a]) => row(b, a)).join(''));
 
   document.getElementById('gp-overlay').classList.add('open');
+  _gpSyncMirror('gp-overlay-box', 'gp-overlay-box-r');
 }
 
 function closeGpOverlay() {

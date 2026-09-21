@@ -1,6 +1,6 @@
 # BL-129 — Convergence retenue par fichier
 
-Status: ⬜ ready
+Status: ✅ done
 Type: feat
 Files: `backend/main.py`, `frontend/index.html`, `tests/test_api.py`,
 `docs/user-guide.*.md`, `docs/developer.en.md`

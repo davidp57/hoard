@@ -1,6 +1,6 @@
 # BL-127 — Fenêtres manette lisibles en côte à côte
 
-Status: ⬜ ready
+Status: ✅ done
 Type: fix
 Files: `frontend/index.html`, `docs/user-guide.*.md`
 

@@ -4050,6 +4050,75 @@ class TestVrMode:
         assert entries["renamed.mp4"]["vr_mode"] == "sbs"
 
 
+# ── Per-file convergence (BL-129) ─────────────────────────────────────────────
+class TestVrConvergencePerFile:
+    def test_written_and_read_back(self, video_file):
+        resp = client.post(
+            f"/api/vr-mode?path={video_file}", json={"mode": "sbs", "convergence": 1.5}
+        )
+        assert resp.status_code == 200
+        entries = {e["name"]: e for e in client.get("/api/files?path=").json()["entries"]}
+        assert entries["sample.mp4"]["vr_convergence"] == 1.5
+        assert entries["sample.mp4"]["vr_mode"] == "sbs"
+
+    def test_another_file_does_not_inherit_it(self, video_file):
+        """The whole point of per-file: a badly shot file must not contaminate the rest."""
+        (MEDIA_ROOT / "other.mp4").write_bytes(bytes(64))
+        client.post(f"/api/vr-mode?path={video_file}", json={"mode": "sbs", "convergence": 2.0})
+        entries = {e["name"]: e for e in client.get("/api/files?path=").json()["entries"]}
+        assert entries["sample.mp4"]["vr_convergence"] == 2.0
+        assert entries["other.mp4"]["vr_convergence"] is None
+
+    def test_convergence_alone_does_not_clobber_the_mode(self, video_file):
+        """The UPDATE branch must not read the INSERT's NOT NULL fallback.
+
+        `mode` cannot be null, so a convergence-only insert supplies 'flat'. If the
+        conflict branch coalesced against that proposed row instead of against the
+        parameters, it would quietly rewrite a mode nobody asked to change.
+        """
+        client.post(f"/api/vr-mode?path={video_file}", json={"mode": "sbs"})
+        client.post(f"/api/vr-mode?path={video_file}", json={"convergence": -1.0})
+        entries = {e["name"]: e for e in client.get("/api/files?path=").json()["entries"]}
+        assert entries["sample.mp4"]["vr_mode"] == "sbs", "the mode was overwritten"
+        assert entries["sample.mp4"]["vr_convergence"] == -1.0
+
+    def test_mode_alone_leaves_the_convergence(self, video_file):
+        client.post(f"/api/vr-mode?path={video_file}", json={"mode": "sbs", "convergence": 0.5})
+        client.post(f"/api/vr-mode?path={video_file}", json={"mode": "flat"})
+        entries = {e["name"]: e for e in client.get("/api/files?path=").json()["entries"]}
+        assert entries["sample.mp4"]["vr_convergence"] == 0.5
+        assert entries["sample.mp4"]["vr_mode"] == "flat"
+
+    def test_convergence_on_a_file_with_no_row_yet(self, video_file):
+        """It must create the row, not fail silently — the pad can reach this."""
+        resp = client.post(f"/api/vr-mode?path={video_file}", json={"convergence": 1.0})
+        assert resp.status_code == 200
+        entries = {e["name"]: e for e in client.get("/api/files?path=").json()["entries"]}
+        assert entries["sample.mp4"]["vr_convergence"] == 1.0
+        assert entries["sample.mp4"]["vr_mode"] == "flat", "'off' would kill VR on a VR file"
+
+    @pytest.mark.parametrize("value", [3.5, -3.5, 90])
+    def test_out_of_range_rejected(self, video_file, value):
+        resp = client.post(f"/api/vr-mode?path={video_file}", json={"convergence": value})
+        assert resp.status_code == 422
+
+    def test_an_empty_body_is_rejected(self, video_file):
+        assert client.post(f"/api/vr-mode?path={video_file}", json={}).status_code == 400
+
+    def test_convergence_follows_a_rename(self, video_file):
+        client.post(f"/api/vr-mode?path={video_file}", json={"mode": "sbs", "convergence": 1.5})
+        client.post(f"/api/files/rename?path={video_file}", json={"new_name": "renamed.mp4"})
+        entries = {e["name"]: e for e in client.get("/api/files?path=").json()["entries"]}
+        assert entries["renamed.mp4"]["vr_convergence"] == 1.5
+
+    def test_convergence_does_not_outlive_the_file(self, video_file):
+        client.post(f"/api/vr-mode?path={video_file}", json={"mode": "sbs", "convergence": 1.5})
+        client.request("DELETE", f"/api/files?path={video_file}")
+        (MEDIA_ROOT / "sample.mp4").write_bytes(b"new content")
+        entries = {e["name"]: e for e in client.get("/api/files?path=").json()["entries"]}
+        assert entries["sample.mp4"]["vr_convergence"] is None
+
+
 # ── VR settings (BL-122) ──────────────────────────────────────────────────────
 class TestVrSettings:
     def test_defaults(self):

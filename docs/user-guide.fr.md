@@ -235,12 +235,26 @@ Tant que le mode VR est actif, le glissement ne fait plus ni avance rapide ni r�
 
 #### Avec des lunettes XR
 
-Le mode côte à côte passe automatiquement en plein écran : c'est le seul affichage qui ait un sens dans des lunettes. Les commandes du lecteur disparaissent pendant ce temps — affichées une seule fois sur une image qui va être coupée en deux, elles tomberaient à moitié dans chaque œil et ne seraient lisibles nulle part. Les messages du lecteur, eux, restent : ils sont écrits une fois par œil, donc lisibles des deux. Pilote à la manette ou au clavier ; sortir du mode fait tout revenir.
+Le mode côte à côte passe automatiquement en plein écran : c'est le seul affichage qui ait un sens dans des lunettes. Les commandes du lecteur disparaissent pendant ce temps — affichées une seule fois sur une image qui va être coupée en deux, elles tomberaient à moitié dans chaque œil et ne seraient lisibles nulle part. Ce qui sert à piloter, en revanche, est écrit **une fois par œil** et reste donc lisible des deux : les messages du lecteur, le menu **Select** et la carte des boutons. Pilote à la manette ou au clavier ; sortir du mode fait tout revenir.
 
 Deux réglages selon ce que font tes lunettes :
 
 - **Image étirée ou non** (touche **B** au clavier, **L2** à la manette, ou le menu de la manette). **Par défaut Hoard le devine** à la forme de l'image : pour obtenir la 3D, des lunettes comme les Viture Beast demandent une sortie deux fois plus large que la normale — du 3840×1080 — et sur une image de cette forme chaque moitié est déjà aux bonnes proportions, donc rien n'est réétiré. Sur un affichage ordinaire, à l'inverse, chaque moitié est réétirée sur toute la largeur. Hoard annonce ce qu'il a deviné par un message au moment où le mode s'active. Si l'image te paraît quand même écrasée ou étirée du double en hauteur, change le réglage — l'effet se voit immédiatement, et ton choix l'emporte toujours sur la devinette. Le raccourci fait le tour des trois états : automatique, étirée, non étirée.
-- **Convergence** (menu de la manette). À laisser à zéro : les deux images sont alors rigoureusement alignées, ce qui est correct pour un fichier bien tourné. À n'ajuster que si un fichier particulier te fatigue les yeux.
+- **Convergence** (**R2 + D-pad ←/→**, ou le menu de la manette). C'est l'angle dont on écarte ou rapproche les deux points de vue : ça change la distance à laquelle ton cerveau place la scène. À laisser à zéro, où les deux images sont exactement telles que les caméras les ont prises — ce qui est correct pour un fichier bien tourné. Si un fichier particulier te fatigue les yeux, c'est qu'il a été tourné avec un écartement de caméras qui ne te va pas, ou remonté de travers : quelques dixièmes de degré suffisent alors. Au-delà de 3° les yeux décrochent, d'où la borne. **La valeur est retenue pour ce fichier-là**, pas pour les autres : la gêne vient du tournage, un fichier mal monté ne doit pas contaminer le reste.
+
+#### Régler la vue à la manette
+
+Tout se règle en **maintenant R2**, sans rien ouvrir : l'image change pendant que tu règles, ce qui est le seul moyen de juger.
+
+| R2 maintenu | Effet |
+|---|---|
+| **Stick gauche ↕** | Zoom |
+| **D-pad ←/→** | Convergence |
+| **Clic stick gauche** | Remettre le zoom |
+| **Clic stick droit** | Recentrer le regard |
+| **Stick droit** | Regarder autour (comme sans R2) |
+
+Tant que R2 est maintenu, les autres boutons ne font rien : la manette pilote la vue et rien d'autre. Au clavier, **Maj+V** remet d'un coup le regard et le zoom.
 
 #### Reconnaissance et mémorisation
 
@@ -352,6 +366,7 @@ Hoard supporte les manettes de jeu via la **Gamepad API** du navigateur (Xbox, P
 | **Select** | Menu contextuel | — | — | — |
 | **Start** | Afficher la carte des boutons | — | — | — |
 | **L2** | Image côte à côte : auto / étirée / non (mode VR) | — | — | — |
+| **R2** (maintenu) | Couche VR : zoom, convergence, recentrage — voir plus haut | — | — | — |
 | **L3** (clic stick) | Muet / Son | — | — | — |
 | **R3** (clic stick) | Cycle vitesse (0,5× → 1× → 1,5× → 2× → …) | — | — | — |
 | **Stick gauche X** | Scrubbing analogique | — | — | — |

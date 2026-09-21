@@ -8,6 +8,18 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ### Ajouté
 
+- **Tu règles la vue VR à la manette, en voyant l'image changer.** Maintiens
+  **R2** pendant la lecture : le **stick gauche** zoome, le **D-pad gauche/droite**
+  ajuste la convergence, le **clic du stick gauche** remet le zoom et celui du
+  **stick droit** recentre le regard. Plus besoin d'ouvrir un menu qui recouvre
+  justement l'image que tu essaies de juger. Tant que R2 est maintenu, les autres
+  boutons ne font rien : la manette pilote la vue et rien d'autre.
+
+- **La convergence est retenue pour chaque fichier.** Si une vidéo te fatigue les
+  yeux et que tu l'ajustes, le réglage revient tout seul la prochaine fois que tu
+  l'ouvres — et les autres vidéos ne sont pas touchées. C'est voulu : la gêne
+  vient de la façon dont la vidéo a été tournée, pas de tes yeux.
+
 - **Tu ne retapes plus ton mot de passe à chaque fois.** Depuis que Hoard demande
   un identifiant, chaque nouvelle fenêtre du navigateur réclamait à nouveau tes
   identifiants, dans une petite fenêtre grise du navigateur — pénible à remplir à
@@ -71,6 +83,12 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
   à laisser à zéro sauf si un fichier précis te fatigue les yeux.
 
 ### Corrigé
+
+- **Le menu de la manette est enfin lisible en mode côte à côte.** Il s'affichait
+  une seule fois, au milieu, donc à cheval sur la coupure entre les deux yeux :
+  chacun n'en voyait que la moitié. Le menu **Select** et la carte des boutons
+  sont maintenant écrits **une fois par œil**, comme les messages du lecteur
+  depuis la version précédente.
 
 - **L'image côte à côte a enfin les bonnes proportions dans les lunettes XR.**
   Sur le Steam Deck avec des Viture Beast, les personnages paraissaient trop
