@@ -6,6 +6,8 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ## [Non publié]
 
+## [v2.6.5] — 2026-09-21
+
 ### Sécurité
 
 - **Hoard dit maintenant s'il est protégé ou non.** Au démarrage, il affiche
