@@ -25,7 +25,7 @@ from urllib.parse import urlparse
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -217,14 +217,42 @@ def _check_basic_auth(header: str) -> bool:
     return user_ok and pass_ok
 
 
+# The container's HEALTHCHECK has no credentials to offer, so it needs one
+# route it can always reach. Exact match only: a prefix test would let
+# "/healthz-something" slip past the guard.
+HEALTH_PATH = "/healthz"
+
+
 @app.middleware("http")
 async def require_basic_auth(request: Request, call_next):
+    if request.url.path == HEALTH_PATH:
+        return await call_next(request)
     if not _AUTH_ENABLED or _check_basic_auth(request.headers.get("authorization", "")):
         return await call_next(request)
     return Response(
         status_code=401,
         headers={"WWW-Authenticate": 'Basic realm="Hoard"'},
     )
+
+
+@app.get(HEALTH_PATH)
+def healthz():
+    """Liveness probe, reachable without credentials.
+
+    Deliberately says nothing an unauthenticated caller could use: no version,
+    no paths, no counts — just whether the two things the app cannot work
+    without are there. It still checks them rather than returning a constant,
+    because the previous probe hit `/api/files` and did catch a broken
+    database or a vanished media mount.
+    """
+    try:
+        with get_db() as conn:
+            conn.execute("SELECT 1").fetchone()
+    except sqlite3.Error:
+        return JSONResponse({"status": "error"}, status_code=503)
+    if not get_media_root().is_dir():
+        return JSONResponse({"status": "error"}, status_code=503)
+    return {"status": "ok"}
 
 
 # ── DB ────────────────────────────────────────────────────────────────────────
@@ -409,6 +437,23 @@ mark_interrupted_downloads()
 _purge_download_history()  # retention must apply even if no download is ever started
 reload_media_root()
 print(f"Hoard v{VERSION} — media: {MEDIA_ROOT}")
+
+# A security control that switches itself off in silence is one nobody can
+# notice. Hoard shipped with auth off by default and said nothing about it, so
+# an instance published to the internet looked exactly like a healthy one from
+# the logs. Say it loudly, every start, until credentials are set.
+if _AUTH_ENABLED:
+    print(f"Auth: HTTP Basic enabled for user {HOARD_AUTH_USER!r}")
+else:
+    print(
+        "Auth: DISABLED — every endpoint is open, including file deletion "
+        "and moves. Fine on a private LAN; if this instance is reachable "
+        "from the internet, set HOARD_AUTH_USER and HOARD_AUTH_PASS."
+    )
+    logger.warning(
+        "HTTP Basic auth is disabled (HOARD_AUTH_USER/HOARD_AUTH_PASS unset); "
+        "all endpoints are unauthenticated"
+    )
 
 
 # ── Models ────────────────────────────────────────────────────────────────────

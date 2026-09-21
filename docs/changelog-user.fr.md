@@ -6,6 +6,23 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ## [Non publié]
 
+### Sécurité
+
+- **Hoard dit maintenant s'il est protégé ou non.** Au démarrage, il affiche
+  clairement si un mot de passe est demandé à l'entrée, ou si l'accès est
+  ouvert à tous. C'est important si ton Hoard est accessible depuis Internet :
+  sans mot de passe, n'importe qui connaissant l'adresse peut voir, déplacer et
+  **supprimer** tes fichiers. Rien ne change pour un Hoard utilisé uniquement
+  chez toi, sur ton réseau.
+- **À savoir : le code PIN ne protège pas contre ça.** Il verrouille l'écran de
+  Hoard, ce qui évite qu'on farfouille dans tes fichiers en passant devant la
+  tablette. Mais il n'empêche pas d'accéder à Hoard par un autre moyen que son
+  interface. Pour ça, il faut le mot de passe d'entrée, décrit dans le guide
+  d'installation.
+- **Activer le mot de passe ne casse plus la surveillance de Hoard.** Le
+  mécanisme qui vérifie que l'application tourne correctement se faisait refuser
+  l'entrée et signalait une panne alors que tout allait bien.
+
 ## [v2.6.4] — 2026-09-15
 
 ### Nouveautés
