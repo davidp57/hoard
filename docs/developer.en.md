@@ -65,6 +65,8 @@ hoard/
 | `RESTART_SUPERVISED` | *(auto)* | `0`/`1`. Overrides the container auto-detection (`/.dockerenv`) used to word the restart confirmation in the UI. |
 | `HOARD_AUTH_USER` | *(unset)* | Username for optional HTTP Basic auth. Auth is enabled only when both this and `HOARD_AUTH_PASS` are set. |
 | `HOARD_AUTH_PASS` | *(unset)* | Password for optional HTTP Basic auth. |
+| `HOARD_SECRET_KEY` | *(generated)* | HMAC key signing the session cookie. Falls back to a `session_secret` row minted on first use. Rotating it revokes every session. |
+| `HOARD_COOKIE_SECURE` | `1` | Whether the session cookie carries `Secure`. A setting rather than introspection: behind the Synology reverse proxy the backend only ever sees plain HTTP. |
 
 ### Path Safety
 
@@ -88,14 +90,17 @@ Google Fonts import (`fonts.googleapis.com` / `fonts.gstatic.com`), and
 `blob:`/`data:` sources used by the media and PDF.js viewers. Headers are set
 with `setdefault`, so an endpoint may override them if needed.
 
-### Optional HTTP Basic Auth
+### Optional Authentication
 
-Set both `HOARD_AUTH_USER` and `HOARD_AUTH_PASS` to require HTTP Basic
-authentication on every request (`require_basic_auth` middleware). When either
-is unset, auth is disabled and behavior is unchanged. Credentials are compared
-in constant time. This is meant for exposing Hoard behind a reverse proxy or
-direct HTTPS without a full account system — use HTTPS so the Basic credentials
-are not sent in clear text.
+Set both `HOARD_AUTH_USER` and `HOARD_AUTH_PASS` to require authentication on
+every request (`require_basic_auth` middleware). When either is unset, auth is
+disabled and behavior is unchanged. Credentials are compared in constant time.
+This is meant for exposing Hoard behind a reverse proxy or direct HTTPS without a
+full account system — use HTTPS so the Basic credentials are not sent in clear text.
+
+Since BL-123 the middleware accepts **either** a signed session cookie **or**
+Basic. See *Authentication (BL-011, BL-123)* below for the cookie, the withheld
+`WWW-Authenticate` header and the exempt shell paths.
 
 **One route is exempt: `/healthz`.** The container's `HEALTHCHECK` has no
 credentials to offer, and before the exemption existed, enabling auth marked
@@ -326,12 +331,110 @@ Titles are escaped with `_outtmpl_literal()` before entering the output template
 - `url` — required. The web page or direct video URL.
 - `cookies` — optional. Raw `document.cookie` string captured by the bookmarklet. Converted to Netscape format and passed to yt-dlp.
 - `referer` — optional. The original page URL. When provided, it is sent as the `Referer` HTTP header so CDNs that check the origin accept the request. The bookmarklet sets this automatically when a direct `<video>` source is detected.
+- `token` — optional. The bookmarklet download token (see below). Ignored when the caller already authenticates normally, which is the case for the Hoard UI itself.
 
 **Response:**
 
 ```json
 { "job_id": "abc123" }
 ```
+
+### Authentication (BL-011, BL-123)
+
+Two mechanisms, both accepted by `require_basic_auth`, for two different callers.
+
+**HTTP Basic** — opt-in via `HOARD_AUTH_USER` / `HOARD_AUTH_PASS`. Kept, not
+replaced: dropping it would break `curl -u`, a future native client and any
+external reader.
+
+**Signed session cookie** — what a browser uses after the login screen.
+
+| Aspect | Choice | Why |
+|---|---|---|
+| Contents | `{u, exp}` + HMAC-SHA256, base64url | Signed, not encrypted: neither field is a secret; what matters is that it cannot be forged. The signature is verified **before** the payload is parsed. |
+| Key | `HOARD_SECRET_KEY`, else a `session_secret` row minted on first use | Explicit key ⇒ revocation by rotation. No key ⇒ a fresh install works with no configuration. |
+| Lifetime | 30 days, reissued once less than half remains | Without sliding renewal, "30 days" means "30 days after the first login", which brings back the retyping the feature removes. |
+| `SameSite` | `Lax` | **Not optional.** Basic credentials are never sent cross-site, so a third-party page could not trigger anything. A cookie would be — against an API exposing `DELETE /api/files` and `POST /api/files/move`. Lax is what closes that door. |
+| `Secure` | `HOARD_COOKIE_SECURE`, default on | The backend is spoken to in plain HTTP behind the Synology reverse proxy, so it cannot detect HTTPS. A setting, not introspection. |
+| `HttpOnly` | always | Keeps the cookie out of reach of any script on the page. |
+
+**`WWW-Authenticate` is withheld from HTML callers.** While it is sent, the browser
+opens its own credentials dialog and the in-app login screen never appears. It is
+still sent to everything else, because `curl -u` only sends credentials once
+challenged, and `curl` does not ask for `text/html`.
+
+**The app shell is served without credentials** (`SHELL_PATHS`: `/`,
+`/index.html`, `/service-worker.js`, `/manifest.webmanifest`). This follows from
+the line above: with no native dialog and the page behind the guard, an
+unauthenticated browser would get a blank 401 and no way in at all. Every
+`/api/*` route stays guarded, so no file, setting or listing is reachable — what
+the shell exposes is the app's structure, which is already public (the repository
+is public and `frontend/index.html` can be read there).
+
+**Middleware order**: `/healthz`, `/api/login`, `/api/logout` and the shell pass
+straight through; then the download-token routes; then a valid cookie; then valid
+Basic; otherwise 401.
+
+**Frontend.** `#login-screen` carries `gp-modal` and deliberately no
+`data-gp-close`, so the pad drives it and **B** cannot dismiss it — the same rule
+as the PIN lock. Two entry points raise it: `init()` treats the first
+`GET /api/settings` as the session probe, and `apiFetch()` raises it on any 401.
+On success the caller is resumed rather than the page reloaded, so the open folder
+and the playing file survive. Note `#login-form input:focus:not(.gp-cursor)` in the
+CSS: an id rule outranks `.gp-modal .gp-cursor`, so a plain `outline: none` on
+focus would erase the pad cursor exactly when the pad lands on a field.
+
+**The PIN is a separate thing** and stays that way: it is a screen lock on an
+already-authenticated session, this decides whether the server answers at all.
+
+### Bookmarklet Download Token (BL-124)
+
+The bookmarklet POSTs to Hoard from whatever third-party page the user is on. That
+request is cross-origin, so the browser attaches **neither** the Basic credentials
+**nor** the session cookie — `SameSite` withholds the latter deliberately, and
+widening it would reopen exactly the door the attribute exists to close. The
+bookmarklet therefore carries a token of its own.
+
+- **Storage**: a `download_token` row in `settings`, minted by
+  `_get_or_create_download_token()` on first read of `GET /api/settings`.
+  `POST /api/download/token/regenerate` mints a new one and the previous one stops
+  working at once — that is the revocation mechanism.
+- **Transport**: in the request **body**, never in the URL or query string. A
+  credential in a URL ends up in the reverse proxy's access log and in the browser
+  history.
+- **Scope**: `POST /api/download` and `POST /api/download/status`, nothing else.
+  It travels inside a bookmark clicked on arbitrary sites, so it must not be able
+  to list, move or delete anything. Comparison is constant-time
+  (`hmac.compare_digest`).
+
+**Why these two routes bypass the blanket middleware.** `require_basic_auth` runs
+*outside* `CORSMiddleware` (Starlette's `add_middleware` stacks last-added
+outermost), so a 401 raised there carries no CORS headers whatsoever. The browser
+discards such a response, and the caller only ever sees an opaque `TypeError:
+Failed to fetch`. Worse, the **preflight** `OPTIONS` was answered the same way, so
+the real POST was never even sent. The bookmarklet's `.catch` branch reported this
+as a CSP problem — which is why the failure looked like a site incompatibility
+rather than an authentication one. These two paths are listed in
+`DOWNLOAD_TOKEN_PATHS` and authenticate themselves via `_require_download_auth()`,
+so their 401 travels back out through `CORSMiddleware` and is readable by the
+caller.
+
+### Bookmarklet Progress (`POST /api/download/status`)
+
+```json
+{ "job_id": "abc123", "token": "…" }   →   { "status": "running", "progress": 42, "error": null }
+```
+
+A route of its own rather than a widened `GET /api/jobs`: the full job list would
+hand any site the bookmark is clicked on the title, source URL and destination path
+of every download. POST rather than GET so the token stays out of the URL.
+Answers `404` for an unknown job id.
+
+**Secrets in `settings`.** `GET /api/settings` returns the `settings` table
+wholesale, so anything secret parked there ships to the frontend by default. The
+`SECRET_SETTINGS` frozenset is the exclusion list; `pin_hash` is in it. The
+download token is deliberately **not** — the frontend must read it to build a
+working bookmarklet.
 
 **Security (SSRF protection):** The endpoint rejects `file://` URLs and any host that resolves to localhost or RFC-1918 private addresses (`127.*`, `::1`, `192.168.*`, `10.*`, `172.*`).
 

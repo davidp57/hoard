@@ -1,6 +1,6 @@
 # BL-123 — Écran de connexion et session par cookie
 
-Status: ⬜ ready
+Status: ✅ done
 Type: feat
 Files: `backend/main.py`, `frontend/index.html`, `tests/test_api.py`,
 `docs/installation.*.md`, `docs/user-guide.*.md`, `docs/developer.en.md`
@@ -52,18 +52,18 @@ de l'interface.
 
 ## Acceptance criteria
 
-- [ ] Se connecter par l'écran pose le cookie, et la navigation suivante ne
+- [x] Se connecter par l'écran pose le cookie, et la navigation suivante ne
       redemande rien
-- [ ] Les identifiants faux rendent `401` et **ne posent pas** de cookie
-- [ ] Un cookie dont la signature est falsifiée est rejeté (test)
-- [ ] Un cookie expiré est rejeté (test)
-- [ ] Le cookie porte `HttpOnly`, `SameSite=Lax`, et `Secure` selon le réglage
-- [ ] Le renouvellement glissant repose le cookie passé la moitié de sa durée
-- [ ] **Basic continue de fonctionner** : `curl -u` reçoit son défi et passe (test)
-- [ ] Un navigateur ne reçoit plus `WWW-Authenticate`, donc plus de fenêtre native
-- [ ] `/healthz` reste joignable sans rien
-- [ ] L'écran de connexion se pilote entièrement à la manette
-- [ ] Changer `HOARD_SECRET_KEY` invalide les sessions en cours (test)
+- [x] Les identifiants faux rendent `401` et **ne posent pas** de cookie
+- [x] Un cookie dont la signature est falsifiée est rejeté (test)
+- [x] Un cookie expiré est rejeté (test)
+- [x] Le cookie porte `HttpOnly`, `SameSite=Lax`, et `Secure` selon le réglage
+- [x] Le renouvellement glissant repose le cookie passé la moitié de sa durée
+- [x] **Basic continue de fonctionner** : `curl -u` reçoit son défi et passe (test)
+- [x] Un navigateur ne reçoit plus `WWW-Authenticate`, donc plus de fenêtre native
+- [x] `/healthz` reste joignable sans rien
+- [x] L'écran de connexion se pilote entièrement à la manette
+- [x] Changer `HOARD_SECRET_KEY` invalide les sessions en cours (test)
 
 ## Ce qu'il ne faut pas rater
 
@@ -72,3 +72,29 @@ pouvait rien déclencher, un cookie le permettrait. L'API expose
 `DELETE /api/files` et `POST /api/files/move`. `SameSite=Lax` ferme cette porte
 sur les navigateurs actuels — c'est la raison d'être de l'attribut, et il n'est pas
 optionnel ici.
+
+## Ce que la réalisation a ajouté
+
+**La page de Hoard devait être servie sans authentification** — préalable non vu
+au cadrage, et qui bloquait tout le ticket. La page est elle-même derrière le
+middleware : en retirant `WWW-Authenticate`, un navigateur non connecté recevait
+un **401 vide**, sans fenêtre native ni écran de connexion — aucun moyen d'entrer.
+Arbitré avec David : quatre chemins exemptés (`/`, `/index.html`,
+`/service-worker.js`, `/manifest.webmanifest`), toutes les routes `/api/*` restant
+gardées. Ce que ça montre à un inconnu est la structure de l'application, déjà
+publique puisque le dépôt l'est.
+
+**Un défaut trouvé à la vérification manette et corrigé.** La règle
+`#login-form input:focus { outline: none }` aurait effacé le curseur de la manette
+exactement quand celle-ci se pose sur un champ — une règle d'ID l'emporte sur
+`.gp-modal .gp-cursor`. Corrigé en `:focus:not(.gp-cursor)`. La première mesure,
+prise dans un onglet qui n'avait pas le focus, ne prouvait rien : `:focus` ne s'y
+appliquait pas. Re-mesuré document au premier plan, avant/après.
+
+**Non vérifiable avec l'outillage :** la soumission par la touche Entrée. Les
+frappes simulées ne déclenchent pas la soumission implicite native du navigateur.
+Le câblage a été vérifié autrement (`form.requestSubmit()` déclenche bien
+`submitLogin`, la session s'établit), et le formulaire est un `<form>` standard
+avec un `<button type="submit">` ; aucun gestionnaire n'appelle `preventDefault`
+sur Entrée (mesuré : `defaultPrevented=false` après tous les gestionnaires de
+l'application).

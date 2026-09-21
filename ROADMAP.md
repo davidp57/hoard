@@ -1,5 +1,30 @@
 # Roadmap — Hoard
 
+## Session cookie and bookmarklet token *(done, target version to be agreed)*
+
+HTTP Basic auth went live in production on 2026-09-21. It protects correctly and
+cost two things: credentials retyped in every new browser window, through the
+browser's native dialog — barely steerable with a gamepad on the Deck and the
+Frame — and a **broken bookmarklet**, since a cross-origin POST carries no Basic
+credentials. Two deliberately distinct mechanisms, because one cannot fix the
+other: a correct session cookie is `SameSite=Lax`, which is precisely what stops a
+third-party page from acting on your behalf. See lot
+[SEC-SESSION](.backlog/SEC-SESSION/PRD.md).
+
+- [x] **Login screen and signed session cookie** (BL-123) — 30 days, slid on use;
+      `WWW-Authenticate` withheld from browsers, kept for `curl -u`; Basic still
+      accepted
+- [x] **Dedicated token for the bookmarklet** (BL-124) — in the request body,
+      never in a URL; opens the two download routes and nothing else
+
+Reproducing BL-124 corrected the diagnosis: the CORS **preflight** was refused
+first, by the auth middleware sitting outside `CORSMiddleware`, so the real POST
+was never sent and the bookmarklet blamed the site's CSP for an authentication
+failure.
+
+Out of scope and argued in the PRD: logging out as a feature (the route exists,
+the UI does not advertise it), and tightening `allow_origins=["*"]`.
+
 ## VR 180° side-by-side in the web player *(done, target version to be agreed)*
 
 180° stereoscopic side-by-side files opened as ordinary video — two squashed

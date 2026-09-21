@@ -8,6 +8,30 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ### Ajouté
 
+- **Tu ne retapes plus ton mot de passe à chaque fois.** Depuis que Hoard demande
+  un identifiant, chaque nouvelle fenêtre du navigateur réclamait à nouveau tes
+  identifiants, dans une petite fenêtre grise du navigateur — pénible à remplir à
+  la manette sur le Steam Deck, et qui n'avait rien à voir avec le reste de Hoard.
+
+  Hoard a maintenant **son propre écran de connexion**, aux mêmes couleurs que le
+  reste, et il se pilote entièrement à la manette : le D-pad passe d'un champ à
+  l'autre, **A** ouvre le clavier, **A** sur le bouton valide.
+
+  **Tu te connectes une fois, et c'est retenu 30 jours** — un délai qui repart à
+  zéro dès que tu utilises Hoard. En usage régulier, tu ne ressaisis donc jamais
+  rien. Chaque appareil a sa propre connexion.
+
+  Si ta connexion expire pendant que tu navigues, l'écran revient et **tu reprends
+  exactement où tu étais** : le dossier ouvert et la vidéo en cours ne sont pas
+  perdus.
+
+  Pour tout déconnecter d'un coup (un appareil perdu, par exemple), il y a un
+  moyen côté serveur : voir le guide d'installation, variable `HOARD_SECRET_KEY`.
+
+  À noter : **le code PIN reste une autre chose.** Il verrouille l'écran d'une
+  session déjà ouverte sur ton appareil ; la connexion, elle, décide si le serveur
+  te répond. Les deux continuent de fonctionner indépendamment.
+
 - **Hoard reconnaît tout seul tes fichiers VR.** Un petit 🥽 apparaît dans la liste
   à côté de ceux qu'il a repérés — au nom du fichier, et à la forme de l'image une
   fois celui-ci ouvert. Il ne bascule pas en mode VR pour autant : le bouton se met
@@ -47,6 +71,25 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
   à laisser à zéro sauf si un fichier précis te fatigue les yeux.
 
 ### Corrigé
+
+- **Le bouton de téléchargement de ta barre de favoris refonctionne.** Depuis que
+  Hoard demande un identifiant et un mot de passe, cliquer sur le favori depuis une
+  page vidéo ne faisait plus rien d'utile : il annonçait « Site incompatible » et
+  ouvrait un onglet, alors que le site n'y était pour rien. Ton navigateur, par
+  sécurité, ne transmet pas ton mot de passe Hoard depuis le site de quelqu'un
+  d'autre — le favori n'avait donc aucun moyen de prouver que c'était bien toi.
+
+  Il en a un maintenant : **le lien du favori contient un jeton personnel**, qui
+  autorise seulement deux choses, lancer un téléchargement et en suivre
+  l'avancement. Il ne donne accès ni à tes fichiers, ni à tes réglages. Comme ce
+  jeton est dans le lien, **il faut réinstaller le favori** : ouvre les paramètres
+  et glisse à nouveau le lien dans ta barre. Si tu diffuses ce lien par mégarde, le
+  bouton **🔑 Nouveau jeton** le rend aussitôt inutilisable.
+
+- **Quand quelque chose échoue, le favori te le dit.** La petite fenêtre de suivi
+  pouvait rester indéfiniment sur « Analyse de l'URL… » sans jamais rien annoncer.
+  Elle affiche désormais ce qui s'est passé : accès refusé (avec la marche à suivre),
+  téléchargement en échec, ou suivi interrompu.
 
 - **Le tri de la liste reste celui que tu as choisi.** Passer la liste en « Vu »
   (ou en « Nom », en « Taille »…) tenait jusqu'à la fermeture de Hoard : en

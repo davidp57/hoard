@@ -1,7 +1,7 @@
 # Lot SEC-SESSION — Session par cookie et jeton pour la bookmarklet
 
-Status: ⬜ ready
-Branch: `feature/sec-session` (à créer)
+Status: ✅ done
+Branch: `feature/sec-session`
 
 ## Problem Statement
 
@@ -51,8 +51,8 @@ pas la bookmarklet, et vouloir qu'il le fasse reviendrait à ouvrir la porte que
 
 ## Implementation Decisions
 
-Ces choix sont **proposés et recommandés**, pas encore confirmés — le premier
-geste du lot est de les faire valider (voir *Points à confirmer*).
+Ces choix ont été **confirmés par David le 2026-09-21** à l'ouverture du lot
+(voir *Points confirmés* en fin de document).
 
 - **Cookie signé, sans table de sessions.** HMAC sur `{utilisateur, expiration}`.
   Pas de table à maintenir, et la rotation de la clé révoque tout d'un coup.
@@ -77,20 +77,30 @@ geste du lot est de les faire valider (voir *Points à confirmer*).
 
 | # | Ticket | Dépend de | Statut |
 |---|---|---|---|
-| 01 | [BL-123](tickets/01-session-cookie.md) — Écran de connexion et session par cookie | — | ⬜ |
-| 02 | [BL-124](tickets/02-jeton-bookmarklet.md) — Jeton dédié pour la bookmarklet | — | ⬜ |
+| 01 | [BL-123](tickets/01-session-cookie.md) — Écran de connexion et session par cookie | — | ✅ |
+| 02 | [BL-124](tickets/02-jeton-bookmarklet.md) — Jeton dédié pour la bookmarklet | — | ✅ |
 
 Les deux tickets sont indépendants. BL-124 est le plus urgent à l'usage, puisque
 la bookmarklet est cassée **maintenant**.
 
-## Points à confirmer en ouverture de lot
+## Points confirmés (2026-09-21)
 
-1. Supprimer la fenêtre native du navigateur pour les requêtes HTML — sans ça
-   l'écran de connexion ne sert à rien. Recommandé : oui.
-2. Durée de session de 30 jours, renouvelée à l'usage. Recommandé : oui.
-3. Clé de signature : variable d'environnement prioritaire, repli sur une clé
-   générée en base. Recommandé : les deux.
-4. Un seul lot, deux tickets, une PR. Recommandé : oui.
+1. **`WWW-Authenticate` n'est plus envoyé aux requêtes HTML** — il reste envoyé aux
+   autres, pour que `curl -u` garde son défi. ✅
+2. **Session de 30 jours, renouvelée à l'usage** (repose passé la moitié). ✅
+3. **Clé de signature : `HOARD_SECRET_KEY` prioritaire, repli sur une clé générée
+   en base** au premier démarrage. ✅
+4. **Un seul lot, deux tickets, une PR** sur `feature/sec-session`. ✅
+
+### Décision ajoutée en cours de lot
+
+5. **Suivi de progression de la bookmarklet : route d'état dédiée en POST.**
+   Non prévu au cadrage : la reproduction de BL-124 a montré que la bookmarklet
+   fait **deux** appels, et que réparer le seul POST de démarrage aurait laissé
+   le sondage en 401, avalé par un `catch` vide. `POST /api/download/status`
+   répond sur une tâche et une seule — la liste complète livrerait à tout site où
+   l'on clique le marque-page l'URL source et la destination de chaque
+   téléchargement. ✅
 
 ## Hors périmètre
 
@@ -101,3 +111,12 @@ la bookmarklet est cassée **maintenant**.
   serveur ; les deux restent distincts.
 - **OAuth, comptes multiples, rôles** — le multi-utilisateur est le sujet de
   BL-015, dans `FEAT-ADVANCED`.
+
+## Décision ajoutée en cours de réalisation
+
+6. **La page de Hoard est servie sans authentification.** Préalable non vu au
+   cadrage : la page étant elle-même derrière le middleware, retirer la fenêtre
+   native du navigateur (point 1) laissait un navigateur non connecté devant un
+   401 vide, sans aucun moyen d'entrer. Quatre chemins exemptés, toutes les routes
+   `/api/*` restant gardées. Le dépôt étant public, ce que ça expose — la
+   structure de l'application — l'est déjà. ✅

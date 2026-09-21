@@ -394,7 +394,7 @@ Press **Start** (or the « Show button map » button in Settings) to display an 
 
 ### Dialogs and the Pad
 
-Every Hoard dialog (tags, rename, new folder, folder picker, download queue, PIN screen) can be driven from the pad: **D-pad** walks the fields and buttons, **A** activates the selected one, **B** closes the dialog. No screen asks you to reach back for the mouse.
+Every Hoard dialog (tags, rename, new folder, folder picker, download queue, PIN screen, login screen) can be driven from the pad: **D-pad** walks the fields and buttons, **A** activates the selected one, **B** closes the dialog. No screen asks you to reach back for the mouse.
 
 ### Controller Settings
 
@@ -405,6 +405,31 @@ In **Settings → 🎮 Controller**:
 | **Controller enabled** | Enable / disable gamepad detection entirely |
 | **Haptic feedback** | Short vibration on play/pause, seek, watched toggle (Chrome only) |
 | **Dead zone** | Stick detection threshold (default 20%). Increase if sticks drift. |
+
+---
+
+## Signing In
+
+When Hoard is configured with a username and password (`HOARD_AUTH_USER` /
+`HOARD_AUTH_PASS`, see the installation guide), opening it shows a **login screen
+in Hoard's own style** — no more grey browser dialog, which was barely steerable
+with a gamepad on the Steam Deck and the Steam Frame.
+
+- **Type it once.** The session lasts **30 days**, and the countdown restarts every
+  time you use Hoard: in regular use you never retype anything. Each device has its
+  own session.
+- **On a gamepad**: **D-pad** moves between fields, **A** opens the keyboard on the
+  selected field, then **A** on "Se connecter".
+- **If the session expires** while you are browsing, the screen comes back and you
+  carry on exactly where you were — no page reload, no lost playback position.
+- **Sign every device out at once**: set the `HOARD_SECRET_KEY` variable and change
+  its value. Every session, on every device, stops being valid immediately.
+
+> **The PIN is a different thing.** It locks the screen of a session that is already
+> open, on your own device; signing in decides whether the server answers you at all.
+> The two stay independent.
+
+> **`curl` still works** with `-u user:password`, as before — handy for scripts.
 
 ---
 
@@ -427,11 +452,22 @@ Hoard can download videos from the web using **yt-dlp** and save them directly t
 2. Scroll to the **Downloads** section.
 3. **Drag** the "📥 Télécharger avec Hoard" link to your bookmarks bar.
 
+> **The link contains a personal access token.** The bookmarklet runs on someone
+> else's web page, so your browser never sends it your Hoard credentials — the
+> token is what lets it reach Hoard. It can do two things and nothing else: start
+> a download, and report that download's progress. It cannot browse, move or
+> delete your files. Do not share the link. If you ever do by mistake, use
+> **🔑 Nouveau jeton** in Settings: the old link stops working immediately, and
+> you reinstall the bookmark by dragging the new link.
+
 ### Downloading a Video
 
 **From any web page** — click the bookmarklet. It submits the download **in the background** and injects a live status dialog directly into the current page — no navigation, no opened tab. The dialog progresses through ⌛ "Analyse de l'URL…" → 📥 "Téléchargement… X%" → ✅ "Terminé !" (auto-closes after 4 s). If the queue is busy it shows ⏳ "En attente dans la file… — titre.mp4" until the slot is free. You can cancel the job from the dialog or from the Hoard download queue modal.
 
-> **Sites with a restrictive CSP**: some sites (often ad-heavy streaming sites) block outgoing requests to a third-party domain like Hoard's via their `Content-Security-Policy`. In that case the bookmarklet shows ℹ️ "Site incompatible (CSP)" and automatically opens Hoard in a new tab to finish the download there.
+> **Sites with a restrictive CSP**: some sites (often ad-heavy streaming sites) block outgoing requests to a third-party domain like Hoard's via their `Content-Security-Policy`. In that case the bookmarklet shows ℹ️ "Hoard injoignable depuis cette page" and automatically opens Hoard in a new tab to finish the download there.
+
+> **"Hoard : accès refusé"**: the bookmark was saved before the token was
+> regenerated. Open Settings and drag the link again to replace it.
 
 > **Smart video source detection**: if a `<video>` element is playing on the page, the bookmarklet captures its direct source URL instead of the page URL. This enables downloading from sites where yt-dlp has no dedicated extractor (Patreon, custom video players, BunnyCDN embeds, etc.). The modal shows a 🎬 hint when a direct source was detected. The original page URL is automatically sent as the `Referer` header so CDNs that verify the origin accept the request.
 

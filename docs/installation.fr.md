@@ -133,7 +133,9 @@ Toute la configuration passe par des **variables d'environnement** dans `docker-
 | `PREDEFINED_FOLDERS` | `Vu,A revoir,A supprimer` | Dossiers rapides (séparés par des virgules) |
 | `SSL_CERTFILE` | *(non défini)* | Chemin vers un fichier de certificat PEM. Active le HTTPS natif — sans reverse proxy. |
 | `SSL_KEYFILE` | *(non défini)* | Chemin vers la clé privée PEM correspondante. |
-| `HOARD_AUTH_USER` / `HOARD_AUTH_PASS` | *(non défini)* | Définir les deux impose une auth HTTP Basic sur chaque requête. Recommandé pour exposer Hoard hors du LAN. Utiliser HTTPS pour ne pas transmettre les identifiants en clair. |
+| `HOARD_AUTH_USER` / `HOARD_AUTH_PASS` | *(non défini)* | Définir les deux impose une authentification sur chaque requête. Recommandé pour exposer Hoard hors du LAN. Utiliser HTTPS pour ne pas transmettre les identifiants en clair. |
+| `HOARD_SECRET_KEY` | *(générée)* | Clé qui signe le cookie de session. Sans elle, une clé est créée au premier démarrage et rangée en base : une installation neuve marche sans rien configurer. La définir donne le moyen de révoquer — changer la valeur invalide toutes les sessions, sur tous les appareils, d'un coup. |
+| `HOARD_COOKIE_SECURE` | `1` | Indique si le cookie de session porte `Secure` (HTTPS uniquement). À laisser à `1` en production. Ne passer à `0` que pour joindre une instance de développement en HTTP depuis une autre machine — les navigateurs considèrent déjà `localhost` comme sûr, donc le développement local n'a rien à changer. |
 | `LOG_LEVEL` | `INFO` | Niveau de journalisation (`DEBUG`, `INFO`, `WARNING`, `ERROR`). |
 | `LOG_DIR` | `<dossier de DB_PATH>/logs` | Dossier des fichiers de log. Chaîne vide = journalisation fichier désactivée (sortie standard uniquement). |
 | `LOG_RETENTION_DAYS` | `30` | Nombre de fichiers quotidiens conservés (rotation à minuit). |

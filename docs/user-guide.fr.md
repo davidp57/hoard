@@ -399,7 +399,7 @@ Appuie sur **Start** (ou le bouton « Afficher la carte des boutons » dans Para
 
 ### Fenêtres et manette
 
-Toutes les fenêtres de Hoard (tags, renommage, nouveau dossier, sélecteur de dossier, file de téléchargements, écran de code PIN) se pilotent à la manette : **D-pad** parcourt les champs et les boutons, **A** active celui qui est sélectionné, **B** ferme la fenêtre. Aucun écran ne demande de reprendre la souris.
+Toutes les fenêtres de Hoard (tags, renommage, nouveau dossier, sélecteur de dossier, file de téléchargements, écran de code PIN, écran de connexion) se pilotent à la manette : **D-pad** parcourt les champs et les boutons, **A** active celui qui est sélectionné, **B** ferme la fenêtre. Aucun écran ne demande de reprendre la souris.
 
 ### Paramètres manette
 
@@ -410,6 +410,34 @@ Dans **Paramètres → 🎮 Manette** :
 | **Manette activée** | Active / désactive complètement la détection gamepad |
 | **Retour haptique** | Vibration courte sur play/pause, seek, vu/non vu (Chrome uniquement) |
 | **Zone morte** | Seuil de détection des sticks (défaut 20%). Augmenter si les sticks dérivent. |
+
+---
+
+## Connexion
+
+Quand Hoard est configuré avec un identifiant et un mot de passe (variables
+`HOARD_AUTH_USER` / `HOARD_AUTH_PASS`, voir le guide d'installation), l'ouverture
+affiche un **écran de connexion aux couleurs de Hoard** — plus la fenêtre grise du
+navigateur, qui se pilotait mal à la manette sur le Steam Deck et le Steam Frame.
+
+- **Une seule saisie.** La connexion est retenue **30 jours**, et le décompte
+  repart dès que tu utilises Hoard : en usage régulier, tu ne ressaisis jamais
+  rien. Chaque appareil a sa propre connexion.
+- **À la manette** : le **D-pad** passe d'un champ à l'autre, **A** ouvre le
+  clavier sur le champ sélectionné, puis **A** sur « Se connecter ».
+- **Si la session expire** pendant que tu navigues, l'écran revient et tu
+  reprends exactement où tu en étais — pas de page rechargée, pas de lecture
+  perdue.
+- **Tout déconnecter d'un coup** : définis la variable `HOARD_SECRET_KEY` et
+  change sa valeur. Toutes les sessions, sur tous les appareils, cessent
+  immédiatement d'être valables.
+
+> **Le code PIN est autre chose.** Il verrouille l'écran d'une session déjà
+> ouverte, sur ton propre appareil ; la connexion décide si le serveur te répond.
+> Les deux restent indépendants.
+
+> **`curl` continue de fonctionner** avec `-u identifiant:motdepasse`, comme
+> avant — utile pour les scripts.
 
 ---
 
@@ -432,11 +460,23 @@ Hoard peut télécharger des vidéos depuis le web via **yt-dlp** et les sauvega
 2. Descends jusqu'à la section **Téléchargements**.
 3. **Glisse** le lien « 📥 Télécharger avec Hoard » vers ta barre de favoris.
 
+> **Le lien contient un jeton d'accès personnel.** La bookmarklet s'exécute sur la
+> page web de quelqu'un d'autre : ton navigateur n'y envoie jamais tes identifiants
+> Hoard, et c'est ce jeton qui lui permet d'atteindre Hoard. Il autorise deux
+> choses et rien d'autre : lancer un téléchargement, et en suivre l'avancement. Il
+> ne permet ni de parcourir, ni de déplacer, ni de supprimer tes fichiers. Ne
+> partage pas ce lien. Si ça t'arrive par erreur, utilise **🔑 Nouveau jeton** dans
+> les paramètres : l'ancien lien cesse aussitôt de fonctionner, et tu réinstalles
+> le favori en glissant le nouveau lien.
+
 ### Télécharger une vidéo
 
 **Depuis n'importe quelle page web** — clique sur la bookmarklet. Elle soumet le téléchargement **en arrière-plan** et injecte une fenêtre de statut en direct directement dans la page courante — aucune navigation, aucun onglet ouvert. Le dialogue progresse à travers ⌛ « Analyse de l'URL… » → 📥 « Téléchargement… X% » → ✅ « Terminé ! » (fermeture automatique après 4 s). Si la file est occupée, il affiche ⏳ « En attente dans la file… — titre.mp4 » jusqu'à ce qu'un slot se libère. Tu peux annuler le job depuis le dialogue ou depuis le modal de file de téléchargement de Hoard.
 
-> **Sites avec une CSP restrictive** : certains sites (souvent des sites de streaming chargés de publicités) bloquent, via leur `Content-Security-Policy`, les requêtes sortantes vers un domaine tiers comme celui de Hoard. Dans ce cas, la bookmarklet affiche ℹ️ « Site incompatible (CSP) » et ouvre automatiquement Hoard dans un nouvel onglet pour y terminer le téléchargement.
+> **Sites avec une CSP restrictive** : certains sites (souvent des sites de streaming chargés de publicités) bloquent, via leur `Content-Security-Policy`, les requêtes sortantes vers un domaine tiers comme celui de Hoard. Dans ce cas, la bookmarklet affiche ℹ️ « Hoard injoignable depuis cette page » et ouvre automatiquement Hoard dans un nouvel onglet pour y terminer le téléchargement.
+
+> **« Hoard : accès refusé »** : le favori a été enregistré avant que le jeton ne
+> soit régénéré. Ouvre les paramètres et glisse à nouveau le lien pour le remplacer.
 
 > **Détection intelligente de la source vidéo** : si un élément `<video>` est en lecture sur la page, la bookmarklet capture son URL source directe au lieu de l'URL de la page. Cela permet de télécharger depuis des sites où yt-dlp n'a pas d'extracteur dédié (Patreon, lecteurs vidéo custom, embeds BunnyCDN, etc.). Le modal affiche un indicateur 🎬 quand une source directe a été détectée. L'URL de la page d'origine est automatiquement envoyée comme en-tête `Referer` pour que les CDN qui vérifient l'origine acceptent la requête.
 
