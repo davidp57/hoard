@@ -320,11 +320,31 @@ externe.
 | `Secure` | `HOARD_COOKIE_SECURE`, actif par défaut | Le backend est joint en HTTP clair derrière le reverse proxy Synology : il ne peut pas détecter HTTPS. Un réglage, pas une introspection. |
 | `HttpOnly` | toujours | Met le cookie hors de portée de tout script de la page. |
 
-**`WWW-Authenticate` est retenu pour les appelants HTML.** Tant qu'il part, le
-navigateur ouvre sa propre fenêtre d'identifiants et l'écran de connexion intégré
-n'apparaît jamais. Il continue d'être envoyé à tout le reste, parce que `curl -u`
-n'envoie ses identifiants qu'après avoir reçu le défi, et que `curl` ne demande pas
-de `text/html`.
+**`WWW-Authenticate` n'est plus envoyé aux navigateurs**, quel que soit le type de
+requête. Tant qu'il part, le navigateur ouvre sa propre fenêtre d'identifiants et
+l'écran de connexion intégré n'apparaît jamais.
+
+C'est `_looks_like_a_browser()` qui tranche, sur trois signaux dont un seul suffit :
+un en-tête `Sec-Fetch-*`, `text/html` dans `Accept`, ou `Mozilla` dans le
+`User-Agent`. Ne tester que `Accept: text/html` — la première version — était faux
+précisément dans le cas qui compte. Mesuré, par client :
+
+| Client | `Accept` | `Sec-Fetch-Mode` |
+|---|---|---|
+| navigation | `text/html,…` | `navigate` |
+| `fetch()` | `*/*` | `cors` |
+| curl | `*/*` | *(absent)* |
+
+Le premier geste de la page est `fetch('/api/settings')`, indiscernable de curl par
+le seul `Accept` : il recevait donc le défi, et **Firefox ouvre sa fenêtre native
+sur un `fetch`**. Chrome supprime cette fenêtre pour les requêtes fetch/XHR, d'où
+un contrôle fait sur Chrome qui n'a rien vu et un défaut parti en production.
+
+Le défi reste envoyé aux non-navigateurs, bien qu'**aucun client d'ici n'en ait
+besoin** : `curl -u` envoie `Authorization` dès la **première** requête, sans
+attendre de défi. Attendre le défi est un comportement Digest, pas Basic. Une
+version antérieure de ce document affirmait le contraire et s'en servait pour
+justifier la distinction fondée sur `Accept`.
 
 **La page de l'application est servie sans identifiants** (`SHELL_PATHS` : `/`,
 `/index.html`, `/service-worker.js`, `/manifest.webmanifest`). C'est la conséquence
