@@ -1,6 +1,6 @@
 # BL-128 — Couche VR sous R2
 
-Status: ⬜ ready
+Status: ✅ done
 Type: feat
 Files: `frontend/index.html`, `docs/user-guide.*.md`
 

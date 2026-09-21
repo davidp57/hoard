@@ -1,6 +1,6 @@
 # BL-129 — Convergence retenue par fichier
 
-Status: ⬜ ready
+Status: ✅ done
 Type: feat
 Files: `backend/main.py`, `frontend/index.html`, `tests/test_api.py`,
 `docs/user-guide.*.md`, `docs/developer.en.md`
@@ -30,16 +30,28 @@ même cycle de vie, et les mêmes règles de suivi.
 - **La ligne suit les renommages et déplacements et disparaît avec le fichier** —
   c'est déjà le cas pour `vr_modes`, vérifier que la colonne suit et **le tester**,
   sans quoi un nouveau fichier déposé au même chemin hériterait de la convergence
-  d'un inconnu. Les deux cas sont déjà testés pour `mode` : les étendre.
+  d'un inconnu.
+
+  **Correction, trouvée par la revue** : ce ticket affirmait que « les deux cas
+  sont déjà testés pour `mode` ». C'est faux et je ne l'avais pas vérifié — le
+  renommage et la suppression avaient des tests, **le déplacement n'en avait
+  aucun**, ni pour `mode` ni pour la convergence. Le trou est comblé pour les deux
+  d'un coup (`test_both_fields_follow_a_move`), les deux champs voyageant sur la
+  même ligne.
 
 ## Acceptance criteria
 
-- [ ] Une convergence réglée à la manette est retrouvée à la réouverture du fichier
-- [ ] Un autre fichier n'en hérite pas : il prend le défaut global
-- [ ] Le réglage global continue de servir de défaut
-- [ ] La ligne suit un renommage et un déplacement
-- [ ] La ligne disparaît avec le fichier
-- [ ] Une valeur hors bornes est refusée (±3°, comme `VR_CONVERGENCE_MAX`)
+- [x] Une convergence réglée à la manette est retrouvée à la réouverture du fichier
+      — vérifié dans le navigateur : réglée à 0,8 puis retrouvée après fermeture
+      et réouverture, alors que le défaut global vaut 0
+- [x] Un autre fichier n'en hérite pas : il prend le défaut global
+- [x] Le réglage global continue de servir de défaut
+- [x] La ligne suit un renommage et un déplacement
+- [x] La ligne disparaît avec le fichier
+- [x] Une valeur hors bornes est refusée (±3°, comme `VR_CONVERGENCE_MAX`)
+- [x] **L'écriture ne martèle pas le serveur** — ajouté après coup : le réglage est
+      continu à la fréquence d'affichage. Mesuré : 30 ajustements d'affilée
+      produisent **une** écriture.
 
 ## Ce qu'il ne faut pas rater
 

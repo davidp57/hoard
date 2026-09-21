@@ -1,7 +1,7 @@
 # Lot PAD-VR — Piloter le VR à la manette, en voyant ce qu'on règle
 
-Status: ⬜ ready
-Branch: `feature/pad-vr` (à créer)
+Status: 🧑 waiting-human
+Branch: `feature/pad-vr`
 
 ## Problem Statement
 
@@ -60,9 +60,9 @@ doit pas contaminer les autres.
 
 | # | Ticket | Dépend de | Statut |
 |---|---|---|---|
-| 01 | [BL-127](tickets/01-fenetres-sbs.md) — Fenêtres manette lisibles en côte à côte | — | ⬜ |
-| 02 | [BL-128](tickets/02-couche-r2.md) — Couche VR sous R2 | — | ⬜ |
-| 03 | [BL-129](tickets/03-convergence-par-fichier.md) — Convergence retenue par fichier | BL-128 | ⬜ |
+| 01 | [BL-127](tickets/01-fenetres-sbs.md) — Fenêtres manette lisibles en côte à côte | — | ✅ |
+| 02 | [BL-128](tickets/02-couche-r2.md) — Couche VR sous R2 | — | ✅ |
+| 03 | [BL-129](tickets/03-convergence-par-fichier.md) — Convergence retenue par fichier | BL-128 | ✅ |
 
 ## Hors périmètre
 

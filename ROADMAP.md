@@ -52,8 +52,20 @@ defects, fixed by lot [FIX-XR-DISPLAY](.backlog/FIX-XR-DISPLAY/PRD.md):
       the canvas shape; an explicit choice still wins, and **L2** toggles it on
       the pad, **B** on the keyboard.
 
-One check remains owed on that lot and cannot be done from a desktop: that the
-guess lands on the right layout on the real hardware.
+Verified on the hardware the same day: the Select menu reads `auto : non
+étirée`, so the guess picks `full` on its own and that is the right one on the
+Beast. That test in turn surfaced two gaps — about driving rather than about the
+picture — covered by lot [PAD-VR](.backlog/PAD-VR/PRD.md):
+
+- [x] **Readable pad windows in side-by-side** (BL-127) — the Select menu and the
+      button map were drawn once, centred, so they straddled the split and each
+      eye got half of them. Now drawn once per eye, like the toast.
+- [x] **A VR layer under R2** (BL-128) — zoom, convergence and the two recentres,
+      adjustable while watching the picture change instead of through a menu that
+      covers it. Convergence had no pad shortcut at all, and the field of view
+      only had the mouse wheel.
+- [x] **Per-file convergence** (BL-129) — the strain comes from how a file was
+      shot, so it is remembered per file rather than globally.
 
 This does not reopen [ADR 0003](docs/adr/0003-client-natif.md): an immersive
 OpenXR session for the Steam Frame stays out of scope and unverifiable until the

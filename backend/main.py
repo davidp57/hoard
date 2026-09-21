@@ -593,6 +593,13 @@ def init_db():
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        # Migration (BL-129): per-file convergence rides on the same row as the
+        # mode. Same key, same lifecycle, same rename/move/delete rules — a table
+        # of its own would duplicate all three for one number.
+        try:
+            conn.execute("ALTER TABLE vr_modes ADD COLUMN convergence REAL")
+        except Exception:
+            pass
         conn.execute("""
             CREATE TABLE IF NOT EXISTS initial_sweep_folders (
                 path TEXT PRIMARY KEY,
@@ -2275,7 +2282,10 @@ def list_files(path: str = ""):
         progress_map = {row["path"]: _watch_percent(row) for row in rows}
         watched_map = _last_watched_index(conn)
         tag_rows = conn.execute("SELECT path, tag FROM file_tags").fetchall()
-        vr_map = {r["path"]: r["mode"] for r in conn.execute("SELECT path, mode FROM vr_modes")}
+        vr_map = {
+            r["path"]: (r["mode"], r["convergence"])
+            for r in conn.execute("SELECT path, mode, convergence FROM vr_modes")
+        }
 
     tags_map: dict[str, list[str]] = {}
     for tr in tag_rows:
@@ -2325,7 +2335,9 @@ def list_files(path: str = ""):
             entry["progress"] = get_progress(item)
         if entry["is_video"]:
             entry["vr_hint"] = guess_vr_from_name(item.name)
-            entry["vr_mode"] = vr_map.get(rel)
+            row = vr_map.get(rel)
+            entry["vr_mode"] = row[0] if row else None
+            entry["vr_convergence"] = row[1] if row else None
         entry["tags"] = tags_map.get(rel, [])
         entries.append(entry)
     parts = []
@@ -2355,7 +2367,10 @@ def search_files(q: str, path: str = ""):
         }
         tag_rows_s = conn.execute("SELECT path, tag FROM file_tags").fetchall()
         watched_map_s = _last_watched_index(conn)
-        vr_map_s = {r["path"]: r["mode"] for r in conn.execute("SELECT path, mode FROM vr_modes")}
+        vr_map_s = {
+            r["path"]: (r["mode"], r["convergence"])
+            for r in conn.execute("SELECT path, mode, convergence FROM vr_modes")
+        }
 
     tags_map_s: dict[str, list[str]] = {}
     for tr in tag_rows_s:
@@ -2391,7 +2406,9 @@ def search_files(q: str, path: str = ""):
             entry["progress"] = get_progress(item)
         if entry["is_video"]:
             entry["vr_hint"] = guess_vr_from_name(item.name)
-            entry["vr_mode"] = vr_map_s.get(rel)
+            row = vr_map_s.get(rel)
+            entry["vr_mode"] = row[0] if row else None
+            entry["vr_convergence"] = row[1] if row else None
         entry["tags"] = tags_map_s.get(rel, [])
         entries.append(entry)
 
@@ -2460,7 +2477,11 @@ def set_watched(path: str, body: WatchedUpdate):
 
 
 class VrModePayload(BaseModel):
-    mode: str
+    # BL-129: both optional, and at least one required — the pad can now set the
+    # convergence on a file whose mode was never chosen, and the settings flow
+    # still sets the mode alone.
+    mode: str | None = None
+    convergence: float | None = Field(default=None, ge=-3.0, le=3.0)
 
 
 @app.post("/api/vr-mode")
@@ -2471,24 +2492,37 @@ def set_vr_mode(path: str, body: VrModePayload):
     "this is not a VR file" — the guess reads a file name and a shape, so it is
     wrong sometimes, and being wrong must be correctable rather than permanent.
     """
-    if body.mode not in ("off", "flat", "sbs"):
+    if body.mode is None and body.convergence is None:
+        raise HTTPException(status_code=400, detail="Nothing to set")
+    if body.mode is not None and body.mode not in ("off", "flat", "sbs"):
         raise HTTPException(status_code=400, detail="Invalid VR mode")
     file = safe_path(path)
     if not file.exists():
         raise HTTPException(status_code=404)
     rel = to_rel(file)
     with get_db() as conn:
+        # Two things to get right here. `mode` is NOT NULL, so a convergence-only
+        # write on a file with no row yet must supply one — 'flat' rather than
+        # 'off', which would switch VR off on a file being watched in VR. And the
+        # UPDATE branch reads the parameters again rather than `excluded`: that
+        # row already carries the 'flat' fallback, so COALESCE against it would
+        # silently overwrite a mode the caller never meant to touch.
         conn.execute(
             """
-            INSERT INTO vr_modes (path, mode, updated_at)
-            VALUES (?, ?, CURRENT_TIMESTAMP)
+            INSERT INTO vr_modes (path, mode, convergence, updated_at)
+            VALUES (?, COALESCE(?, 'flat'), ?, CURRENT_TIMESTAMP)
             ON CONFLICT(path) DO UPDATE SET
-                mode=excluded.mode, updated_at=CURRENT_TIMESTAMP
+                mode=COALESCE(?, vr_modes.mode),
+                convergence=COALESCE(?, vr_modes.convergence),
+                updated_at=CURRENT_TIMESTAMP
             """,
-            (rel, body.mode),
+            (rel, body.mode, body.convergence, body.mode, body.convergence),
         )
+        row = conn.execute(
+            "SELECT mode, convergence FROM vr_modes WHERE path = ?", (rel,)
+        ).fetchone()
         conn.commit()
-    return {"path": rel, "mode": body.mode}
+    return {"path": rel, "mode": row["mode"], "convergence": row["convergence"]}
 
 
 def _purge_paths(conn, rel: str) -> None:

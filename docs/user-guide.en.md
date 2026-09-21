@@ -230,12 +230,26 @@ While VR mode is on, dragging no longer seeks or changes the volume — it looks
 
 #### With XR glasses
 
-Side-by-side mode goes fullscreen on its own: that is the only display that makes sense inside glasses. The player controls disappear while it is on — drawn once across a picture about to be split in two, they would land half in each eye and read as nothing anywhere. The player's own messages do stay: they are written once per eye, so they read in both. Drive from the gamepad or the keyboard; leaving the mode brings everything back.
+Side-by-side mode goes fullscreen on its own: that is the only display that makes sense inside glasses. The player controls disappear while it is on — drawn once across a picture about to be split in two, they would land half in each eye and read as nothing anywhere. What you drive with, on the other hand, is written **once per eye** and so reads in both: the player's messages, the **Select** menu and the button map. Drive from the gamepad or the keyboard; leaving the mode brings everything back.
 
 Two settings, depending on what your glasses do:
 
 - **Stretched picture or not** (**B** key, **L2** on the pad, or the gamepad menu). **Hoard guesses it by default**, from the shape of the picture: to get 3D, glasses like the Viture Beast want an output twice as wide as usual — 3840×1080 — and on a picture that shape each half is already correctly proportioned, so nothing gets stretched. On an ordinary display each half is stretched back across the full width instead. Hoard announces what it guessed with a message as the mode comes on. If the picture still looks squashed or stretched twice over vertically, flip the setting — the effect is immediate, and your choice always wins over the guess. The shortcut cycles the three states: automatic, stretched, unstretched.
-- **Convergence** (gamepad menu). Leave it at zero: the two views are then exactly aligned, which is correct for a properly shot file. Only adjust it if one particular file tires your eyes.
+- **Convergence** (**R2 + D-pad ←/→**, or the gamepad menu). This is the angle the two viewpoints are spread apart or brought together, which changes the distance your brain places the scene at. Leave it at zero, where the two views are exactly as the cameras took them — correct for a properly shot file. If one particular file tires your eyes, it was shot with a camera spacing that does not suit you, or mounted badly: a few tenths of a degree are enough. Past 3° the eyes stop fusing, hence the bound. **The value is remembered for that file**, not globally: the strain comes from the shoot, and a badly mounted file must not contaminate the rest.
+
+#### Adjusting the view from the pad
+
+Everything is set by **holding R2**, without opening anything: the picture changes as you adjust, which is the only way to judge it.
+
+| R2 held | Effect |
+|---|---|
+| **Left stick ↕** | Zoom |
+| **D-pad ←/→** | Convergence |
+| **Left stick click** | Reset the zoom |
+| **Right stick click** | Recentre the view |
+| **Right stick** | Look around (as without R2) |
+
+While R2 is held the other buttons do nothing: the pad is driving the view and nothing else. On the keyboard, **Shift+V** resets both view and zoom at once.
 
 #### Recognition and memory
 
@@ -347,6 +361,7 @@ Hoard supports game controllers via the browser's **Gamepad API** (Xbox, PlaySta
 | **Select** | Open the context menu | — | — | — |
 | **Start** | Show button map | — | — | — |
 | **L2** | Side-by-side layout: auto / stretched / not (VR mode) | — | — | — |
+| **R2** (held) | VR layer: zoom, convergence, recentre — see above | — | — | — |
 | **L3** (stick click) | Mute / Unmute | — | — | — |
 | **R3** (stick click) | Cycle speed (0.5× → 1× → 1.5× → 2× → …) | — | — | — |
 | **Left stick X** | Analog scrubbing | — | — | — |
