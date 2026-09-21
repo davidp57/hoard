@@ -1486,7 +1486,7 @@
         </div>
       </div>
       <div class="s-row">
-        <div><div class="s-label">Tri par défaut</div></div>
+        <div><div class="s-label">Tri de la liste</div><div class="s-desc">Le tri choisi dans la barre est mémorisé ici et réappliqué à la réouverture.</div></div>
         <div class="s-right">
           <select class="s-select" id="s-sort-by">
             <option value="date">Date</option>
@@ -2549,13 +2549,46 @@ function setSortBy(by) {
   sortBy = by;
   updateSortUI();
   renderFiles(entries);
+  persistSort();
 }
 
 function toggleSortDir() {
   sortDir = sortDir === 'desc' ? 'asc' : 'desc';
   updateSortUI();
   renderFiles(entries);
+  persistSort();
 }
+
+// The sort picked in the bar is the sort the app reopens on: it writes back to
+// the very setting the settings screen edits, so it survives a reload and
+// follows the user from the laptop to the tablet. Coalesced because the bar is
+// a row of buttons one tends to try out before settling.
+const SORT_SAVE_DEBOUNCE_MS = 400;
+let _sortSaveTimer = null;
+
+function persistSort() {
+  cfg.sort_by  = sortBy;
+  cfg.sort_dir = sortDir;
+  clearTimeout(_sortSaveTimer);
+  _sortSaveTimer = setTimeout(writeSortSetting, SORT_SAVE_DEBOUNCE_MS);
+}
+
+function writeSortSetting() {
+  clearTimeout(_sortSaveTimer);
+  _sortSaveTimer = null;
+  // Plain fetch, not apiFetch: a background write of a comfort setting must not
+  // raise a network-error toast over a sort that did apply on screen. keepalive
+  // lets the write survive the page being closed right after the click.
+  fetch(`${API}/api/settings`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ sort_by: sortBy, sort_dir: sortDir }),
+    keepalive: true,
+  }).catch(() => { /* not critical: the sort still holds for this session */ });
+}
+
+// Closing the tab inside the debounce window would otherwise drop the choice.
+window.addEventListener('pagehide', () => { if (_sortSaveTimer) writeSortSetting(); });
 
 function updateSortUI() {
   document.getElementById('sort-date-btn').classList.toggle('active', sortBy === 'date');

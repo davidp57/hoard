@@ -33,6 +33,8 @@ quelle profondeur.
    pour reprendre là où j'en étais sans me souvenir du chemin.
 2. En tant qu'utilisateur, je veux garder le tri par date fichier, qui répond à une
    autre question : « qu'est-ce qui vient d'arriver dans ce dossier ».
+3. En tant qu'utilisateur, je veux que le tri que j'ai choisi soit encore là quand je
+   reviens, sans le reposer à chaque ouverture (BL-118).
 
 ## Implementation Decisions
 
@@ -53,6 +55,12 @@ quelle profondeur.
 - **Les galeries fonctionnent sans cas particulier** : une galerie porte sa propre
   ligne de progression sur le chemin du dossier, qui entre dans l'index comme un
   fichier.
+- **Le tri choisi est écrit dans le réglage existant, pas dans `localStorage`**
+  (BL-118). Le couple `sort_by` / `sort_dir` est en base depuis toujours et le
+  `POST /api/settings` accepte un corps partiel : le tri suit donc l'utilisateur
+  du laptop à la tablette, conformément à la règle du projet qui réserve
+  `localStorage` au volume. Corollaire assumé : le réglage cesse d'être un
+  « défaut » et devient le tri courant — il est renommé en conséquence.
 
 ## Testing Decisions
 

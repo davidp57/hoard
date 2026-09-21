@@ -6,6 +6,15 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ## [Non publié]
 
+### Corrigé
+
+- **Le tri de la liste reste celui que tu as choisi.** Passer la liste en « Vu »
+  (ou en « Nom », en « Taille »…) tenait jusqu'à la fermeture de Hoard : en
+  revenant, tout était retombé sur « Date ». Le tri est maintenant enregistré, et
+  retrouvé tel quel à la réouverture — y compris si tu reprends sur la tablette
+  après le laptop. Le réglage des paramètres, renommé **Tri de la liste**, affiche
+  simplement le tri en cours ; enregistrer les paramètres ne le remet plus à zéro.
+
 ## [v2.6.5] — 2026-09-21
 
 ### Sécurité
