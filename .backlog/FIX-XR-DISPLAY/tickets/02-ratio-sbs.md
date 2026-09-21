@@ -154,8 +154,10 @@ plafond à 110°).
       contextuel, tous deux marquant explicitement l'état « auto »
 - [x] La bascule est atteignable à la manette sans passer par deux menus (L2)
 - [x] Le bouton B de la manette garde son rôle actuel
-- [ ] Vérifié sur le matériel réel (Deck + Beast) — ce qui ne peut pas être fait
-      depuis un poste de bureau, comme pour FEAT-VR180 *(reste dû par David)*
+- [x] Vérifié sur le matériel réel (Deck + Beast) le **2026-09-21** : le menu
+      Select affiche `auto : non étirée`, donc la devinette a choisi `full` seule
+      et c'est bien la bonne — « avec les Beast, c'est mieux en non étiré ». Le
+      diagnostic du ticket est confirmé sur le matériel.
 
 ## Ce qu'il ne faut pas rater
 

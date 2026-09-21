@@ -1,6 +1,6 @@
 # Lot FIX-XR-DISPLAY — Hoard utilisable sur lunettes XR en 3840×1080
 
-Status: 🧑 waiting-human
+Status: ✅ done
 Branch: `fix/xr-display`
 
 ## Problem Statement

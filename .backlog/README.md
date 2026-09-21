@@ -20,7 +20,8 @@ Convention détaillée : [`docs/agents/issue-tracker.md`](../docs/agents/issue-t
 | [SEC-AUTH](SEC-AUTH/PRD.md) — Une instance ouverte doit se voir (contrôle de santé BL-105, annonce de l'état d'authentification BL-106) | ✅ |
 | [CLIENT-NATIVE](CLIENT-NATIVE/PRD.md) — Client natif Flutter pour Steam Deck, Steam Frame et Windows (faisabilité BL-104 ✅, puis BL-107..117) | 🔄 |
 | [SEC-SESSION](SEC-SESSION/PRD.md) — Session par cookie et jeton pour la bookmarklet (écran de connexion BL-123, bookmarklet cassée par l'auth BL-124) | ✅ |
-| [FIX-XR-DISPLAY](FIX-XR-DISPLAY/PRD.md) — Hoard utilisable sur lunettes XR en 3840×1080 (fenêtres manette à l'échelle BL-126 ✅, ratio côte à côte BL-125 ✅) | 🧑 |
+| [PAD-VR](PAD-VR/PRD.md) — Piloter le VR à la manette en voyant ce qu'on règle (fenêtres lisibles en côte à côte BL-127, couche VR sous R2 BL-128, convergence par fichier BL-129) | ⬜ |
+| [FIX-XR-DISPLAY](FIX-XR-DISPLAY/PRD.md) — Hoard utilisable sur lunettes XR en 3840×1080 (fenêtres manette à l'échelle BL-126 ✅, ratio côte à côte BL-125 ✅) | ✅ |
 | [FEAT-VR180](FEAT-VR180/PRD.md) — Lecture des vidéos 180° SBS dans le lecteur web (socle BL-119, sortie SBS BL-120, détection BL-121, réglages BL-122) | ✅ |
 | [FEAT-ADVANCED](FEAT-ADVANCED/PRD.md) — Fonctionnalités avancées (thème clair BL-013, multi-utilisateur BL-015) | ⬜ |
 | [ARCH-PERF](ARCH-PERF/PRD.md) — Architecture & Performance (split `main.py` BL-041, transcodage HW BL-042) | ⬜ |
