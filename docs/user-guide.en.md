@@ -224,7 +224,7 @@ Each press moves to the next state:
 | **Flat** | a single straightened view you can pan | on a normal screen — computer, tablet |
 | **Side by side** | two views, one per eye | with XR glasses in 3D mode, which split the two pictures themselves |
 
-To look around: **drag your finger** on the image, **drag with the mouse**, or push the **right stick** on the gamepad. The mouse wheel zooms in and out. **Shift+V** re-centres the view.
+To look around: **drag your finger** on the image, **drag with the mouse**, or hold **R2** and push the **right stick** on the gamepad — without R2 that stick sets the volume. The mouse wheel zooms in and out. **Shift+V** re-centres the view.
 
 While VR mode is on, dragging no longer seeks or changes the volume — it looks around. Seeking and volume stay available from the keyboard, the player buttons and the gamepad's left stick.
 
@@ -247,9 +247,9 @@ Everything is set by **holding R2**, without opening anything: the picture chang
 | **D-pad ←/→** | Convergence |
 | **Left stick click** | Reset the zoom |
 | **Right stick click** | Recentre the view |
-| **Right stick** | Look around (as without R2) |
+| **Right stick** | Look around |
 
-While R2 is held the other buttons do nothing: the pad is driving the view and nothing else. On the keyboard, **Shift+V** resets both view and zoom at once.
+While R2 is held the other buttons do nothing: the pad is driving the view and nothing else. **Release R2** and everything returns to its usual role — the right stick then sets the volume, VR playback included. On the keyboard, **Shift+V** resets both view and zoom at once.
 
 #### Recognition and memory
 

@@ -229,7 +229,7 @@ Trois états se succèdent à chaque appui :
 | **Plat** | une seule vue, redressée, que vous promenez | sur un écran normal — ordinateur, tablette |
 | **Côte à côte** | deux vues, une par œil | avec des lunettes XR en mode 3D, qui séparent elles-mêmes les deux images |
 
-Pour regarder autour de vous : **glissez le doigt** sur l'image, **tirez à la souris**, ou poussez le **stick droit** de la manette. La molette de la souris rapproche ou éloigne la vue. **Maj+V** remet le regard au centre.
+Pour regarder autour de vous : **glissez le doigt** sur l'image, **tirez à la souris**, ou maintenez **R2** et poussez le **stick droit** de la manette — sans R2 ce stick règle le volume. La molette de la souris rapproche ou éloigne la vue. **Maj+V** remet le regard au centre.
 
 Tant que le mode VR est actif, le glissement ne fait plus ni avance rapide ni réglage du volume — il sert à regarder. L'avance et le volume restent accessibles au clavier, aux boutons du lecteur et au stick gauche de la manette.
 
@@ -252,9 +252,9 @@ Tout se règle en **maintenant R2**, sans rien ouvrir : l'image change pendant q
 | **D-pad ←/→** | Convergence |
 | **Clic stick gauche** | Remettre le zoom |
 | **Clic stick droit** | Recentrer le regard |
-| **Stick droit** | Regarder autour (comme sans R2) |
+| **Stick droit** | Regarder autour |
 
-Tant que R2 est maintenu, les autres boutons ne font rien : la manette pilote la vue et rien d'autre. Au clavier, **Maj+V** remet d'un coup le regard et le zoom.
+Tant que R2 est maintenu, les autres boutons ne font rien : la manette pilote la vue et rien d'autre. **Relâche R2** et tout reprend son rôle habituel — le stick droit règle alors le volume, y compris en pleine lecture VR. Au clavier, **Maj+V** remet d'un coup le regard et le zoom.
 
 #### Reconnaissance et mémorisation
 
