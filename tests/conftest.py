@@ -48,6 +48,7 @@ def clean_media():
         _conn.execute("DELETE FROM file_tags")
         _conn.execute("DELETE FROM segments")
         _conn.execute("DELETE FROM downloads")
+        _conn.execute("DELETE FROM vr_modes")
         _conn.commit()
     finally:
         _conn.close()

@@ -338,6 +338,32 @@
     min-height: 0;
   }
 
+  /* VR canvas sits on top of the <video>, which keeps playing underneath and
+     keeps receiving pointer events — hence pointer-events:none here. */
+  /* Above the <video>, which is not positioned, but below every overlay: at
+     z-index 2 the canvas hid the fullscreen control bar, whose own z-index:1
+     was put there to keep it over the video. The canvas also sits before the
+     overlays in the DOM so painting order does not put it back on top. */
+  #vr-canvas {
+    position: absolute;
+    display: none;
+    background: #000;
+    pointer-events: none;
+    z-index: 0;
+  }
+  #vr-canvas.active { display: block; }
+
+  .vr-badge { margin-left: 6px; font-size: 11px; }
+  .vr-badge.dim { opacity: 0.45; }
+
+  /* Side-by-side output: any 2D overlay is drawn once across a picture that is
+     about to be split between two eyes, so it lands half in each and reads as
+     nothing. Hide them; the gamepad and keyboard still drive the player. */
+  #video-container.vr-sbs #controls,
+  #video-container.vr-sbs #toast,
+  #video-container.vr-sbs #vol-osd,
+  #video-container.vr-sbs #mini-time { display: none !important; }
+
   /* ── Player controls ── */
   #controls {
     background: var(--surface);
@@ -1546,6 +1572,22 @@
         <div class="s-right"><input type="number" class="s-num" id="s-fs-progress-zoom" min="5" max="50" step="5"> <span style="font-size:12px;color:var(--text-dim)">%</span></div>
       </div>
       <div class="s-row">
+        <div><div class="s-label">Champ de vision VR</div><div class="s-desc">Ouverture de la vue en mode VR 180°. Plus petit = plus rapproché. Ajustable à la molette pendant la lecture, sans modifier ce réglage.</div></div>
+        <div class="s-right"><input type="number" class="s-num" id="s-vr-fov" min="30" max="120" step="5"> <span style="font-size:12px;color:var(--text-dim)">°</span></div>
+      </div>
+      <div class="s-row">
+        <div><div class="s-label">Vitesse du regard VR</div><div class="s-desc">Rotation au stick droit, à fond de course, en degrés par seconde</div></div>
+        <div class="s-right"><input type="number" class="s-num" id="s-vr-look-speed" min="10" max="360" step="10"> <span style="font-size:12px;color:var(--text-dim)">°/s</span></div>
+      </div>
+      <div class="s-row">
+        <div><div class="s-label">Image VR côte à côte</div><div class="s-desc">La plupart des lunettes XR en mode 3D réétirent chaque moitié sur toute la largeur. Si l'image paraît écrasée ou étirée du double, change ce réglage (touche B pendant la lecture).</div></div>
+        <div class="s-right"><select class="s-num" id="s-vr-sbs-layout" style="width:auto"><option value="half">Étirée (lunettes XR)</option><option value="full">Non étirée</option></select></div>
+      </div>
+      <div class="s-row">
+        <div><div class="s-label">Convergence VR</div><div class="s-desc">Écart entre les deux yeux. À laisser à 0 : un fichier bien tourné n'en a pas besoin.</div></div>
+        <div class="s-right"><input type="number" class="s-num" id="s-vr-convergence" min="-3" max="3" step="0.5"> <span style="font-size:12px;color:var(--text-dim)">°</span></div>
+      </div>
+      <div class="s-row">
         <div><div class="s-label">Initial sweep par défaut</div><div class="s-desc">Pour une vidéo sans progression enregistrée : démarrer à N secondes. 0 = désactivé.</div></div>
         <div class="s-right"><input type="number" class="s-num" id="s-initial-sweep" min="0" max="7200" step="30"> <span style="font-size:12px;color:var(--text-dim)">s</span></div>
       </div>
@@ -1754,6 +1796,7 @@
     </div>
 
     <div id="video-container">
+      <canvas id="vr-canvas"></canvas>
       <div id="toast"></div>
       <div id="vol-osd">
         <span id="vol-osd-icon">🔊</span>
@@ -1794,6 +1837,7 @@
           </div>          <button class="ctrl-btn" id="subs-btn" onclick="cycleSubtitles()" title="Sous-titres (C)" aria-label="Sous-titres">💬</button>
           <button class="ctrl-btn" id="fullscreen-btn" onclick="toggleFullscreen()" title="Plein écran (F)" aria-label="Plein écran">&#x26F6;</button>
           <button class="ctrl-btn" id="speed-btn" onclick="cycleSpeed()" title="Vitesse de lecture">1×</button>
+          <button class="ctrl-btn" id="vr-btn" onclick="cycleVrMode()" title="Mode VR 180° (V)" aria-label="Mode VR 180 degrés">🥽</button>
           <button class="ctrl-btn" id="fit-btn" onclick="toggleVideoFit()" title="Fit / Fill">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="3" y="5" width="18" height="14" rx="1"/>
@@ -2098,6 +2142,8 @@
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">F</td><td style="padding:4px 8px">Plein écran (fenêtré sur PC) <span style="color:var(--text-dim)">— Maj+F pour le vrai plein écran</span></td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">Échap</td><td style="padding:4px 8px">Quitter plein écran → fermer le player → remonter d'un cran (comme B au pad)</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">A</td><td style="padding:4px 8px">Cycle aspect ratio (Fit / Fill / …)</td></tr>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">V</td><td style="padding:4px 8px">Mode VR 180° : plat → côte à côte → désactivé <span style="color:var(--text-dim)">— Maj+V pour recentrer</span></td></tr>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">B</td><td style="padding:4px 8px">En mode VR : image côte à côte étirée (lunettes XR) ou non</td></tr>
         <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">W</td><td style="padding:4px 8px">Marquer vu / non vu</td></tr>
       </tbody>
     </table>
@@ -2238,6 +2284,10 @@ let cfg = {
   gamepad_mapping: {},
   fs_progress_zoom: 20,
   gestures_overlay_seen: false,
+  vr_fov: 90,
+  vr_convergence: 0,
+  vr_look_speed: 90,
+  vr_sbs_layout: 'half',
 };
 
 function applyCfg(s) {
@@ -2285,6 +2335,10 @@ function applyCfg(s) {
   try { cfg.gamepad_mapping = JSON.parse(s.gamepad_mapping || '{}'); } catch { cfg.gamepad_mapping = {}; }
   cfg.fs_progress_zoom = parseInt(s.fs_progress_zoom ?? 20, 10);
   cfg.gestures_overlay_seen = s.gestures_overlay_seen === '1' || s.gestures_overlay_seen === true;
+  cfg.vr_fov         = parseInt(s.vr_fov ?? 90, 10);
+  cfg.vr_convergence = parseFloat(s.vr_convergence ?? 0);
+  cfg.vr_look_speed  = parseInt(s.vr_look_speed ?? 90, 10);
+  cfg.vr_sbs_layout  = s.vr_sbs_layout === 'full' ? 'full' : 'half';
   // propagate navigation prefs
   homeFolder = cfg.home_folder;
   sortBy     = cfg.sort_by;
@@ -3200,6 +3254,10 @@ function openSettings() {
   document.getElementById('s-watched-threshold').value  = cfg.watched_threshold;
   document.getElementById('s-fs-progress-zoom').value   = cfg.fs_progress_zoom;
   document.getElementById('s-initial-sweep').value      = cfg.initial_sweep_seconds;
+  document.getElementById('s-vr-fov').value             = cfg.vr_fov;
+  document.getElementById('s-vr-look-speed').value      = cfg.vr_look_speed;
+  document.getElementById('s-vr-sbs-layout').value      = cfg.vr_sbs_layout;
+  document.getElementById('s-vr-convergence').value     = cfg.vr_convergence;
   document.getElementById('s-sort-by').value            = cfg.sort_by;
   document.getElementById('s-sort-dir').value           = cfg.sort_dir;
   document.getElementById('s-gesture-enabled').checked     = cfg.gesture_enabled;
@@ -3253,6 +3311,10 @@ async function saveSettings() {
     watched_threshold:         parseInt(document.getElementById('s-watched-threshold').value, 10),
     fs_progress_zoom:          parseInt(document.getElementById('s-fs-progress-zoom').value, 10),
     initial_sweep_seconds:     parseInt(document.getElementById('s-initial-sweep').value, 10),
+    vr_fov:                    parseInt(document.getElementById('s-vr-fov').value, 10),
+    vr_look_speed:             parseInt(document.getElementById('s-vr-look-speed').value, 10),
+    vr_sbs_layout:             document.getElementById('s-vr-sbs-layout').value,
+    vr_convergence:            parseFloat(document.getElementById('s-vr-convergence').value),
     home_folder:               cfg.home_folder,
     sort_by:                   document.getElementById('s-sort-by').value,
     sort_dir:                  document.getElementById('s-sort-dir').value,
@@ -4127,6 +4189,12 @@ function renderEntry(e, i) {
   const stateClass = (gal || (!e.is_dir && mt !== 'other')) ? getStateClass(e.progress) : (e.folder_state === 'seen' ? 'seen' : (e.folder_state === 'inprogress' ? 'inprogress' : ''));
   const pinBtn = e.is_dir ? `<button class="action-btn ${e.is_quick_folder ? 'pinned' : ''}" onclick="togglePin(${jsStr(e.path)}, ${e.is_quick_folder})" title="${e.is_quick_folder ? 'Retirer' : 'Accès rapide'}">📌</button>` : '';
   const tagsHtml = (e.tags && e.tags.length) ? e.tags.map(t => `<span class="tag-badge">${esc(t)}</span>`).join('') : '';
+  // 🥽 marks what the server could tell from the name, or what was chosen on this
+  // file before. The ratio clue needs the video's own dimensions, so a file the
+  // name says nothing about only reveals itself once opened.
+  const vrBadge = (e.vr_mode && e.vr_mode !== 'off')
+    ? '<span class="vr-badge" title="Mode VR mémorisé pour ce fichier">🥽</span>'
+    : (e.vr_hint ? '<span class="vr-badge dim" title="Ressemble à une vidéo VR 180°">🥽</span>' : '');
   const actionsHtml = mt !== 'other' || e.is_dir ? `
     <div class="entry-actions" onclick="event.stopPropagation()">
       ${pinBtn}
@@ -4151,7 +4219,7 @@ function renderEntry(e, i) {
       <div class="entry-info">
         <div class="entry-name">${esc(e.name)}</div>
         <div class="entry-meta">
-          <span>${meta}</span>
+          <span>${meta}</span>${vrBadge}
           ${progressHtml}
           <div style="margin-top:3px">${tagsHtml}</div>
         </div>
@@ -5068,6 +5136,7 @@ async function playVideo(idx) {
   };
   video.onloadedmetadata = () => {
     updateSegmentUI();
+    vrArmForEntry(entry, (video.currentSrc || '').includes('/api/transcode'));
     const safeDuration = Math.max(0, video.duration - 1);
     const initialSweep = Math.min(initialSweepState.effective_seconds || 0, safeDuration);
     const isWatched = (prog.percent ?? 0) >= cfg.watched_threshold;
@@ -5259,6 +5328,405 @@ function toggleVideoFit() {
   if (btn) btn.style.color = isFill ? 'var(--accent)' : '';
 }
 
+// ── VR 180° side-by-side rendering (BL-119) ──────────────────────────────────
+// The <video> keeps playing underneath and stays the source of truth for
+// playback, position and progress. A canvas is laid over it and deprojects the
+// hemisphere: one full-screen quad, one fragment shader, one ray per pixel.
+// No sphere mesh — a mesh would trade accuracy for facet count, and this does
+// not have to.
+const VR_VERT = `#version 300 es
+in vec2 aPos;
+out vec2 vNdc;
+void main() { vNdc = aPos; gl_Position = vec4(aPos, 0.0, 1.0); }`;
+
+const VR_FRAG = `#version 300 es
+precision highp float;
+uniform sampler2D uTex;
+uniform vec2  uUvOrigin;   // rect of the eye being drawn, inside the frame
+uniform vec2  uUvSize;
+uniform float uYaw;        // radians, + = right
+uniform float uPitch;      // radians, + = up
+uniform float uTanHalfH;   // tan(hfov / 2)
+uniform float uTanHalfV;   // tan(vfov / 2)
+uniform float uIhFov;      // radians the source covers horizontally
+uniform float uIvFov;      // radians the source covers vertically
+in  vec2 vNdc;
+out vec4 fragColor;
+
+void main() {
+  vec3 d = normalize(vec3(vNdc.x * uTanHalfH, vNdc.y * uTanHalfV, -1.0));
+  float cp = cos(uPitch), sp = sin(uPitch);
+  d = vec3(d.x, d.y * cp - d.z * sp, d.y * sp + d.z * cp);
+  float cy = cos(uYaw), sy = sin(uYaw);
+  d = vec3(d.x * cy - d.z * sy, d.y, d.x * sy + d.z * cy);
+
+  vec2 uv = vec2(0.5 + atan(d.x, -d.z) / uIhFov,
+                 0.5 - asin(clamp(d.y, -1.0, 1.0)) / uIvFov);
+  if (any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)))) {
+    fragColor = vec4(0.0, 0.0, 0.0, 1.0);   // outside the hemisphere
+    return;
+  }
+  fragColor = texture(uTex, uUvOrigin + uv * uUvSize);
+}`;
+
+// These three come from the settings (BL-122) and are read when used, never
+// captured: the settings page can change them while a video is playing.
+const vrLookSpeed = () => cfg.vr_look_speed || 90;   // deg/s at full deflection
+const vrDefaultFov = () => cfg.vr_fov || 90;
+// A fixed horizontal fov makes the vertical one explode on a tall view: the
+// player panel measured 543x1695 in split view, which drove it to 144°. Past
+// this bound the horizontal fov is derived from the vertical one instead.
+const VR_MAX_VFOV = 110;
+const VR_MODES = ['off', 'flat', 'sbs'];
+// How the display consumes a side-by-side signal (BL-120).
+//  'half' — XR glasses and 3D TVs: each half is stretched back to full width,
+//           so the picture each eye perceives has the aspect of the WHOLE
+//           canvas. Computing the fov from the half-width buffer instead would
+//           squash everything by a factor of two.
+//  'full' — the halves are shown unstretched, side by side.
+// 'half' is the default because that is what the 3D mode of XR glasses expects.
+const VR_SBS_LAYOUTS = ['half', 'full'];
+const VR_CONVERGENCE_MAX = 3;      // degrees; beyond this the eyes stop fusing
+const VR_CONVERGENCE_STEP = 0.5;
+
+const vr = {
+  mode: 'off', yaw: 0, pitch: 0, fov: 90,
+  gl: null, prog: null, tex: null, u: {}, raf: 0, ro: null,
+  vfc: 0, pumpGen: 0, lastPollTs: 0, failed: false, lostHooked: false,
+  sbsLayout: 'half', convergence: 0,
+  armed: false,      // this file looks like VR, the mode is one press away
+  blocked: false,    // transcoded stream: deprojecting it is refused
+};
+
+function vrIsActive() { return vr.mode !== 'off'; }
+
+function _vrCompile(gl, type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    throw new Error(gl.getShaderInfoLog(s));
+  }
+  return s;
+}
+
+function _vrInit() {
+  if (vr.gl || vr.failed) return !!vr.gl;
+  const cv = document.getElementById('vr-canvas');
+  const gl = cv.getContext('webgl2', { antialias: false, alpha: false });
+  if (!gl) { vr.failed = true; showToast('🥽 WebGL2 indisponible'); return false; }
+  // A lost context (GPU reset, sleep/wake) leaves every object dead: drop the
+  // mode and forget the state, so the next activation rebuilds instead of
+  // drawing into a canvas that will stay black for good.
+  if (!vr.lostHooked) {
+    vr.lostHooked = true;
+    cv.addEventListener('webglcontextlost', e => {
+      e.preventDefault();
+      setVrMode('off');
+      vr.gl = null; vr.prog = null; vr.tex = null; vr.u = {};
+      showToast('🥽 contexte graphique perdu');
+    });
+  }
+  try {
+    const prog = gl.createProgram();
+    gl.attachShader(prog, _vrCompile(gl, gl.VERTEX_SHADER, VR_VERT));
+    gl.attachShader(prog, _vrCompile(gl, gl.FRAGMENT_SHADER, VR_FRAG));
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+      throw new Error(gl.getProgramInfoLog(prog));
+    }
+    gl.useProgram(prog);
+    gl.bindVertexArray(gl.createVertexArray());
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+    const loc = gl.getAttribLocation(prog, 'aPos');
+    gl.enableVertexAttribArray(loc);
+    gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+
+    const tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+    for (const n of ['uTex', 'uUvOrigin', 'uUvSize', 'uYaw', 'uPitch',
+                     'uTanHalfH', 'uTanHalfV', 'uIhFov', 'uIvFov']) {
+      vr.u[n] = gl.getUniformLocation(prog, n);
+    }
+    gl.uniform1i(vr.u.uTex, 0);
+    vr.gl = gl; vr.prog = prog; vr.tex = tex;
+    return true;
+  } catch (err) {
+    vr.failed = true;
+    showToast('🥽 rendu VR indisponible');
+    console.error('VR init failed:', err);
+    return false;
+  }
+}
+
+// The video frame is only uploaded when a new one has actually been decoded.
+// At 7680x3840 that matters: paying the upload once per repaint instead would
+// copy the same frame several times over.
+function _vrPumpTexture() {
+  // Generation token: switching flat <-> sbs calls this again while the mode is
+  // still active, and without it the previous loop would keep running — two
+  // switches, three loops, three 7200x3600 uploads per frame.
+  const gen = ++vr.pumpGen;
+  const uploadNow = () => {
+    if (!vr.gl || video.readyState < 2) return;
+    vr.gl.bindTexture(vr.gl.TEXTURE_2D, vr.tex);
+    vr.gl.texImage2D(vr.gl.TEXTURE_2D, 0, vr.gl.RGBA, vr.gl.RGBA,
+                     vr.gl.UNSIGNED_BYTE, video);
+  };
+  const onFrame = () => {
+    if (!vrIsActive() || gen !== vr.pumpGen) return;
+    uploadNow();
+    schedule();
+  };
+  const schedule = () => {
+    if (!vrIsActive() || gen !== vr.pumpGen) return;
+    vr.vfc = video.requestVideoFrameCallback
+      ? video.requestVideoFrameCallback(onFrame)
+      : requestAnimationFrame(onFrame);
+  };
+  // A paused video presents no new frame, so the callback would never fire and
+  // the view would show whatever the texture last held. Upload one right away.
+  uploadNow();
+  schedule();
+}
+
+function _vrSyncCanvasBox() {
+  const cv = document.getElementById('vr-canvas');
+  cv.style.left = video.offsetLeft + 'px';
+  cv.style.top = video.offsetTop + 'px';
+  cv.style.width = video.offsetWidth + 'px';
+  cv.style.height = video.offsetHeight + 'px';
+}
+
+function _vrRender() {
+  if (!vrIsActive() || !vr.gl) return;
+  const gl = vr.gl, cv = gl.canvas;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = Math.max(1, Math.round(video.offsetWidth * dpr));
+  const h = Math.max(1, Math.round(video.offsetHeight * dpr));
+  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+
+  gl.bindTexture(gl.TEXTURE_2D, vr.tex);
+  gl.uniform1f(vr.u.uPitch, vr.pitch * Math.PI / 180);
+  gl.uniform1f(vr.u.uIhFov, Math.PI);   // 180° covered horizontally by one eye
+  gl.uniform1f(vr.u.uIvFov, Math.PI);   // and 180° vertically
+  const tanH = Math.tan(vr.fov * Math.PI / 360);
+  const sbs = vr.mode === 'sbs';
+
+  // In sbs mode each half of the canvas gets one eye; the display does the
+  // split. Convergence nudges the two eyes apart in yaw — zero for a correctly
+  // shot VR180 file, adjustable for one that is not.
+  const conv = sbs ? vr.convergence / 2 : 0;
+  const views = sbs
+    ? [[0, 0, w / 2, h, 0, +conv], [w / 2, 0, w / 2, h, 0.5, -conv]]
+    : [[0, 0, w, h, 0, 0]];
+
+  // Perceived width: with 'half' each eye's picture is stretched back to full
+  // width by the display, so it is the whole canvas that sets the shape.
+  const perceivedW = !sbs ? w : (vr.sbsLayout === 'half' ? w : w / 2);
+  const tanVMax = Math.tan(VR_MAX_VFOV * Math.PI / 360);
+
+  gl.clearColor(0, 0, 0, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  for (const [vx, vy, vw, vh, uOff, yawOff] of views) {
+    let th = tanH, tv = tanH * vh / perceivedW;
+    if (tv > tanVMax) { tv = tanVMax; th = tv * perceivedW / vh; }
+    gl.viewport(vx, vy, vw, vh);
+    gl.uniform1f(vr.u.uYaw, (vr.yaw + yawOff) * Math.PI / 180);
+    gl.uniform2f(vr.u.uUvOrigin, uOff, 0);
+    gl.uniform2f(vr.u.uUvSize, 0.5, 1);
+    gl.uniform1f(vr.u.uTanHalfH, th);
+    gl.uniform1f(vr.u.uTanHalfV, tv);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+  }
+  vr.raf = requestAnimationFrame(_vrRender);
+}
+
+function vrLook(dyaw, dpitch) {
+  if (!vrIsActive()) return;
+  vr.yaw = Math.max(-90, Math.min(90, vr.yaw + dyaw));
+  vr.pitch = Math.max(-90, Math.min(90, vr.pitch + dpitch));
+}
+
+function vrZoom(deltaDeg) {
+  if (!vrIsActive()) return;
+  vr.fov = Math.max(30, Math.min(120, vr.fov + deltaDeg));
+  showToast(`🥽 ${Math.round(vr.fov)}°`);
+}
+
+function vrRecenter() {
+  vr.yaw = 0; vr.pitch = 0; vr.fov = vrDefaultFov();
+  showToast('🥽 recentré');
+}
+
+// Which of the two the display wants cannot be guessed from here — it depends
+// on how the glasses consume the signal — but the wrong one is obvious on
+// sight: the picture is squashed or stretched by a factor of two.
+function cycleVrSbsLayout() {
+  const i = VR_SBS_LAYOUTS.indexOf(vr.sbsLayout);
+  vr.sbsLayout = VR_SBS_LAYOUTS[(i + 1) % VR_SBS_LAYOUTS.length];
+  showToast(vr.sbsLayout === 'half' ? '🥽 SBS étiré (lunettes XR)' : '🥽 SBS non étiré');
+}
+
+function vrAdjustConvergence(deltaDeg) {
+  vr.convergence = Math.max(-VR_CONVERGENCE_MAX,
+                            Math.min(VR_CONVERGENCE_MAX, vr.convergence + deltaDeg));
+  showToast(`🥽 convergence ${vr.convergence.toFixed(1)}°`);
+}
+
+// The gamepad menu only ever offers one direction, so it has to wrap: a
+// one-way stepper would strand the value at the top with no way back to zero.
+function cycleVrConvergence() {
+  let next = vr.convergence + VR_CONVERGENCE_STEP;
+  if (next > VR_CONVERGENCE_MAX + 1e-6) next = -VR_CONVERGENCE_MAX;
+  vr.convergence = Math.round(next / VR_CONVERGENCE_STEP) * VR_CONVERGENCE_STEP;
+  showToast(`🥽 convergence ${vr.convergence.toFixed(1)}°`);
+}
+
+function setVrMode(mode) {
+  if (!VR_MODES.includes(mode)) return;
+  const canvas = document.getElementById('vr-canvas');
+  if (mode !== 'off' && !_vrInit()) return;
+
+  const was = vr.mode;
+  vr.mode = mode;
+  const btn = document.getElementById('vr-btn');
+  if (mode === 'off') {
+    cancelAnimationFrame(vr.raf); vr.raf = 0;
+    vr.pumpGen++;   // strands any pending upload callback
+    if (vr.vfc && video.cancelVideoFrameCallback) video.cancelVideoFrameCallback(vr.vfc);
+    vr.vfc = 0;
+    canvas.classList.remove('active');
+    videoContainer.classList.remove('vr-sbs');
+    if (btn) { btn.style.color = ''; btn.textContent = '🥽'; }
+    return;
+  }
+  // Only reset the view when coming from 'off': switching flat <-> sbs is a
+  // comparison, and losing the framing each time would make it useless.
+  if (was === 'off') {
+    vr.yaw = 0; vr.pitch = 0; vr.fov = vrDefaultFov();
+    vr.sbsLayout = cfg.vr_sbs_layout || 'half';
+    vr.convergence = cfg.vr_convergence || 0;
+  }
+  canvas.classList.add('active');
+  videoContainer.classList.toggle('vr-sbs', mode === 'sbs');
+  _vrSyncCanvasBox();
+  if (!vr.ro) {
+    vr.ro = new ResizeObserver(() => { if (vrIsActive()) _vrSyncCanvasBox(); });
+    vr.ro.observe(video);
+  }
+  if (btn) { btn.style.color = 'var(--accent)'; btn.textContent = mode === 'sbs' ? '🥽²' : '🥽'; }
+  // Side-by-side only makes sense filling the display the glasses are showing,
+  // so entering it goes fullscreen — unless we already are, since
+  // toggleFullscreen() would then leave it.
+  if (mode === 'sbs'
+      && !videoContainer.classList.contains('faux-fullscreen')
+      && document.fullscreenElement !== videoContainer) {
+    toggleFullscreen({ forceReal: true });
+  }
+  _vrPumpTexture();
+  cancelAnimationFrame(vr.raf);
+  vr.raf = requestAnimationFrame(_vrRender);
+}
+
+function cycleVrMode() {
+  if (vr.blocked) { showToast('🥽 indisponible sur un flux transcodé'); return; }
+  const next = VR_MODES[(VR_MODES.indexOf(vr.mode) + 1) % VR_MODES.length];
+  setVrMode(next);
+  if (vr.mode !== next) return;   // init refused; it has already said why
+  showToast(next === 'off' ? '🥽 désactivé'
+          : next === 'flat' ? '🥽 180° plat' : '🥽 180° côte à côte');
+  _vrPersistMode(next);
+}
+
+// The chosen mode is remembered per file, server-side: the point is that a
+// choice made on the laptop still holds on the Deck. Only an explicit gesture
+// writes — the automatic reset on a new source must not overwrite anything.
+function _vrPersistMode(mode) {
+  if (!currentFile) return;
+  // Keep the in-memory entry in step, otherwise the 🥽 marker in the list only
+  // catches up on the next refresh and the choice looks like it was ignored.
+  currentFile.vr_mode = mode;
+  const listed = entries.find(e => e.path === currentFile.path);
+  if (listed) { listed.vr_mode = mode; renderFiles(entries); }
+  fetch(`${API}/api/vr-mode?path=${encodeURIComponent(currentFile.path)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mode }),
+    keepalive: true,
+  }).catch(() => {});   // a lost preference must not raise a network toast
+}
+
+// The aspect-ratio clue, which the server cannot check: reading it there would
+// mean one ffprobe per file on every folder open. Here the <video> hands over
+// its dimensions for nothing. Two square eyes side by side give exactly 2:1.
+function _vrRatioSaysSbs180() {
+  if (!video.videoWidth || !video.videoHeight) return false;
+  const ratio = video.videoWidth / video.videoHeight;
+  return Math.abs(ratio - 2) < 0.02 && video.videoWidth >= 2048;
+}
+
+// Called once the metadata is in: decide whether to offer the mode, and whether
+// a remembered choice applies.
+function vrArmForEntry(entry, isTranscoded) {
+  vr.blocked = !!isTranscoded;
+  const hinted = !!(entry && entry.vr_hint) || _vrRatioSaysSbs180();
+  const saved = entry && entry.vr_mode;
+  vr.armed = !vr.blocked && (hinted || !!(saved && saved !== 'off'));
+  _vrSyncButton();
+  if (vr.blocked) return;
+  // A remembered mode is applied; a mere guess only arms the button. Someone
+  // opening a file to check something should not be dropped into a headset view.
+  if (saved && saved !== 'off' && VR_MODES.includes(saved)) setVrMode(saved);
+}
+
+function _vrSyncButton() {
+  const btn = document.getElementById('vr-btn');
+  if (!btn) return;
+  btn.disabled = vr.blocked;
+  btn.style.opacity = vr.blocked ? '0.35' : '';
+  btn.title = vr.blocked ? 'Mode VR indisponible sur un flux transcodé'
+            : vr.armed ? 'Fichier VR 180° détecté — mode VR (V)'
+            : 'Mode VR 180° (V)';
+  if (vr.mode === 'off') btn.style.color = vr.armed ? 'var(--accent-dim, #8ab)' : '';
+}
+
+// A new source means a new geometry, so the mode never carries over silently.
+video.addEventListener('loadstart', () => {
+  if (vrIsActive()) setVrMode('off');
+  vr.armed = false; vr.blocked = false;
+  _vrSyncButton();
+});
+
+// Mouse: drag to look, wheel to zoom. Only while the VR mode is on, so the
+// player behaves exactly as before otherwise.
+let _vrDrag = null;
+video.addEventListener('pointerdown', e => {
+  if (!vrIsActive() || e.pointerType === 'touch') return;
+  _vrDrag = { x: e.clientX, y: e.clientY };
+  video.setPointerCapture(e.pointerId);
+});
+video.addEventListener('pointermove', e => {
+  if (!_vrDrag) return;
+  const k = vr.fov / Math.max(1, video.offsetHeight);
+  vrLook((_vrDrag.x - e.clientX) * k, (_vrDrag.y - e.clientY) * -k);
+  _vrDrag = { x: e.clientX, y: e.clientY };
+});
+for (const ev of ['pointerup', 'pointercancel']) {
+  video.addEventListener(ev, () => { _vrDrag = null; });
+}
+video.addEventListener('wheel', e => {
+  if (!vrIsActive()) return;
+  e.preventDefault();
+  vrZoom(Math.sign(e.deltaY) * 3);
+}, { passive: false });
+
 const PLAYBACK_SPEEDS = [0.5, 1, 1.5, 2];
 let speedIdx = 1; // default 1×
 function cycleSpeed(dir = 1) {
@@ -5306,9 +5774,12 @@ function setBrightness(v) {
   showToast(`☀ ${Math.round(v * 100)}%`);
 }
 
+let _vrTouchLast = null;
+
 video.addEventListener('touchstart', e => {
   touchStartX = e.touches[0].clientX;
   touchStartY = e.touches[0].clientY;
+  _vrTouchLast = { x: touchStartX, y: touchStartY };
   touchStartTime = video.currentTime;
   touchStartVol = video.volume;
   touchStartBrightness = getBrightness();
@@ -5318,6 +5789,18 @@ video.addEventListener('touchstart', e => {
 }, {passive: true});
 
 video.addEventListener('touchmove', e => {
+  // In VR mode a drag looks around. Seek, volume and brightness are all drags
+  // too, so they would fight over the same gesture; they stay reachable from
+  // the keyboard, the gamepad and the player buttons.
+  if (vrIsActive()) {
+    const t = e.touches[0];
+    if (_vrTouchLast) {
+      const k = vr.fov / Math.max(1, video.offsetHeight);
+      vrLook((_vrTouchLast.x - t.clientX) * k, (_vrTouchLast.y - t.clientY) * -k);
+    }
+    _vrTouchLast = { x: t.clientX, y: t.clientY };
+    return;
+  }
   if (!cfg.gesture_enabled) return;
   const dx = e.touches[0].clientX - touchStartX;
   const dy = e.touches[0].clientY - touchStartY;
@@ -6332,6 +6815,8 @@ document.addEventListener('keydown', e => {
   if (e.code === 'KeyM') { toggleMute(); return; }
   if (e.code === 'KeyC') { cycleSubtitles(); return; }
   if (e.code === 'KeyA') { toggleVideoFit(); return; }
+  if (e.code === 'KeyV') { e.shiftKey ? vrRecenter() : cycleVrMode(); return; }
+  if (e.code === 'KeyB' && vrIsActive()) { cycleVrSbsLayout(); return; }
   if (e.code === 'KeyW') { _gpToggleWatched(); return; }
   if (e.code === 'BracketLeft')  { cycleSpeed(-1); return; }
   if (e.code === 'BracketRight') { cycleSpeed(1);  return; }
@@ -6414,6 +6899,23 @@ function _gpMenuBuildPlayer() {
   });
   items.push({ label: '💬 Sous-titres', run: () => cycleSubtitles() });
   items.push({ label: '◪ Fit / Fill', run: () => toggleVideoFit() });
+  items.push({
+    label: '🥽 Mode VR 180°',
+    value: vr.mode === 'off' ? 'désactivé' : vr.mode === 'flat' ? 'plat' : 'côte à côte',
+    run: () => cycleVrMode(),
+  });
+  if (vrIsActive()) {
+    items.push({
+      label: '🥽 Image côte à côte',
+      value: vr.sbsLayout === 'half' ? 'étirée (lunettes XR)' : 'non étirée',
+      run: () => cycleVrSbsLayout(),
+    });
+    items.push({
+      label: '🥽 Convergence',
+      value: `${vr.convergence.toFixed(1)}°`,
+      run: () => cycleVrConvergence(),
+    });
+  }
   items.push({
     label: '⏩ Vitesse de lecture',
     value: `${video.playbackRate}×`,
@@ -6955,8 +7457,22 @@ function _gpPoll() {
     // Normal : left X = seek, right Y = volume
     // Swapped: right X = seek, left Y = volume
     // Browser navigation (left Y) is unaffected by the swap
+    // VR mode takes the right stick for looking around, so seek stays on the
+    // left stick whatever the swap setting says and volume leaves the stick.
+    if (vrIsActive() && currentFile) {
+      const now = performance.now();
+      const dt = vr.lastPollTs ? Math.min(0.1, (now - vr.lastPollTs) / 1000) : 0;
+      vr.lastPollTs = now;
+      const vrx = _gpDeadzone(gp.axes[2] ?? 0);
+      const vry = _gpDeadzone(gp.axes[3] ?? 0);
+      const sp = vrLookSpeed();
+      if (vrx || vry) vrLook(vrx * sp * dt, -vry * sp * dt);
+    } else {
+      vr.lastPollTs = 0;
+    }
+
     const _swap = cfg.gamepad_swap_sticks;
-    const seekAxisIdx  = _swap ? 2 : 0;  // RX vs LX
+    const seekAxisIdx  = (vrIsActive() || !_swap) ? 0 : 2;  // LX unless swapped
     const volAxisIdx   = _swap ? 1 : 3;  // LY vs RY
 
     // Seek stick X — scrubbing
@@ -6973,8 +7489,8 @@ function _gpPoll() {
       }
     }
 
-    // Volume stick Y
-    const ry = _gpDeadzone(gp.axes[volAxisIdx] ?? 0);
+    // Volume stick Y — skipped when VR mode owns that stick
+    const ry = (vrIsActive() && volAxisIdx === 3) ? 0 : _gpDeadzone(gp.axes[volAxisIdx] ?? 0);
     if (ry !== 0 && currentFile) {
       setVolume(Math.max(0, Math.min(1, video.volume - ry * 0.02)));
     }

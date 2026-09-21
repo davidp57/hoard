@@ -3948,3 +3948,170 @@ class TestRetryDownload:
             conn.commit()
         monkeypatch.setitem(sys.modules, "yt_dlp", _make_yt_dlp_mock())
         assert client.post("/api/downloads/sneaky/retry").status_code == 400
+
+
+# ── VR 180° detection and per-file mode (BL-121) ──────────────────────────────
+class TestVrDetection:
+    """The files carry no spherical metadata, so the name is all the server has.
+
+    The aspect-ratio clue lives in the player, where the <video> already knows
+    its dimensions — reading it here would mean one ffprobe per entry on every
+    folder open.
+    """
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "wankzvr-omgia-anal-3600p-180_180x180_3dh_LR.mp4",
+            "SinsVR_Snowy_Love_7k_8bit_180_180x180_3dh.mp4",
+            "MILF_VR_Backdoor_4K_4600x2300_H265_3D_SBS.mp4",
+            "Some.Title.XXX.VR180.2700p.mp4",
+            "197-casting-3d-5400x2700-60fps-oculusrift_hq_h265.mp4",
+            "clip_LR_180.mp4",
+        ],
+    )
+    def test_name_says_vr(self, name):
+        assert main_mod.guess_vr_from_name(name) == "sbs180"
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "The Matrix (1999) 1080p BluRay x264.mkv",
+            # A bare "180" used to trigger this one, and bought nothing: every VR
+            # file in the sample was already caught by another pattern.
+            "Episode 180 - The Long Goodbye.mkv",
+            "concert-1080p-stereo.mp4",
+            "180days.mp4",
+            "video 1800 seconds.mp4",
+            "clr_test.mp4",
+        ],
+    )
+    def test_ordinary_name_is_not_vr(self, name):
+        assert main_mod.guess_vr_from_name(name) is None
+
+    def test_hint_exposed_in_file_list(self):
+        (MEDIA_ROOT / "trip_180x180_3dh.mp4").write_bytes(b"x")
+        (MEDIA_ROOT / "ordinary.mp4").write_bytes(b"x")
+        entries = {e["name"]: e for e in client.get("/api/files?path=").json()["entries"]}
+        assert entries["trip_180x180_3dh.mp4"]["vr_hint"] == "sbs180"
+        assert entries["ordinary.mp4"]["vr_hint"] is None
+
+    def test_hint_exposed_in_search(self):
+        (MEDIA_ROOT / "trip_180x180_3dh.mp4").write_bytes(b"x")
+        entries = client.get("/api/search?q=trip").json()["entries"]
+        assert entries[0]["vr_hint"] == "sbs180"
+
+
+class TestVrMode:
+    def test_mode_is_remembered(self, video_file):
+        resp = client.post(f"/api/vr-mode?path={video_file}", json={"mode": "sbs"})
+        assert resp.status_code == 200
+        entries = {e["name"]: e for e in client.get("/api/files?path=").json()["entries"]}
+        assert entries["sample.mp4"]["vr_mode"] == "sbs"
+
+    def test_explicit_off_survives_the_guess(self):
+        """Saying "this is not VR" has to stick, or a wrong guess is permanent."""
+        (MEDIA_ROOT / "trip_180x180_3dh.mp4").write_bytes(b"x")
+        client.post("/api/vr-mode?path=trip_180x180_3dh.mp4", json={"mode": "off"})
+        entries = {e["name"]: e for e in client.get("/api/files?path=").json()["entries"]}
+        assert entries["trip_180x180_3dh.mp4"]["vr_mode"] == "off"
+        assert entries["trip_180x180_3dh.mp4"]["vr_hint"] == "sbs180"
+
+    def test_mode_can_be_changed(self, video_file):
+        client.post(f"/api/vr-mode?path={video_file}", json={"mode": "sbs"})
+        client.post(f"/api/vr-mode?path={video_file}", json={"mode": "flat"})
+        entries = {e["name"]: e for e in client.get("/api/files?path=").json()["entries"]}
+        assert entries["sample.mp4"]["vr_mode"] == "flat"
+
+    def test_invalid_mode_rejected(self, video_file):
+        resp = client.post(f"/api/vr-mode?path={video_file}", json={"mode": "cube"})
+        assert resp.status_code == 400
+
+    def test_unknown_file_is_404(self):
+        assert client.post("/api/vr-mode?path=nope.mp4", json={"mode": "flat"}).status_code == 404
+
+    def test_path_traversal_blocked(self):
+        resp = client.post("/api/vr-mode?path=../../etc/passwd", json={"mode": "flat"})
+        assert resp.status_code in (400, 403, 404)
+
+    def test_mode_does_not_outlive_the_file(self, video_file):
+        """Otherwise a new file dropped at the same path inherits a stranger's mode."""
+        client.post(f"/api/vr-mode?path={video_file}", json={"mode": "sbs"})
+        assert client.request("DELETE", f"/api/files?path={video_file}").status_code == 200
+        (MEDIA_ROOT / "sample.mp4").write_bytes(b"new content")
+        entries = {e["name"]: e for e in client.get("/api/files?path=").json()["entries"]}
+        assert entries["sample.mp4"]["vr_mode"] is None
+
+    def test_mode_follows_a_rename(self, video_file):
+        client.post(f"/api/vr-mode?path={video_file}", json={"mode": "sbs"})
+        resp = client.post(f"/api/files/rename?path={video_file}", json={"new_name": "renamed.mp4"})
+        assert resp.status_code == 200
+        entries = {e["name"]: e for e in client.get("/api/files?path=").json()["entries"]}
+        assert entries["renamed.mp4"]["vr_mode"] == "sbs"
+
+
+# ── VR settings (BL-122) ──────────────────────────────────────────────────────
+class TestVrSettings:
+    def test_defaults(self):
+        s = client.get("/api/settings").json()
+        assert s["vr_fov"] == "90"
+        assert s["vr_look_speed"] == "90"
+        assert s["vr_convergence"] == "0"
+        assert s["vr_sbs_layout"] == "half"
+
+    def test_written_and_read_back(self):
+        resp = client.post(
+            "/api/settings",
+            json={
+                "vr_fov": 75,
+                "vr_look_speed": 120,
+                "vr_convergence": 1.5,
+                "vr_sbs_layout": "full",
+            },
+        )
+        assert resp.status_code == 200
+        s = client.get("/api/settings").json()
+        assert s["vr_fov"] == "75"
+        assert s["vr_look_speed"] == "120"
+        assert s["vr_convergence"] == "1.5"
+        assert s["vr_sbs_layout"] == "full"
+
+    def test_partial_body_leaves_the_others_alone(self):
+        """The contract the whole settings page rests on."""
+        client.post("/api/settings", json={"vr_fov": 70, "vr_sbs_layout": "full"})
+        client.post("/api/settings", json={"watched_threshold": 80})
+        s = client.get("/api/settings").json()
+        assert s["vr_fov"] == "70"
+        assert s["vr_sbs_layout"] == "full"
+        assert s["watched_threshold"] == "80"
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {"vr_fov": 10},
+            {"vr_fov": 200},
+            {"vr_look_speed": 0},
+            {"vr_look_speed": 1000},
+            {"vr_convergence": 45},
+            {"vr_convergence": -45},
+        ],
+    )
+    def test_out_of_range_rejected(self, payload):
+        assert client.post("/api/settings", json=payload).status_code == 422
+
+    def test_unknown_layout_rejected(self):
+        """An unknown value would silently make the player compute the wrong aspect."""
+        assert client.post("/api/settings", json={"vr_sbs_layout": "sideways"}).status_code == 422
+        assert client.get("/api/settings").json()["vr_sbs_layout"] == "half"
+
+    def test_a_rejected_layout_writes_nothing_at_all(self):
+        """The enum is checked mid-write, so the rest of the body must not land."""
+        before = client.get("/api/settings").json()["watched_threshold"]
+        resp = client.post(
+            "/api/settings",
+            json={"watched_threshold": 81, "vr_sbs_layout": "sideways"},
+        )
+        assert resp.status_code == 422
+        after = client.get("/api/settings").json()
+        assert after["watched_threshold"] == before
+        assert after["vr_sbs_layout"] == "half"

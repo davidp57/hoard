@@ -6,6 +6,46 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ## [Non publié]
 
+### Ajouté
+
+- **Hoard reconnaît tout seul tes fichiers VR.** Un petit 🥽 apparaît dans la liste
+  à côté de ceux qu'il a repérés — au nom du fichier, et à la forme de l'image une
+  fois celui-ci ouvert. Il ne bascule pas en mode VR pour autant : le bouton se met
+  simplement en évidence, parce qu'ouvrir un fichier pour y jeter un œil ne doit pas
+  te catapulter dans une vue de casque.
+
+  En revanche, **le mode que tu choisis est retenu pour ce fichier** et remis en
+  place à la réouverture, même depuis une autre machine. Et si Hoard se trompe sur
+  un fichier, coupe le mode dessus : il ne te le reproposera plus.
+
+- **Les réglages VR sont dans Paramètres → Player** : champ de vision, vitesse du
+  regard à la manette, image étirée ou non, et convergence. Un changement s'applique
+  tout de suite, sans recharger la page.
+
+- **Les vidéos VR 180° sont enfin regardables.** Ces fichiers contiennent deux
+  images accolées, une par œil, chacune étirée pour couvrir un demi-tour
+  d'horizon : affichés tels quels, ils ne ressemblaient à rien. Le bouton 🥽 du
+  lecteur (ou la touche **V**) redresse l'image et te laisse regarder autour de
+  toi — au doigt, à la souris, ou au stick droit de la manette. Un deuxième appui
+  passe en affichage côte à côte, celui qu'attendent des lunettes XR en mode 3D ;
+  un troisième revient à l'image normale. **Maj+V** remet le regard au centre.
+  Tant que le mode est actif, glisser le doigt sert à regarder et non plus à
+  avancer dans la vidéo ou à régler le son, qui restent au clavier, aux boutons et
+  au stick gauche.
+
+  Une précision utile : ces fichiers sont très lourds, et Hoard te les envoie sans
+  les convertir. C'est donc l'appareil sur lequel tu regardes qui doit savoir les
+  lire. Si ça saccade, c'est là qu'est la limite.
+
+- **L'affichage côte à côte est prêt pour des lunettes XR.** Il passe tout seul en
+  plein écran et efface les commandes du lecteur pendant ce temps : affichées une
+  seule fois sur une image coupée en deux, elles tomberaient à moitié dans chaque
+  œil. Tu pilotes à la manette ou au clavier, et tout revient en sortant du mode.
+  Si l'image te paraît écrasée ou étirée du double, la touche **B** bascule entre
+  les deux façons dont des lunettes lisent ce genre d'image — l'effet se voit tout
+  de suite. Un réglage de convergence est disponible dans le menu de la manette,
+  à laisser à zéro sauf si un fichier précis te fatigue les yeux.
+
 ### Corrigé
 
 - **Le tri de la liste reste celui que tu as choisi.** Passer la liste en « Vu »

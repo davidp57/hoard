@@ -304,6 +304,16 @@ def init_db():
                 value TEXT NOT NULL
             )
         """)
+        # BL-121: the VR mode a file was last watched in. Kept server-side and
+        # not in localStorage, because the whole point is that the choice made
+        # on the laptop still holds on the Deck.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS vr_modes (
+                path TEXT PRIMARY KEY,
+                mode TEXT NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS initial_sweep_folders (
                 path TEXT PRIMARY KEY,
@@ -1450,6 +1460,43 @@ def is_archive(path: Path) -> bool:
     return path.suffix.lower() in ARCHIVE_EXTENSIONS
 
 
+# VR 180° side-by-side detection (BL-121).
+#
+# None of the files carry spherical metadata (no st3d/sv3d box was found on any
+# of the 24 sampled), so there is nothing authoritative to read. Two clues are
+# left: the file name, and the 2:1 aspect ratio that a square-per-eye layout
+# produces.
+#
+# Only the name is usable HERE. The listing does not know pixel dimensions, and
+# running ffprobe per entry would mean one subprocess per file on a deliberately
+# weak NAS, on every folder open. The ratio clue is therefore checked in the
+# player, where the <video> hands over videoWidth/videoHeight for free.
+#
+# Measured on the sample: the name catches 15 of the 23 distinct files, the ratio
+# catches the remaining 8. Neither is sufficient on its own, which is why both
+# exist — and why the user can always override the verdict.
+_VR_NAME_PATTERNS = (
+    re.compile(r"(?:^|[\W_])vr180(?:[\W_]|$)"),
+    re.compile(r"(?:^|[\W_])180x180(?:[\W_]|$)"),
+    re.compile(r"(?:^|[\W_])3dh(?:[\W_]|$)"),
+    re.compile(r"(?:^|[\W_])sbs(?:[\W_]|$)"),
+    re.compile(r"(?:^|[\W_])lr(?:[\W_]|$)"),
+    re.compile(r"oculus[-_ ]?rift"),
+)
+# A bare "180" was tried and dropped: it flagged "Episode 180 - The Long
+# Goodbye.mkv", and measured against the sample it recognised not one file the
+# patterns above had missed. It cost a false positive and bought nothing.
+
+
+def guess_vr_from_name(name: str) -> str | None:
+    """Return "sbs180" when the file name says side-by-side 180°, else None."""
+    lowered = name.lower()
+    for pattern in _VR_NAME_PATTERNS:
+        if pattern.search(lowered):
+            return "sbs180"
+    return None
+
+
 def get_media_type(path: Path) -> str:
     """Return media_type string for a file path."""
     if is_video(path):
@@ -1924,6 +1971,7 @@ def list_files(path: str = ""):
         progress_map = {row["path"]: _watch_percent(row) for row in rows}
         watched_map = _last_watched_index(conn)
         tag_rows = conn.execute("SELECT path, tag FROM file_tags").fetchall()
+        vr_map = {r["path"]: r["mode"] for r in conn.execute("SELECT path, mode FROM vr_modes")}
 
     tags_map: dict[str, list[str]] = {}
     for tr in tag_rows:
@@ -1971,6 +2019,9 @@ def list_files(path: str = ""):
         }
         if _media_type != "other":
             entry["progress"] = get_progress(item)
+        if entry["is_video"]:
+            entry["vr_hint"] = guess_vr_from_name(item.name)
+            entry["vr_mode"] = vr_map.get(rel)
         entry["tags"] = tags_map.get(rel, [])
         entries.append(entry)
     parts = []
@@ -2000,6 +2051,7 @@ def search_files(q: str, path: str = ""):
         }
         tag_rows_s = conn.execute("SELECT path, tag FROM file_tags").fetchall()
         watched_map_s = _last_watched_index(conn)
+        vr_map_s = {r["path"]: r["mode"] for r in conn.execute("SELECT path, mode FROM vr_modes")}
 
     tags_map_s: dict[str, list[str]] = {}
     for tr in tag_rows_s:
@@ -2033,6 +2085,9 @@ def search_files(q: str, path: str = ""):
         }
         if _media_type_s != "other":
             entry["progress"] = get_progress(item)
+        if entry["is_video"]:
+            entry["vr_hint"] = guess_vr_from_name(item.name)
+            entry["vr_mode"] = vr_map_s.get(rel)
         entry["tags"] = tags_map_s.get(rel, [])
         entries.append(entry)
 
@@ -2100,6 +2155,38 @@ def set_watched(path: str, body: WatchedUpdate):
     return get_progress(file)
 
 
+class VrModePayload(BaseModel):
+    mode: str
+
+
+@app.post("/api/vr-mode")
+def set_vr_mode(path: str, body: VrModePayload):
+    """Remember how a file should be rendered: "off", "flat" or "sbs" (BL-121).
+
+    An explicit choice always wins over the guess, including the choice to say
+    "this is not a VR file" — the guess reads a file name and a shape, so it is
+    wrong sometimes, and being wrong must be correctable rather than permanent.
+    """
+    if body.mode not in ("off", "flat", "sbs"):
+        raise HTTPException(status_code=400, detail="Invalid VR mode")
+    file = safe_path(path)
+    if not file.exists():
+        raise HTTPException(status_code=404)
+    rel = to_rel(file)
+    with get_db() as conn:
+        conn.execute(
+            """
+            INSERT INTO vr_modes (path, mode, updated_at)
+            VALUES (?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(path) DO UPDATE SET
+                mode=excluded.mode, updated_at=CURRENT_TIMESTAMP
+            """,
+            (rel, body.mode),
+        )
+        conn.commit()
+    return {"path": rel, "mode": body.mode}
+
+
 def _purge_paths(conn, rel: str) -> None:
     """Drop every metadata row attached to a path: the entry itself and, when it is a
     folder, everything below it (prefix match). Uses substr equality (not LIKE) so
@@ -2113,6 +2200,8 @@ def _purge_paths(conn, rel: str) -> None:
     conn.execute("DELETE FROM segments WHERE substr(path, 1, ?) = ?", (tail_start, prefix))
     conn.execute("DELETE FROM file_tags WHERE path = ?", (rel,))
     conn.execute("DELETE FROM file_tags WHERE substr(path, 1, ?) = ?", (tail_start, prefix))
+    conn.execute("DELETE FROM vr_modes WHERE path = ?", (rel,))
+    conn.execute("DELETE FROM vr_modes WHERE substr(path, 1, ?) = ?", (tail_start, prefix))
 
 
 @app.delete("/api/files")
@@ -2224,6 +2313,11 @@ def _migrate_renamed_paths(conn, old_rel: str, new_rel: str) -> None:
     conn.execute("UPDATE file_tags SET path = ? WHERE path = ?", (new_rel, old_rel))
     conn.execute(
         "UPDATE file_tags SET path = ? || substr(path, ?) WHERE substr(path, 1, ?) = ?",
+        (new_rel, tail_start, tail_start, prefix),
+    )
+    conn.execute("UPDATE vr_modes SET path = ? WHERE path = ?", (new_rel, old_rel))
+    conn.execute(
+        "UPDATE vr_modes SET path = ? || substr(path, ?) WHERE substr(path, 1, ?) = ?",
         (new_rel, tail_start, tail_start, prefix),
     )
 
@@ -3003,6 +3097,10 @@ _SETTINGS_DEFAULTS: dict[str, str] = {
     "gamepad_mapping": "{}",
     "fs_progress_zoom": "20",
     "gestures_overlay_seen": "0",
+    "vr_fov": "90",
+    "vr_convergence": "0",
+    "vr_look_speed": "90",
+    "vr_sbs_layout": "half",
 }
 
 
@@ -3056,6 +3154,10 @@ class SettingsPayload(BaseModel):
     gamepad_swap_sticks: bool | None = None
     gamepad_mapping: str | None = None  # raw JSON string
     fs_progress_zoom: int | None = Field(default=None, ge=5, le=50)
+    vr_fov: int | None = Field(default=None, ge=30, le=120)
+    vr_convergence: float | None = Field(default=None, ge=-3.0, le=3.0)
+    vr_look_speed: int | None = Field(default=None, ge=10, le=360)
+    vr_sbs_layout: str | None = None
 
 
 @app.get("/api/settings")
@@ -3199,6 +3301,9 @@ def update_settings(body: SettingsPayload, request: Request):
             ("gamepad_deadzone", body.gamepad_deadzone),
             ("gamepad_mapping", body.gamepad_mapping),
             ("fs_progress_zoom", body.fs_progress_zoom),
+            ("vr_fov", body.vr_fov),
+            ("vr_convergence", body.vr_convergence),
+            ("vr_look_speed", body.vr_look_speed),
         ]
         for key, val in _simple:
             if val is not None:
@@ -3220,6 +3325,13 @@ def update_settings(body: SettingsPayload, request: Request):
         for key, val in _bools:
             if val is not None:
                 _write_setting(conn, key, "1" if val else "0")
+
+        # Validated separately: this one is an enum, and an unknown value would
+        # leave the player computing the wrong aspect with no way to notice.
+        if body.vr_sbs_layout is not None:
+            if body.vr_sbs_layout not in ("half", "full"):
+                raise HTTPException(status_code=422, detail="Invalid vr_sbs_layout")
+            _write_setting(conn, "vr_sbs_layout", body.vr_sbs_layout)
 
         conn.commit()
 
