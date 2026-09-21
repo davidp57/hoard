@@ -252,6 +252,13 @@ This project follows **Git Flow**:
 
 Never commit directly to `main` or `develop`.
 
+**One exception, agreed 2026-09-21: backlog work may be committed straight to
+`develop`.** This covers everything under `.backlog/` — PRDs, tickets, status
+changes, the lot index, archiving. These artifacts carry no code, break no
+build, and gating them behind a branch and a PR costs more than it protects.
+Anything else — code, tests, docs, `ROADMAP.md`, ADRs — still goes through a
+feature branch.
+
 ### Branch naming
 
 ```
