@@ -4111,6 +4111,35 @@ class TestVrConvergencePerFile:
         entries = {e["name"]: e for e in client.get("/api/files?path=").json()["entries"]}
         assert entries["renamed.mp4"]["vr_convergence"] == 1.5
 
+    def test_both_fields_follow_a_move(self, video_file, subdir_with_video, monkeypatch):
+        """The criterion BL-129 claimed was already covered for the mode. It was not:
+        renaming and deleting had tests, moving had none for either field. Both are
+        carried by the same row, so one test proves it for both.
+        """
+        import threading as _threading
+
+        class SyncThread:
+            def __init__(self, target, args, daemon=True):
+                self._target, self._args = target, args
+
+            def start(self):
+                self._target(*self._args)
+
+        monkeypatch.setattr(_threading, "Thread", SyncThread)
+
+        client.post(f"/api/vr-mode?path={video_file}", json={"mode": "sbs", "convergence": 1.5})
+        resp = client.post(
+            f"/api/files/move?path={video_file}", json={"destination": subdir_with_video}
+        )
+        assert resp.status_code == 200
+
+        entries = {
+            e["name"]: e
+            for e in client.get(f"/api/files?path={subdir_with_video}").json()["entries"]
+        }
+        assert entries["sample.mp4"]["vr_convergence"] == 1.5
+        assert entries["sample.mp4"]["vr_mode"] == "sbs"
+
     def test_convergence_does_not_outlive_the_file(self, video_file):
         client.post(f"/api/vr-mode?path={video_file}", json={"mode": "sbs", "convergence": 1.5})
         client.request("DELETE", f"/api/files?path={video_file}")

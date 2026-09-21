@@ -5950,12 +5950,15 @@ let _vrConvTimer = null;
 function _vrPersistConvergence(value) {
   if (!currentFile) return;
   currentFile.vr_convergence = value;
-  const listed = entries.find(e => e.path === currentFile.path);
-  if (listed) listed.vr_convergence = value;
   clearTimeout(_vrConvTimer);
   _vrConvTimer = setTimeout(() => {
     _vrConvTimer = null;
     if (!currentFile) return;
+    // Inside the timer, not outside: this runs at frame rate while the stick is
+    // held, and scanning the folder listing on every frame would be a full O(n)
+    // walk sixty times a second on a large folder.
+    const listed = entries.find(e => e.path === currentFile.path);
+    if (listed) listed.vr_convergence = value;
     fetch(`${API}/api/vr-mode?path=${encodeURIComponent(currentFile.path)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
