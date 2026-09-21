@@ -4115,3 +4115,382 @@ class TestVrSettings:
         after = client.get("/api/settings").json()
         assert after["watched_threshold"] == before
         assert after["vr_sbs_layout"] == "half"
+
+
+# ── Bookmarklet download token (BL-124) ───────────────────────────────────────
+
+
+class TestDownloadToken:
+    """The bookmarklet posts from a third-party page, so it can offer neither the
+    Basic credentials nor the session cookie. It carries a narrow token instead.
+    """
+
+    @staticmethod
+    def _enable_auth(monkeypatch):
+        import backend.main as m
+
+        monkeypatch.setattr(m, "HOARD_AUTH_USER", "alice")
+        monkeypatch.setattr(m, "HOARD_AUTH_PASS", "secret")
+        monkeypatch.setattr(m, "_AUTH_ENABLED", True)
+        return m
+
+    @staticmethod
+    def _basic_header():
+        import base64
+
+        return {"Authorization": "Basic " + base64.b64encode(b"alice:secret").decode()}
+
+    def test_token_is_minted_once_and_is_stable(self):
+        first = main_mod._get_or_create_download_token()
+        assert len(first) >= 32
+        assert main_mod._get_or_create_download_token() == first
+
+    def test_regenerating_invalidates_the_previous_token(self, monkeypatch):
+        m = self._enable_auth(monkeypatch)
+        old = m._get_or_create_download_token()
+        new = m._regenerate_download_token()
+        assert new != old
+        assert m._check_download_token(old) is False
+        assert m._check_download_token(new) is True
+
+    def test_download_rejects_a_missing_or_wrong_token(self, monkeypatch):
+        m = self._enable_auth(monkeypatch)
+        m._get_or_create_download_token()
+        body = {"url": "https://example.invalid/v.mp4"}
+        assert client.post("/api/download", json=body).status_code == 401
+        assert client.post("/api/download", json={**body, "token": "nope"}).status_code == 401
+
+    def test_download_accepts_the_token(self, monkeypatch):
+        m = self._enable_auth(monkeypatch)
+        monkeypatch.setattr(m, "_queue_download", lambda *a, **k: "job-1")
+        token = m._get_or_create_download_token()
+        resp = client.post(
+            "/api/download", json={"url": "https://example.invalid/v.mp4", "token": token}
+        )
+        assert resp.status_code == 200
+        assert resp.json() == {"job_id": "job-1"}
+
+    def test_the_hoard_ui_still_works_without_a_token(self, monkeypatch):
+        """Same-origin callers authenticate the usual way; the token is only for
+        the bookmarklet, and must not become mandatory for everyone."""
+        m = self._enable_auth(monkeypatch)
+        monkeypatch.setattr(m, "_queue_download", lambda *a, **k: "job-2")
+        resp = client.post(
+            "/api/download",
+            json={"url": "https://example.invalid/v.mp4"},
+            headers=self._basic_header(),
+        )
+        assert resp.status_code == 200
+
+    def test_token_opens_nothing_but_the_two_download_routes(self, monkeypatch):
+        """It travels in a bookmark clicked on arbitrary sites. It must not be
+        able to list, move or delete anything."""
+        m = self._enable_auth(monkeypatch)
+        token = m._get_or_create_download_token()
+        payload = {"token": token}
+        assert client.get(f"/api/files?token={token}").status_code == 401
+        assert client.get(f"/api/jobs?token={token}").status_code == 401
+        assert client.get(f"/api/settings?token={token}").status_code == 401
+        assert client.post("/api/files/move", json=payload).status_code == 401
+        assert client.request("DELETE", "/api/files", json=payload).status_code == 401
+
+    def test_preflight_reaches_the_cors_layer(self, monkeypatch):
+        """The blanket middleware sits OUTSIDE CORSMiddleware, so it used to answer
+        the preflight itself with a bare 401 carrying no CORS headers. The browser
+        discarded that response and the bookmarklet only ever saw an opaque
+        "Failed to fetch" — which it reported as a CSP problem.
+        """
+        self._enable_auth(monkeypatch)
+        resp = client.options(
+            "/api/download",
+            headers={
+                "Origin": "https://some-video-site.example",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "content-type",
+            },
+        )
+        assert resp.status_code == 200
+        assert resp.headers["access-control-allow-origin"] == "*"
+
+    def test_rejection_is_readable_by_the_caller(self, monkeypatch):
+        """A 401 that carries no CORS headers is invisible to a cross-origin
+        caller. This one comes from the route, inside CORSMiddleware, so the
+        bookmarklet can actually display it."""
+        m = self._enable_auth(monkeypatch)
+        m._get_or_create_download_token()
+        resp = client.post(
+            "/api/download",
+            json={"url": "https://example.invalid/v.mp4", "token": "wrong"},
+            headers={"Origin": "https://some-video-site.example"},
+        )
+        assert resp.status_code == 401
+        assert resp.headers.get("access-control-allow-origin") == "*"
+        assert resp.json()["detail"]
+
+    def test_status_route_needs_the_token_and_returns_one_job(self, monkeypatch):
+        m = self._enable_auth(monkeypatch)
+        token = m._get_or_create_download_token()
+        monkeypatch.setitem(
+            m._jobs,
+            "job-3",
+            {"id": "job-3", "status": "running", "progress": 42, "error": None, "url": "secret"},
+        )
+        assert client.post("/api/download/status", json={"job_id": "job-3"}).status_code == 401
+        resp = client.post("/api/download/status", json={"job_id": "job-3", "token": token})
+        assert resp.status_code == 200
+        assert resp.json() == {"status": "running", "progress": 42, "error": None}
+
+    def test_status_route_hides_every_other_job(self, monkeypatch):
+        """It answers about one job id, never the whole queue: the full list would
+        hand any site the bookmark is clicked on every download's source URL."""
+        m = self._enable_auth(monkeypatch)
+        token = m._get_or_create_download_token()
+        resp = client.post("/api/download/status", json={"job_id": "no-such-job", "token": token})
+        assert resp.status_code == 404
+
+    def test_settings_expose_the_token_but_never_the_pin_hash(self, monkeypatch):
+        """The token is meant to be displayed so the bookmarklet can embed it; the
+        PIN hash is not. `settings` is a generic key/value table returned wholesale,
+        so the exclusion list is what keeps a secret parked there from shipping."""
+        resp = client.get("/api/settings")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["download_token"] == main_mod._get_or_create_download_token()
+        assert "pin_hash" not in data
+
+
+# ── Signed session cookie and login screen (BL-123) ───────────────────────────
+
+
+class TestSessionCookie:
+    @staticmethod
+    def _enable_auth(monkeypatch):
+        import backend.main as m
+
+        monkeypatch.setattr(m, "HOARD_AUTH_USER", "alice")
+        monkeypatch.setattr(m, "HOARD_AUTH_PASS", "secret")
+        monkeypatch.setattr(m, "_AUTH_ENABLED", True)
+        return m
+
+    def test_login_sets_the_cookie_and_the_session_works(self, monkeypatch):
+        m = self._enable_auth(monkeypatch)
+        # Secure off for the round trip: TestClient speaks plain http://testserver
+        # and would rightly refuse to send a Secure cookie back over it. Real
+        # browsers make an exception for localhost, httpx does not.
+        monkeypatch.setattr(m, "HOARD_COOKIE_SECURE", False)
+        with TestClient(app) as c:
+            resp = c.post("/api/login", json={"user": "alice", "password": "secret"})
+            assert resp.status_code == 200
+            assert m.SESSION_COOKIE in resp.cookies
+            # The cookie alone now opens the API — no Authorization header anywhere.
+            assert c.get("/api/settings").status_code == 200
+
+    def test_wrong_credentials_set_no_cookie(self, monkeypatch):
+        m = self._enable_auth(monkeypatch)
+        with TestClient(app) as c:
+            resp = c.post("/api/login", json={"user": "alice", "password": "wrong"})
+            assert resp.status_code == 401
+            assert m.SESSION_COOKIE not in resp.cookies
+            assert c.get("/api/settings").status_code == 401
+
+    def test_cookie_attributes(self, monkeypatch):
+        """SameSite is what stops a third-party page from driving DELETE /api/files
+        with the visitor's session — Basic could not be used that way, a cookie
+        could. HttpOnly keeps it away from any script on the page."""
+        m = self._enable_auth(monkeypatch)
+        monkeypatch.setattr(m, "HOARD_COOKIE_SECURE", True)
+        with TestClient(app) as c:
+            resp = c.post("/api/login", json={"user": "alice", "password": "secret"})
+        raw = resp.headers["set-cookie"].lower()
+        assert "httponly" in raw
+        assert "samesite=lax" in raw
+        assert "secure" in raw
+        assert "path=/" in raw
+        assert f"max-age={m.SESSION_MAX_AGE}" in raw
+
+    def test_secure_flag_follows_the_setting(self, monkeypatch):
+        """The backend is spoken to in plain HTTP behind the Synology reverse proxy,
+        so it cannot detect HTTPS — hence a setting rather than introspection."""
+        m = self._enable_auth(monkeypatch)
+        monkeypatch.setattr(m, "HOARD_COOKIE_SECURE", False)
+        with TestClient(app) as c:
+            resp = c.post("/api/login", json={"user": "alice", "password": "secret"})
+        assert "secure" not in resp.headers["set-cookie"].lower()
+
+    def test_a_forged_signature_is_rejected(self, monkeypatch):
+        m = self._enable_auth(monkeypatch)
+        good = m._make_session_cookie("alice")
+        payload, _, signature = good.partition(".")
+        # Same signature, different payload: the classic forgery attempt.
+        other_payload = m._make_session_cookie("intruder").partition(".")[0]
+        assert m._read_session_cookie(f"{other_payload}.{signature}") is None
+        assert m._read_session_cookie(f"{payload}.AAAAAAAA") is None
+        assert m._read_session_cookie("garbage") is None
+        assert m._read_session_cookie(None) is None
+        with TestClient(app) as c:
+            c.cookies.set(m.SESSION_COOKIE, f"{other_payload}.{signature}")
+            assert c.get("/api/settings").status_code == 401
+
+    def test_an_expired_cookie_is_rejected(self, monkeypatch):
+        m = self._enable_auth(monkeypatch)
+        expired = m._make_session_cookie("alice", expires_at=int(time.time()) - 1)
+        assert m._read_session_cookie(expired) is None
+        with TestClient(app) as c:
+            c.cookies.set(m.SESSION_COOKIE, expired)
+            assert c.get("/api/settings").status_code == 401
+
+    def test_changing_the_secret_key_revokes_every_session(self, monkeypatch):
+        """This is the revocation mechanism: there is no session table to clear."""
+        m = self._enable_auth(monkeypatch)
+        monkeypatch.setattr(m, "HOARD_SECRET_KEY", "first-key")
+        cookie = m._make_session_cookie("alice")
+        assert m._read_session_cookie(cookie) is not None
+        monkeypatch.setattr(m, "HOARD_SECRET_KEY", "second-key")
+        assert m._read_session_cookie(cookie) is None
+
+    def test_sliding_renewal_past_the_halfway_mark(self, monkeypatch):
+        """Without it, 30 days would mean 30 days after the FIRST login, which
+        brings back the very retyping this ticket removes."""
+        m = self._enable_auth(monkeypatch)
+        fresh = m._make_session_cookie("alice")
+        half_spent = m._make_session_cookie(
+            "alice", expires_at=int(time.time()) + m.SESSION_MAX_AGE // 4
+        )
+        with TestClient(app) as c:
+            c.cookies.set(m.SESSION_COOKIE, fresh)
+            assert "set-cookie" not in c.get("/api/settings").headers
+        with TestClient(app) as c:
+            c.cookies.set(m.SESSION_COOKIE, half_spent)
+            assert m.SESSION_COOKIE in c.get("/api/settings").headers.get("set-cookie", "")
+
+    def test_logout_clears_the_cookie(self, monkeypatch):
+        m = self._enable_auth(monkeypatch)
+        monkeypatch.setattr(m, "HOARD_COOKIE_SECURE", False)  # see the test above
+        with TestClient(app) as c:
+            c.post("/api/login", json={"user": "alice", "password": "secret"})
+            assert c.get("/api/settings").status_code == 200
+            c.post("/api/logout")
+            assert c.get("/api/settings").status_code == 401
+
+    def test_no_challenge_for_a_browser_but_one_for_curl(self, monkeypatch):
+        """While WWW-Authenticate is sent, the browser opens its own credentials
+        dialog and the in-app login screen never gets a chance to appear. curl -u
+        still needs it: it only sends credentials once challenged."""
+        self._enable_auth(monkeypatch)
+        browser = client.get("/api/settings", headers={"Accept": "text/html"})
+        assert browser.status_code == 401
+        assert "www-authenticate" not in browser.headers
+        curl = client.get("/api/settings", headers={"Accept": "*/*"})
+        assert curl.status_code == 401
+        assert curl.headers["www-authenticate"].startswith("Basic")
+
+    def test_basic_auth_still_works(self, monkeypatch):
+        """Dropping Basic would break curl, a future native client and any external
+        reader. The two coexist."""
+        import base64
+
+        self._enable_auth(monkeypatch)
+        header = {"Authorization": "Basic " + base64.b64encode(b"alice:secret").decode()}
+        assert client.get("/api/settings", headers=header).status_code == 200
+
+    def test_the_shell_is_served_without_credentials(self, monkeypatch):
+        """Withholding WWW-Authenticate removes the native dialog, so if the page
+        were also behind the guard an unauthenticated browser would get a blank 401
+        with no way in at all. Only the shell is exempt — every /api/* route stays
+        guarded, so no file, setting or listing is reachable."""
+        self._enable_auth(monkeypatch)
+        assert client.get("/").status_code == 200
+        assert client.get("/service-worker.js").status_code == 200
+        assert client.get("/manifest.webmanifest").status_code == 200
+        # The manifest points at /favicon.svg, so leaving it out left the login
+        # screen without an icon and broke installing Hoard as an app.
+        assert client.get("/favicon.svg").status_code == 200
+        assert client.get("/api/files").status_code == 401
+        assert client.get("/api/settings").status_code == 401
+
+    def test_the_shell_exemption_is_an_exact_match(self, monkeypatch):
+        """Same rule as /healthz: a prefix test would let anything starting with
+        one of these paths past the guard."""
+        self._enable_auth(monkeypatch)
+        for path in ("/index.htmlx", "/favicon.svg.bak", "/service-worker.js.map"):
+            assert client.get(path).status_code == 401, path
+
+    def test_the_session_secret_never_leaves_the_server(self, monkeypatch):
+        """`settings` is returned wholesale by GET /api/settings, so a secret parked
+        there ships to the frontend unless it is excluded."""
+        import backend.main as m
+
+        monkeypatch.setattr(m, "HOARD_SECRET_KEY", "")
+        m._session_secret()  # force it into the settings table
+        data = client.get("/api/settings").json()
+        assert m.SESSION_SECRET_SETTING not in data
+        assert "pin_hash" not in data
+
+    def test_login_route_is_reachable_without_credentials(self, monkeypatch):
+        """It is the way in; guarding it would be a locked door with its key inside."""
+        self._enable_auth(monkeypatch)
+        assert client.post("/api/login", json={"user": "x", "password": "y"}).status_code == 401
+
+    def test_the_cookie_authenticated_ui_can_still_download(self, monkeypatch):
+        """Found by review, not by the suite: the guard accepted Basic and the
+        token but not the session cookie, so once BL-123 landed, a user logged in
+        through the login screen got a 401 when starting a download from Hoard
+        itself. The existing test used Basic, which is not how a browser is
+        authenticated any more.
+
+        Accepting the cookie here is safe against CSRF: it is SameSite=Lax, so a
+        third-party page's POST carries no cookie at all.
+        """
+        m = self._enable_auth(monkeypatch)
+        monkeypatch.setattr(m, "HOARD_COOKIE_SECURE", False)
+        monkeypatch.setattr(m, "_queue_download", lambda *a, **k: "job-ui")
+        monkeypatch.setitem(
+            m._jobs, "job-ui", {"id": "job-ui", "status": "running", "progress": 7, "error": None}
+        )
+        with TestClient(app) as c:
+            c.post("/api/login", json={"user": "alice", "password": "secret"})
+            started = c.post("/api/download", json={"url": "https://example.invalid/v.mp4"})
+            assert started.status_code == 200
+            status = c.post("/api/download/status", json={"job_id": "job-ui"})
+            assert status.status_code == 200
+
+    def test_changing_the_credentials_revokes_every_session(self, monkeypatch):
+        """Found by review. The signature used to depend on the secret alone, so
+        changing the password — the reflex move after a suspected leak — revoked
+        nothing: a stolen cookie stayed valid for its full 30 days, and only
+        rotating HOARD_SECRET_KEY would have helped, which nobody would think to
+        do. The credentials are now part of the HMAC key.
+        """
+        m = self._enable_auth(monkeypatch)
+        monkeypatch.setattr(m, "HOARD_SECRET_KEY", "fixed-key")
+        stolen = m._make_session_cookie("alice")
+        assert m._read_session_cookie(stolen) is not None
+
+        monkeypatch.setattr(m, "HOARD_AUTH_PASS", "a-brand-new-password")
+        assert m._read_session_cookie(stolen) is None
+
+        monkeypatch.setattr(m, "HOARD_AUTH_PASS", "secret")  # back to the original
+        assert m._read_session_cookie(stolen) is not None
+
+        monkeypatch.setattr(m, "HOARD_AUTH_USER", "bob")
+        assert m._read_session_cookie(stolen) is None
+
+    def test_the_secret_is_read_once_not_on_every_request(self, monkeypatch):
+        """Verifying a cookie signs a payload, which needs the key, and that runs
+        on every authenticated request — while get_db() opens a fresh SQLite
+        connection each time. Measured before caching: 4.97 ms against 4.05 ms on
+        GET /api/files, 23% slower, to re-read a value that cannot change while
+        the process runs.
+        """
+        import backend.main as m
+
+        monkeypatch.setattr(m, "HOARD_SECRET_KEY", "")
+        monkeypatch.setattr(m, "_session_secret_cached", None)
+        m._session_secret()  # first call populates the cache
+
+        calls = []
+        real_get_db = m.get_db
+        monkeypatch.setattr(m, "get_db", lambda: calls.append(1) or real_get_db())
+        for _ in range(20):
+            m._session_secret()
+        assert calls == [], "the session secret hit the database again"

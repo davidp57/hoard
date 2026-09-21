@@ -133,7 +133,9 @@ All configuration is done via **environment variables** in `docker-compose.yml` 
 | `PREDEFINED_FOLDERS` | `Vu,A revoir,A supprimer` | Quick folders (comma-separated) |
 | `SSL_CERTFILE` | *(unset)* | Path to a PEM certificate file. Enables native HTTPS — no reverse proxy needed. |
 | `SSL_KEYFILE` | *(unset)* | Path to the matching PEM private key file. |
-| `HOARD_AUTH_USER` / `HOARD_AUTH_PASS` | *(unset)* | Set both to require HTTP Basic auth on every request. Recommended when exposing Hoard outside your LAN. Use HTTPS so credentials are not sent in clear text. |
+| `HOARD_AUTH_USER` / `HOARD_AUTH_PASS` | *(unset)* | Set both to require authentication on every request. Recommended when exposing Hoard outside your LAN. Use HTTPS so credentials are not sent in clear text. |
+| `HOARD_SECRET_KEY` | *(generated)* | Key signing the session cookie. Without one, a key is minted on first start and kept in the database, so a fresh install just works. Setting it gives you revocation: change the value and every session on every device stops working at once. |
+| `HOARD_COOKIE_SECURE` | `1` | Whether the session cookie carries `Secure` (HTTPS only). Leave it at `1` in production. Set `0` only to reach a dev instance over plain HTTP from another machine — browsers treat `localhost` as secure already, so local development needs no change. |
 | `LOG_LEVEL` | `INFO` | Logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`). |
 | `LOG_DIR` | `<DB_PATH directory>/logs` | Directory holding the log files. Empty string disables file logging (stdout only). |
 | `LOG_RETENTION_DAYS` | `30` | Number of daily log files kept (rotation at midnight). |

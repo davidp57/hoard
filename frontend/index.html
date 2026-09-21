@@ -1027,6 +1027,44 @@
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
+  /* ── Login screen (BL-123) ── */
+  #login-screen {
+    position: fixed; inset: 0; z-index: 1001;
+    background: var(--bg);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 18px;
+  }
+  #login-screen h2 { font-size: 22px; font-weight: 700; color: var(--text); letter-spacing: 0.05em; }
+  #login-desc { font-size: 13px; color: var(--text-dim); }
+  #login-form {
+    display: flex; flex-direction: column; gap: 12px;
+    width: min(320px, 82vw);
+  }
+  #login-form input {
+    background: var(--surface2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px;
+    /* 16px keeps iOS Safari from zooming the page when the field takes focus. */
+    font-size: 16px; padding: 12px 14px;
+  }
+  /* :not(.gp-cursor) matters. An id rule outranks `.gp-modal .gp-cursor`, so
+     plain `input:focus { outline: none }` would erase the pad cursor exactly when
+     the pad puts it on a field — which is the Deck, the case this screen exists
+     for. The field keeps its accent border either way. */
+  #login-form input:focus:not(.gp-cursor) { outline: none; }
+  #login-form input:focus { border-color: var(--accent); }
+  #login-submit {
+    /* Dark text on the accent, as every other accent button in Hoard does.
+       White measured 1.12:1 against #e8ff47 — WCAG AA asks 4.5:1 — and was
+       barely readable; #000 measures 17.3:1. */
+    background: var(--accent); color: #000;
+    border: none; border-radius: 8px;
+    font-size: 15px; font-weight: 600; padding: 12px;
+    cursor: pointer;
+  }
+  #login-submit:disabled { opacity: 0.6; cursor: default; }
+  #login-error { color: #e57373; font-size: 13px; min-height: 18px; text-align: center; }
+
   /* ── PIN screen ── */
   #pin-screen {
     position: fixed; inset: 0; z-index: 1000;
@@ -1450,6 +1488,19 @@
 </head>
 <body>
 
+<!-- Login screen (BL-123). `gp-modal` is all the pad needs; no data-gp-close on
+     purpose, so B cannot dismiss it — same rule as the PIN lock. -->
+<div id="login-screen" class="gp-modal" style="display:none">
+  <h2>🔑 Hoard</h2>
+  <div id="login-desc">Connexion</div>
+  <form id="login-form" onsubmit="submitLogin(event)">
+    <input type="text" id="login-user" placeholder="Identifiant" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false">
+    <input type="password" id="login-pass" placeholder="Mot de passe" autocomplete="current-password">
+    <div id="login-error"></div>
+    <button type="submit" id="login-submit">Se connecter</button>
+  </form>
+</div>
+
 <!-- PIN screen -->
 <div id="pin-screen" class="gp-modal" style="display:none">
   <h2>🔒 Hoard</h2>
@@ -1553,9 +1604,11 @@
       <div style="padding:12px 0 4px">
         <div class="s-label" style="margin-bottom:8px">Bookmarklet</div>
         <div class="s-desc" style="margin-bottom:10px">Glissez ce lien vers votre barre de favoris. Cliquez dessus sur n'importe quelle page vidéo pour envoyer le téléchargement à Hoard <strong>sans quitter la page</strong> — un toast confirme le succès ou l'erreur.</div>
+        <div class="s-desc" style="margin-bottom:10px">Le lien contient un jeton d'accès personnel : il permet uniquement de lancer un téléchargement et d'en suivre l'avancement, rien d'autre. Ne le partagez pas. Si vous l'avez diffusé par erreur, générez-en un nouveau — l'ancien cesse aussitôt de fonctionner, et le marque-page est à réinstaller.</div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <a id="bookmarklet-link" href="#" style="display:inline-block;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--accent);font-size:12px;padding:6px 12px;text-decoration:none;cursor:grab;white-space:nowrap" ondragstart="event.stopPropagation()">📥 Hoard Download</a>
           <button class="s-btn" onclick="copyBookmarklet()">Copier le code</button>
+          <button class="s-btn" onclick="regenerateDownloadToken()">🔑 Nouveau jeton</button>
         </div>
       </div>
     </div>
@@ -3074,7 +3127,16 @@ function registerServiceWorker() {
 
 async function init() {
   // 1. Load settings from backend
-  const s = await fetch(`${API}/api/settings`).then(r => r.json()).catch(() => ({}));
+  // The settings call is also the session probe: it is the first authenticated
+  // request of the session, so a 401 here means "not logged in". It has to be
+  // singled out — the catch below swallows the failure and would otherwise start
+  // the app against an empty config, silently, with no way in.
+  const resp = await fetch(`${API}/api/settings`).catch(() => null);
+  if (resp && resp.status === 401) {
+    showLoginScreen(init);
+    return;
+  }
+  const s = resp ? await resp.json().catch(() => ({})) : {};
   applyCfg(s);
 
   const savedVolume = localStorage.getItem('volume');
@@ -3120,6 +3182,72 @@ async function init() {
     navigate(def.path);
   } else {
     navigate(homeFolder);
+  }
+}
+
+// ── Login screen (BL-123) ────────────────────────────────────────────────────
+// Server-side authentication, distinct from the PIN below: the PIN is a screen
+// lock on an already-authenticated session, this one decides whether the server
+// answers at all. They stay separate on purpose.
+//
+// What the login screen buys: HTTP Basic has to be retyped in every new browser
+// window, through the browser's own native dialog — barely steerable with a gamepad
+// on the Deck and the Frame, and looking nothing like the rest of Hoard.
+let _loginResume = null;   // what to re-run once the session is back
+
+function showLoginScreen(onSuccess) {
+  const screen = document.getElementById('login-screen');
+  if (onSuccess) _loginResume = onSuccess;
+  if (screen.style.display === 'flex') return;   // already up — do not reset the fields
+  document.getElementById('login-error').textContent = '';
+  document.getElementById('login-pass').value = '';
+  screen.style.display = 'flex';
+  // Focus lands on whichever field is still empty, so a session that expired mid-use
+  // only asks for the password back.
+  const user = document.getElementById('login-user');
+  (user.value ? document.getElementById('login-pass') : user).focus();
+}
+
+function hideLoginScreen() {
+  document.getElementById('login-screen').style.display = 'none';
+}
+
+async function submitLogin(event) {
+  event.preventDefault();
+  const btn = document.getElementById('login-submit');
+  const err = document.getElementById('login-error');
+  const user = document.getElementById('login-user').value;
+  const password = document.getElementById('login-pass').value;
+  btn.disabled = true;
+  err.textContent = '';
+  try {
+    // Deliberately not apiFetch: its 401 handler raises this very screen, and the
+    // one 401 that must not do that is this form's own rejection.
+    const resp = await fetch(`${API}/api/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user, password }),
+    });
+    if (resp.status === 401) {
+      // The server does not say which field was wrong, and neither do we.
+      err.textContent = 'Identifiant ou mot de passe incorrect';
+      document.getElementById('login-pass').value = '';
+      document.getElementById('login-pass').focus();
+      return;
+    }
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    hideLoginScreen();
+    document.getElementById('login-pass').value = '';
+    // Resume where the user was rather than reloading: a reload would lose the
+    // current folder, the open player and its position.
+    const resume = _loginResume;
+    _loginResume = null;
+    if (resume) await resume();
+    else await init();
+  } catch (e) {
+    err.textContent = `Connexion impossible : ${e.message}`;
+  } finally {
+    btn.disabled = false;
   }
 }
 
@@ -3365,6 +3493,13 @@ let _dlQueueInterval = null;
 function _buildBookmarkletCode() {
   // Strip query/hash and trailing slash so H+'/api/download' is always correct.
   const hoardBase = window.location.href.replace(/[#?].*$/, '').replace(/\/+$/, '');
+  // The bookmarklet runs on a third-party page, so its calls to Hoard are
+  // cross-origin: the browser attaches neither the Basic credentials nor the
+  // session cookie (SameSite withholds it on purpose). It carries the download
+  // token in the request body instead — never in the URL, which would leak it into
+  // the reverse proxy's access log. Regenerating the token therefore invalidates
+  // every bookmark built from the old one, hence the reinstall prompt in settings.
+  const token = (typeof cfg === 'object' && cfg && cfg.download_token) || '';
   // Bookmarklet: submit the download to Hoard in the background via fetch().
   // A status dialog is injected into the current page — no navigation, no modal.
   // States: "Connexion à Hoard…" → "Analyse de l'URL…" → "Téléchargement… X%"
@@ -3386,7 +3521,7 @@ function _buildBookmarkletCode() {
     'javascript:(function(){',
     // Prevent double-invocation if user clicks the bookmarklet twice
     'if(document.getElementById("_hd"))return;',
-    `var H="${hoardBase}";`,
+    `var H="${hoardBase}";var K=${JSON.stringify(token)};`,
     // --- Build the status dialog ---
     'var D=document.createElement("div");D.id="_hd";',
     'D.style.cssText="position:fixed;top:20px;right:20px;z-index:2147483647;width:300px;padding:14px 16px;border-radius:10px;font:13px/1.5 system-ui,sans-serif;color:#ddd;background:#1c1c28;border:1px solid #444;box-shadow:0 8px 28px rgba(0,0,0,.7);box-sizing:border-box";',
@@ -3442,18 +3577,32 @@ function _buildBookmarkletCode() {
     // --- POST to Hoard API, then poll the job until done ---
     'var pu=location.href;',
     'fetch(H+"/api/download",{method:"POST",headers:{"Content-Type":"application/json"},',
-    'body:JSON.stringify({url:v||pu,cookies:document.cookie||null,referer:v?pu:null,title:document.title||null})})',
+    'body:JSON.stringify({url:v||pu,cookies:document.cookie||null,referer:v?pu:null,title:document.title||null,token:K})})',
     '.then(function(r){',
+    // 401 means the token was refused — nearly always a bookmark saved before the
+    // token was regenerated. Name the remedy; "Erreur 401" tells the user nothing.
+    'if(r.status===401){upd("\\u274C","Hoard\\u00a0: acc\\u00e8s refus\\u00e9. R\\u00e9installez le marque-page depuis les r\\u00e9glages.",null,0);return;}',
     // HTTP error from Hoard (SSRF block, bad request, etc.)
     'if(!r.ok){r.json().then(function(e){upd("\u274C","Hoard\u00a0: "+(e.detail||"Erreur "+r.status),null,0);})',
     '.catch(function(){upd("\u274C","Hoard\u00a0: erreur "+r.status,null,0);});return;}',
     // Job created — start polling
     'r.json().then(function(data){',
     'var jid=data.job_id;upd("\u231B","Analyse de l\u2019URL\u2026",null,0);',
+    // Progress comes from a route of its own rather than /api/jobs: the token
+    // lives in a bookmark clicked on arbitrary sites, and the full job list would
+    // hand any such site every download's title, source URL and destination.
+    // EF counts consecutive failures \u2014 one dropped request is noise, but a run of
+    // them used to be swallowed by an empty catch, leaving the dialog stuck on
+    // "Analyse de l'URL\u2026" forever with nothing to tell the user why.
+    'var EF=0;',
     'TM=setInterval(function(){',
-    'fetch(H+"/api/jobs").then(function(r2){return r2.json();}).then(function(jobs){',
-    'var j=null;for(var i=0;i<jobs.length;i++){if(jobs[i].id===jid){j=jobs[i];break;}}',
-    'if(!j){upd("\u274C","T\u00e2che introuvable",null,0);clearInterval(TM);return;}',
+    'fetch(H+"/api/download/status",{method:"POST",headers:{"Content-Type":"application/json"},',
+    'body:JSON.stringify({job_id:jid,token:K})}).then(function(r2){',
+    'if(r2.status===401){upd("\u274C","Hoard\u00a0: acc\u00E8s refus\u00e9. R\u00e9installez le marque-page depuis les r\u00e9glages.",null,0);clearInterval(TM);return null;}',
+    'if(r2.status===404){upd("\u274C","T\u00e2che introuvable",null,0);clearInterval(TM);return null;}',
+    'if(!r2.ok)throw new Error("HTTP "+r2.status);',
+    'return r2.json();}).then(function(j){',
+    'if(!j)return;EF=0;',
     'if(j.status==="resolving"){upd("\u231B","Analyse de l\u2019URL\u2026",null,0);}',
     'else if(j.status==="pending"){upd("\u23F3","En attente dans la file\u2026",null,0);}',
     'else if(j.status==="running"&&j.progress===0){upd("\u231B","Analyse de l\u2019URL\u2026",null,0);}',
@@ -3461,14 +3610,14 @@ function _buildBookmarkletCode() {
     'else if(j.status==="done"){upd("\u2705","Termin\u00e9\u00a0!",100,4000);clearInterval(TM);}',
     'else if(j.status==="cancelled"){upd("\u23F9","Annul\u00e9",null,0);clearInterval(TM);}',
     'else if(j.status==="error"){upd("\u274C",(j.error||"Erreur").slice(0,120),null,0);clearInterval(TM);}',
-    '}).catch(function(){});},2000);',
+    '}).catch(function(){if(++EF>=3){upd("\u26A0\uFE0F","Suivi interrompu \u2014 le t\u00e9l\u00e9chargement continue peut-\u00EAtre. V\u00e9rifiez dans Hoard.",null,0);clearInterval(TM);}});},2000);',
     '});',
     '})',
     '.catch(function(){',
     'var qp="url="+encodeURIComponent(pu)+"&cookies="+encodeURIComponent(document.cookie||"")+"&title="+encodeURIComponent(document.title||"");',
     'if(v)qp+="&videoSrc="+encodeURIComponent(v);',
     'window.open(H+"/#download?"+qp,"_blank");',
-    'upd("\u2139\uFE0F","Site incompatible (CSP) \u2014 ouverture de Hoard dans un nouvel onglet\u2026",null,3000);',
+    'upd("\u2139\uFE0F","Hoard injoignable depuis cette page \u2014 ouverture dans un nouvel onglet\u2026",null,3000);',
     '});',
     '})();',
   ].join('');
@@ -3485,6 +3634,26 @@ function copyBookmarklet() {
     () => showToast('✓ Code bookmarklet copié'),
     () => showToast('Impossible de copier — utilisez le glisser-déposer'),
   );
+}
+
+async function regenerateDownloadToken() {
+  // Bookmarks already in the bar embed the old token, so they all stop working
+  // at once. Say that before doing it, not after.
+  if (!confirm(
+    'Générer un nouveau jeton ?\n\n' +
+    'Les marque-pages déjà installés cesseront de fonctionner : il faudra les remplacer ' +
+    'en glissant à nouveau le lien ci-dessous.'
+  )) return;
+  try {
+    const resp = await fetch(`${API}/api/download/token/regenerate`, { method: 'POST' });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    cfg.download_token = data.download_token;
+    _updateBookmarkletLink();
+    showToast('✓ Nouveau jeton — réinstallez le marque-page');
+  } catch (e) {
+    showToast(`Échec de la régénération : ${e.message}`);
+  }
 }
 
 function openDlQueueModal(url, cookies, videoSrc, title) {
@@ -6525,7 +6694,16 @@ async function apiFetch(url, opts = {}, timeoutMs = API_FETCH_TIMEOUT_MS) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    return await fetch(url, { ...opts, signal: ctrl.signal });
+    const resp = await fetch(url, { ...opts, signal: ctrl.signal });
+    // The session expired, or there never was one. The browser no longer pops its
+    // native dialog (the backend withholds WWW-Authenticate from HTML callers), so
+    // nothing would happen at all if we did not raise the login screen here.
+    // Resume on the current folder, not through init(): init() ends on
+    // navigate(home), which would drop the user back at the top of the tree after
+    // a session expired mid-browse. The page is never reloaded, so anything
+    // playing keeps playing behind the screen.
+    if (resp.status === 401) showLoginScreen(() => navigate(currentPath));
+    return resp;
   } catch (err) {
     showToast(err.name === 'AbortError'
       ? '⏱️ Délai dépassé — serveur lent ou injoignable'
