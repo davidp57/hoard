@@ -97,6 +97,23 @@ in constant time. This is meant for exposing Hoard behind a reverse proxy or
 direct HTTPS without a full account system — use HTTPS so the Basic credentials
 are not sent in clear text.
 
+**One route is exempt: `/healthz`.** The container's `HEALTHCHECK` has no
+credentials to offer, and before the exemption existed, enabling auth marked
+every deployment `unhealthy`. The exemption is an **exact path match** — a
+prefix test would let `/healthz-anything` past the guard — and the route
+discloses nothing (see below).
+
+Startup prints the auth state either way, so an open instance is visible in the
+container log rather than indistinguishable from a protected one:
+
+```
+Auth: HTTP Basic enabled for user 'david'
+Auth: DISABLED — every endpoint is open, including file deletion and moves. …
+```
+
+Auth stays **off by default**: turning it on unconditionally would cut off every
+LAN instance at its next restart.
+
 ### API Endpoints
 
 | Method | Route | Description |
@@ -124,6 +141,7 @@ are not sent in clear text.
 | POST | `/api/initial-sweep` | Set a folder override `{path, seconds}` |
 | DELETE | `/api/initial-sweep?path=` | Remove a folder override and fall back to the global default |
 | GET | `/api/browse?path=` | Browse the directory tree (used by the move modal) |
+| GET | `/healthz` | Liveness probe for the container `HEALTHCHECK`. **The only route reachable without credentials.** Checks the database and the media root; answers `{"status": "ok"}`, or `503` and `{"status": "error"}`. Says nothing else — no version, no paths, no counts. |
 | GET | `/api/settings` | Read user settings |
 | POST | `/api/settings` | Save user settings |
 | GET | `/api/media-info?path=` | Read on-demand playback metadata via ffprobe |

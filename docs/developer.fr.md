@@ -97,6 +97,25 @@ est inchangé. Les identifiants sont comparés en temps constant. Pensé pour
 exposer Hoard derrière un reverse proxy ou en HTTPS direct sans système de
 comptes — utiliser HTTPS pour ne pas transmettre les identifiants en clair.
 
+**Une route est exemptée : `/healthz`.** Le `HEALTHCHECK` du container n'a pas
+d'identifiants à présenter, et avant cette exemption, activer l'auth faisait
+passer tout déploiement en `unhealthy`. L'exemption se fait par **égalité
+stricte** du chemin — un test de préfixe laisserait passer
+`/healthz-nimportequoi` devant le garde — et la route ne divulgue rien (voir
+plus bas).
+
+Le démarrage affiche l'état de l'auth dans les deux cas, pour qu'une instance
+ouverte se voie dans le journal du container au lieu d'être indiscernable d'une
+instance protégée :
+
+```
+Auth: HTTP Basic enabled for user 'david'
+Auth: DISABLED — every endpoint is open, including file deletion and moves. …
+```
+
+L'auth reste **désactivée par défaut** : l'activer sans condition couperait
+l'accès à toutes les instances en réseau local au prochain redémarrage.
+
 ### Endpoints API
 
 | Méthode | Route | Description |
@@ -119,6 +138,7 @@ comptes — utiliser HTTPS pour ne pas transmettre les identifiants en clair.
 | POST | `/api/initial-sweep` | Définit une surcharge de dossier `{path, seconds}` |
 | DELETE | `/api/initial-sweep?path=` | Supprime une surcharge de dossier et revient à la valeur globale |
 | GET | `/api/browse?path=` | Parcourt l'arborescence (usage : modal de déplacement) |
+| GET | `/healthz` | Sonde de vitalité pour le `HEALTHCHECK` du container. **Seule route joignable sans identifiants.** Vérifie la base et la racine média ; répond `{"status": "ok"}`, ou `503` et `{"status": "error"}`. Ne dit rien d'autre — ni version, ni chemin, ni compteur. |
 | GET | `/api/settings` | Lit les paramètres utilisateur |
 | POST | `/api/settings` | Sauvegarde les paramètres |
 | GET | `/api/media-info?path=` | Lit à la demande les métadonnées de lecture via ffprobe |

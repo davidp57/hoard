@@ -2747,6 +2747,45 @@ class TestHealthz:
         assert resp.json() == {"status": "error"}
 
 
+class TestDockerfileProbe:
+    """The HEALTHCHECK URL lives in the Dockerfile, where no test looked.
+
+    It has already been wrong once — commit c4cd7cf, "healthcheck uses
+    /api/files instead of non-existent /api/config" — and nothing caught it.
+    Then /api/files turned out to need credentials, which nothing caught
+    either. Both failures are the same shape: a URL in a Dockerfile that no
+    test reads. This reads it.
+    """
+
+    def _probe_path(self):
+        import re
+
+        dockerfile = Path(__file__).resolve().parent.parent / "Dockerfile"
+        text = dockerfile.read_text(encoding="utf-8")
+        match = re.search(r"://localhost:8000([^'\"\s]*)", text)
+        assert match, "no HEALTHCHECK URL found in the Dockerfile"
+        return match.group(1)
+
+    def test_probe_hits_a_route_that_exists(self):
+        path = self._probe_path()
+        assert client.get(path).status_code != 404, (
+            f"the Dockerfile HEALTHCHECK probes {path}, which is not a route"
+        )
+
+    def test_probe_needs_no_credentials(self, monkeypatch):
+        import backend.main as m
+
+        monkeypatch.setattr(m, "HOARD_AUTH_USER", "alice")
+        monkeypatch.setattr(m, "HOARD_AUTH_PASS", "secret")
+        monkeypatch.setattr(m, "_AUTH_ENABLED", True)
+
+        path = self._probe_path()
+        assert client.get(path).status_code == 200, (
+            f"the Dockerfile HEALTHCHECK probes {path}, which is behind auth: "
+            "enabling credentials would mark every deployment unhealthy"
+        )
+
+
 # ── PIN hashing: scrypt (BL-030) ───────────────────────────────────────────────
 
 
