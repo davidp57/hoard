@@ -114,6 +114,25 @@ Auth: DISABLED — every endpoint is open, including file deletion and moves. �
 Auth stays **off by default**: turning it on unconditionally would cut off every
 LAN instance at its next restart.
 
+### VR 180° detection (BL-121)
+
+None of the sampled VR files carry spherical metadata (no `st3d`/`sv3d`), so the
+server has only the file name to go on — `guess_vr_from_name()` matches `vr180`,
+`180x180`, `3dh`, `sbs`, a standalone `lr`, and `oculus(-|_| )?rift`. A bare
+`180` was tried and removed: it flagged ordinary files such as
+"Episode 180 - The Long Goodbye.mkv" and recognised nothing the other patterns
+had missed.
+
+The second clue, a 2:1 aspect ratio, is checked **in the player**, not here: the
+listing has no pixel dimensions, and obtaining them would mean one `ffprobe`
+subprocess per entry on every folder open. The `<video>` element already knows
+them by the time it matters.
+
+Measured on a 24-file sample: the name alone recognises 15, the ratio covers the
+rest. `vr_hint` (the guess) and `vr_mode` (the explicit choice) are both exposed
+on video entries of `/api/files` and `/api/search`; the explicit choice always
+wins, including `"off"` on a file the guess got wrong.
+
 ### API Endpoints
 
 | Method | Route | Description |
@@ -144,6 +163,7 @@ LAN instance at its next restart.
 | GET | `/healthz` | Liveness probe for the container `HEALTHCHECK`. **The only route reachable without credentials.** Checks the database and the media root; answers `{"status": "ok"}`, or `503` and `{"status": "error"}`. Says nothing else — no version, no paths, no counts. |
 | GET | `/api/settings` | Read user settings |
 | POST | `/api/settings` | Save user settings |
+| POST | `/api/vr-mode?path=` | Remember how a file is rendered: `{mode: "off"\|"flat"\|"sbs"}` |
 | GET | `/api/media-info?path=` | Read on-demand playback metadata via ffprobe |
 | GET | `/api/file?path=` | Serve any media file (video/image/audio/PDF) with `Range` support (native seeking) |
 | GET | `/api/transcode?path=` | Transcoded stream via ffmpeg |
@@ -223,6 +243,12 @@ CREATE TABLE settings (
 CREATE TABLE initial_sweep_folders (
     path TEXT PRIMARY KEY,
     seconds INTEGER NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE vr_modes (
+    path       TEXT PRIMARY KEY,
+    mode       TEXT NOT NULL,          -- "off" | "flat" | "sbs"
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

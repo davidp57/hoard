@@ -349,6 +349,9 @@
   }
   #vr-canvas.active { display: block; }
 
+  .vr-badge { margin-left: 6px; font-size: 11px; }
+  .vr-badge.dim { opacity: 0.45; }
+
   /* Side-by-side output: any 2D overlay is drawn once across a picture that is
      about to be split between two eyes, so it lands half in each and reads as
      nothing. Hide them; the gamepad and keyboard still drive the player. */
@@ -1565,6 +1568,22 @@
         <div class="s-right"><input type="number" class="s-num" id="s-fs-progress-zoom" min="5" max="50" step="5"> <span style="font-size:12px;color:var(--text-dim)">%</span></div>
       </div>
       <div class="s-row">
+        <div><div class="s-label">Champ de vision VR</div><div class="s-desc">Ouverture de la vue en mode VR 180°. Plus petit = plus rapproché. Ajustable à la molette pendant la lecture, sans modifier ce réglage.</div></div>
+        <div class="s-right"><input type="number" class="s-num" id="s-vr-fov" min="30" max="120" step="5"> <span style="font-size:12px;color:var(--text-dim)">°</span></div>
+      </div>
+      <div class="s-row">
+        <div><div class="s-label">Vitesse du regard VR</div><div class="s-desc">Rotation au stick droit, à fond de course, en degrés par seconde</div></div>
+        <div class="s-right"><input type="number" class="s-num" id="s-vr-look-speed" min="10" max="360" step="10"> <span style="font-size:12px;color:var(--text-dim)">°/s</span></div>
+      </div>
+      <div class="s-row">
+        <div><div class="s-label">Image VR côte à côte</div><div class="s-desc">La plupart des lunettes XR en mode 3D réétirent chaque moitié sur toute la largeur. Si l'image paraît écrasée ou étirée du double, change ce réglage (touche B pendant la lecture).</div></div>
+        <div class="s-right"><select class="s-num" id="s-vr-sbs-layout" style="width:auto"><option value="half">Étirée (lunettes XR)</option><option value="full">Non étirée</option></select></div>
+      </div>
+      <div class="s-row">
+        <div><div class="s-label">Convergence VR</div><div class="s-desc">Écart entre les deux yeux. À laisser à 0 : un fichier bien tourné n'en a pas besoin.</div></div>
+        <div class="s-right"><input type="number" class="s-num" id="s-vr-convergence" min="-3" max="3" step="0.5"> <span style="font-size:12px;color:var(--text-dim)">°</span></div>
+      </div>
+      <div class="s-row">
         <div><div class="s-label">Initial sweep par défaut</div><div class="s-desc">Pour une vidéo sans progression enregistrée : démarrer à N secondes. 0 = désactivé.</div></div>
         <div class="s-right"><input type="number" class="s-num" id="s-initial-sweep" min="0" max="7200" step="30"> <span style="font-size:12px;color:var(--text-dim)">s</span></div>
       </div>
@@ -2261,6 +2280,10 @@ let cfg = {
   gamepad_mapping: {},
   fs_progress_zoom: 20,
   gestures_overlay_seen: false,
+  vr_fov: 90,
+  vr_convergence: 0,
+  vr_look_speed: 90,
+  vr_sbs_layout: 'half',
 };
 
 function applyCfg(s) {
@@ -2308,6 +2331,10 @@ function applyCfg(s) {
   try { cfg.gamepad_mapping = JSON.parse(s.gamepad_mapping || '{}'); } catch { cfg.gamepad_mapping = {}; }
   cfg.fs_progress_zoom = parseInt(s.fs_progress_zoom ?? 20, 10);
   cfg.gestures_overlay_seen = s.gestures_overlay_seen === '1' || s.gestures_overlay_seen === true;
+  cfg.vr_fov         = parseInt(s.vr_fov ?? 90, 10);
+  cfg.vr_convergence = parseFloat(s.vr_convergence ?? 0);
+  cfg.vr_look_speed  = parseInt(s.vr_look_speed ?? 90, 10);
+  cfg.vr_sbs_layout  = s.vr_sbs_layout === 'full' ? 'full' : 'half';
   // propagate navigation prefs
   homeFolder = cfg.home_folder;
   sortBy     = cfg.sort_by;
@@ -3223,6 +3250,10 @@ function openSettings() {
   document.getElementById('s-watched-threshold').value  = cfg.watched_threshold;
   document.getElementById('s-fs-progress-zoom').value   = cfg.fs_progress_zoom;
   document.getElementById('s-initial-sweep').value      = cfg.initial_sweep_seconds;
+  document.getElementById('s-vr-fov').value             = cfg.vr_fov;
+  document.getElementById('s-vr-look-speed').value      = cfg.vr_look_speed;
+  document.getElementById('s-vr-sbs-layout').value      = cfg.vr_sbs_layout;
+  document.getElementById('s-vr-convergence').value     = cfg.vr_convergence;
   document.getElementById('s-sort-by').value            = cfg.sort_by;
   document.getElementById('s-sort-dir').value           = cfg.sort_dir;
   document.getElementById('s-gesture-enabled').checked     = cfg.gesture_enabled;
@@ -3276,6 +3307,10 @@ async function saveSettings() {
     watched_threshold:         parseInt(document.getElementById('s-watched-threshold').value, 10),
     fs_progress_zoom:          parseInt(document.getElementById('s-fs-progress-zoom').value, 10),
     initial_sweep_seconds:     parseInt(document.getElementById('s-initial-sweep').value, 10),
+    vr_fov:                    parseInt(document.getElementById('s-vr-fov').value, 10),
+    vr_look_speed:             parseInt(document.getElementById('s-vr-look-speed').value, 10),
+    vr_sbs_layout:             document.getElementById('s-vr-sbs-layout').value,
+    vr_convergence:            parseFloat(document.getElementById('s-vr-convergence').value),
     home_folder:               cfg.home_folder,
     sort_by:                   document.getElementById('s-sort-by').value,
     sort_dir:                  document.getElementById('s-sort-dir').value,
@@ -4150,6 +4185,12 @@ function renderEntry(e, i) {
   const stateClass = (gal || (!e.is_dir && mt !== 'other')) ? getStateClass(e.progress) : (e.folder_state === 'seen' ? 'seen' : (e.folder_state === 'inprogress' ? 'inprogress' : ''));
   const pinBtn = e.is_dir ? `<button class="action-btn ${e.is_quick_folder ? 'pinned' : ''}" onclick="togglePin(${jsStr(e.path)}, ${e.is_quick_folder})" title="${e.is_quick_folder ? 'Retirer' : 'Accès rapide'}">📌</button>` : '';
   const tagsHtml = (e.tags && e.tags.length) ? e.tags.map(t => `<span class="tag-badge">${esc(t)}</span>`).join('') : '';
+  // 🥽 marks what the server could tell from the name, or what was chosen on this
+  // file before. The ratio clue needs the video's own dimensions, so a file the
+  // name says nothing about only reveals itself once opened.
+  const vrBadge = (e.vr_mode && e.vr_mode !== 'off')
+    ? '<span class="vr-badge" title="Mode VR mémorisé pour ce fichier">🥽</span>'
+    : (e.vr_hint ? '<span class="vr-badge dim" title="Ressemble à une vidéo VR 180°">🥽</span>' : '');
   const actionsHtml = mt !== 'other' || e.is_dir ? `
     <div class="entry-actions" onclick="event.stopPropagation()">
       ${pinBtn}
@@ -4174,7 +4215,7 @@ function renderEntry(e, i) {
       <div class="entry-info">
         <div class="entry-name">${esc(e.name)}</div>
         <div class="entry-meta">
-          <span>${meta}</span>
+          <span>${meta}</span>${vrBadge}
           ${progressHtml}
           <div style="margin-top:3px">${tagsHtml}</div>
         </div>
@@ -5091,6 +5132,7 @@ async function playVideo(idx) {
   };
   video.onloadedmetadata = () => {
     updateSegmentUI();
+    vrArmForEntry(entry, (video.currentSrc || '').includes('/api/transcode'));
     const safeDuration = Math.max(0, video.duration - 1);
     const initialSweep = Math.min(initialSweepState.effective_seconds || 0, safeDuration);
     const isWatched = (prog.percent ?? 0) >= cfg.watched_threshold;
@@ -5323,8 +5365,10 @@ void main() {
   fragColor = texture(uTex, uUvOrigin + uv * uUvSize);
 }`;
 
-const VR_LOOK_SPEED = 90;    // deg/s at full stick deflection (BL-122 will expose it)
-const VR_DEFAULT_FOV = 90;
+// These three come from the settings (BL-122) and are read when used, never
+// captured: the settings page can change them while a video is playing.
+const vrLookSpeed = () => cfg.vr_look_speed || 90;   // deg/s at full deflection
+const vrDefaultFov = () => cfg.vr_fov || 90;
 // A fixed horizontal fov makes the vertical one explode on a tall view: the
 // player panel measured 543x1695 in split view, which drove it to 144°. Past
 // this bound the horizontal fov is derived from the vertical one instead.
@@ -5342,10 +5386,12 @@ const VR_CONVERGENCE_MAX = 3;      // degrees; beyond this the eyes stop fusing
 const VR_CONVERGENCE_STEP = 0.5;
 
 const vr = {
-  mode: 'off', yaw: 0, pitch: 0, fov: VR_DEFAULT_FOV,
+  mode: 'off', yaw: 0, pitch: 0, fov: 90,
   gl: null, prog: null, tex: null, u: {}, raf: 0, ro: null,
   vfc: 0, pumpGen: 0, lastPollTs: 0, failed: false, lostHooked: false,
   sbsLayout: 'half', convergence: 0,
+  armed: false,      // this file looks like VR, the mode is one press away
+  blocked: false,    // transcoded stream: deprojecting it is refused
 };
 
 function vrIsActive() { return vr.mode !== 'off'; }
@@ -5511,7 +5557,7 @@ function vrZoom(deltaDeg) {
 }
 
 function vrRecenter() {
-  vr.yaw = 0; vr.pitch = 0; vr.fov = VR_DEFAULT_FOV;
+  vr.yaw = 0; vr.pitch = 0; vr.fov = vrDefaultFov();
   showToast('🥽 recentré');
 }
 
@@ -5559,7 +5605,11 @@ function setVrMode(mode) {
   }
   // Only reset the view when coming from 'off': switching flat <-> sbs is a
   // comparison, and losing the framing each time would make it useless.
-  if (was === 'off') { vr.yaw = 0; vr.pitch = 0; vr.fov = VR_DEFAULT_FOV; }
+  if (was === 'off') {
+    vr.yaw = 0; vr.pitch = 0; vr.fov = vrDefaultFov();
+    vr.sbsLayout = cfg.vr_sbs_layout || 'half';
+    vr.convergence = cfg.vr_convergence || 0;
+  }
   canvas.classList.add('active');
   videoContainer.classList.toggle('vr-sbs', mode === 'sbs');
   _vrSyncCanvasBox();
@@ -5582,15 +5632,73 @@ function setVrMode(mode) {
 }
 
 function cycleVrMode() {
+  if (vr.blocked) { showToast('🥽 indisponible sur un flux transcodé'); return; }
   const next = VR_MODES[(VR_MODES.indexOf(vr.mode) + 1) % VR_MODES.length];
   setVrMode(next);
   if (vr.mode !== next) return;   // init refused; it has already said why
   showToast(next === 'off' ? '🥽 désactivé'
           : next === 'flat' ? '🥽 180° plat' : '🥽 180° côte à côte');
+  _vrPersistMode(next);
+}
+
+// The chosen mode is remembered per file, server-side: the point is that a
+// choice made on the laptop still holds on the Deck. Only an explicit gesture
+// writes — the automatic reset on a new source must not overwrite anything.
+function _vrPersistMode(mode) {
+  if (!currentFile) return;
+  // Keep the in-memory entry in step, otherwise the 🥽 marker in the list only
+  // catches up on the next refresh and the choice looks like it was ignored.
+  currentFile.vr_mode = mode;
+  const listed = entries.find(e => e.path === currentFile.path);
+  if (listed) { listed.vr_mode = mode; renderFiles(entries); }
+  fetch(`${API}/api/vr-mode?path=${encodeURIComponent(currentFile.path)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mode }),
+    keepalive: true,
+  }).catch(() => {});   // a lost preference must not raise a network toast
+}
+
+// The aspect-ratio clue, which the server cannot check: reading it there would
+// mean one ffprobe per file on every folder open. Here the <video> hands over
+// its dimensions for nothing. Two square eyes side by side give exactly 2:1.
+function _vrRatioSaysSbs180() {
+  if (!video.videoWidth || !video.videoHeight) return false;
+  const ratio = video.videoWidth / video.videoHeight;
+  return Math.abs(ratio - 2) < 0.02 && video.videoWidth >= 2048;
+}
+
+// Called once the metadata is in: decide whether to offer the mode, and whether
+// a remembered choice applies.
+function vrArmForEntry(entry, isTranscoded) {
+  vr.blocked = !!isTranscoded;
+  const hinted = !!(entry && entry.vr_hint) || _vrRatioSaysSbs180();
+  const saved = entry && entry.vr_mode;
+  vr.armed = !vr.blocked && (hinted || !!(saved && saved !== 'off'));
+  _vrSyncButton();
+  if (vr.blocked) return;
+  // A remembered mode is applied; a mere guess only arms the button. Someone
+  // opening a file to check something should not be dropped into a headset view.
+  if (saved && saved !== 'off' && VR_MODES.includes(saved)) setVrMode(saved);
+}
+
+function _vrSyncButton() {
+  const btn = document.getElementById('vr-btn');
+  if (!btn) return;
+  btn.disabled = vr.blocked;
+  btn.style.opacity = vr.blocked ? '0.35' : '';
+  btn.title = vr.blocked ? 'Mode VR indisponible sur un flux transcodé'
+            : vr.armed ? 'Fichier VR 180° détecté — mode VR (V)'
+            : 'Mode VR 180° (V)';
+  if (vr.mode === 'off') btn.style.color = vr.armed ? 'var(--accent-dim, #8ab)' : '';
 }
 
 // A new source means a new geometry, so the mode never carries over silently.
-video.addEventListener('loadstart', () => { if (vrIsActive()) setVrMode('off'); });
+video.addEventListener('loadstart', () => {
+  if (vrIsActive()) setVrMode('off');
+  vr.armed = false; vr.blocked = false;
+  _vrSyncButton();
+});
 
 // Mouse: drag to look, wheel to zoom. Only while the VR mode is on, so the
 // player behaves exactly as before otherwise.
@@ -7353,7 +7461,8 @@ function _gpPoll() {
       vr.lastPollTs = now;
       const vrx = _gpDeadzone(gp.axes[2] ?? 0);
       const vry = _gpDeadzone(gp.axes[3] ?? 0);
-      if (vrx || vry) vrLook(vrx * VR_LOOK_SPEED * dt, -vry * VR_LOOK_SPEED * dt);
+      const sp = vrLookSpeed();
+      if (vrx || vry) vrLook(vrx * sp * dt, -vry * sp * dt);
     } else {
       vr.lastPollTs = 0;
     }

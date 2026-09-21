@@ -1,6 +1,6 @@
 # BL-121 — Détection des fichiers VR et mémorisation du mode
 
-Status: ⬜ ready
+Status: ✅ done
 Type: feat
 Files: `backend/main.py`, `frontend/index.html`, `tests/test_api.py`,
 `docs/user-guide.*.md`, `docs/developer.en.md`
@@ -50,13 +50,51 @@ BL-119.
 - Le mode VR est refusé sur le flux `/api/transcode`. Un fichier VR passe par
   `/api/file` ou ne passe pas : transcoder du 8K60 mettrait le NAS à genoux.
 
+## Écart assumé par rapport à l'énoncé
+
+L'énoncé plaçait **toute** la détection côté serveur, ratio d'image compris. Ce
+n'est pas tenable : `/api/files` ne connaît pas les dimensions en pixels, et les
+obtenir voudrait dire **un `ffprobe` par entrée à chaque ouverture de dossier**,
+sur un NAS choisi faible. Livré : le **nom** est lu côté serveur (gratuit, il est
+déjà là), le **ratio 2:1** est vérifié dans le lecteur, où l'élément `<video>`
+donne ses dimensions pour rien, au moment précis où la réponse sert.
+
+Ce découpage n'affaiblit rien : la liste affiche le marqueur pour tout ce que le
+nom trahit, et le reste se révèle à l'ouverture — c'est-à-dire avant qu'on en ait
+besoin.
+
+## Mesures relevées
+
+Détection par nom, sur les 23 fichiers distincts de l'échantillon et sur une
+série de noms ordinaires :
+
+| | |
+|---|---|
+| reconnus par le nom | **15 / 23** |
+| reconnus par le ratio (dans le lecteur) | les **8** restants |
+| faux positifs sur des noms ordinaires | **0** |
+
+Un motif `180` isolé figurait dans la première version. Il marquait
+« Episode 180 - The Long Goodbye.mkv », et mesuré contre l'échantillon il ne
+reconnaissait **aucun** fichier que les autres motifs n'attrapaient déjà : il
+coûtait un faux positif et ne rapportait rien. Retiré.
+
+Chaîne complète vérifiée dans le navigateur : `vr_hint` sur le fichier VR et
+`null` sur un clip ordinaire, un seul marqueur rendu dans la liste, le mode armé
+sans être activé à l'ouverture, le choix écrit par `POST /api/vr-mode`, puis
+**réappliqué seul après un rechargement complet de la page**.
+
 ## Acceptance criteria
 
-- [ ] Les 24 fichiers de l'échantillon sont reconnus (ratio, ou nom pour le 16:9)
-- [ ] Un fichier 2:1 qui n'est pas de la VR peut être marqué `off`, et le reste
-- [ ] Le mode choisi sur une machine s'applique sur l'autre
-- [ ] `safe_path()` est appliqué sur le chemin reçu, et un chemin hors racine est
+- [x] Les fichiers de l'échantillon sont reconnus — 15 par le nom, 8 par le ratio
+- [x] Un fichier 2:1 qui n'est pas de la VR peut être marqué `off`, et le reste
+- [x] Le mode choisi sur une machine s'applique sur l'autre (mémorisé côté serveur,
+      réappliqué après rechargement complet)
+- [x] `safe_path()` est appliqué sur le chemin reçu, et un chemin hors racine est
       rejeté (test)
-- [ ] Le champ `vr` apparaît dans `/api/files` et `/api/search`
-- [ ] Le mode VR n'est pas proposé sur un flux transcodé
-- [ ] Une vidéo ordinaire n'est jamais reconnue comme VR
+- [x] Les champs `vr_hint` et `vr_mode` apparaissent dans `/api/files` et `/api/search`
+- [x] Le mode VR n'est pas proposé sur un flux transcodé
+- [x] Une vidéo ordinaire n'est jamais reconnue comme VR (0 faux positif mesuré)
+- [x] **Ajouté au périmètre** : la ligne suit un renommage et disparaît avec le
+      fichier — sans quoi un nouveau fichier au même chemin héritait du mode d'un
+      inconnu. Les deux cas sont testés.

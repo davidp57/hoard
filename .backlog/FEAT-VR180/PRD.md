@@ -1,6 +1,6 @@
 # Lot FEAT-VR180 — Lecture des vidéos 180° SBS dans le lecteur web
 
-Status: 🔄 in-progress
+Status: ✅ done
 Branch: `feature/vr180`
 
 ## Problem Statement
@@ -105,8 +105,8 @@ même, l'ajouter plus tard coûtera peu.
 |---|---|---|---|
 | 01 | [BL-119](tickets/01-socle-deprojection.md) — Socle : déprojection, vue plate, pilotage | — | ✅ |
 | 02 | [BL-120](tickets/02-sortie-sbs.md) — Sortie côte à côte pour lunettes XR | 01 | ✅ |
-| 03 | [BL-121](tickets/03-detection-memorisation.md) — Détection des fichiers VR et mémorisation | 01 | ⬜ |
-| 04 | [BL-122](tickets/04-reglages.md) — Réglages : champ de vision, convergence, sensibilité | 01, 02 | ⬜ |
+| 03 | [BL-121](tickets/03-detection-memorisation.md) — Détection des fichiers VR et mémorisation | 01 | ✅ |
+| 04 | [BL-122](tickets/04-reglages.md) — Réglages : champ de vision, convergence, sensibilité | 01, 02 | ✅ |
 
 Le ticket 01 était **une porte** : il mesurait sur les vrais fichiers ce que le
 navigateur sait décoder et ce que l'envoi de texture coûte. **Elle est franchie** —

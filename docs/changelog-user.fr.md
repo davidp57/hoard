@@ -8,6 +8,20 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ### Ajouté
 
+- **Hoard reconnaît tout seul tes fichiers VR.** Un petit 🥽 apparaît dans la liste
+  à côté de ceux qu'il a repérés — au nom du fichier, et à la forme de l'image une
+  fois celui-ci ouvert. Il ne bascule pas en mode VR pour autant : le bouton se met
+  simplement en évidence, parce qu'ouvrir un fichier pour y jeter un œil ne doit pas
+  te catapulter dans une vue de casque.
+
+  En revanche, **le mode que tu choisis est retenu pour ce fichier** et remis en
+  place à la réouverture, même depuis une autre machine. Et si Hoard se trompe sur
+  un fichier, coupe le mode dessus : il ne te le reproposera plus.
+
+- **Les réglages VR sont dans Paramètres → Player** : champ de vision, vitesse du
+  regard à la manette, image étirée ou non, et convergence. Un changement s'applique
+  tout de suite, sans recharger la page.
+
 - **Les vidéos VR 180° sont enfin regardables.** Ces fichiers contiennent deux
   images accolées, une par œil, chacune étirée pour couvrir un demi-tour
   d'horizon : affichés tels quels, ils ne ressemblaient à rien. Le bouton 🥽 du

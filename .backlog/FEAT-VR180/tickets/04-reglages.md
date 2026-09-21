@@ -1,6 +1,6 @@
 # BL-122 — Réglages VR : champ de vision, convergence, sensibilité
 
-Status: ⬜ ready
+Status: ✅ done
 Type: feat
 Files: `backend/main.py`, `frontend/index.html`, `tests/test_api.py`,
 `docs/user-guide.*.md`
@@ -26,6 +26,7 @@ BL-119, BL-120.
 | `vr_fov` | champ de vision horizontal de la vue rendue, en degrés | `90` |
 | `vr_convergence` | écart de lacet entre les deux yeux en mode `sbs`, en degrés | `0` |
 | `vr_look_speed` | vitesse de rotation au stick, en degrés par seconde à fond | `90` |
+| `vr_sbs_layout` | `half` (lunettes XR, image réétirée) ou `full` | `half` |
 
 - Une section **VR** dans la page Réglages, avec les bornes et une phrase disant ce
   que chaque valeur change à l'image.
@@ -36,11 +37,14 @@ BL-119, BL-120.
 
 ## Acceptance criteria
 
-- [ ] Les trois réglages ont une valeur par défaut, sont lus au démarrage et
-      enregistrés (test sur les défauts et sur l'écriture)
-- [ ] Un corps partiel envoyé à `POST /api/settings` laisse les autres réglages
-      inchangés (comportement existant, à ne pas casser)
-- [ ] Modifier `vr_fov` change le cadrage sans recharger la page
-- [ ] `vr_convergence` à zéro laisse les deux vues alignées
-- [ ] Le zoom à chaud n'écrit pas le réglage
-- [ ] Les valeurs hors bornes sont refusées
+- [x] Les réglages ont une valeur par défaut, sont lus au démarrage et enregistrés
+- [x] Un corps partiel envoyé à `POST /api/settings` laisse les autres réglages
+      inchangés (comportement existant, testé)
+- [x] Modifier `vr_fov` change le cadrage sans recharger la page — le lecteur lit
+      `cfg` au moment de s'en servir au lieu de capturer la valeur au chargement
+- [x] `vr_convergence` à zéro laisse les deux vues alignées (mesuré en BL-120)
+- [x] Le zoom à chaud n'écrit pas le réglage
+- [x] Les valeurs hors bornes sont refusées (422 sur six cas testés)
+- [x] **Ajouté au périmètre** : `vr_sbs_layout`, né de BL-120. Validé à part contre
+      son énumération — une valeur inconnue ferait calculer un rapport d'image faux
+      sans que rien ne le signale.

@@ -242,6 +242,18 @@ Deux réglages selon ce que font tes lunettes :
 - **Image étirée ou non** (touche **B**, ou le menu de la manette). La plupart des lunettes XR en mode 3D réétirent chaque moitié sur toute la largeur : c'est le réglage par défaut. Si l'image te paraît écrasée ou étirée du double en hauteur, c'est ce réglage qu'il faut changer — l'effet se voit immédiatement.
 - **Convergence** (menu de la manette). À laisser à zéro : les deux images sont alors rigoureusement alignées, ce qui est correct pour un fichier bien tourné. À n'ajuster que si un fichier particulier te fatigue les yeux.
 
+#### Reconnaissance et mémorisation
+
+Un fichier VR se signale par un 🥽 dans la liste. Hoard le devine de deux façons : par le nom (les studios y mettent presque toujours `LR`, `3dh`, `180x180`, `VR180` ou `SBS`), et par la forme de l'image — deux yeux carrés côte à côte donnent exactement le double de large que de haut. Le nom se lit dès la liste ; la forme, seulement à l'ouverture du fichier.
+
+Reconnaître un fichier **n'active pas** le mode : le bouton 🥽 se met simplement en évidence. Ouvrir un fichier pour vérifier quelque chose ne doit pas te projeter dans une vue de casque.
+
+En revanche, **le mode que tu choisis est retenu pour ce fichier** et appliqué à sa réouverture, y compris depuis une autre machine — le choix fait sur le laptop vaut sur le Deck. Ça marche aussi dans l'autre sens : si Hoard se trompe et marque comme VR un fichier qui ne l'est pas, désactive le mode et il ne reviendra plus sur celui-là.
+
+Enfin, le mode VR est refusé sur une vidéo lue en transcodage : redresser une image que le serveur est déjà en train de recalculer n'aurait pas de sens, et le NAS n'en a pas les moyens.
+
+Les valeurs par défaut (champ de vision, vitesse du regard, image étirée ou non, convergence) se règlent dans **Paramètres → Player**.
+
 > **Ce que votre machine doit pouvoir faire.** Ces fichiers sont souvent très définis (jusqu'à 8K) et encodés en HEVC. Hoard les envoie tels quels, sans les convertir : c'est l'appareil qui regarde qui doit savoir les décoder. Si l'image saccade ou refuse de s'ouvrir, c'est cette limite-là, et non le mode VR.
 
 ---

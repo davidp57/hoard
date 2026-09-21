@@ -237,6 +237,18 @@ Two settings, depending on what your glasses do:
 - **Stretched picture or not** (**B** key, or the gamepad menu). Most XR glasses in 3D mode stretch each half back across the full width, which is the default here. If the picture looks squashed or stretched twice over vertically, this is the setting to flip — the effect is immediate.
 - **Convergence** (gamepad menu). Leave it at zero: the two views are then exactly aligned, which is correct for a properly shot file. Only adjust it if one particular file tires your eyes.
 
+#### Recognition and memory
+
+A VR file is marked with a 🥽 in the list. Hoard guesses it two ways: from the name (studios almost always put `LR`, `3dh`, `180x180`, `VR180` or `SBS` in it), and from the picture's shape — two square eyes side by side are exactly twice as wide as they are tall. The name is readable from the list; the shape only once the file is open.
+
+Recognising a file does **not** turn the mode on: the 🥽 button merely highlights. Opening a file to check something should not drop you into a headset view.
+
+The mode you do choose, however, **is remembered for that file** and reapplied when you reopen it, including from another machine — a choice made on the laptop holds on the Deck. It works the other way too: if Hoard wrongly marks a file as VR, switch the mode off and it will not come back for that one.
+
+Finally, VR mode is refused on a video played through transcoding: straightening a picture the server is already recomputing makes no sense, and the NAS could not afford it.
+
+The defaults (field of view, look speed, stretched or not, convergence) live in **Settings → Player**.
+
 > **What your machine has to manage.** These files are often very large (up to 8K) and encoded in HEVC. Hoard serves them untouched, without converting them: the device doing the watching has to decode them. If playback stutters or refuses to start, that is the limit you are hitting, not the VR mode.
 
 ---
