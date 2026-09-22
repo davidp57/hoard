@@ -272,6 +272,37 @@ Les valeurs par défaut (champ de vision, vitesse du regard, image étirée ou n
 
 ---
 
+## Toute l'interface en côte à côte
+
+Des lunettes XR en mode 3D coupent l'image en deux **en permanence**, pas seulement pendant une vidéo. Une interface dessinée une seule fois tombe donc à cheval sur la coupure : chaque œil n'en voit qu'une moitié. Et en sortir coûte une dizaine de secondes d'écran noir, parfois des réglages perdus.
+
+Ce mode dessine **toute** l'application deux fois, une par œil : le code PIN, le navigateur, les visionneuses d'images et de PDF, la vidéo, les réglages et les dialogues. Les deux yeux voient **la même image** — ce n'est pas de la 3D, et c'est précisément ce qui la rend lisible et reposante.
+
+### L'allumer et l'éteindre
+
+| Comment | Geste |
+|---|---|
+| À la manette | **L1 + R1 + Select** — marche partout, y compris sur l'écran du code PIN |
+| Au clavier | **Y** (ou **Alt+Y** si le curseur est dans un champ de saisie) |
+| Au menu **Select** | ligne *🥽 Écran côte à côte* |
+| Aux réglages | **Paramètres → Lunettes XR** |
+
+**Le même geste l'éteint.** L'allumer par erreur sur un écran normal ne t'enferme donc pas dans un écran illisible.
+
+### Un réglage par appareil
+
+Contrairement à tout le reste, ce mode **ne suit pas d'une machine à l'autre** : il est enregistré dans le navigateur qui l'utilise. Le Deck avec les lunettes le garde allumé, le laptop et l'iPad ne le voient jamais. Il survit en revanche à un rechargement de la page, et il est en place avant même l'écran du code PIN.
+
+### Avec une vidéo
+
+Quand ce mode est allumé, le lecteur ne double plus l'image lui-même : c'est l'écran entier qui le fait. Le mode **côte à côte du lecteur** (touche **V**) disparaît donc du cycle — il ne reste que *désactivé* et *180° plat*, et Hoard le dit si tu le demandes quand même. Une vidéo ordinaire comme une vidéo 180° se voit alors des deux yeux, avec **un seul téléchargement et un seul décodage** : l'œil droit reçoit une copie de l'image, pas une seconde lecture.
+
+### Ce que ça coûte
+
+Il y a deux fois plus d'interface à dessiner, donc la machine travaille davantage — mesuré sur un dossier de 2 000 fichiers, ce qui est un cas extrême. Déplacer le curseur y reste instantané ; changer de tri ou de dossier redessine la liste entière et prend à peu près deux fois le temps habituel. Sur un dossier de taille ordinaire, ça ne se voit pas.
+
+---
+
 ## Gestes tactiles
 
 Les gestes fonctionnent directement sur l'image vidéo.
@@ -363,7 +394,7 @@ Hoard supporte les manettes de jeu via la **Gamepad API** du navigateur (Xbox, P
 | **Y** | Plein écran | Marquer point IN (segment) | Confirmer segment OUT | Ouvrir la fenêtre Exporter |
 | **D-pad ←/→** | Seek moyen | Seek long | Seek très long | — |
 | **D-pad ↑/↓** | Volume ±10% | Fichier précédent/suivant | Aller à 25%/75% | ↓ : Aller à 100% |
-| **Select** | Menu contextuel | — | — | — |
+| **Select** | Menu contextuel | — | — | Écran côte à côte (lunettes XR) |
 | **Start** | Afficher la carte des boutons | — | — | — |
 | **L2** | Image côte à côte : auto / étirée / non (mode VR) | — | — | — |
 | **R2** (maintenu) | Couche VR : zoom, convergence, recentrage — voir plus haut | — | — | — |

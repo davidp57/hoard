@@ -34,6 +34,29 @@ class TestFrontendShell:
         assert "self.addEventListener" in resp.text
         assert "CACHE_NAME" in resp.text
 
+    def test_everything_visible_lives_inside_app_root(self):
+        """BL-130 copies #app-root, and only #app-root, into the second eye.
+
+        A panel added as a direct child of <body> after it would simply never be
+        mirrored — and nothing would say so: the interface would look right on an
+        ordinary screen and lose one window in XR glasses. This is the kind of
+        hole the lot was written to avoid, so it is guarded here rather than left
+        to whoever next opens the file.
+        """
+        shell = client.get("/").text
+        tail = shell.split("</div><!-- /#app-root -->", 1)
+        assert len(tail) == 2, "the #app-root wrapper is gone or its marker was renamed"
+        # Stop at the first <script>: past that it is JavaScript, where a `<`
+        # is a comparison and not a tag.
+        after = tail[1].split("<script", 1)[0]
+        for chunk in after.split("<")[1:]:
+            tag = chunk.split(">", 1)[0].strip().lower()
+            if not tag or tag.startswith(("!--", "/")):
+                continue
+            assert tag.startswith('div id="sbs-mirror"'), (
+                f"<{tag}> sits outside #app-root and will never reach the second eye"
+            )
+
 
 # ── /api/quick-folders ──────────────────────────────────────────────────────────────────
 

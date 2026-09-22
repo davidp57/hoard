@@ -1,6 +1,6 @@
 # BL-132 — Vidéo, images et PDF
 
-Status: ⬜ ready
+Status: ✅ done
 Type: feat
 Files: `frontend/index.html`, `docs/user-guide.*.md`
 
@@ -40,13 +40,13 @@ si on n'y prend pas garde.
 
 ## Acceptance criteria
 
-- [ ] Une image est lisible dans les deux yeux, sans requête réseau doublée
-- [ ] Un PDF est lisible dans les deux yeux
-- [ ] Le zoom et le déplacement d'une image suivent dans le miroir
-- [ ] Une vidéo n'est **jamais** décodée deux fois — vérifié, pas supposé
-- [ ] Ouvrir une vidéo ordinaire avec le mode global allumé donne un résultat
+- [x] Une image est lisible dans les deux yeux, sans requête réseau doublée
+- [x] Un PDF est lisible dans les deux yeux
+- [x] Le zoom et le déplacement d'une image suivent dans le miroir
+- [x] Une vidéo n'est **jamais** décodée deux fois — vérifié, pas supposé
+- [x] Ouvrir une vidéo ordinaire avec le mode global allumé donne un résultat
       décidé et documenté, pas un trou
-- [ ] Le mode global et le côte à côte du lecteur ne se superposent pas
+- [x] Le mode global et le côte à côte du lecteur ne se superposent pas
 
 ## Ce qu'il ne faut pas rater
 

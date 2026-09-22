@@ -8,6 +8,33 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ### Ajouté
 
+- **Toute l'interface s'affiche en côte à côte pour des lunettes XR.** Avec des
+  lunettes en mode 3D, l'image est coupée en deux tout le temps, pas seulement
+  pendant une vidéo : l'écran du code, la liste des fichiers, les photos, les PDF
+  et les fenêtres tombaient donc à cheval sur la coupure, et chaque œil n'en
+  voyait qu'une moitié. Il fallait sortir les lunettes du mode 3D — dix secondes
+  d'écran noir, et parfois des réglages à refaire.
+
+  Désormais un seul geste dessine **toute** l'application deux fois, une par œil :
+  **L1 + R1 + Select** à la manette, **Y** au clavier. Le même geste l'éteint, donc
+  l'allumer par erreur sur un écran normal ne t'enferme nulle part. Ça se trouve
+  aussi dans le menu **Select** et dans **Paramètres → Lunettes XR**.
+
+  Les deux yeux voient la même image : ce n'est pas de la 3D, et c'est justement
+  ce qui la rend lisible et reposante.
+
+- **Ce réglage-là ne suit pas d'un appareil à l'autre.** Le Deck avec les lunettes
+  le garde allumé, ton iPad et ton laptop ne le voient jamais. Il reste en place
+  après un rechargement de la page, et il est déjà là quand l'écran du code
+  apparaît.
+
+- **Une vidéo reste visible des deux yeux, sans travail en double.** Quand le mode
+  est allumé, le lecteur ne double plus l'image lui-même — l'écran s'en charge. Le
+  fichier n'est téléchargé qu'une fois et décodé qu'une fois : l'œil droit reçoit
+  une copie de l'image. Du coup le mode côte à côte du lecteur (touche **V**) n'est
+  plus proposé tant que celui-ci est allumé ; il ne reste que *désactivé* et
+  *180° plat*.
+
 - **Tu règles la vue VR à la manette, en voyant l'image changer.** Maintiens
   **R2** pendant la lecture : le **stick gauche** zoome, le **D-pad gauche/droite**
   ajuste la convergence, le **clic du stick gauche** remet le zoom et celui du

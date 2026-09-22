@@ -267,6 +267,37 @@ The defaults (field of view, look speed, stretched or not, convergence) live in 
 
 ---
 
+## The Whole Interface Side by Side
+
+XR glasses in 3D mode cut the picture in two **all the time**, not only while a video plays. An interface drawn once therefore sits astride the split and each eye gets half of it. Taking the glasses out of 3D costs ten seconds of black screen, and sometimes your settings.
+
+This mode draws **the whole** application twice, once per eye: the PIN screen, the browser, the image and PDF viewers, video, settings and dialogs. Both eyes see **the same picture** — this is not 3D, and that is exactly what makes it readable rather than tiring.
+
+### Turning it on and off
+
+| How | Gesture |
+|---|---|
+| On the pad | **L1 + R1 + Select** — works everywhere, including on the PIN screen |
+| On the keyboard | **Y** (or **Alt+Y** when the cursor sits in a text field) |
+| From the **Select** menu | the *🥽 Side-by-side screen* line |
+| From the settings | **Settings → XR glasses** |
+
+**The same gesture turns it off.** Switching it on by mistake on an ordinary screen does not lock you into a screen you cannot read.
+
+### One setting per device
+
+Unlike everything else, this mode **does not follow you from one machine to another**: it is stored in the browser that uses it. The Deck with the glasses keeps it on; the laptop and the iPad never see it. It does survive a page reload, and it is in place before the PIN screen appears.
+
+### With a video
+
+While this mode is on, the player no longer splits the picture itself — the whole screen does. The player's own **side-by-side** mode (**V** key) therefore drops out of the cycle: only *off* and *180° flat* remain, and Hoard says so if you ask for it anyway. An ordinary video and a 180° video alike are then visible in both eyes, with **one download and one decode**: the right eye gets a copy of the picture, not a second playback.
+
+### What it costs
+
+There is twice as much interface to draw, so the machine works harder — measured on a 2 000-file folder, which is an extreme case. Moving the cursor stays instant there; changing the sort or the folder redraws the whole list and takes roughly twice as long as usual. On a folder of ordinary size it does not show.
+
+---
+
 ## Touch Gestures
 
 Gestures work directly on the video image.
@@ -358,7 +389,7 @@ Hoard supports game controllers via the browser's **Gamepad API** (Xbox, PlaySta
 | **Y** | Fullscreen | Mark segment IN | Confirm segment OUT | Open the Export dialog |
 | **D-pad ←/→** | Seek medium | Seek long | Seek extra-long | — |
 | **D-pad ↑/↓** | Volume ±10% | Prev/next file | Jump to 25%/75% | ↓: Jump to 100% |
-| **Select** | Open the context menu | — | — | — |
+| **Select** | Open the context menu | — | — | Side-by-side screen (XR glasses) |
 | **Start** | Show button map | — | — | — |
 | **L2** | Side-by-side layout: auto / stretched / not (VR mode) | — | — | — |
 | **R2** (held) | VR layer: zoom, convergence, recentre — see above | — | — | — |

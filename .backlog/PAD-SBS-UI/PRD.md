@@ -1,6 +1,6 @@
 # Lot PAD-SBS-UI — Toute l'interface en côte à côte, sur bascule
 
-Status: ⬜ ready
+Status: ✅ done
 Branch: `feature/pad-sbs-ui` (à créer)
 
 ## Problem Statement
@@ -71,9 +71,29 @@ sans appel réseau, ce qui va dans le même sens.
 
 | # | Ticket | Dépend de | Statut |
 |---|---|---|---|
-| 01 | [BL-130](tickets/01-miroir-global.md) — Le miroir global et sa bascule | — | ⬜ |
-| 02 | [BL-131](tickets/02-etats-vivants.md) — Les états que le HTML ne transporte pas | BL-130 | ⬜ |
-| 03 | [BL-132](tickets/03-medias.md) — Vidéo, images et PDF | BL-130 | ⬜ |
+| 01 | [BL-130](tickets/01-miroir-global.md) — Le miroir global et sa bascule | — | ✅ |
+| 02 | [BL-131](tickets/02-etats-vivants.md) — Les états que le HTML ne transporte pas | BL-130 | ✅ |
+| 03 | [BL-132](tickets/03-medias.md) — Vidéo, images et PDF | BL-130 | ✅ |
+
+## Décisions prises en cours de lot
+
+- **La vidéo plate (question ouverte de BL-132), tranchée par David le 2026-09-22.**
+  Option retenue : le lecteur ne double rien, c'est le miroir qui montre la même
+  image entière dans chaque œil, peinte depuis le même élément `<video>`. Un
+  téléchargement, un décodage, une recopie GPU par image. Le montage envisagé au
+  cadrage — un rendu plein écran coupé en deux — n'avait pas lieu d'être : les
+  deux yeux voient la **même** image, pas deux moitiés.
+- **Préséance des deux mécanismes** : le mode global l'emporte. Tant qu'il est
+  allumé, `setVrMode('sbs')` est ramené à `flat`, `sbs` sort du cycle de la touche
+  **V**, et les copies par fenêtre de BL-127 sont éteintes.
+- **Raccourcis** : manette **L1+R1+Select** (le chemin qui compte — David, le
+  2026-09-22 : « dans tous les cas ça ne sera pas au clavier, Deck avec Beasts ou
+  Steam Frame »), clavier **Y** / **Alt+Y**, menu Select, et Paramètres.
+- **Deux surprises par rapport au cadrage.** Le ticket 01 ne prévoyait que le
+  piège des identifiants dupliqués ; deux des trois requêtes fatales portaient en
+  fait sur des **classes**, d'où le `shadow root` plutôt qu'un retrait des
+  identifiants. Et le ticket 03 annonçait que le PDF « se recopie » : il se dessine
+  dans un `<canvas>`, donc il est repeint comme la vidéo.
 
 ## Hors périmètre
 

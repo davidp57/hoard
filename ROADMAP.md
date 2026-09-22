@@ -67,7 +67,7 @@ picture — covered by lot [PAD-VR](.backlog/PAD-VR/PRD.md):
 - [x] **Per-file convergence** (BL-129) — the strain comes from how a file was
       shot, so it is remembered per file rather than globally.
 
-## The whole UI side by side, on a toggle *(planned)*
+## The whole UI side by side, on a toggle *(done)*
 
 XR glasses in 3D mode split the picture in two **all the time**, not only during
 playback, so every screen of Hoard is drawn once astride the split and each eye
@@ -80,6 +80,14 @@ A toggle, device-local, covering the whole application — PIN screen, browser,
 images, PDF, video and dialogs. See lot [PAD-SBS-UI](.backlog/PAD-SBS-UI/PRD.md).
 It is not stereoscopy: both eyes are shown the same picture, which is exactly
 what makes an interface readable rather than tiring.
+
+Shipped: **L1+R1+Select** on the pad (the path that matters — there is no
+keyboard on a Deck with glasses), **Y** on the keyboard, and a setting. The copy
+lives in a shadow root so no document query ever reaches it, and a
+MutationObserver keeps it current. A playing video is repainted into the copy
+rather than cloned, so the file is downloaded and decoded once. The player's own
+side-by-side steps aside while the mode is on. Costs are measured, not estimated:
+see the developer guide.
 
 The same constraint is expected from the **Steam Frame**.
 

@@ -1,6 +1,6 @@
 # BL-130 — Le miroir global et sa bascule
 
-Status: ⬜ ready
+Status: ✅ done
 Type: feat
 Files: `frontend/index.html`, `docs/user-guide.*.md`
 
@@ -46,16 +46,16 @@ passé.
 
 ## Acceptance criteria
 
-- [ ] Le mode allumé, le navigateur de fichiers est lisible dans chaque œil
-- [ ] La liste reste à jour dans le miroir quand elle change sans action de
+- [x] Le mode allumé, le navigateur de fichiers est lisible dans chaque œil
+- [x] La liste reste à jour dans le miroir quand elle change sans action de
       l'utilisateur — tri, filtre, rafraîchissement pendant un téléchargement
-- [ ] La bascule s'atteint au clavier **et** à la manette, sans souris
-- [ ] Le même geste éteint le mode
-- [ ] Le mode survit à un rechargement de la page
-- [ ] Le mode **ne suit pas** sur un autre appareil
-- [ ] Le mode éteint, rien ne change : aucun miroir dans le DOM, aucune mesure
+- [x] La bascule s'atteint au clavier **et** à la manette, sans souris
+- [x] Le même geste éteint le mode
+- [x] Le mode survit à un rechargement de la page
+- [x] Le mode **ne suit pas** sur un autre appareil
+- [x] Le mode éteint, rien ne change : aucun miroir dans le DOM, aucune mesure
       différente d'aujourd'hui
-- [ ] Le coût d'une recopie est **mesuré** sur un dossier réel, pas estimé
+- [x] Le coût d'une recopie est **mesuré** sur un dossier réel, pas estimé
 
 ## Ce qu'il ne faut pas rater
 

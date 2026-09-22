@@ -502,6 +502,91 @@ All colour tokens are defined in `:root`:
 }
 ```
 
+### Whole-interface side-by-side (PAD-SBS-UI)
+
+XR glasses in 3D mode split the picture permanently, so the whole interface —
+not just the player — has to be drawn once per eye. A toggle wraps everything
+visible in `#app-root` and copies it into `#sbs-mirror`.
+
+**Off costs nothing.** `#app-root { display: contents }` generates no box at
+all, so the layout is byte-for-byte the one it had before the wrapper existed
+(checked against the previous revision: every element's rect identical to the
+hundredth of a pixel). `#sbs-mirror` is `display: none` and its shadow root is
+emptied.
+
+**The copy lives in a shadow root**, and that is load-bearing. Document-level
+queries do not cross a shadow boundary, so `document.querySelectorAll('#filelist
+.entry')` — which the pad cursor counts — and `.gp-modal` — which
+`_gpOpenModal()` reads — keep answering with the originals alone. It also means
+the ids can be kept inside the copy, which is what lets the page's own id-based
+rules style it: the stylesheet is cloned into the shadow as is.
+
+**A MutationObserver drives it, never a call at each render point.** BL-127
+copied three windows from their three render functions because the three were
+known; at the scale of the application a list filters, sorts and refreshes
+itself during a download, and anything that requires each render point to be
+declared will eventually miss one. A mirror frozen on a stale state is worse
+than no mirror.
+
+**Full copies are the fallback, patching is the routine.** A batch of mutations
+is applied in place through a `WeakMap` from original element to copy;
+`sbsCopy()` runs only on the first copy or when a batch cannot be applied.
+Measured on a 2 000-entry folder (24 758 nodes):
+
+| operation | cost |
+|---|---|
+| full copy (clone + insert) | ~50 ms |
+| pad cursor step (patch) | 0.1 ms |
+| sort / folder change (graft of the whole list) | ~70 ms, against ~26 ms without the mirror |
+| scroll sync | ~20 ms, dominated by the copy's layout |
+
+Two measurements shaped the design and are worth keeping in mind before
+changing it. Reading `scrollTop` over every node cost **171 ms** on that folder —
+each read makes the engine settle the layout again — so scroll containers are
+found from the stylesheet (`sbsScrollSelector()`) instead of by walking.
+And re-running the element queries every frame cost **30 ms per pad step**,
+because the scroll selector ends in `[style*="overflow"]`, which no index can
+answer; the pairs are therefore cached and rebuilt only when the copy is.
+
+**What a clone does not carry** is transferred explicitly (BL-131): `value`,
+`checked`, `selectedIndex`, a `<dialog>`'s open state and scroll positions.
+Typing, ticking and scrolling produce no mutation at all, so `input`, `change`
+and `scroll` are listened for in the capture phase. A password field's value is
+never copied — only its length, as bullets.
+
+**Pictures are repainted, not cloned** (BL-132). A cloned `<video>` plays
+nothing and would mean a second download and a second decode; a cloned
+`<canvas>` is blank, since a canvas's content is not in the DOM. Each `<video>`
+becomes a `<canvas class="sbs-picture">` in the copy, and a rAF loop blits the
+original into it — one download, one decode, one extra blit per frame. `<audio>`
+and `<iframe>` are dropped. Verified in the network inspector: opening a video
+or an image produces exactly one request.
+
+**The VR canvas is the exception, and it is blitted from `_vrRender`.** A WebGL
+canvas can only be read in the same task that drew it: once composited its buffer
+is gone, unless the context is created with `preserveDrawingBuffer`, which costs
+something on every frame whether the mirror is on or not. Copied from the generic
+painter, the VR view came out as a black rectangle over the video — found by
+review, not by the suite. `sbsBlitVr()` is therefore called at the end of
+`_vrRender`, and the generic painter skips that pair.
+
+**Real fullscreen is refused while the mode is on.** The fullscreen element goes
+to the top layer, which ignores the transform that keeps each half's overlays
+inside its half — the video would fill the whole screen, astride the split. Not a
+corner case: the Deck has a touch screen, so `pointer: coarse` matches and the
+pad's fullscreen button asks for the real one. `toggleFullscreen()` falls back to
+the in-window kind.
+
+**The two side-by-side mechanisms never stack.** While the global mode is on,
+`setVrMode('sbs')` is coerced to `'flat'` and `sbs` leaves the `V` cycle: the
+mirror already shows the same frame to each eye, and a player splitting on top
+of that would quarter the picture. BL-127's per-window copies are switched off
+the same way.
+
+**The toggle is device-local** — `localStorage['sbs_global']` — because the Deck
+with the glasses wants it and the iPad must not inherit it, and because the PIN
+screen is drawn before the settings are loaded.
+
 ### Responsive
 
 - Breakpoint at **700 px**: above, split view (list + player). Below, full-screen list with player as overlay.
