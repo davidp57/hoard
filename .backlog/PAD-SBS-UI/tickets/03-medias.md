@@ -48,6 +48,18 @@ si on n'y prend pas garde.
       décidé et documenté, pas un trou
 - [x] Le mode global et le côte à côte du lecteur ne se superposent pas
 
+## Correctif après recette (2026-09-22)
+
+La première version ramenait le lecteur en `flat` tant que le mode global était
+allumé. David à l'essai : « la vidéo reste en plat quand on est en mode VR ;
+quand l'UI est en mode non-VR on peut la mettre en SBS et on a le relief ».
+
+Le critère « le mode global et le côte à côte du lecteur ne se superposent pas »
+avait été lu comme « un seul des deux à la fois ». Il fallait le lire comme « ils
+ne dupliquent pas la même chose deux fois » : une vidéo 180° **contient** deux
+images différentes, et cette différence est le relief. Le lecteur garde son mode
+côte à côte et donne un canvas entier à chaque œil.
+
 ## Ce qu'il ne faut pas rater
 
 **Le nombre de requêtes est l'observable qui tranche** pour les images et les

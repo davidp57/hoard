@@ -295,7 +295,11 @@ Contrairement à tout le reste, ce mode **ne suit pas d'une machine à l'autre**
 
 ### Avec une vidéo
 
-Quand ce mode est allumé, le lecteur ne double plus l'image lui-même : c'est l'écran entier qui le fait. Le mode **côte à côte du lecteur** (touche **V**) disparaît donc du cycle — il ne reste que *désactivé* et *180° plat*, et Hoard le dit si tu le demandes quand même. Une vidéo ordinaire comme une vidéo 180° se voit alors des deux yeux, avec **un seul téléchargement et un seul décodage** : l'œil droit reçoit une copie de l'image, pas une seconde lecture.
+Une **vidéo ordinaire** se voit des deux yeux avec **un seul téléchargement et un seul décodage** : l'œil droit reçoit une copie de l'image, pas une seconde lecture.
+
+Une **vidéo 180°** garde tout son relief, et c'est la seule chose de l'écran qui ne soit pas identique dans les deux yeux — normal : ce fichier contient justement deux images différentes, une par œil, et cette différence *est* le relief. Mets le lecteur en **côte à côte** (touche **V**, ou le menu **Select**) et chaque moitié de l'écran reçoit l'œil qui lui revient, en entier.
+
+Un réglage devient sans objet dans ce mode : **Image côte à côte étirée ou non** (touche **B**). Il sert à savoir si tes lunettes réétirent chaque demi-image ; ici chaque œil reçoit déjà une image entière, il n'y a rien à réétirer. La ligne disparaît du menu et la touche te le dit.
 
 ### Ce que ça coûte
 

@@ -83,9 +83,15 @@ sans appel réseau, ce qui va dans le même sens.
   téléchargement, un décodage, une recopie GPU par image. Le montage envisagé au
   cadrage — un rendu plein écran coupé en deux — n'avait pas lieu d'être : les
   deux yeux voient la **même** image, pas deux moitiés.
-- **Préséance des deux mécanismes** : le mode global l'emporte. Tant qu'il est
-  allumé, `setVrMode('sbs')` est ramené à `flat`, `sbs` sort du cycle de la touche
-  **V**, et les copies par fenêtre de BL-127 sont éteintes.
+- **Préséance des deux mécanismes**, corrigée le 2026-09-22 après essai de David.
+  La première version ramenait le lecteur en `flat` tant que le mode global était
+  allumé, au motif que le miroir montre déjà la même image à chaque œil. C'était
+  faux pour une vidéo 180° : ce fichier **contient** deux images différentes, et
+  cette différence est le relief — la règle « les deux yeux voient la même image »
+  vaut pour l'interface et pour une vidéo plate, pas pour du contenu stéréo. Le
+  lecteur garde donc son mode côte à côte, et `_vrRender` donne **un canvas entier
+  à chaque œil** quand le mode global est allumé. Seules les copies par fenêtre de
+  BL-127 restent éteintes, le miroir global les dupliquant déjà.
 - **Raccourcis** : manette **L1+R1+Select** (le chemin qui compte — David, le
   2026-09-22 : « dans tous les cas ça ne sera pas au clavier, Deck avec Beasts ou
   Steam Frame »), clavier **Y** / **Alt+Y**, menu Select, et Paramètres.

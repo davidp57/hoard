@@ -85,9 +85,10 @@ Shipped: **L1+R1+Select** on the pad (the path that matters — there is no
 keyboard on a Deck with glasses), **Y** on the keyboard, and a setting. The copy
 lives in a shadow root so no document query ever reaches it, and a
 MutationObserver keeps it current. A playing video is repainted into the copy
-rather than cloned, so the file is downloaded and decoded once. The player's own
-side-by-side steps aside while the mode is on. Costs are measured, not estimated:
-see the developer guide.
+rather than cloned, so the file is downloaded and decoded once. A 180° video is
+the one exception to "both eyes see the same picture" — that file holds two
+different pictures and the difference is the relief — so the player gives a whole
+canvas to each eye. Costs are measured, not estimated: see the developer guide.
 
 The same constraint is expected from the **Steam Frame**.
 

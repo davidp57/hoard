@@ -1555,6 +1555,12 @@
   body.sbs-global .gp-mirror { display: none !important; }
   body.sbs-global #gp-menu,
   body.sbs-global #gp-overlay { justify-content: center; }
+  /* Same for the toast: BL-125 draws it at 25% and 75% of one picture that is
+     about to be cut in two. Here each half is a picture of its own, and the
+     mirror already puts a copy in the second one — so it goes back to centred,
+     and the second node stays out of the way. */
+  body.sbs-global #video-container.vr-sbs #toast   { left: 50%; }
+  body.sbs-global #video-container.vr-sbs #toast-r { display: none; }
 </style>
 </head>
 <body>
@@ -5825,28 +5831,36 @@ function _vrRender() {
   // split. Convergence nudges the two eyes apart in yaw — zero for a correctly
   // shot VR180 file, adjustable for one that is not.
   const conv = sbs ? vr.convergence / 2 : 0;
-  const views = sbs
-    ? [[0, 0, w / 2, h, 0, +conv], [w / 2, 0, w / 2, h, 0.5, -conv]]
-    : [[0, 0, w, h, 0, 0]];
+  // PAD-SBS-UI: when the whole screen is already side by side, each half of the
+  // screen IS a canvas of its own — the real one on the left, the copy on the
+  // right — so an eye gets a WHOLE canvas instead of half of one.
+  //
+  // This is the one place the mode's own rule does not hold. Everywhere else
+  // both eyes are shown the same picture, and that is what makes the interface
+  // readable; a 180° file, on the other hand, holds two DIFFERENT pictures, and
+  // that difference IS the relief. A first version collapsed the player onto a
+  // single view here, which showed the same picture twice and threw the depth
+  // away — reported by David, who could get the relief with the screen mode off
+  // and not with it on.
+  const perEyeCanvas = sbs && sbsIsOn();
 
   // Perceived width: with 'half' each eye's picture is stretched back to full
-  // width by the display, so it is the whole canvas that sets the shape.
+  // width by the display, so it is the whole canvas that sets the shape. With a
+  // canvas per eye nothing is stretched back, so the question does not arise.
   const layout = vrResolvedSbsLayout(w, h);
-  const perceivedW = !sbs ? w : (layout === 'half' ? w : w / 2);
+  const perceivedW = (!sbs || perEyeCanvas) ? w : (layout === 'half' ? w : w / 2);
   // BL-125: announced from here and not from setVrMode, because entering
   // side-by-side also enters fullscreen — the canvas has not taken its final
   // shape yet when the mode changes, and the shape is what the guess reads.
   // Re-announced if it ever crosses the threshold, which is the only case where
   // the picture changes under the user without them touching anything.
-  if (sbs && vr.sbsLayout === 'auto' && vr.autoAnnounced !== layout) {
+  if (sbs && !perEyeCanvas && vr.sbsLayout === 'auto' && vr.autoAnnounced !== layout) {
     vr.autoAnnounced = layout;
     showToast(vrSbsLayoutLabel());
   }
   const tanVMax = Math.tan(VR_MAX_VFOV * Math.PI / 360);
 
-  gl.clearColor(0, 0, 0, 1);
-  gl.clear(gl.COLOR_BUFFER_BIT);
-  for (const [vx, vy, vw, vh, uOff, yawOff] of views) {
+  const drawView = (vx, vy, vw, vh, uOff, yawOff) => {
     let th = tanH, tv = tanH * vh / perceivedW;
     if (tv > tanVMax) { tv = tanVMax; th = tv * perceivedW / vh; }
     gl.viewport(vx, vy, vw, vh);
@@ -5856,13 +5870,30 @@ function _vrRender() {
     gl.uniform1f(vr.u.uTanHalfH, th);
     gl.uniform1f(vr.u.uTanHalfV, tv);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
+  };
+
+  gl.clearColor(0, 0, 0, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  if (perEyeCanvas) {
+    // Right eye first, handed to the second half straight away, then the left
+    // eye drawn over it — that one is what stays on screen. The order is forced
+    // by WebGL: a canvas is only readable in the task that drew it, so the eye
+    // that goes to the copy has to be the one in the buffer at that instant.
+    drawView(0, 0, w, h, 0.5, -conv);
+    sbsBlitVr();
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    drawView(0, 0, w, h, 0, +conv);
+  } else {
+    if (sbs) {
+      drawView(0, 0, w / 2, h, 0, +conv);
+      drawView(w / 2, 0, w / 2, h, 0.5, -conv);
+    } else {
+      drawView(0, 0, w, h, 0, 0);
+    }
+    // Flat, with the screen mode on: both eyes get the same single view, which
+    // is what 'flat' means. Same reason as above for taking the copy here.
+    sbsBlitVr();
   }
-  // PAD-SBS-UI: the copy for the second eye is taken HERE and nowhere else. A
-  // WebGL canvas is only readable in the same task that drew it — its buffer is
-  // discarded once composited, unless the context asks for preserveDrawingBuffer
-  // and pays for it on every frame. Copied from the generic painter instead, the
-  // VR view came out black over the video.
-  sbsBlitVr();
   vr.raf = requestAnimationFrame(_vrRender);
 }
 
@@ -5909,6 +5940,10 @@ function vrSbsLayoutLabel() {
 // Three states, not two (BL-125): the cycle has to come back to 'auto', which is
 // the only way to undo a manual override without going through the settings.
 function cycleVrSbsLayout() {
+  // PAD-SBS-UI: with a canvas per eye nothing is stretched back, so this setting
+  // has nothing to act on. Said out loud rather than left inert — a control that
+  // answers nothing is the defect BL-087 went and removed everywhere else.
+  if (sbsIsOn()) { showToast('🥽 sans objet : chaque œil a déjà son image entière'); return; }
   const i = VR_SBS_LAYOUTS.indexOf(vr.sbsLayout);
   vr.sbsLayout = VR_SBS_LAYOUTS[(i + 1) % VR_SBS_LAYOUTS.length];
   vr.autoAnnounced = vrResolvedSbsLayout(vr.gl?.canvas?.width ?? 0, vr.gl?.canvas?.height ?? 0);
@@ -5934,13 +5969,6 @@ function cycleVrConvergence() {
 
 function setVrMode(mode) {
   if (!VR_MODES.includes(mode)) return;
-  // PAD-SBS-UI: the global mirror already shows the same frame in each eye. A
-  // player that split the picture on top of that would quarter it, so the two
-  // never run together — the mirror wins and the player draws a single view.
-  if (mode === 'sbs' && sbsIsOn()) {
-    mode = 'flat';
-    showToast('🥽 Côte à côte déjà assuré par l\'écran');
-  }
   const canvas = document.getElementById('vr-canvas');
   if (mode !== 'off' && !_vrInit()) return;
 
@@ -5995,11 +6023,7 @@ function setVrMode(mode) {
 
 function cycleVrMode() {
   if (vr.blocked) { showToast('🥽 indisponible sur un flux transcodé'); return; }
-  // PAD-SBS-UI: with the whole screen already side by side the player's own
-  // side-by-side is dropped from the cycle. Leaving it in would strand the
-  // cycle on 'flat', since setVrMode turns it back into 'flat' every time.
-  const modes = sbsIsOn() ? VR_MODES.filter(m => m !== 'sbs') : VR_MODES;
-  const next = modes[(modes.indexOf(vr.mode) + 1) % modes.length];
+  const next = VR_MODES[(VR_MODES.indexOf(vr.mode) + 1) % VR_MODES.length];
   setVrMode(next);
   if (vr.mode !== next) return;   // init refused; it has already said why
   showToast(next === 'off' ? '🥽 désactivé'
@@ -6964,6 +6988,11 @@ function sbsRestore() {
 // screen must not trap anyone.
 function toggleSbsGlobal() {
   if (sbsUi.on) sbsDisable(); else sbsEnable();
+  // Turning the mode off puts the player back to one canvas split in two, where
+  // the stretched/not question applies again. Clearing the mark makes the next
+  // frame say which guess is in force, instead of leaving the user in a state
+  // that was announced under the other arrangement.
+  vr.autoAnnounced = null;
   try { localStorage.setItem(SBS_KEY, sbsUi.on ? '1' : '0'); } catch { /* storage blocked */ }
   const chk = document.getElementById('s-sbs-global');
   if (chk) chk.checked = sbsUi.on;
@@ -6984,9 +7013,6 @@ function sbsEnable() {
   sbsUi.scrollSel = sbsScrollSelector();
   sbsUi.on = true;
   document.body.classList.add('sbs-global');
-  // The player must not split the picture too: the mirror already shows the
-  // same frame to each eye, so one view is what the player has to draw.
-  if (vr.mode === 'sbs') setVrMode('flat');
   sbsCopy();
   sbsUi.observer = new MutationObserver(recs => sbsSchedule(recs));
   sbsUi.observer.observe(appRoot, {
@@ -7792,7 +7818,9 @@ function _gpMenuBuildPlayer() {
     value: vr.mode === 'off' ? 'désactivé' : vr.mode === 'flat' ? 'plat' : 'côte à côte',
     run: () => cycleVrMode(),
   });
-  if (vrIsActive()) {
+  // Left out while the screen mode is on: each eye then gets a whole canvas, so
+  // there is no stretching to undo and the line would answer nothing.
+  if (vrIsActive() && !sbsIsOn()) {
     items.push({
       label: '🥽 Image côte à côte',
       // Shows what is in force, and marks it as guessed when it is: the menu is
