@@ -358,18 +358,28 @@
 
   /* Side-by-side output: any 2D overlay is drawn once across a picture that is
      about to be split between two eyes, so it lands half in each and reads as
-     nothing. Hide them; the gamepad and keyboard still drive the player. */
-  #video-container.vr-sbs #controls,
-  #video-container.vr-sbs #vol-osd,
-  #video-container.vr-sbs #mini-time { display: none !important; }
+     nothing. Hide them; the gamepad and keyboard still drive the player.
+     PAD-SBS-UI: unless the whole screen is already side by side, in which case
+     each half is a picture of its own, the mirror puts a copy of the bar in the
+     second one, and each eye reads a whole one. Written as a narrowing of this
+     rule rather than as an override: `display` is how #mini-time shows and hides
+     itself — none by default, block in fullscreen — so an override forcing it
+     back would have made it appear outside fullscreen too. */
+  body:not(.sbs-global) #video-container.vr-sbs #controls,
+  body:not(.sbs-global) #video-container.vr-sbs #vol-osd,
+  body:not(.sbs-global) #video-container.vr-sbs #mini-time { display: none !important; }
   /* BL-125: side-by-side cuts the picture in two, so an overlay drawn once falls
      half into each eye — which is why BL-120 hid them all. The toast is the one
      that has to survive: it is how the player says what it just did, and the
      layout guess is announced through it. It is drawn once per eye instead, each
      copy centred in its own half. No size change needed: at 3840x1080 each half
-     is 1920 wide, so 13px reads exactly as it does on an ordinary screen. */
-  #video-container.vr-sbs #toast   { left: 25%; }
-  #video-container.vr-sbs #toast-r { left: 75%; display: block; }
+     is 1920 wide, so 13px reads exactly as it does on an ordinary screen.
+     PAD-SBS-UI: narrowed the same way as the rule above. With the whole screen
+     side by side each half is a picture of its own and the mirror already puts a
+     copy of the toast in the second one, so the two nodes go back to what the
+     base rule says — one centred toast, and the right-eye copy out of the way. */
+  body:not(.sbs-global) #video-container.vr-sbs #toast   { left: 25%; }
+  body:not(.sbs-global) #video-container.vr-sbs #toast-r { left: 75%; display: block; }
 
   /* ── Player controls ── */
   #controls {
@@ -1555,12 +1565,6 @@
   body.sbs-global .gp-mirror { display: none !important; }
   body.sbs-global #gp-menu,
   body.sbs-global #gp-overlay { justify-content: center; }
-  /* Same for the toast: BL-125 draws it at 25% and 75% of one picture that is
-     about to be cut in two. Here each half is a picture of its own, and the
-     mirror already puts a copy in the second one — so it goes back to centred,
-     and the second node stays out of the way. */
-  body.sbs-global #video-container.vr-sbs #toast   { left: 50%; }
-  body.sbs-global #video-container.vr-sbs #toast-r { display: none; }
 </style>
 </head>
 <body>
@@ -8445,10 +8449,16 @@ function _gpPoll() {
     }
 
     const _swap = cfg.gamepad_swap_sticks;
-    // In VR the left stick keeps the seek whatever the swap says: under R2 the
-    // right one is the view, and a control that moves between layers is worse
-    // than one that stays put.
-    const seekAxisIdx  = (vrIsActive() || !_swap) ? 0 : 2;  // LX unless swapped
+    // The swap is honoured in VR like anywhere else — David, 2026-09-22: without
+    // R2 the right stick has to give the volume, the fine seek and the playback
+    // speed, exactly as it does on a flat screen. BL-128 pinned the seek to the
+    // left stick in VR to keep a control from moving between layers — but it does
+    // not move: under
+    // R2 it is simply suppressed, exactly as the volume already is, and R2 is the
+    // one place the right stick belongs to the view. Outside R2 the sticks now do
+    // in VR precisely what they do on a flat screen, which is the only rule worth
+    // having: seek on the swapped axis, volume on the other, speed on R3.
+    const seekAxisIdx  = _swap ? 2 : 0;  // LX unless swapped
     const volAxisIdx   = _swap ? 1 : 3;  // LY vs RY
 
     // Seek stick X — scrubbing. Suppressed while R2 holds the VR layer: the left

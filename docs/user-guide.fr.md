@@ -237,6 +237,8 @@ Tant que le mode VR est actif, le glissement ne fait plus ni avance rapide ni r�
 
 Le mode côte à côte passe automatiquement en plein écran : c'est le seul affichage qui ait un sens dans des lunettes. Les commandes du lecteur disparaissent pendant ce temps — affichées une seule fois sur une image qui va être coupée en deux, elles tomberaient à moitié dans chaque œil et ne seraient lisibles nulle part. Ce qui sert à piloter, en revanche, est écrit **une fois par œil** et reste donc lisible des deux : les messages du lecteur, le menu **Select** et la carte des boutons. Pilote à la manette ou au clavier ; sortir du mode fait tout revenir.
 
+> **Sauf si l'écran entier est déjà en côte à côte** (voir [Toute l'interface en côte à côte](#toute-linterface-en-côte-à-côte) plus bas) : chaque moitié montre alors une image entière, donc la barre du lecteur, la bulle de volume et l'afficheur du temps restent là, en un exemplaire par œil. Tu gardes la position dans le fichier sous les yeux, ce qui n'est pas le cas autrement.
+
 Deux réglages selon ce que font tes lunettes :
 
 - **Image étirée ou non** (touche **B** au clavier, **L2** à la manette, ou le menu de la manette). **Par défaut Hoard le devine** à la forme de l'image : pour obtenir la 3D, des lunettes comme les Viture Beast demandent une sortie deux fois plus large que la normale — du 3840×1080 — et sur une image de cette forme chaque moitié est déjà aux bonnes proportions, donc rien n'est réétiré. Sur un affichage ordinaire, à l'inverse, chaque moitié est réétirée sur toute la largeur. Hoard annonce ce qu'il a deviné par un message au moment où le mode s'active. Si l'image te paraît quand même écrasée ou étirée du double en hauteur, change le réglage — l'effet se voit immédiatement, et ton choix l'emporte toujours sur la devinette. Le raccourci fait le tour des trois états : automatique, étirée, non étirée.
@@ -254,7 +256,7 @@ Tout se règle en **maintenant R2**, sans rien ouvrir : l'image change pendant q
 | **Clic stick droit** | Recentrer le regard |
 | **Stick droit** | Regarder autour |
 
-Tant que R2 est maintenu, les autres boutons ne font rien : la manette pilote la vue et rien d'autre. **Relâche R2** et tout reprend son rôle habituel — le stick droit règle alors le volume, y compris en pleine lecture VR. Au clavier, **Maj+V** remet d'un coup le regard et le zoom.
+Tant que R2 est maintenu, les autres boutons ne font rien : la manette pilote la vue et rien d'autre. **Relâche R2** et les sticks font exactement ce qu'ils font sur un écran plat, en pleine lecture VR comme ailleurs : l'avance/recul fin, le volume et la vitesse de lecture (**R3**), chacun là où ton réglage d'inversion des sticks les place. Au clavier, **Maj+V** remet d'un coup le regard et le zoom.
 
 #### Reconnaissance et mémorisation
 

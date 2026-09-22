@@ -8,6 +8,21 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ### Ajouté
 
+- **Tes sticks font la même chose en vidéo 180° et sur un écran normal.** Si tu
+  as activé *inverser les sticks*, l'avance/recul fin quittait le stick droit dès
+  que tu passais en VR et n'y revenait qu'en sortant. Maintenant, dès que tu
+  relâches **R2**, les deux sticks reprennent exactement leurs rôles habituels —
+  avance/recul, volume, et la vitesse au clic du stick droit. **R2** maintenu
+  reste le seul moment où le stick droit sert à regarder autour.
+
+- **Tu gardes la barre du lecteur et le temps sous les yeux en vidéo 180°.**
+  Jusqu'ici, dès que le lecteur passait en côte à côte, la barre de progression,
+  la bulle de volume et l'afficheur du temps disparaissaient — ils auraient été
+  coupés en deux et illisibles. Avec l'écran entier en côte à côte ce n'est plus
+  le cas : chaque œil reçoit une image complète, donc chacun reçoit aussi sa
+  barre. Tu sais de nouveau où tu en es dans le fichier sans avoir à toucher à
+  quoi que ce soit.
+
 - **Toute l'interface s'affiche en côte à côte pour des lunettes XR.** Avec des
   lunettes en mode 3D, l'image est coupée en deux tout le temps, pas seulement
   pendant une vidéo : l'écran du code, la liste des fichiers, les photos, les PDF

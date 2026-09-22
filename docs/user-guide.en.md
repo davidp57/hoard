@@ -232,6 +232,8 @@ While VR mode is on, dragging no longer seeks or changes the volume — it looks
 
 Side-by-side mode goes fullscreen on its own: that is the only display that makes sense inside glasses. The player controls disappear while it is on — drawn once across a picture about to be split in two, they would land half in each eye and read as nothing anywhere. What you drive with, on the other hand, is written **once per eye** and so reads in both: the player's messages, the **Select** menu and the button map. Drive from the gamepad or the keyboard; leaving the mode brings everything back.
 
+> **Unless the whole screen is already side by side** (see [The Whole Interface Side by Side](#the-whole-interface-side-by-side) below): each half then shows a whole picture, so the player bar, the volume bubble and the time readout stay, one set per eye. You keep your position in the file in front of you, which you do not otherwise.
+
 Two settings, depending on what your glasses do:
 
 - **Stretched picture or not** (**B** key, **L2** on the pad, or the gamepad menu). **Hoard guesses it by default**, from the shape of the picture: to get 3D, glasses like the Viture Beast want an output twice as wide as usual — 3840×1080 — and on a picture that shape each half is already correctly proportioned, so nothing gets stretched. On an ordinary display each half is stretched back across the full width instead. Hoard announces what it guessed with a message as the mode comes on. If the picture still looks squashed or stretched twice over vertically, flip the setting — the effect is immediate, and your choice always wins over the guess. The shortcut cycles the three states: automatic, stretched, unstretched.
@@ -249,7 +251,7 @@ Everything is set by **holding R2**, without opening anything: the picture chang
 | **Right stick click** | Recentre the view |
 | **Right stick** | Look around |
 
-While R2 is held the other buttons do nothing: the pad is driving the view and nothing else. **Release R2** and everything returns to its usual role — the right stick then sets the volume, VR playback included. On the keyboard, **Shift+V** resets both view and zoom at once.
+While R2 is held the other buttons do nothing: the pad is driving the view and nothing else. **Release R2** and the sticks do exactly what they do on a flat screen, VR playback included: fine seeking, volume and playback speed (**R3**), each wherever your stick-swap setting puts them. On the keyboard, **Shift+V** resets both view and zoom at once.
 
 #### Recognition and memory
 
