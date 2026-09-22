@@ -8,6 +8,20 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ### Ajouté
 
+- **La profondeur des vidéos 180° est juste par défaut.** Le lecteur partait de
+  90°, alors que des lunettes XR ne montrent qu'environ 45° à chaque œil : tout
+  paraissait géant et lointain, et un objet qui s'approchait enflait
+  démesurément pendant que tes yeux disaient qu'il était encore loin. Le défaut
+  passe à **45°**, et si tu avais l'ancienne valeur enregistrée elle est reprise
+  automatiquement au démarrage.
+
+- **Le réglage s'appelle maintenant « Champ de vision de l'écran ».** Ce n'est
+  pas un zoom malgré les apparences : il faut y mettre l'angle que tes lunettes
+  — ou ton écran — présentent réellement à un œil, et c'est cette valeur qui
+  rend la profondeur correcte. À retenir : plus elle est petite, plus la
+  profondeur est juste, et moins tu vois de la scène à la fois. Les deux vont
+  ensemble.
+
 - **Tu cales tes yeux au stick, en regardant l'image se caler.** La convergence
   passe sur le **stick gauche, gauche/droite, sous R2** : le réglage suit ton
   doigt — une pichenette ajuste au dixième, une poussée à fond traverse toute la

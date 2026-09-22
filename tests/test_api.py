@@ -4175,7 +4175,7 @@ class TestVrConvergencePerFile:
 class TestVrSettings:
     def test_defaults(self):
         s = client.get("/api/settings").json()
-        assert s["vr_fov"] == "90"
+        assert s["vr_fov"] == "45"
         assert s["vr_look_speed"] == "90"
         assert s["vr_convergence"] == "0"
         assert s["vr_sbs_layout"] == "auto"
@@ -4245,6 +4245,59 @@ class TestVrSettings:
         s = client.get("/api/settings").json()
         assert s["vr_sbs_layout"] == "auto"
         assert s["vr_fov"] == "75", "the migration must touch nothing else"
+
+    def test_startup_drops_a_stored_90_field_of_view(self):
+        """The one-shot migration behind the 45° default.
+
+        90° was the shipped default, and the settings form posts every field at
+        once, so saving any unrelated setting wrote it into the table. Left
+        there it would keep the new default from ever being seen — and on XR
+        glasses 90° is not a preference, it is twice the angle they present,
+        which makes a 180° file look giant and distant.
+        """
+        import backend.main as _main
+
+        with _main.get_db() as conn:
+            _main._write_setting(conn, "vr_fov", "90")
+            _main._write_setting(conn, "vr_look_speed", "120")
+            conn.commit()
+
+        _main.init_db()
+
+        s = client.get("/api/settings").json()
+        assert s["vr_fov"] == "45"
+        assert s["vr_look_speed"] == "120", "the migration must touch nothing else"
+
+    def test_startup_keeps_a_field_of_view_that_is_not_the_old_default(self):
+        """Only the old default is swept; anything else was typed on purpose."""
+        import backend.main as _main
+
+        with _main.get_db() as conn:
+            _main._write_setting(conn, "vr_fov", "60")
+            conn.commit()
+
+        _main.init_db()
+
+        assert client.get("/api/settings").json()["vr_fov"] == "60"
+
+    def test_a_90_chosen_after_the_migration_survives_a_restart(self):
+        """What the marker is for. Without it, init_db() runs on every start and
+        would eat a deliberate 90 each time — and 90 has to stay reachable, since
+        the setting exists precisely to be matched to whatever display is in use.
+        """
+        import backend.main as _main
+
+        _main.init_db()  # marker laid down
+        assert client.post("/api/settings", json={"vr_fov": 90}).status_code == 200
+
+        _main.init_db()  # a later restart
+
+        assert client.get("/api/settings").json()["vr_fov"] == "90"
+
+    def test_the_field_of_view_marker_is_a_declared_setting(self):
+        """Same rule as the BL-125 marker: it leaves through GET /api/settings,
+        so it has to be declared rather than appear out of nowhere."""
+        assert client.get("/api/settings").json()["vr_fov_default_45_done"] in ("0", "1")
 
     def test_the_migration_marker_is_a_declared_setting(self):
         """It leaves GET /api/settings, so it has to be declared and not leak.
