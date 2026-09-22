@@ -8,6 +8,18 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ### Ajouté
 
+- **Tu peux voir plus large sans perdre le relief là où tu regardes.** Au champ
+  de vision juste, la profondeur est bonne mais la vue est serrée — et les deux
+  vont ensemble, il n'y a pas moyen de les séparer complètement. Le nouveau
+  réglage **Vue élargie** fait au mieux : il ne comprime que **vers les bords**,
+  en laissant le centre intact. Le chiffre dit de combien le bord va plus loin :
+  **+40 %**, c'est 40 % d'angle en plus sur les côtés.
+
+  Ça se paie là où ça comprime — le relief s'y aplatit et les lignes droites s'y
+  incurvent — donc c'est **désactivé par défaut** et ça se règle à ton goût :
+  20 à 40 restent discrets. Tu peux l'essayer sans quitter le film, depuis le
+  menu **Select**, ou fixer ta valeur dans **Paramètres → Player**.
+
 - **La profondeur des vidéos 180° est juste par défaut.** Le lecteur partait de
   90°, alors que des lunettes XR ne montrent qu'environ 45° à chaque œil : tout
   paraissait géant et lointain, et un objet qui s'approchait enflait

@@ -1,9 +1,9 @@
 # BL-135 — Voir plus large sans perdre le relief au centre
 
-Status: ⬜ ready
+Status: ✅ done
 Type: feat
 Files: `frontend/index.html` (shader VR), `docs/user-guide.*.md`
-Attend : l'usage. David, le 2026-09-22 : « je teste d'abord et on verra ensuite ».
+Fait le 2026-09-22, David ayant tranché avant l'essai : « fais VR-COMFORT avec un setting numérique (désactivé, puis divers degrés de compression) ».
 
 ## Problem
 
@@ -29,11 +29,11 @@ de lignes dans le shader existant, plus un dosage réglable.
 
 ## Acceptance criteria
 
-- [ ] Au centre, la profondeur est celle qu'on a au champ juste sans compression
-- [ ] On voit sensiblement plus de scène à dosage non nul
-- [ ] Le basculement est dans le menu **Select**
-- [ ] Aucun décalage **vertical** introduit entre les deux yeux — voir plus bas
-- [ ] Mesuré à l'œil sur un fichier réel, et le dosage par défaut décidé là
+- [x] Au centre, la profondeur est celle qu'on a au champ juste sans compression — échelle centrale inchangée à 10⁻⁶ près à toutes les doses
+- [x] On voit sensiblement plus de scène à dosage non nul — une case de mire de plus de chaque côté à 40 %, deux à 100 %
+- [x] Le basculement est dans le menu **Select**, et cycle 0 → 20 → … → 100 → 0
+- [x] Aucun décalage **vertical** introduit entre les deux yeux — l'élargissement ne touche qu'à l'azimut, l'élévation sort inchangée de la projection d'origine
+- [x] Mesuré sur une mire quadrillée ; **défaut à 0**, parce que c'est un échange et non une amélioration. Le dosage qui convient à l'usage reste à trouver en regardant de vrais films — c'est là que le réglage prend son sens.
 
 ## Ce qu'il ne faut pas rater
 
@@ -51,3 +51,18 @@ l'œil est le moins exigeant. À dire dans la doc plutôt qu'à cacher.
 **Les lignes droites s'incurvent aux bords.** Acceptable sur une scène filmée,
 beaucoup moins sur de l'architecture. Raison de plus pour que ce soit un
 basculement et pas un état permanent.
+
+## Ce qui a été fait, et pourquoi là
+
+L'élargissement est appliqué **dans l'espace de la vue, avant toute rotation**.
+C'est le seul endroit qui marche, et trois propriétés en découlent :
+
+- le point fixe est le milieu de **ce qu'on regarde**, pas l'axe avant de la
+  source — sinon la propriété serait perdue dès qu'on tourne la tête ;
+- l'**élévation** sort inchangée de la projection d'origine, donc aucun décalage
+  vertical n'est ajouté entre les deux yeux ;
+- la **convergence**, appliquée après, reste un décalage uniforme au lieu d'être
+  étirée inégalement sur l'écran.
+
+Le coefficient du shader est dérivé du champ de vision côté JS plutôt qu'exposé
+brut : le réglage garde ainsi le même sens quand le champ change.

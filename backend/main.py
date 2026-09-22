@@ -3522,6 +3522,9 @@ _SETTINGS_DEFAULTS: dict[str, str] = {
     # and distant, at 45° it looked right. See the setting's own description.
     "vr_fov": "45",
     "vr_convergence": "0",
+    # BL-135: 0 is off. A trade, not an improvement — the centre keeps its true
+    # depth and the edges buy width with theirs — so nobody gets it unasked.
+    "vr_widen": "0",
     "vr_look_speed": "90",
     "vr_sbs_layout": "auto",
 }
@@ -3578,6 +3581,7 @@ class SettingsPayload(BaseModel):
     gamepad_mapping: str | None = None  # raw JSON string
     fs_progress_zoom: int | None = Field(default=None, ge=5, le=50)
     vr_fov: int | None = Field(default=None, ge=30, le=120)
+    vr_widen: int | None = Field(default=None, ge=0, le=100)
     vr_convergence: float | None = Field(default=None, ge=-3.0, le=3.0)
     vr_look_speed: int | None = Field(default=None, ge=10, le=360)
     vr_sbs_layout: str | None = None
@@ -3734,6 +3738,7 @@ def update_settings(body: SettingsPayload, request: Request):
             ("gamepad_mapping", body.gamepad_mapping),
             ("fs_progress_zoom", body.fs_progress_zoom),
             ("vr_fov", body.vr_fov),
+            ("vr_widen", body.vr_widen),
             ("vr_convergence", body.vr_convergence),
             ("vr_look_speed", body.vr_look_speed),
         ]
