@@ -242,7 +242,7 @@ Le mode côte à côte passe automatiquement en plein écran : c'est le seul aff
 Deux réglages selon ce que font tes lunettes :
 
 - **Image étirée ou non** (touche **B** au clavier, **L2** à la manette, ou le menu de la manette). **Par défaut Hoard le devine** à la forme de l'image : pour obtenir la 3D, des lunettes comme les Viture Beast demandent une sortie deux fois plus large que la normale — du 3840×1080 — et sur une image de cette forme chaque moitié est déjà aux bonnes proportions, donc rien n'est réétiré. Sur un affichage ordinaire, à l'inverse, chaque moitié est réétirée sur toute la largeur. Hoard annonce ce qu'il a deviné par un message au moment où le mode s'active. Si l'image te paraît quand même écrasée ou étirée du double en hauteur, change le réglage — l'effet se voit immédiatement, et ton choix l'emporte toujours sur la devinette. Le raccourci fait le tour des trois états : automatique, étirée, non étirée.
-- **Convergence** (**R2 + D-pad ←/→**, ou le menu de la manette). C'est l'angle dont on écarte ou rapproche les deux points de vue : ça change la distance à laquelle ton cerveau place la scène. À laisser à zéro, où les deux images sont exactement telles que les caméras les ont prises — ce qui est correct pour un fichier bien tourné. Si un fichier particulier te fatigue les yeux, c'est qu'il a été tourné avec un écartement de caméras qui ne te va pas, ou remonté de travers : quelques dixièmes de degré suffisent alors. Au-delà de 3° les yeux décrochent, d'où la borne. **La valeur est retenue pour ce fichier-là**, pas pour les autres : la gêne vient du tournage, un fichier mal monté ne doit pas contaminer le reste.
+- **Convergence** (**R2 + stick gauche ←/→**, le D-pad pour le pas à pas, ou le menu de la manette). C'est l'angle dont on écarte ou rapproche les deux points de vue : ça change la distance à laquelle ton cerveau place la scène. À laisser à zéro, où les deux images sont exactement telles que les caméras les ont prises — ce qui est correct pour un fichier bien tourné. Si un fichier particulier te fatigue les yeux, c'est qu'il a été tourné avec un écartement de caméras qui ne te va pas, ou remonté de travers. Le stick est proportionnel : une pichenette ajuste, une poussée à fond traverse la plage en deux secondes. **Plus le champ de vision est serré, plus il faut corriger** — l'image est plus agrandie, donc le désalignement aussi. La plage va jusqu'à ±8°, assez pour que ce soit ton œil qui décide et non la borne. **La valeur est retenue pour ce fichier-là**, pas pour les autres : la gêne vient du tournage, un fichier mal monté ne doit pas contaminer le reste.
 
 #### Régler la vue à la manette
 
@@ -251,7 +251,8 @@ Tout se règle en **maintenant R2**, sans rien ouvrir : l'image change pendant q
 | R2 maintenu | Effet |
 |---|---|
 | **Stick gauche ↕** | Zoom |
-| **D-pad ←/→** | Convergence |
+| **Stick gauche ↔** | Convergence (proportionnelle) |
+| **D-pad ←/→** | Convergence, pas à pas |
 | **Clic stick gauche** | Remettre le zoom |
 | **Clic stick droit** | Recentrer le regard |
 | **Stick droit** | Regarder autour |

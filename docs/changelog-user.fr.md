@@ -8,6 +8,14 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ### Ajouté
 
+- **Tu cales tes yeux au stick, en regardant l'image se caler.** La convergence
+  passe sur le **stick gauche, gauche/droite, sous R2** : le réglage suit ton
+  doigt — une pichenette ajuste au dixième, une poussée à fond traverse toute la
+  plage en deux secondes. Le D-pad garde son pas lent si tu veux finir au
+  millimètre. La plage va maintenant jusqu'à **±8°** au lieu de ±3, parce que
+  plus tu resserres le champ de vision, plus l'image est agrandie — et le moindre
+  décalage entre les deux yeux avec elle.
+
 - **Tes sticks font la même chose en vidéo 180° et sur un écran normal.** Si tu
   as activé *inverser les sticks*, l'avance/recul fin quittait le stick droit dès
   que tu passais en VR et n'y revenait qu'en sortant. Maintenant, dès que tu

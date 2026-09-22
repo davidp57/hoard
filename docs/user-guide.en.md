@@ -237,7 +237,7 @@ Side-by-side mode goes fullscreen on its own: that is the only display that make
 Two settings, depending on what your glasses do:
 
 - **Stretched picture or not** (**B** key, **L2** on the pad, or the gamepad menu). **Hoard guesses it by default**, from the shape of the picture: to get 3D, glasses like the Viture Beast want an output twice as wide as usual — 3840×1080 — and on a picture that shape each half is already correctly proportioned, so nothing gets stretched. On an ordinary display each half is stretched back across the full width instead. Hoard announces what it guessed with a message as the mode comes on. If the picture still looks squashed or stretched twice over vertically, flip the setting — the effect is immediate, and your choice always wins over the guess. The shortcut cycles the three states: automatic, stretched, unstretched.
-- **Convergence** (**R2 + D-pad ←/→**, or the gamepad menu). This is the angle the two viewpoints are spread apart or brought together, which changes the distance your brain places the scene at. Leave it at zero, where the two views are exactly as the cameras took them — correct for a properly shot file. If one particular file tires your eyes, it was shot with a camera spacing that does not suit you, or mounted badly: a few tenths of a degree are enough. Past 3° the eyes stop fusing, hence the bound. **The value is remembered for that file**, not globally: the strain comes from the shoot, and a badly mounted file must not contaminate the rest.
+- **Convergence** (**R2 + left stick ←/→**, the D-pad for stepping, or the gamepad menu). This is the angle the two viewpoints are spread apart or brought together, which changes the distance your brain places the scene at. Leave it at zero, where the two views are exactly as the cameras took them — correct for a properly shot file. If one particular file tires your eyes, it was shot with a camera spacing that does not suit you, or mounted badly. The stick is proportional: a nudge trims, a full push crosses the range in a couple of seconds. **The tighter the field of view, the more you will need to correct** — the picture is more magnified, and so is any misalignment. The range goes to ±8°, wide enough that your eye decides rather than the bound. **The value is remembered for that file**, not globally: the strain comes from the shoot, and a badly mounted file must not contaminate the rest.
 
 #### Adjusting the view from the pad
 
@@ -246,7 +246,8 @@ Everything is set by **holding R2**, without opening anything: the picture chang
 | R2 held | Effect |
 |---|---|
 | **Left stick ↕** | Zoom |
-| **D-pad ←/→** | Convergence |
+| **Left stick ↔** | Convergence (proportional) |
+| **D-pad ←/→** | Convergence, step by step |
 | **Left stick click** | Reset the zoom |
 | **Right stick click** | Recentre the view |
 | **Right stick** | Look around |
