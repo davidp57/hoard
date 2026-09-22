@@ -1717,6 +1717,10 @@
         <div class="s-right"><input type="number" class="s-num" id="s-vr-fov" min="30" max="120" step="5"> <span style="font-size:12px;color:var(--text-dim)">°</span></div>
       </div>
       <div class="s-row">
+        <div><div class="s-label">Vue élargie</div><div class="s-desc">Fait rentrer plus de scène sur le même écran en échantillonnant plus large vers les bords, <b>sans toucher au centre</b> : la profondeur y reste juste, c'est là qu'on regarde. Le prix se paie en périphérie, où le relief s'aplatit et où les lignes droites s'incurvent — d'autant plus que la valeur est haute. 0 = désactivé, 20 à 40 restent discrets. Au-delà, ou avec un grand champ de vision, les bords peuvent devenir noirs : la caméra n'a pas filmé plus loin. Se bascule aussi depuis le menu <b>Select</b> pendant la lecture.</div></div>
+        <div class="s-right"><input type="number" class="s-num" id="s-vr-widen" min="0" max="100" step="10"> <span style="font-size:12px;color:var(--text-dim)">%</span></div>
+      </div>
+      <div class="s-row">
         <div><div class="s-label">Vitesse du regard VR</div><div class="s-desc">Rotation au stick droit, à fond de course, en degrés par seconde</div></div>
         <div class="s-right"><input type="number" class="s-num" id="s-vr-look-speed" min="10" max="360" step="10"> <span style="font-size:12px;color:var(--text-dim)">°/s</span></div>
       </div>
@@ -2456,6 +2460,7 @@ let cfg = {
   gestures_overlay_seen: false,
   vr_fov: 45,   // the field the display presents to one eye, see the setting
   vr_convergence: 0,
+  vr_widen: 0,
   vr_look_speed: 90,
   vr_sbs_layout: 'auto',
 };
@@ -2507,6 +2512,7 @@ function applyCfg(s) {
   cfg.gestures_overlay_seen = s.gestures_overlay_seen === '1' || s.gestures_overlay_seen === true;
   cfg.vr_fov         = parseInt(s.vr_fov ?? 90, 10);
   cfg.vr_convergence = parseFloat(s.vr_convergence ?? 0);
+  cfg.vr_widen = parseInt(s.vr_widen ?? 0, 10);
   cfg.vr_look_speed  = parseInt(s.vr_look_speed ?? 90, 10);
   cfg.vr_sbs_layout  = ['auto', 'half', 'full'].includes(s.vr_sbs_layout) ? s.vr_sbs_layout : 'auto';
   // propagate navigation prefs
@@ -3500,6 +3506,7 @@ function openSettings() {
   document.getElementById('s-fs-progress-zoom').value   = cfg.fs_progress_zoom;
   document.getElementById('s-initial-sweep').value      = cfg.initial_sweep_seconds;
   document.getElementById('s-vr-fov').value             = cfg.vr_fov;
+  document.getElementById('s-vr-widen').value           = cfg.vr_widen;
   document.getElementById('s-vr-look-speed').value      = cfg.vr_look_speed;
   document.getElementById('s-vr-sbs-layout').value      = cfg.vr_sbs_layout;
   document.getElementById('s-vr-convergence').value     = cfg.vr_convergence;
@@ -3559,6 +3566,7 @@ async function saveSettings() {
     fs_progress_zoom:          parseInt(document.getElementById('s-fs-progress-zoom').value, 10),
     initial_sweep_seconds:     parseInt(document.getElementById('s-initial-sweep').value, 10),
     vr_fov:                    parseInt(document.getElementById('s-vr-fov').value, 10),
+    vr_widen:                  parseInt(document.getElementById('s-vr-widen').value, 10),
     vr_look_speed:             parseInt(document.getElementById('s-vr-look-speed').value, 10),
     vr_sbs_layout:             document.getElementById('s-vr-sbs-layout').value,
     vr_convergence:            parseFloat(document.getElementById('s-vr-convergence').value),
@@ -5638,11 +5646,30 @@ uniform float uTanHalfH;   // tan(hfov / 2)
 uniform float uTanHalfV;   // tan(vfov / 2)
 uniform float uIhFov;      // radians the source covers horizontally
 uniform float uIvFov;      // radians the source covers vertically
+uniform float uWiden;      // BL-135: azimuth widening, 0 = none
 in  vec2 vNdc;
 out vec4 fragColor;
 
 void main() {
   vec3 d = normalize(vec3(vNdc.x * uTanHalfH, vNdc.y * uTanHalfV, -1.0));
+  // BL-135: fit more scene on the same panel by sampling a wider azimuth at the
+  // edges while leaving the centre alone. Three things follow from doing it
+  // HERE, in view space, before any rotation. The fixed point is the middle of
+  // what you are looking at rather than the source's forward axis, so it still
+  // holds once you have looked around. The elevation is left exactly as the
+  // pinhole gave it, so the compression adds no vertical mismatch between the
+  // eyes — the one kind no control can undo. And the convergence yaw applied
+  // below stays a uniform offset instead of being stretched unevenly.
+  // The cost is real and is the point of the setting: each screen unit near the
+  // edge now covers more azimuth, so the gap between the two eyes is divided by
+  // the same amount and the depth flattens there. Centre true, edges wide.
+  if (uWiden > 0.0) {
+    float a = atan(d.x, -d.z);
+    float e = asin(clamp(d.y, -1.0, 1.0));
+    a *= 1.0 + uWiden * a * a;
+    float ce = cos(e);
+    d = vec3(sin(a) * ce, sin(e), -cos(a) * ce);
+  }
   float cp = cos(uPitch), sp = sin(uPitch);
   d = vec3(d.x, d.y * cp - d.z * sp, d.y * sp + d.z * cp);
   float cy = cos(uYaw), sy = sin(uYaw);
@@ -5701,12 +5728,16 @@ const VR_CONVERGENCE_STICK_RATE = 4;   // degrees per second at full deflection
 // by feel, so no attempt is made to encode that here.
 const VR_CONVERGENCE_MAX = 8;      // degrees
 const VR_CONVERGENCE_STEP = 0.5;
+// BL-135: how much wider the edge of the view reaches, in percent, and the
+// steps the pad menu walks through. 0 is off and is the default — it is a
+// trade, not an improvement, so nobody gets it without asking.
+const VR_WIDEN_STEPS = [0, 20, 40, 60, 80, 100];
 
 const vr = {
   mode: 'off', yaw: 0, pitch: 0, fov: 90,
   gl: null, prog: null, tex: null, u: {}, raf: 0, ro: null,
   vfc: 0, pumpGen: 0, lastPollTs: 0, failed: false, lostHooked: false,
-  sbsLayout: 'auto', convergence: 0,
+  sbsLayout: 'auto', convergence: 0, widen: 0,
   autoAnnounced: null,   // last layout the guess announced, so it says it once
   armed: false,      // this file looks like VR, the mode is one press away
   blocked: false,    // transcoded stream: deprojecting it is refused
@@ -5765,7 +5796,7 @@ function _vrInit() {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
     for (const n of ['uTex', 'uUvOrigin', 'uUvSize', 'uYaw', 'uPitch',
-                     'uTanHalfH', 'uTanHalfV', 'uIhFov', 'uIvFov']) {
+                     'uTanHalfH', 'uTanHalfV', 'uIhFov', 'uIvFov', 'uWiden']) {
       vr.u[n] = gl.getUniformLocation(prog, n);
     }
     gl.uniform1i(vr.u.uTex, 0);
@@ -5883,6 +5914,7 @@ function _vrRender() {
     gl.uniform2f(vr.u.uUvSize, 0.5, 1);
     gl.uniform1f(vr.u.uTanHalfH, th);
     gl.uniform1f(vr.u.uTanHalfV, tv);
+    gl.uniform1f(vr.u.uWiden, vrWidenCoeff(th));
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   };
 
@@ -5909,6 +5941,31 @@ function _vrRender() {
     sbsBlitVr();
   }
   vr.raf = requestAnimationFrame(_vrRender);
+}
+
+// BL-135: the shader widens the view azimuth by `1 + k·a²`, and `k` is derived
+// here so the setting can mean something to a human. The setting is **how much
+// further the edge of the view reaches, in percent**: at 40, the edge samples an
+// azimuth 40% wider than it would without. Since the edge sits at atan(tanH) —
+// half the field of view — that fixes k = (percent/100) / edge². Deriving it
+// from the field rather than exposing k raw keeps the setting's meaning stable
+// when the field changes, which is the whole point of a number the user picks.
+function vrWidenCoeff(tanHalfH) {
+  if (!vr.widen) return 0;
+  const edge = Math.atan(tanHalfH);          // radians from the centre to the side
+  if (edge <= 0) return 0;
+  return (vr.widen / 100) / (edge * edge);
+}
+
+// One direction and wrapping, like the convergence stepper: the pad menu only
+// ever offers one way, so a one-way ramp would strand the value at the top.
+function cycleVrWiden() {
+  // The next step strictly above the current value, and not the next index:
+  // the settings field steps by 10, so a value the menu never offers — 30, say —
+  // is perfectly reachable, and an index lookup would miss it and drop straight
+  // back to zero.
+  vr.widen = VR_WIDEN_STEPS.find(v => v > vr.widen) ?? 0;
+  showToast(vr.widen ? `🥽 vue élargie +${vr.widen} %` : '🥽 vue élargie désactivée');
 }
 
 function vrLook(dyaw, dpitch) {
@@ -6010,6 +6067,7 @@ function setVrMode(mode) {
   if (was === 'off') {
     vr.yaw = 0; vr.pitch = 0; vr.fov = vrDefaultFov();
     vr.sbsLayout = cfg.vr_sbs_layout || 'auto';
+    vr.widen = cfg.vr_widen ?? 0;
     // BL-129: this file's own convergence if it has one, the global default
     // otherwise. `??` and not `||`, or a deliberate 0 would read as "unset".
     vr.convergence = currentFile?.vr_convergence ?? cfg.vr_convergence ?? 0;
@@ -7834,6 +7892,13 @@ function _gpMenuBuildPlayer() {
   });
   // Left out while the screen mode is on: each eye then gets a whole canvas, so
   // there is no stretching to undo and the line would answer nothing.
+  if (vrIsActive()) {
+    items.push({
+      label: '🥽 Vue élargie',
+      value: vr.widen ? `+${vr.widen} %` : 'désactivée',
+      run: () => cycleVrWiden(),
+    });
+  }
   if (vrIsActive() && !sbsIsOn()) {
     items.push({
       label: '🥽 Image côte à côte',

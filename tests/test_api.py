@@ -4176,6 +4176,7 @@ class TestVrSettings:
     def test_defaults(self):
         s = client.get("/api/settings").json()
         assert s["vr_fov"] == "45"
+        assert s["vr_widen"] == "0", "off unless asked for: it trades edge depth for width"
         assert s["vr_look_speed"] == "90"
         assert s["vr_convergence"] == "0"
         assert s["vr_sbs_layout"] == "auto"
@@ -4245,6 +4246,17 @@ class TestVrSettings:
         s = client.get("/api/settings").json()
         assert s["vr_sbs_layout"] == "auto"
         assert s["vr_fov"] == "75", "the migration must touch nothing else"
+
+    def test_widen_is_written_and_read_back(self):
+        assert client.post("/api/settings", json={"vr_widen": 40}).status_code == 200
+        assert client.get("/api/settings").json()["vr_widen"] == "40"
+
+    def test_widen_rejects_what_the_shader_cannot_use(self):
+        """Negative would narrow the view instead of widening it, and past 100 the
+        edges run off the far side of a 180° source into black."""
+        for bad in (-10, 101):
+            assert client.post("/api/settings", json={"vr_widen": bad}).status_code == 422
+        assert client.get("/api/settings").json()["vr_widen"] == "0"
 
     def test_startup_drops_a_stored_90_field_of_view(self):
         """The one-shot migration behind the 45° default.

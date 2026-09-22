@@ -1,6 +1,6 @@
 # Lot VR-COMFORT — Que la profondeur soit juste, et réglable en regardant
 
-Status: 🔄 in-progress
+Status: ✅ done
 Branch: plusieurs (correctifs de recette, un par sujet)
 
 ## Problem Statement
@@ -67,7 +67,7 @@ centre à l'échelle juste et comprimer les bords. C'est le ticket BL-135.
 |---|---|---|---|
 | 01 | [BL-133](tickets/01-champ-de-vision-juste.md) — Le champ de vision par défaut, et son nom | — | ✅ |
 | 02 | [BL-134](tickets/02-convergence-au-stick.md) — La convergence au stick, proportionnelle | — | ✅ |
-| 03 | [BL-135](tickets/03-projection-bords-comprimes.md) — Voir plus large sans perdre le relief au centre | BL-133 | ⬜ |
+| 03 | [BL-135](tickets/03-projection-bords-comprimes.md) — Voir plus large sans perdre le relief au centre | BL-133 | ✅ |
 
 ## Hors périmètre
 

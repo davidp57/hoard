@@ -20,7 +20,7 @@ Convention détaillée : [`docs/agents/issue-tracker.md`](../docs/agents/issue-t
 | [SEC-AUTH](SEC-AUTH/PRD.md) — Une instance ouverte doit se voir (contrôle de santé BL-105, annonce de l'état d'authentification BL-106) | ✅ |
 | [CLIENT-NATIVE](CLIENT-NATIVE/PRD.md) — Client natif Flutter pour Steam Deck, Steam Frame et Windows (faisabilité BL-104 ✅, puis BL-107..117) | 🔄 |
 | [SEC-SESSION](SEC-SESSION/PRD.md) — Session par cookie et jeton pour la bookmarklet (écran de connexion BL-123, bookmarklet cassée par l'auth BL-124) | ✅ |
-| [VR-COMFORT](VR-COMFORT/PRD.md) — Que la profondeur soit juste, et réglable en regardant (champ de vision BL-133, convergence au stick BL-134, bords comprimés BL-135) | 🔄 |
+| [VR-COMFORT](VR-COMFORT/PRD.md) — Que la profondeur soit juste, et réglable en regardant (champ de vision BL-133, convergence au stick BL-134, bords comprimés BL-135) | ✅ |
 | [PAD-SBS-UI](PAD-SBS-UI/PRD.md) — Toute l'interface en côte à côte, sur bascule (miroir global BL-130, états vivants BL-131, médias BL-132) | ✅ |
 | [PAD-VR](PAD-VR/PRD.md) — Piloter le VR à la manette en voyant ce qu'on règle (fenêtres lisibles en côte à côte BL-127, couche VR sous R2 BL-128, convergence par fichier BL-129) | ✅ |
 | [FIX-XR-DISPLAY](FIX-XR-DISPLAY/PRD.md) — Hoard utilisable sur lunettes XR en 3840×1080 (fenêtres manette à l'échelle BL-126 ✅, ratio côte à côte BL-125 ✅) | ✅ |
