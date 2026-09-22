@@ -1713,7 +1713,7 @@
         <div class="s-right"><input type="number" class="s-num" id="s-fs-progress-zoom" min="5" max="50" step="5"> <span style="font-size:12px;color:var(--text-dim)">%</span></div>
       </div>
       <div class="s-row">
-        <div><div class="s-label">Champ de vision VR</div><div class="s-desc">Ouverture de la vue en mode VR 180°. Plus petit = plus rapproché. Ajustable à la molette pendant la lecture, sans modifier ce réglage.</div></div>
+        <div><div class="s-label">Champ de vision de l'écran</div><div class="s-desc">L'angle que tes lunettes — ou ton écran — présentent <b>réellement</b> à un œil. Ce n'est pas un zoom : c'est cette valeur qui rend la profondeur juste sur une vidéo 180°. Trop grande, le monde paraît géant et lointain ; trop petite, il rétrécit et le relief s'exagère. Des lunettes XR tournent autour de <b>45°</b>. Règle-le une fois en regardant une vidéo 180° — <b>R2 + stick gauche haut/bas</b>, ou la molette — et reporte ici la valeur où la scène paraît naturelle. La molette pendant la lecture ne modifie pas ce réglage.</div></div>
         <div class="s-right"><input type="number" class="s-num" id="s-vr-fov" min="30" max="120" step="5"> <span style="font-size:12px;color:var(--text-dim)">°</span></div>
       </div>
       <div class="s-row">
@@ -2454,7 +2454,7 @@ let cfg = {
   gamepad_mapping: {},
   fs_progress_zoom: 20,
   gestures_overlay_seen: false,
-  vr_fov: 90,
+  vr_fov: 45,   // the field the display presents to one eye, see the setting
   vr_convergence: 0,
   vr_look_speed: 90,
   vr_sbs_layout: 'auto',
@@ -5660,7 +5660,7 @@ void main() {
 // These three come from the settings (BL-122) and are read when used, never
 // captured: the settings page can change them while a video is playing.
 const vrLookSpeed = () => cfg.vr_look_speed || 90;   // deg/s at full deflection
-const vrDefaultFov = () => cfg.vr_fov || 90;
+const vrDefaultFov = () => cfg.vr_fov || 45;
 // A fixed horizontal fov makes the vertical one explode on a tall view: the
 // player panel measured 543x1695 in split view, which drove it to 144°. Past
 // this bound the horizontal fov is derived from the vertical one instead.

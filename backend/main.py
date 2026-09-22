@@ -686,6 +686,18 @@ def init_db():
             conn.execute(
                 "INSERT INTO settings (key, value) VALUES ('vr_sbs_layout_reset_done', '1')"
             )
+        # Same shape, same reason, for the field of view. 90° was the shipped
+        # default and the form posts every field at once, so a stored 90 is
+        # almost certainly that default written back rather than a choice — and
+        # left there it would keep hiding the new one. Unlike BL-125's 'half' a
+        # deliberate 90 is not impossible, only implausible: no XR glasses
+        # present 90° to an eye, and anyone who wants it types it again after
+        # this has run once.
+        if not conn.execute(
+            "SELECT 1 FROM settings WHERE key = 'vr_fov_default_45_done'"
+        ).fetchone():
+            conn.execute("DELETE FROM settings WHERE key = 'vr_fov' AND value = '90'")
+            conn.execute("INSERT INTO settings (key, value) VALUES ('vr_fov_default_45_done', '1')")
         conn.commit()
 
 
@@ -3503,7 +3515,12 @@ _SETTINGS_DEFAULTS: dict[str, str] = {
     # GET /api/settings as a decision rather than an oversight, the way BL-123 made
     # the secret exclusion explicit. Goes away with the BL-125 migration below.
     "vr_sbs_layout_reset_done": "0",
-    "vr_fov": "90",
+    "vr_fov_default_45_done": "0",
+    # 45° and not 90°: this is the angle the display actually presents to each
+    # eye, and it is what makes the depth of a 180° file correct. Measured by
+    # David on 2026-09-22 against his XR glasses — at 90° the world looked giant
+    # and distant, at 45° it looked right. See the setting's own description.
+    "vr_fov": "45",
     "vr_convergence": "0",
     "vr_look_speed": "90",
     "vr_sbs_layout": "auto",
