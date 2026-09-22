@@ -1725,8 +1725,8 @@
         <div class="s-right"><select class="s-num" id="s-vr-sbs-layout" style="width:auto"><option value="auto">Automatique</option><option value="half">Étirée (lunettes XR)</option><option value="full">Non étirée</option></select></div>
       </div>
       <div class="s-row">
-        <div><div class="s-label">Convergence VR</div><div class="s-desc">Écart entre les deux yeux. À laisser à 0 : un fichier bien tourné n'en a pas besoin.</div></div>
-        <div class="s-right"><input type="number" class="s-num" id="s-vr-convergence" min="-3" max="3" step="0.5"> <span style="font-size:12px;color:var(--text-dim)">°</span></div>
+        <div><div class="s-label">Convergence VR</div><div class="s-desc">Écart entre les deux yeux. À laisser à 0 : un fichier bien tourné n'en a pas besoin. Se règle bien plus vite pendant la lecture, <b>R2 + stick gauche gauche/droite</b>, en regardant l'image se caler.</div></div>
+        <div class="s-right"><input type="number" class="s-num" id="s-vr-convergence" min="-8" max="8" step="0.5"> <span style="font-size:12px;color:var(--text-dim)">°</span></div>
       </div>
       <div class="s-row">
         <div><div class="s-label">Initial sweep par défaut</div><div class="s-desc">Pour une vidéo sans progression enregistrée : démarrer à N secondes. 0 = désactivé.</div></div>
@@ -5688,8 +5688,18 @@ const VR_SBS_AUTO_RATIO = 2.4;
 // BL-128: rates for the R2 layer, which adjusts continuously rather than in
 // steps. Per second at full deflection / full hold, so they read as speeds.
 const VR_ZOOM_RATE = 40;           // degrees of fov per second
-const VR_CONVERGENCE_RATE = 1.2;   // degrees of convergence per second
-const VR_CONVERGENCE_MAX = 3;      // degrees; beyond this the eyes stop fusing
+const VR_CONVERGENCE_RATE = 1.2;   // degrees per second, D-pad fine step
+// David, 2026-09-22, viewing at the geometrically correct field of 45°: the
+// D-pad step was too slow and ±3° too narrow to settle the eyes. At 45° the
+// picture is 2.4x more magnified than at the old 90° default, and so is any
+// misalignment between the two eyes — the adjustment has to grow with it.
+const VR_CONVERGENCE_STICK_RATE = 4;   // degrees per second at full deflection
+// Was 3, on the rule of thumb that the eyes stop fusing beyond it. That bound
+// turned out to bite before the picture was settled, so it is raised to where
+// it stops being the constraint and the eye decides. Fusion is not symmetric —
+// diverging is far less tolerable than converging — but the control is judged
+// by feel, so no attempt is made to encode that here.
+const VR_CONVERGENCE_MAX = 8;      // degrees
 const VR_CONVERGENCE_STEP = 0.5;
 
 const vr = {
@@ -8073,7 +8083,7 @@ const GP_BROWSER_MAPPING = {
 };
 
 // BL-128: the VR layer's buttons. Its continuous half — zoom on the left stick,
-// convergence on the D-pad left/right — is read in _gpPoll, because a setting
+// convergence on the left stick left/right — is read in _gpPoll, because a setting
 // judged by eye has to move while you watch it. Held R2 also swallows every
 // other button, so nothing from the player layers fires behind the view controls.
 const GP_VR_MAPPING = {
@@ -8441,8 +8451,15 @@ function _gpPoll() {
         if (vrx || vry) vrLook(vrx * sp * dt, -vry * sp * dt);
         const zy = _gpDeadzone(gp.axes[1] ?? 0);        // left stick Y: up = zoom in
         if (zy) vrZoom(zy * VR_ZOOM_RATE * dt);
-        const cx = (cur[15] ? 1 : 0) - (cur[14] ? 1 : 0);  // D-pad right − left
-        if (cx) vrAdjustConvergence(cx * VR_CONVERGENCE_RATE * dt);
+        // Convergence on the left stick X, proportional to the deflection: a
+        // nudge trims, a full push crosses the range in a couple of seconds.
+        // The axis was free — under R2 the seek is suppressed — and the eyes
+        // have to be settled while you watch them settle, which a stepper
+        // cannot do. The D-pad keeps its slow step for the last tenth.
+        const cx = _gpDeadzone(gp.axes[0] ?? 0);
+        if (cx) vrAdjustConvergence(cx * VR_CONVERGENCE_STICK_RATE * dt);
+        const cd = (cur[15] ? 1 : 0) - (cur[14] ? 1 : 0);  // D-pad right − left
+        if (cd) vrAdjustConvergence(cd * VR_CONVERGENCE_RATE * dt);
       }
     } else {
       vr.lastPollTs = 0;
@@ -8976,7 +8993,8 @@ function openGpOverlay() {
     // map does not show is an action nobody finds.
     group('Mode VR + R2', [
       row('Stick gauche ↕', 'Zoom'),
-      row('D-pad ←/→', 'Convergence − / +'),
+      row('Stick gauche ↔', 'Convergence (proportionnelle)'),
+      row('D-pad ←/→', 'Convergence, pas à pas'),
       row('L3', AL.vr_reset_zoom),
       row('R3', AL.vr_recenter_view),
       row('Stick droit', 'Regarder autour'),
