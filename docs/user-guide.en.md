@@ -290,7 +290,11 @@ Unlike everything else, this mode **does not follow you from one machine to anot
 
 ### With a video
 
-While this mode is on, the player no longer splits the picture itself — the whole screen does. The player's own **side-by-side** mode (**V** key) therefore drops out of the cycle: only *off* and *180° flat* remain, and Hoard says so if you ask for it anyway. An ordinary video and a 180° video alike are then visible in both eyes, with **one download and one decode**: the right eye gets a copy of the picture, not a second playback.
+An **ordinary video** is visible in both eyes with **one download and one decode**: the right eye gets a copy of the picture, not a second playback.
+
+A **180° video** keeps all of its depth, and it is the one thing on screen that is not identical in both eyes — as it should be: that file holds two different pictures, one per eye, and that difference *is* the relief. Put the player in **side-by-side** (**V** key, or the **Select** menu) and each half of the screen gets the eye it is owed, whole.
+
+One setting has nothing to act on in this mode: **stretched side-by-side picture or not** (**B** key). It exists to say whether your glasses stretch each half back to full width; here each eye already receives a whole picture, so there is nothing to stretch back. The line leaves the menu and the key says so.
 
 ### What it costs
 

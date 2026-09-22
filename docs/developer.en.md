@@ -577,11 +577,21 @@ corner case: the Deck has a touch screen, so `pointer: coarse` matches and the
 pad's fullscreen button asks for the real one. `toggleFullscreen()` falls back to
 the in-window kind.
 
-**The two side-by-side mechanisms never stack.** While the global mode is on,
-`setVrMode('sbs')` is coerced to `'flat'` and `sbs` leaves the `V` cycle: the
-mirror already shows the same frame to each eye, and a player splitting on top
-of that would quarter the picture. BL-127's per-window copies are switched off
-the same way.
+**A 180° video is the one exception to "both eyes see the same picture".** That
+rule is what makes the interface readable, and it holds for every screen and for
+a flat video — but a 180° file *holds* two different pictures, one per eye, and
+that difference is the relief. A first version coerced `setVrMode('sbs')` to
+`'flat'` while the global mode was on, which showed the same eye twice and threw
+the depth away; David reported it (relief with the screen mode off, none with it
+on). `_vrRender` now detects `sbs && sbsIsOn()` and gives **a whole canvas to
+each eye** instead of half a canvas to each: the right eye is drawn first and
+blitted to the copy — a WebGL canvas is only readable in the task that drew it,
+so the eye that goes to the copy must be the one in the buffer at that instant —
+then the left eye is drawn over it and stays on screen. With one canvas per eye
+nothing is stretched back, so `vr.sbsLayout` (auto/half/full) has nothing to act
+on: the line leaves the pad menu and `cycleVrSbsLayout()` says so rather than
+sitting inert. BL-127's per-window copies stay switched off, since the global
+mirror already duplicates those windows.
 
 **The toggle is device-local** — `localStorage['sbs_global']` — because the Deck
 with the glasses wants it and the iPad must not inherit it, and because the PIN

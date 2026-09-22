@@ -28,12 +28,16 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
   après un rechargement de la page, et il est déjà là quand l'écran du code
   apparaît.
 
-- **Une vidéo reste visible des deux yeux, sans travail en double.** Quand le mode
-  est allumé, le lecteur ne double plus l'image lui-même — l'écran s'en charge. Le
+- **Une vidéo ordinaire reste visible des deux yeux, sans travail en double.** Le
   fichier n'est téléchargé qu'une fois et décodé qu'une fois : l'œil droit reçoit
-  une copie de l'image. Du coup le mode côte à côte du lecteur (touche **V**) n'est
-  plus proposé tant que celui-ci est allumé ; il ne reste que *désactivé* et
-  *180° plat*.
+  une copie de l'image, pas une seconde lecture.
+
+- **Une vidéo 180° garde tout son relief.** C'est la seule chose de l'écran que
+  tes deux yeux ne voient pas à l'identique, et c'est voulu : ce genre de fichier
+  contient deux images différentes, une par œil, et c'est cette différence qui
+  fait la profondeur. Mets le lecteur en côte à côte (touche **V** ou le menu
+  **Select**) et chaque moitié de l'écran reçoit son œil, en entier. Le réglage
+  « image étirée ou non » n'a plus d'objet dans ce mode et disparaît du menu.
 
 - **Tu règles la vue VR à la manette, en voyant l'image changer.** Maintiens
   **R2** pendant la lecture : le **stick gauche** zoome, le **D-pad gauche/droite**
