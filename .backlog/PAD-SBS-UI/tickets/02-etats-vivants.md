@@ -1,6 +1,6 @@
 # BL-131 — Les états que le HTML ne transporte pas
 
-Status: ⬜ ready
+Status: ✅ done
 Type: feat
 Files: `frontend/index.html`, `docs/user-guide.*.md`
 
@@ -37,13 +37,13 @@ regarde revient à naviguer à l'aveugle.
 
 ## Acceptance criteria
 
-- [ ] Le défilement de la liste suit dans le miroir
-- [ ] Le texte tapé dans un champ apparaît dans le miroir
-- [ ] Une case cochée, une option choisie apparaissent dans le miroir
-- [ ] Le curseur manette est visible **dans les deux copies**, sur tous les écrans
+- [x] Le défilement de la liste suit dans le miroir
+- [x] Le texte tapé dans un champ apparaît dans le miroir
+- [x] Une case cochée, une option choisie apparaissent dans le miroir
+- [x] Le curseur manette est visible **dans les deux copies**, sur tous les écrans
       qui en ont un
-- [ ] Un dialogue ouvert apparaît ouvert dans le miroir
-- [ ] Mesuré écran par écran, pas jugé sur un seul
+- [x] Un dialogue ouvert apparaît ouvert dans le miroir
+- [x] Mesuré écran par écran, pas jugé sur un seul
 
 ## Ce qu'il ne faut pas rater
 

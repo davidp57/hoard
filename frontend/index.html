@@ -1519,9 +1519,52 @@
     pointer-events: none;
   }
   #image-viewer.viewer-fullscreen.chrome-hidden { cursor: none; }
+
+  /* ── Whole-interface side-by-side (PAD-SBS-UI) ──────────────────────────────
+     XR glasses in 3D mode cut the picture in two at all times, not only while a
+     video plays. Every window drawn once therefore sits astride the split and
+     each eye gets half of it. This mode draws the entire interface twice, once
+     per eye — both eyes see the SAME picture, which is what makes it readable
+     rather than tiring. It is a toggle, and it lives in localStorage: the Deck
+     with the glasses needs it, the iPad must not inherit it.
+
+     Declared last on purpose: the `body.sbs-global` rules below have the same
+     specificity as the `body.vr-sbs-active` ones from BL-127 and must win when
+     both are on. */
+  #app-root { display: contents; }
+  #sbs-mirror { display: none; }
+
+  body.sbs-global { flex-direction: row; justify-content: space-around; }
+  body.sbs-global > #app-root,
+  body.sbs-global > #sbs-mirror {
+    display: flex;
+    flex-direction: column;
+    flex: 0 0 50%;
+    min-width: 0;
+    height: 100%;
+    overflow: hidden;
+    /* Makes each half the containing block of its own `position: fixed`
+       children. Without it every overlay would stay pinned to the whole
+       viewport — astride the split, i.e. the very thing this mode fixes. */
+    transform: translateZ(0);
+  }
+  body.sbs-global > #sbs-mirror { pointer-events: none; }
+  /* BL-127 duplicates three windows by hand for a side-by-side playback. Here the
+     global mirror already copies them, so leaving BL-127 on would show each of
+     them four times. The global mode wins; its copies are the only ones. */
+  body.sbs-global .gp-mirror { display: none !important; }
+  body.sbs-global #gp-menu,
+  body.sbs-global #gp-overlay { justify-content: center; }
 </style>
 </head>
 <body>
+
+<!-- BL-130: everything the user sees lives in #app-root, so the whole interface
+     can be copied in one go for the second eye. The children below are NOT
+     re-indented on purpose: shifting 770 lines would bury the change. With the
+     mode off the wrapper is `display: contents` — it has no box at all and the
+     layout is the one it had before this div existed. -->
+<div id="app-root">
 
 <!-- Login screen (BL-123). `gp-modal` is all the pad needs; no data-gp-close on
      purpose, so B cannot dismiss it — same rule as the PIN lock. -->
@@ -1686,6 +1729,15 @@
       <div class="s-row">
         <div><div class="s-label">Transcodage audio uniquement</div><div class="s-desc">Copie la vidéo telle quelle et ne réencode que l'audio (AAC). Plus léger sur le NAS. Nécessite que le navigateur supporte le codec vidéo d'origine (HEVC sur Chrome/Edge).</div></div>
         <div class="s-right"><label class="toggle"><input type="checkbox" id="s-transcode-audio-only"><div class="toggle-track"></div></label></div>
+      </div>
+    </div>
+
+    <!-- XR glasses (PAD-SBS-UI) -->
+    <div>
+      <div class="s-section-title">🥽 Lunettes XR</div>
+      <div class="s-row">
+        <div><div class="s-label">Écran côte à côte</div><div class="s-desc">Dessine toute l'interface deux fois, une par œil, pour des lunettes en mode 3D. Les deux yeux voient la même image. Se règle <b>appareil par appareil</b> : ce choix ne suit pas sur vos autres écrans. Au clavier touche <b>Y</b>, à la manette <b>L1+R1+Select</b> — le même geste l'éteint.</div></div>
+        <div class="s-right"><label class="toggle"><input type="checkbox" id="s-sbs-global" onchange="if (this.checked !== sbsIsOn()) toggleSbsGlobal()"><div class="toggle-track"></div></label></div>
       </div>
     </div>
 
@@ -2198,6 +2250,12 @@
       <div style="font-size:15px;font-weight:700;color:var(--accent)">⌨ Raccourcis clavier</div>
       <button onclick="document.getElementById('shortcuts-dialog').close()" style="background:none;border:none;color:var(--text-dim);font-size:20px;cursor:pointer;line-height:1">✕</button>
     </div>
+    <div style="font-size:11px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.05em">Affichage</div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <tbody>
+        <tr><td style="padding:4px 8px;font-family:'DM Mono',monospace">Y</td><td style="padding:4px 8px">Écran côte à côte pour lunettes XR — le même geste l'éteint <span style="color:var(--text-dim)">(Alt+Y marche aussi dans un champ de saisie)</span></td></tr>
+      </tbody>
+    </table>
     <div style="font-size:11px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.05em">Navigation dans la liste</div>
     <table style="width:100%;border-collapse:collapse;font-size:12px">
       <tbody>
@@ -2295,6 +2353,16 @@
   <div style="font-size:13px;max-width:440px;color:var(--text-mid)">Glissez verticalement près des bords pour régler le volume et la luminosité.</div>
   <button onclick="dismissGestureOverlay()" aria-label="Fermer l'aide des gestes" style="margin-top:6px;background:var(--accent);color:#000;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;padding:10px 28px;font-family:inherit">Compris</button>
 </div>
+
+</div><!-- /#app-root -->
+
+<!-- BL-130: the second eye. Decorative only — aria-hidden, inert, no pointer
+     events. Its copy of the interface lives in a shadow root, so no document
+     query ever reaches it: not getElementById, and not the class selectors the
+     browser relies on (`#filelist .entry`, `.gp-modal`). A copy answering those
+     would double the pad cursor's row count and hand _gpOpenModal() a node the
+     user cannot act on. -->
+<div id="sbs-mirror" aria-hidden="true" inert></div>
 
 <script>
 const API = '';  // same origin
@@ -3446,6 +3514,8 @@ function openSettings() {
   _updateDownloadFolderHint();
   document.getElementById('s-transcode-enabled').checked    = cfg.transcode_enabled;
   document.getElementById('s-transcode-audio-only').checked = cfg.transcode_audio_only;
+  // Device-local, so it comes from localStorage and never rides in the payload.
+  document.getElementById('s-sbs-global').checked = sbsIsOn();
   document.getElementById('s-gamepad-enabled').checked  = cfg.gamepad_enabled;
   document.getElementById('s-gamepad-haptic').checked   = cfg.gamepad_haptic;
   document.getElementById('s-gamepad-swap-sticks').checked = cfg.gamepad_swap_sticks;
@@ -5787,6 +5857,12 @@ function _vrRender() {
     gl.uniform1f(vr.u.uTanHalfV, tv);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
+  // PAD-SBS-UI: the copy for the second eye is taken HERE and nowhere else. A
+  // WebGL canvas is only readable in the same task that drew it — its buffer is
+  // discarded once composited, unless the context asks for preserveDrawingBuffer
+  // and pays for it on every frame. Copied from the generic painter instead, the
+  // VR view came out black over the video.
+  sbsBlitVr();
   vr.raf = requestAnimationFrame(_vrRender);
 }
 
@@ -5858,6 +5934,13 @@ function cycleVrConvergence() {
 
 function setVrMode(mode) {
   if (!VR_MODES.includes(mode)) return;
+  // PAD-SBS-UI: the global mirror already shows the same frame in each eye. A
+  // player that split the picture on top of that would quarter it, so the two
+  // never run together — the mirror wins and the player draws a single view.
+  if (mode === 'sbs' && sbsIsOn()) {
+    mode = 'flat';
+    showToast('🥽 Côte à côte déjà assuré par l\'écran');
+  }
   const canvas = document.getElementById('vr-canvas');
   if (mode !== 'off' && !_vrInit()) return;
 
@@ -5912,7 +5995,11 @@ function setVrMode(mode) {
 
 function cycleVrMode() {
   if (vr.blocked) { showToast('🥽 indisponible sur un flux transcodé'); return; }
-  const next = VR_MODES[(VR_MODES.indexOf(vr.mode) + 1) % VR_MODES.length];
+  // PAD-SBS-UI: with the whole screen already side by side the player's own
+  // side-by-side is dropped from the cycle. Leaving it in would strand the
+  // cycle on 'flat', since setVrMode turns it back into 'flat' every time.
+  const modes = sbsIsOn() ? VR_MODES.filter(m => m !== 'sbs') : VR_MODES;
+  const next = modes[(modes.indexOf(vr.mode) + 1) % modes.length];
   setVrMode(next);
   if (vr.mode !== next) return;   // init refused; it has already said why
   showToast(next === 'off' ? '🥽 désactivé'
@@ -6802,12 +6889,457 @@ let toastTimer;
 function _gpSyncMirror(srcId, dstId) {
   const dst = document.getElementById(dstId);
   if (!dst) return;
-  if (!document.body.classList.contains('vr-sbs-active')) { dst.innerHTML = ''; return; }
+  // PAD-SBS-UI: the global mirror copies these windows like everything else, so
+  // keeping this one on would draw each of them four times.
+  if (sbsIsOn() || !document.body.classList.contains('vr-sbs-active')) { dst.innerHTML = ''; return; }
   const src = document.getElementById(srcId);
   if (!src) return;
   dst.innerHTML = src.innerHTML;
   for (const el of dst.querySelectorAll('[id]')) el.removeAttribute('id');
   dst.scrollTop = src.scrollTop;
+}
+
+// ── Whole-interface side-by-side (PAD-SBS-UI) ────────────────────────────────
+// XR glasses in 3D mode cut the picture in two permanently, not only while a
+// video plays, so an interface drawn once sits astride the split. This copies
+// the whole of #app-root into a second half, one per eye. Both eyes get the
+// SAME picture — no stereoscopy, no parallax; that is what makes it readable
+// instead of tiring.
+//
+// The copy lives in a shadow root, and that is load-bearing rather than
+// decorative: no document-level query crosses a shadow boundary, so
+// `#filelist .entry` (which the pad cursor counts) and `.gp-modal` (which
+// _gpOpenModal reads) keep answering with the originals alone. Inside the
+// shadow the ids are kept, which is what lets the page's own id-based rules
+// style the copy without a single rule being rewritten.
+//
+// A MutationObserver drives it, not a call at each render point. BL-127 copied
+// three windows from their three render functions because the three were known;
+// at the scale of the application the list filters, sorts and refreshes itself
+// during a download, and any mechanism that asks for each render point to be
+// declared will end up missing one. A mirror frozen on a stale state is worse
+// than no mirror: you believe you are reading the screen and you are reading
+// the past.
+const SBS_KEY = 'sbs_global';   // localStorage: device-local, see the lot's PRD
+
+// The only elements whose state a clone drops, plus the pictures a clone cannot
+// carry at all. Deliberately narrow: the first version looked at every node and
+// read scrollTop on each, which alone cost 171 ms on a folder of 2 000 files —
+// every read makes the engine settle the layout again. Scroll containers are
+// found from the stylesheet instead, see sbsScrollSelector(). Measured on that
+// same folder: 34 ms to clone and 14 ms to insert, which is why a full copy is
+// the fallback and sbsPatch() is the routine.
+const SBS_STATE_SEL = 'input,textarea,select,dialog,video,canvas,audio,iframe';
+const SBS_PICTURE_SEL = 'video,canvas';
+
+const sbsUi = {
+  on: false,
+  shadow: null,
+  root: null,          // the copy of #app-root living inside the shadow
+  map: null,           // original element -> its copy, so a change can be patched
+  observer: null,
+  queue: [],           // mutations waiting for the next frame
+  frame: 0,            // pending rAF for the next update
+  liveFrame: 0,        // pending rAF for a state-only update (typing, scrolling)
+  paint: 0,            // pending rAF for the picture painter
+  pictures: [],        // {src, dst} canvases repainted every frame
+  statePairs: [],      // [original, copy] for what a clone does not carry
+  scrollPairs: [],     // idem for the containers that can scroll
+  scrollSel: '',
+  stats: { copies: 0, copyMs: 0, patches: 0, patchMs: 0, lastMs: 0 },
+};
+
+function sbsIsOn() { return sbsUi.on; }
+
+// Read before anything else is drawn. The PIN screen is the first screen and it
+// comes up before the settings are loaded, so a mode that needed a round trip
+// would leave the user unable to read their own keypad.
+function sbsRestore() {
+  let want = false;
+  try { want = localStorage.getItem(SBS_KEY) === '1'; } catch { /* storage blocked */ }
+  if (want) sbsEnable();
+}
+
+// The same gesture turns it off: switching it on by mistake on an ordinary
+// screen must not trap anyone.
+function toggleSbsGlobal() {
+  if (sbsUi.on) sbsDisable(); else sbsEnable();
+  try { localStorage.setItem(SBS_KEY, sbsUi.on ? '1' : '0'); } catch { /* storage blocked */ }
+  const chk = document.getElementById('s-sbs-global');
+  if (chk) chk.checked = sbsUi.on;
+  showToast(sbsUi.on ? '🥽 Côte à côte activé' : '🥽 Côte à côte désactivé');
+}
+
+function sbsEnable() {
+  const appRoot = document.getElementById('app-root');
+  const host = document.getElementById('sbs-mirror');
+  if (sbsUi.on || !appRoot || !host) return;
+  sbsUi.shadow = sbsUi.shadow || host.attachShadow({ mode: 'open' });
+  // The page's whole stylesheet, cloned. Inside the shadow the `body.…` rules no
+  // longer match anything, which is exactly what we want: BL-127's per-window
+  // copies stay out, and #gp-menu goes back to centred inside its own half.
+  const style = document.querySelector('style');
+  if (style) sbsUi.shadow.appendChild(style.cloneNode(true));
+  sbsUi.shadow.appendChild(sbsShadowStyle());
+  sbsUi.scrollSel = sbsScrollSelector();
+  sbsUi.on = true;
+  document.body.classList.add('sbs-global');
+  // The player must not split the picture too: the mirror already shows the
+  // same frame to each eye, so one view is what the player has to draw.
+  if (vr.mode === 'sbs') setVrMode('flat');
+  sbsCopy();
+  sbsUi.observer = new MutationObserver(recs => sbsSchedule(recs));
+  sbsUi.observer.observe(appRoot, {
+    subtree: true, childList: true, attributes: true, characterData: true,
+  });
+}
+
+function sbsDisable() {
+  if (!sbsUi.on) return;
+  sbsUi.observer?.disconnect();
+  sbsUi.observer = null;
+  for (const id of ['frame', 'liveFrame', 'paint']) {
+    if (sbsUi[id]) { cancelAnimationFrame(sbsUi[id]); sbsUi[id] = 0; }
+  }
+  sbsUi.queue = [];
+  sbsUi.pictures = [];
+  sbsUi.statePairs = [];
+  sbsUi.scrollPairs = [];
+  sbsUi.root = null;
+  sbsUi.map = null;
+  sbsUi.on = false;
+  document.body.classList.remove('sbs-global');
+  sbsUi.shadow?.replaceChildren();   // off means nothing of the copy is left
+}
+
+// Styles the cloned sheet cannot provide. #app-root is styled from the document
+// when it is the real one; in here it is the half itself. The rest covers what
+// replaces a picture we refuse to clone.
+function sbsShadowStyle() {
+  const el = document.createElement('style');
+  el.textContent = [
+    '#app-root { display: flex; flex-direction: column; height: 100%;',
+    '            min-height: 0; overflow: hidden; }',
+    /* Stands in for the <video>: the tag rules cannot reach a <canvas>. */
+    '.sbs-picture { width: 100%; flex: 1; object-fit: contain;',
+    '               display: block; min-height: 0; }',
+    '#video-container.faux-fullscreen .sbs-picture { flex: 1; height: 0; }',
+    /* An <audio> or an <iframe> is dropped rather than copied: both would ask
+       the NAS for the file a second time. */
+    '.sbs-dropped { display: none; }',
+    /* A copied <dialog> carries the open attribute, never showModal(): the top
+       layer ignores the half a dialog belongs to and would re-centre it on the
+       whole screen, astride the split. No ::backdrop comes with it. */
+    'dialog[open] { position: fixed; inset: 0; margin: auto; z-index: 9000; }',
+  ].join('\n');
+  return el;
+}
+
+// Which elements can hold a scroll position, read off the stylesheet rather than
+// listed by hand: a list written once goes stale the day someone adds a panel,
+// and a copy stuck at the top of a list the user has scrolled is exactly the
+// kind of silent wrongness this mode must not have. Selectors carrying a
+// pseudo-class are dropped — `:hover` or `:fullscreen` would match differently
+// in the two trees and knock the pairing out of step.
+function sbsScrollSelector() {
+  const out = [];
+  // Collect first, recurse after — and never "recurse or collect". Since CSS
+  // nesting shipped, a plain style rule carries an empty but truthy `cssRules`,
+  // so treating that as "this is a group" silently swallowed every rule and left
+  // the scroll sync with nothing to look at.
+  const visit = rule => {
+    const st = rule.style;
+    if (st && rule.selectorText
+        && /auto|scroll/.test(`${st.overflow} ${st.overflowY} ${st.overflowX}`)) {
+      for (const part of rule.selectorText.split(',')) {
+        const sel = part.trim();
+        // A pseudo-class would match differently in the two trees and knock the
+        // pairing out of step; `&` is a nested selector and means nothing alone.
+        if (sel && !sel.includes(':') && !sel.includes('&')) out.push(sel);
+      }
+    }
+    if (rule.cssRules) for (const r of rule.cssRules) visit(r);
+  };
+  for (const sheet of document.styleSheets) {
+    let rules;
+    try { rules = sheet.cssRules; } catch { continue; }   // cross-origin sheet
+    for (const r of rules) visit(r);
+  }
+  out.push('[style*="overflow"]');
+  return [...new Set(out)].join(',');
+}
+
+function sbsSchedule(records) {
+  if (!sbsUi.on) return;
+  // A loop and not `push(...records)`: a spread hands every record over as an
+  // argument, and a list re-render can produce thousands of them.
+  if (records) for (const r of records) sbsUi.queue.push(r);
+  if (sbsUi.frame) return;
+  // One update per frame at most: a list being filtered, a progress bar and a
+  // download all mutate in bursts, and a burst deserves a single update.
+  sbsUi.frame = requestAnimationFrame(sbsFlush);
+}
+
+function sbsFlush() {
+  sbsUi.frame = 0;
+  if (!sbsUi.on) return;
+  for (const r of sbsUi.observer?.takeRecords() ?? []) sbsUi.queue.push(r);
+  const records = sbsUi.queue;
+  sbsUi.queue = [];
+  const t0 = performance.now();
+  if (!sbsUi.root || !sbsPatch(records)) { sbsCopy(); return; }
+  // State only, never the scroll: reading a scroll position forces the copy's
+  // layout on the spot, which on a 2 000-entry list is 20 ms the browser was
+  // going to spend at paint time anyway. Scrolling has its own event and its
+  // own frame, right before the paint that needs it.
+  sbsTransferState(sbsUi.statePairs);
+  sbsPaint();
+  const dt = performance.now() - t0;
+  sbsUi.stats.patches++; sbsUi.stats.patchMs += dt; sbsUi.stats.lastMs = dt;
+}
+
+// A full copy: 34 ms of cloning and 14 ms of insertion on a 2 000-entry folder,
+// so it is the fallback, not the routine. Routine changes go through sbsPatch.
+function sbsCopy() {
+  const appRoot = document.getElementById('app-root');
+  if (!sbsUi.on || !appRoot || !sbsUi.shadow) return;
+  const t0 = performance.now();
+  const copy = appRoot.cloneNode(true);
+  // Before insertion: an <img>, a <video src> or a <track> put into the document
+  // starts fetching, so whatever must not be fetched has to go first.
+  sbsUi.map = new WeakMap();
+  sbsPair(appRoot, copy);
+  if (sbsUi.root) sbsUi.root.replaceWith(copy); else sbsUi.shadow.appendChild(copy);
+  sbsUi.root = copy;
+  // After insertion, and only now: a detached element has no box, so setting
+  // scrollTop on it does nothing at all. The pairs are indexed here too, once
+  // for all the frames that follow.
+  sbsIndexLive(appRoot, copy);
+  sbsSyncLive();
+  sbsUi.pictures = sbsCollectPictures(appRoot, copy);
+  const dt = performance.now() - t0;
+  sbsUi.stats.copies++; sbsUi.stats.copyMs += dt; sbsUi.stats.lastMs = dt;
+  sbsPaint();
+}
+
+// Pairs the two trees element by element. The copy is structurally identical, so
+// the same query answers in the same order on both — which is what makes the
+// pairing free rather than a search. The map is what lets a change be applied in
+// place instead of recopying 25 000 nodes for a cursor that moved one row.
+function sbsPair(src, dst) {
+  const a = src.querySelectorAll('*');
+  const b = dst.querySelectorAll('*');
+  if (a.length !== b.length) return false;
+  sbsUi.map.set(src, dst);
+  for (let i = 0; i < a.length; i++) sbsUi.map.set(a[i], b[i]);
+  // Before insertion, so a <video src> or an <audio src> is defused before the
+  // document ever sees it and starts fetching.
+  sbsTransferState(sbsPairsOf(src, dst, SBS_STATE_SEL));
+  return true;
+}
+
+// Applies a batch of mutations to the copy. Returns false when it cannot, and
+// the caller falls back to a full copy — a wrong copy would be worse than a slow
+// one, since the whole point is to read the screen and not the past.
+function sbsPatch(records) {
+  let grafted = false;
+  for (const rec of records) {
+    if (rec.type === 'attributes') {
+      const dst = sbsUi.map.get(rec.target);
+      if (!dst) continue;   // inside a subtree this batch is about to replace
+      // A <video> faces a <canvas> here. Relaying its src onto the canvas would
+      // be meaningless at best, and is the kind of thing that quietly becomes a
+      // second download the day the tags line up again.
+      if (dst.tagName !== rec.target.tagName
+          && ['src', 'srcset', 'poster'].includes(rec.attributeName)) continue;
+      const v = rec.target.getAttribute(rec.attributeName);
+      if (v === null) dst.removeAttribute(rec.attributeName);
+      else dst.setAttribute(rec.attributeName, v);
+    } else if (rec.type === 'characterData') {
+      // The text node itself is not in the map — only elements are. Its parent
+      // is, and the two child lists line up.
+      const parent = rec.target.parentNode;
+      const dp = parent && sbsUi.map.get(parent);
+      if (!dp) continue;
+      const i = [...parent.childNodes].indexOf(rec.target);
+      const d = i >= 0 ? dp.childNodes[i] : null;
+      if (!d) return false;
+      d.data = rec.target.data;
+    } else {
+      const dst = sbsUi.map.get(rec.target);
+      if (!dst) continue;
+      const frag = document.createDocumentFragment();
+      for (const child of rec.target.childNodes) frag.appendChild(child.cloneNode(true));
+      dst.replaceChildren(frag);
+      if (!sbsPair(rec.target, dst)) return false;
+      grafted = true;
+    }
+  }
+  if (grafted) {
+    // The grafted subtree holds new nodes, so every cached pair inside it is
+    // stale. Re-index and re-apply, or the copy keeps a list scrolled to where
+    // the previous one was.
+    const appRoot = document.getElementById('app-root');
+    sbsIndexLive(appRoot, sbsUi.root);
+    // Fresh nodes start scrolled to the top, so here the scroll is worth the
+    // forced layout: the alternative is a copy showing the head of a list the
+    // user is reading the middle of.
+    sbsTransferScroll(sbsUi.scrollPairs);
+    sbsUi.pictures = sbsCollectPictures(appRoot, sbsUi.root);
+    sbsPaint();
+  }
+  return true;
+}
+
+// Lines up the same query on both trees. The copy is structurally identical, so
+// the two answers come back in the same order and pairing costs nothing.
+function sbsPairsOf(src, dst, sel) {
+  if (!sel) return [];
+  let a, b;
+  try { a = src.querySelectorAll(sel); b = dst.querySelectorAll(sel); } catch { return []; }
+  const out = [];
+  for (let i = 0; i < a.length && i < b.length; i++) out.push([a[i], b[i]]);
+  return out;
+}
+
+// The pairs are cached and only rebuilt when the copy is. Querying them on every
+// frame instead cost 30 ms per pad step on a 2 000-entry folder: the scroll
+// selector ends in `[style*="overflow"]`, which no index can answer, so the
+// engine tested all 25 000 elements twice a frame.
+function sbsIndexLive(src, dst) {
+  sbsUi.statePairs = sbsPairsOf(src, dst, SBS_STATE_SEL);
+  sbsUi.scrollPairs = sbsPairsOf(src, dst, sbsUi.scrollSel);
+}
+
+// BL-131: a clone carries the markup and nothing else. The text being typed, a
+// ticked box, the chosen option, an open <dialog> — none of them are attributes,
+// and each one missing makes the copy read as a different screen than the one
+// being driven.
+function sbsTransferState(pairs) {
+  for (const [s, d] of pairs) {
+    switch (s.tagName) {
+      case 'INPUT':
+        // The PIN is never copied in clear. The copy shows the right number of
+        // dots, which is all the eye reading it needs.
+        if (s.type === 'password') d.value = '•'.repeat(s.value.length);
+        else if (s.type === 'checkbox' || s.type === 'radio') d.checked = s.checked;
+        else d.value = s.value;
+        break;
+      case 'TEXTAREA': d.value = s.value; break;
+      case 'SELECT':   d.selectedIndex = s.selectedIndex; break;
+      case 'DIALOG':   if (s.open) d.setAttribute('open', ''); break;
+      case 'VIDEO':    sbsDropSource(s, d); break;
+      case 'AUDIO':
+      case 'IFRAME':   d.removeAttribute('src'); d.classList.add('sbs-dropped'); break;
+    }
+  }
+}
+
+// The pad cursor scrolls the list into view and the user scrolls it by hand;
+// neither touches the markup, so the observer never hears about it.
+function sbsTransferScroll(pairs) {
+  for (const [s, d] of pairs) {
+    if (d.scrollTop !== s.scrollTop) d.scrollTop = s.scrollTop;
+    if (d.scrollLeft !== s.scrollLeft) d.scrollLeft = s.scrollLeft;
+  }
+}
+
+// Everything a mutation cannot tell us about, from the cached pairs.
+function sbsSyncLive() {
+  if (!sbsUi.on || !sbsUi.root) return;
+  sbsTransferState(sbsUi.statePairs);
+  sbsTransferScroll(sbsUi.scrollPairs);
+}
+
+function sbsScheduleLive() {
+  if (!sbsUi.on || sbsUi.liveFrame || sbsUi.frame) return;
+  sbsUi.liveFrame = requestAnimationFrame(() => { sbsUi.liveFrame = 0; sbsSyncLive(); });
+}
+// Typing, ticking a box and scrolling change nothing in the markup, so the
+// observer never hears about any of them — a copy left to the observer alone
+// stays empty while the user types. Capture phase: none of the three bubbles
+// reliably from the element they happen on.
+for (const ev of ['scroll', 'input', 'change']) {
+  document.addEventListener(ev, sbsScheduleLive, { capture: true, passive: true });
+}
+
+// BL-132. A cloned <video> plays nothing — it starts from zero with no source
+// loaded — and asking it to load would mean a second download and a second
+// decode of the same file, on a machine chosen for being weak. A cloned <canvas>
+// is blank, because a canvas's content is not in the DOM: that covers the VR
+// canvas and the PDF page alike. Both are repainted from the original instead:
+// one download, one decode, one extra blit per frame.
+function sbsDropSource(src, dst) {
+  if (dst.tagName === 'CANVAS') return;   // already swapped by an earlier pass
+  const canvas = document.createElement('canvas');
+  for (const at of dst.attributes) {
+    if (at.name !== 'src' && at.name !== 'class') canvas.setAttribute(at.name, at.value);
+  }
+  canvas.className = `${dst.className} sbs-picture`.trim();
+  dst.replaceWith(canvas);
+  sbsUi.map.set(src, canvas);
+}
+
+// A <video> in the original faces a <canvas> in the copy, and both answer this
+// query, so the two lists still line up.
+function sbsCollectPictures(src, dst) {
+  if (!src || !dst) return sbsUi.pictures;
+  const a = src.querySelectorAll(SBS_PICTURE_SEL);
+  const b = dst.querySelectorAll(SBS_PICTURE_SEL);
+  const out = [];
+  for (let i = 0; i < a.length && i < b.length; i++) out.push({ src: a[i], dst: b[i] });
+  return out;
+}
+
+// Runs only while a viewer is open. The copy always holds three canvases — the
+// VR one, the video's stand-in and the PDF page — so without that condition the
+// loop never stopped: a frame-rate wake-up for ever, on a handheld running off a
+// battery. Measured at 0.1 ms a frame, since the player panel is hidden and a
+// hidden box's width reads without a layout — small, but paid for nothing.
+// Called at the end of every flush, so it restarts the moment a viewer opens.
+function sbsPaint() {
+  if (sbsUi.paint || !sbsUi.on || !sbsUi.pictures.length) return;
+  if (!currentFile && !currentViewerMode) return;
+  sbsUi.paint = requestAnimationFrame(() => {
+    sbsUi.paint = 0;
+    for (const p of sbsUi.pictures) {
+      // The VR canvas is blitted by _vrRender; clearing and redrawing it from
+      // here would wipe that copy and leave a black rectangle over the video.
+      if (vr.gl && p.src === vr.gl.canvas) continue;
+      sbsDrawPicture(p);
+    }
+    sbsPaint();
+  });
+}
+
+// Called from _vrRender, in the same task as the draw — the only moment a WebGL
+// canvas can still be read. Everything else is repainted by sbsPaint().
+function sbsBlitVr() {
+  if (!sbsUi.on || !vr.gl) return;
+  for (const p of sbsUi.pictures) {
+    if (p.src === vr.gl.canvas) { sbsDrawPicture(p); return; }
+  }
+}
+
+function sbsDrawPicture({ src, dst }) {
+  const w = dst.clientWidth, h = dst.clientHeight;
+  if (!w || !h || dst.tagName !== 'CANVAS') return;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const bw = Math.round(w * dpr), bh = Math.round(h * dpr);
+  if (dst.width !== bw || dst.height !== bh) { dst.width = bw; dst.height = bh; }
+  const ctx = dst.getContext('2d');
+  if (!ctx) return;
+  const sw = src.videoWidth || src.width, sh = src.videoHeight || src.height;
+  ctx.clearRect(0, 0, bw, bh);
+  if (!sw || !sh) return;
+  // Letterboxed by hand rather than left to object-fit: the buffer matches the
+  // box exactly, so object-fit has nothing left to do by the time we draw.
+  const cover = getComputedStyle(src).objectFit === 'cover';
+  const scale = cover ? Math.max(bw / sw, bh / sh) : Math.min(bw / sw, bh / sh);
+  const dw = sw * scale, dh = sh * scale;
+  try {
+    ctx.drawImage(src, (bw - dw) / 2, (bh - dh) / 2, dw, dh);
+  } catch { /* a frame not ready, or a tainted source: skip this one */ }
 }
 
 function showToast(msg) {
@@ -6973,7 +7505,12 @@ function toggleFullscreen(opts = {}) {
   const realAvailable =
     document.fullscreenEnabled && typeof videoContainer.requestFullscreen === 'function';
   const coarsePointer = !!window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
-  const wantReal = realAvailable && (opts.forceReal === true || coarsePointer);
+  // PAD-SBS-UI: real fullscreen puts the element in the top layer, which ignores
+  // the transform that keeps each half's overlays inside its half — the video
+  // would fill the whole screen, astride the split, which is the very thing the
+  // side-by-side mode exists to avoid. Not a corner case: the Deck has a touch
+  // screen, so `pointer: coarse` matches and Y on the pad asks for the real one.
+  const wantReal = realAvailable && !sbsIsOn() && (opts.forceReal === true || coarsePointer);
   if (!wantReal) {
     videoContainer.classList.add('faux-fullscreen');
     syncFullscreenUI();
@@ -7025,6 +7562,18 @@ fullscreenControls.addEventListener('pointerdown', () => {
 
 // Keyboard shortcuts
 document.addEventListener('keydown', e => {
+  // Side-by-side, first of all: it has to answer from the PIN screen, from the
+  // login screen and from under an open dialog, all of which swallow keys
+  // further down. Alt+Y works inside a text field too, where a bare Y is text —
+  // switching the mode on by mistake with the cursor in a field must not trap
+  // anyone in a screen they cannot read.
+  if (e.code === 'KeyY'
+      && (e.altKey || !(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA'))
+      && !e.ctrlKey && !e.metaKey) {
+    e.preventDefault();
+    toggleSbsGlobal();
+    return;
+  }
   if (e.key === 'Escape') {
     if (document.getElementById('overwrite-dialog')?.style.display === 'flex') { closeOverwriteDialog(); return; }
     if (document.getElementById('delete-dialog')?.style.display === 'flex') { closeDeleteDialog(); return; }
@@ -7278,6 +7827,11 @@ function _gpMenuBuildPlayer() {
   items.push({ label: '✕ Fermer le lecteur', run: () => privacyClose() });
 
   items.push({ section: 'Hoard', label: '⚙️ Paramètres', run: () => openSettings() });
+  items.push({
+    label: '🥽 Écran côte à côte',
+    value: sbsIsOn() ? 'activé' : 'désactivé',
+    run: () => toggleSbsGlobal(),
+  });
   items.push({ label: '🎮 Aide manette', run: () => openGpOverlay() });
   return items;
 }
@@ -7343,6 +7897,11 @@ function _gpMenuBuild() {
   items.push({ label: '🔍 Rechercher', run: () => document.getElementById('search-input').focus() });
   items.push({ label: '⌂ Écran d\'accueil', run: () => navigateHome() });
   items.push({ section: 'Hoard', label: '📥 Téléchargements', run: () => openDlQueueModal() });
+  items.push({
+    label: '🥽 Écran côte à côte',
+    value: sbsIsOn() ? 'activé' : 'désactivé',
+    run: () => toggleSbsGlobal(),
+  });
   items.push({ label: '⚙️ Paramètres', run: () => openSettings() });
   items.push({ label: '🎮 Aide manette', run: () => openGpOverlay() });
 
@@ -8137,6 +8696,13 @@ function _gpHandleSettings(btnIdx, gp) {
 }
 
 function _gpDispatch(btnIdx, l1, r1, gp, r2 = false) {
+  // 0. Side-by-side, ahead of everything else. It is the one gesture that has to
+  // answer from the PIN screen, where the pad is otherwise locked to the keypad —
+  // and on the Deck with glasses the pad is the only way in, there is no
+  // keyboard. L1+R1+Select: Select alone already opens the context menu, and the
+  // two bumpers together are never a plain action anywhere.
+  if (btnIdx === 8 && l1 && r1) { toggleSbsGlobal(); _gpVibrate(gp, 80); return; }
+
   // 1. Gamepad overlay open → closing, plus D-pad scrolling: BL-126 turned the
   // drawing into a list that can outgrow the box on a narrow screen, and the pad
   // had no way to reach what fell below the fold.
@@ -8378,6 +8944,9 @@ function openGpOverlay() {
       row('Stick droit', 'Regarder autour'),
       row('(sans R2)', 'Stick droit ↕ → volume'),
     ].join('')) +
+    // PAD-SBS-UI: listed on its own because it answers everywhere, even on the
+    // PIN screen where the pad is otherwise locked to the keypad.
+    group('Partout', row('L1 + R1 + Select', 'Écran côte à côte (lunettes XR) — le même geste l\'éteint')) +
     group('Sticks', sticks.map(([b, a]) => row(b, a)).join(''));
 
   document.getElementById('gp-overlay').classList.add('open');
@@ -8390,6 +8959,9 @@ function closeGpOverlay() {
 
 installStandaloneShellHooks();
 registerServiceWorker();
+// Before init(): the PIN screen is the first thing drawn, and a mirror that
+// arrived after it would leave the user staring at half a keypad.
+sbsRestore();
 init();
 </script>
 <script type="module">
