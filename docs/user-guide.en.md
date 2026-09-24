@@ -256,6 +256,25 @@ Everything is set by **holding R2**, without opening anything: the picture chang
 
 While R2 is held the other buttons do nothing: the pad is driving the view and nothing else. **Release R2** and the sticks do exactly what they do on a flat screen, VR playback included: fine seeking, volume and playback speed (**R3**), each wherever your stick-swap setting puts them. On the keyboard, **Shift+V** resets both view and zoom at once.
 
+#### In a VR headset (Steam Frame)
+
+In a headset, side-by-side mode gives no relief: the headset shows the page as a flat screen floating in front of you, and the two pictures reach it next to each other. The player's **XR** button does the opposite: the video **takes over the whole headset**, each eye gets its own picture, and you look around **by turning your head**.
+
+The button only appears when the browser can drive a headset, **and** when Hoard is opened over **https**. On an `http://` address (a local network IP, for instance), the browser refuses access to the headset and the button stays hidden.
+
+Click the button with the **headset controllers' pointer**: for security reasons, browsers only open the immersive view on a click. Once inside:
+
+| Headset controllers | Effect |
+|---|---|
+| **Trigger** or **A / X** | Play / pause |
+| **Stick ←/→** | Back / forward by the medium seek, 30 s by default, like the pad's D-pad (repeats when held) |
+| **Stick click** | Recentre: where you are looking becomes the middle of the film |
+| **B / Y** | Leave the immersive view |
+
+The headset's system button leaves it too. On leaving, you get the player back as it was, 180° mode included. Closing the player closes the immersive view; moving to the next file does not.
+
+The file's **convergence** applies in the headset too. The field of view, the widened view and the stretched/unstretched picture, on the other hand, do nothing there: the headset knows the angle of its own screens, so the depth is right from the start. Player messages are not shown inside the headset.
+
 #### Recognition and memory
 
 A VR file is marked with a 🥽 in the list. Hoard guesses it two ways: from the name (studios almost always put `LR`, `3dh`, `180x180`, `VR180` or `SBS` in it), and from the picture's shape — two square eyes side by side are exactly twice as wide as they are tall. The name is readable from the list; the shape only once the file is open.
@@ -405,6 +424,8 @@ section will be completed.
   controllers** stay in laser-pointer mode inside the browser: we have not yet
   found how to switch them to gamepad mode.
 - **Right click in desktop mode**: click the **right stick**.
+- **180° videos with relief**: the player's **XR** button, see
+  [In a VR headset](#in-a-vr-headset-steam-frame).
 
 ### Actions — Video Player
 

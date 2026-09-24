@@ -261,6 +261,25 @@ Tout se règle en **maintenant R2**, sans rien ouvrir : l'image change pendant q
 
 Tant que R2 est maintenu, les autres boutons ne font rien : la manette pilote la vue et rien d'autre. **Relâche R2** et les sticks font exactement ce qu'ils font sur un écran plat, en pleine lecture VR comme ailleurs : l'avance/recul fin, le volume et la vitesse de lecture (**R3**), chacun là où ton réglage d'inversion des sticks les place. Au clavier, **Maj+V** remet d'un coup le regard et le zoom.
 
+#### Dans un casque VR (Steam Frame)
+
+Dans un casque, le mode côte à côte ne donne pas de relief : le casque affiche la page comme un écran plat flottant devant toi, et les deux images y arrivent l'une à côté de l'autre. Le bouton **XR** du lecteur fait l'inverse : la vidéo **prend tout le casque**, chaque œil reçoit son image, et tu regardes autour de toi **en tournant la tête**.
+
+Le bouton n'apparaît que si le navigateur sait piloter un casque, **et** si Hoard est ouvert par une adresse en **https**. Sur une adresse en `http://` (une adresse IP du réseau local, par exemple), le navigateur refuse l'accès au casque et le bouton reste caché.
+
+Le bouton se clique avec le **pointeur des manettes du casque** : pour des raisons de sécurité, les navigateurs n'ouvrent la vue immersive que sur un clic. Une fois dedans :
+
+| Manettes du casque | Effet |
+|---|---|
+| **Gâchette** ou **A / X** | Lecture / pause |
+| **Stick ←/→** | Recul / avance du seek moyen, 30 s par défaut, comme le D-pad de la manette (maintenu, ça répète) |
+| **Clic stick** | Recentrer : là où tu regardes devient le centre du film |
+| **B / Y** | Sortir de la vue immersive |
+
+Le bouton système du casque en sort aussi. En sortant, tu retrouves le lecteur tel qu'il était, mode 180° compris. Fermer le lecteur ferme la vue immersive ; passer au fichier suivant ne la ferme pas.
+
+La **convergence** du fichier s'applique aussi dans le casque. Le champ de vision, la vue élargie et l'image étirée ou non, en revanche, n'y servent à rien : c'est le casque qui connaît l'angle de ses écrans, donc la profondeur est juste d'office. Les messages du lecteur ne s'affichent pas dans le casque.
+
 #### Reconnaissance et mémorisation
 
 Un fichier VR se signale par un 🥽 dans la liste. Hoard le devine de deux façons : par le nom (les studios y mettent presque toujours `LR`, `3dh`, `180x180`, `VR180` ou `SBS`), et par la forme de l'image — deux yeux carrés côte à côte donnent exactement le double de large que de haut. Le nom se lit dès la liste ; la forme, seulement à l'ouverture du fichier.
@@ -410,6 +429,8 @@ section sera complétée.
   Frame**, elles, restent en pointeur à rayon dans le navigateur : on n'a pas
   encore trouvé comment les faire passer en mode manette.
 - **Clic droit en mode bureau** : clic sur le **stick droit**.
+- **Vidéos 180° en relief** : le bouton **XR** du lecteur, voir
+  [Dans un casque VR](#dans-un-casque-vr-steam-frame).
 
 ### Actions — Lecteur vidéo
 
