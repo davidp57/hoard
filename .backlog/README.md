@@ -17,6 +17,7 @@ Convention détaillée : [`docs/agents/issue-tracker.md`](../docs/agents/issue-t
 
 | Lot | Statut |
 |-----|--------|
+| [VR-IMMERSIVE](VR-IMMERSIVE/PRD.md) — Le relief dans le casque par WebXR (session immersive BL-136, en attente du test sur le Frame) | 🧑 |
 | [SEC-AUTH](SEC-AUTH/PRD.md) — Une instance ouverte doit se voir (contrôle de santé BL-105, annonce de l'état d'authentification BL-106) | ✅ |
 | [CLIENT-NATIVE](CLIENT-NATIVE/PRD.md) — Client natif Flutter pour Steam Deck, Steam Frame et Windows (faisabilité BL-104 ✅, puis BL-107..117) | 🔄 |
 | [SEC-SESSION](SEC-SESSION/PRD.md) — Session par cookie et jeton pour la bookmarklet (écran de connexion BL-123, bookmarklet cassée par l'auth BL-124) | ✅ |

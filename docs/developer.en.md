@@ -597,6 +597,55 @@ mirror already duplicates those windows.
 with the glasses wants it and the iPad must not inherit it, and because the PIN
 screen is drawn before the settings are loaded.
 
+### Immersive VR through WebXR (BL-136)
+
+The 180° modes draw both eyes into the page. A headset such as the Steam Frame
+shows that page as a flat window, so the side-by-side picture arrives side by
+side and there is no relief. The **XR** button opens a WebXR `immersive-vr`
+session instead, and the page draws one picture per eye into the headset.
+
+- **Same context, same texture, second program.** `_xrInitProgram()` links
+  `VR_VERT` with `XR_FRAG` on `vr.gl`, after `makeXRCompatible()`. The vertex
+  array is shared with the flat program, so `aPos` is bound to the slot the flat
+  program uses. The flat renderer assumes its program is current, so it is
+  restored when the session ends.
+- **The ray comes from the headset.** `XR_FRAG` builds the ray on the near
+  plane from four terms of the eye's projection (`P[0]`, `P[5]`, `P[8]`,
+  `P[9]`, as a headset projection is off-centre but has no skew), turns it with
+  the 3×3 orientation of `view.transform`, and samples the hemisphere exactly
+  like `VR_FRAG`. `view.eye` picks the half of the frame.
+- **Orientation only, never position.** A 180° film is shot from one point, so
+  its scene sits at infinity; translation is dropped, and so is the headset's
+  own eye separation — the relief is in the two recorded pictures.
+- **Recentring and convergence** are one yaw each, premultiplied:
+  `Y(eyeYaw − yaw0) · R_view`. `yaw0` is the head azimuth at the last stick
+  click (`xrRecenter()`); `eyeYaw` is ±half the file's convergence, with the
+  same sign as the flat side-by-side. Field of view, widening and the
+  half/full layout do not apply: the headset knows its own optics.
+- **Texture uploads** follow `requestVideoFrameCallback`. Whether it keeps
+  firing behind an immersive session is up to the browser, so when it has been
+  silent for 250 ms the upload falls back to a change of `currentTime`.
+- **Controls** are read from `session.inputSources` (xr-standard mapping), not
+  from the page's gamepad loop: `select` and A/X play/pause, stick sideways
+  seeks by `cfg.seek_medium` (the pad D-pad's step) with a repeat, stick click recentres, B/Y ends the session.
+- **Entry needs a click.** `requestSession()` is the first `await` of
+  `enterXr()`, since browsers only grant an immersive session inside the user
+  gesture; a gamepad press is not one, so there is no pad or menu entry.
+- **Visibility.** `xrProbe()` runs `isSessionSupported('immersive-vr')` at load
+  and on `devicechange`; `#xr-btn` stays hidden otherwise. `navigator.xr` does
+  not exist outside a secure context, so over plain `http://` the button never
+  shows.
+- **Lifetime.** Leaving restores the flat mode that was on when the session
+  started, unless the file changed meanwhile. Closing the player (`emptied`
+  with no `src`), a transcoded source and a lost context all end the session;
+  moving to the next file does not.
+
+Tested in Chrome with a mocked `navigator.xr` (two views, a scripted head pose
+and a scripted controller): each eye draws its own half, a 30° head turn moves
+the centre by the expected 115 px at 90° per eye, recentring puts it back, the
+convergence sign matches the flat mode, and the controls and restore behave as
+above. **Not yet tried on real hardware.**
+
 ### Responsive
 
 - Breakpoint at **700 px**: above, split view (list + player). Below, full-screen list with player as overlay.

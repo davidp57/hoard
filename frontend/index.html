@@ -1993,6 +1993,7 @@
           <button class="ctrl-btn" id="fullscreen-btn" onclick="toggleFullscreen()" title="Plein écran (F)" aria-label="Plein écran">&#x26F6;</button>
           <button class="ctrl-btn" id="speed-btn" onclick="cycleSpeed()" title="Vitesse de lecture">1×</button>
           <button class="ctrl-btn" id="vr-btn" onclick="cycleVrMode()" title="Mode VR 180° (V)" aria-label="Mode VR 180 degrés">🥽</button>
+          <button class="ctrl-btn" id="xr-btn" onclick="toggleXr()" title="VR immersive dans le casque" aria-label="VR immersive dans le casque" style="display:none">XR</button>
           <button class="ctrl-btn" id="fit-btn" onclick="toggleVideoFit()" title="Fit / Fill">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="3" y="5" width="18" height="14" rx="1"/>
@@ -5768,7 +5769,12 @@ function _vrInit() {
     cv.addEventListener('webglcontextlost', e => {
       e.preventDefault();
       setVrMode('off');
+      // Nothing to restore on a dead context: leaving the headset must not try
+      // to rebuild the flat mode on it, which would disable it for good.
+      xr.prevMode = 'off';
+      xr.session?.end().catch(() => {});
       vr.gl = null; vr.prog = null; vr.tex = null; vr.u = {};
+      xr.prog = null; xr.u = {};
       showToast('🥽 contexte graphique perdu');
     });
   }
@@ -6040,6 +6046,10 @@ function cycleVrConvergence() {
 
 function setVrMode(mode) {
   if (!VR_MODES.includes(mode)) return;
+  // BL-136: the headset owns the context while a session runs. A flat mode asked
+  // for meanwhile — a remembered one on the next file, say — is kept for when the
+  // session ends rather than started beside it on the same GL state.
+  if (xr.session && mode !== 'off') { xr.prevMode = mode; xr.prevView = null; return; }
   const canvas = document.getElementById('vr-canvas');
   if (mode !== 'off' && !_vrInit()) return;
 
@@ -6095,6 +6105,7 @@ function setVrMode(mode) {
 
 function cycleVrMode() {
   if (vr.blocked) { showToast('🥽 indisponible sur un flux transcodé'); return; }
+  if (xr.session) { showToast('🥽 sans objet pendant la VR immersive'); return; }
   const next = VR_MODES[(VR_MODES.indexOf(vr.mode) + 1) % VR_MODES.length];
   setVrMode(next);
   if (vr.mode !== next) return;   // init refused; it has already said why
@@ -6169,6 +6180,7 @@ function _vrRatioSaysSbs180() {
 // a remembered choice applies.
 function vrArmForEntry(entry, isTranscoded) {
   vr.blocked = !!isTranscoded;
+  if (vr.blocked && xr.session) xr.session.end().catch(() => {});
   const hinted = !!(entry && entry.vr_hint) || _vrRatioSaysSbs180();
   const saved = entry && entry.vr_mode;
   vr.armed = !vr.blocked && (hinted || !!(saved && saved !== 'off'));
@@ -6188,13 +6200,330 @@ function _vrSyncButton() {
             : vr.armed ? 'Fichier VR 180° détecté — mode VR (V)'
             : 'Mode VR 180° (V)';
   if (vr.mode === 'off') btn.style.color = vr.armed ? 'var(--accent-dim, #8ab)' : '';
+  _xrSyncButton();
 }
 
 // A new source means a new geometry, so the mode never carries over silently.
 video.addEventListener('loadstart', () => {
   if (vrIsActive()) setVrMode('off');
   vr.armed = false; vr.blocked = false;
+  // The mode to restore on leaving the headset belonged to the previous file.
+  xr.prevMode = 'off'; xr.prevView = null;
   _vrSyncButton();
+});
+
+// ── Immersive VR through WebXR (BL-136) ──────────────────────────────────────
+// The modes above draw both eyes into the page, and a headset shows that page as
+// a flat window floating in front of you: the side-by-side picture arrives side
+// by side, and the relief never reaches the eyes. Here the page takes the headset
+// over instead — one immersive session, one picture per eye, turned by the head.
+// The deprojection is the one above; only the origin of each ray changes: the
+// headset's own per-eye projection and head orientation, instead of a centred
+// pinhole steered by a stick.
+//
+// Only the ORIENTATION of the head is used, never its position. A 180° film is
+// shot from a single point, so its scene sits at infinity and leaning must not
+// shift it. The relief comes from the two recorded pictures, as before, which is
+// also why the headset's own eye separation plays no part.
+const XR_FRAG = `#version 300 es
+precision highp float;
+uniform sampler2D uTex;
+uniform vec2  uUvOrigin;   // rect of the eye being drawn, inside the frame
+uniform vec2  uUvSize;
+uniform vec4  uProj;       // P[0], P[5], P[8], P[9] of this eye's projection
+uniform mat3  uRot;        // eye space -> scene, orientation only
+uniform float uIhFov;      // radians the source covers horizontally
+uniform float uIvFov;      // radians the source covers vertically
+in  vec2 vNdc;
+out vec4 fragColor;
+
+void main() {
+  // The ray through this pixel, taken on the near plane (z = -1 in eye space).
+  // A headset projection is off-centre, which is what P[8] and P[9] carry; it has
+  // no skew, so these four terms are all of it.
+  vec3 d = normalize(uRot * vec3((vNdc.x + uProj.z) / uProj.x,
+                                 (vNdc.y + uProj.w) / uProj.y, -1.0));
+  vec2 uv = vec2(0.5 + atan(d.x, -d.z) / uIhFov,
+                 0.5 - asin(clamp(d.y, -1.0, 1.0)) / uIvFov);
+  if (any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)))) {
+    fragColor = vec4(0.0, 0.0, 0.0, 1.0);   // behind you: outside the hemisphere
+    return;
+  }
+  fragColor = texture(uTex, uUvOrigin + uv * uUvSize);
+}`;
+
+const xr = {
+  supported: false, session: null, refSpace: null, starting: false,
+  prog: null, u: {},
+  yaw0: 0,           // recentring, radians of head azimuth taken as "forward"
+  lastHead: null,    // last head pose matrix, read when recentring on demand
+  prevMode: 'off',   // flat mode to bring back when the session ends
+  prevView: null,    // and its framing, which setVrMode would otherwise reset
+  frameReady: false, lastVfcAt: -1e9, lastTime: -1, vfc: 0, vfcGen: 0,
+  held: {}, seekAt: {},
+  // Scratch matrices: the frame loop runs at the headset's rate, so it reuses
+  // these rather than feed the collector a few arrays per frame.
+  m0: new Float32Array(9), m1: new Float32Array(9), m2: new Float32Array(9),
+};
+
+// The same vertex stage and the same texture as the flat modes; only the
+// fragment stage differs. Built once, on the first session.
+function _xrInitProgram() {
+  if (xr.prog) return true;
+  const gl = vr.gl;
+  try {
+    const prog = gl.createProgram();
+    gl.attachShader(prog, _vrCompile(gl, gl.VERTEX_SHADER, VR_VERT));
+    gl.attachShader(prog, _vrCompile(gl, gl.FRAGMENT_SHADER, XR_FRAG));
+    // The vertex array is shared with the flat program, so the attribute has to
+    // sit in the slot that array was set up for.
+    gl.bindAttribLocation(prog, gl.getAttribLocation(vr.prog, 'aPos'), 'aPos');
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+      throw new Error(gl.getProgramInfoLog(prog));
+    }
+    for (const n of ['uTex', 'uUvOrigin', 'uUvSize', 'uProj', 'uRot', 'uIhFov', 'uIvFov']) {
+      xr.u[n] = gl.getUniformLocation(prog, n);
+    }
+    gl.useProgram(prog);
+    gl.uniform1i(xr.u.uTex, 0);
+    gl.uniform1f(xr.u.uIhFov, Math.PI);   // 180° per eye, as in the flat modes
+    gl.uniform1f(xr.u.uIvFov, Math.PI);
+    gl.useProgram(vr.prog);   // the flat renderer assumes its program is current
+    xr.prog = prog;
+    return true;
+  } catch (err) {
+    console.error('XR program failed:', err);
+    return false;
+  }
+}
+
+// 3x3 matrices, column-major as WebGL takes them. _xrYaw matches the shader's
+// yaw above: a positive angle turns the view to the right.
+function _xrYaw(a, o) {
+  const c = Math.cos(a), s = Math.sin(a);
+  o[0] = c; o[1] = 0; o[2] = s; o[3] = 0; o[4] = 1; o[5] = 0; o[6] = -s; o[7] = 0; o[8] = c;
+  return o;
+}
+function _xrMul3(a, b, o) {
+  for (let c = 0; c < 3; c++) {
+    for (let r = 0; r < 3; r++) {
+      o[c * 3 + r] = a[r] * b[c * 3] + a[3 + r] * b[c * 3 + 1] + a[6 + r] * b[c * 3 + 2];
+    }
+  }
+  return o;
+}
+function _xrRot3(m, o) {
+  o[0] = m[0]; o[1] = m[1]; o[2] = m[2];
+  o[3] = m[4]; o[4] = m[5]; o[5] = m[6];
+  o[6] = m[8]; o[7] = m[9]; o[8] = m[10];
+  return o;
+}
+
+// A new frame is uploaded once per decoded frame, as in the flat modes. Whether
+// the frame callback keeps firing while the page sits behind an immersive
+// session is the browser's call, so a callback gone quiet falls back to watching
+// the clock: at worst one upload per headset frame while playing.
+function _xrWatchFrames() {
+  if (!video.requestVideoFrameCallback) return;
+  // Generation token, as in the flat pump: a callback still pending from a
+  // previous session must not carry on beside this one.
+  const gen = ++xr.vfcGen;
+  const onFrame = () => {
+    if (!xr.session || gen !== xr.vfcGen) return;
+    xr.frameReady = true;
+    xr.lastVfcAt = performance.now();
+    xr.vfc = video.requestVideoFrameCallback(onFrame);
+  };
+  xr.vfc = video.requestVideoFrameCallback(onFrame);
+}
+
+function _xrUpload() {
+  if (video.readyState < 2) return;
+  const ct = video.currentTime;
+  const vfcAlive = performance.now() - xr.lastVfcAt < 250;
+  if (!xr.frameReady && !(ct !== xr.lastTime && (video.paused || !vfcAlive))) return;
+  xr.frameReady = false;
+  xr.lastTime = ct;
+  const gl = vr.gl;
+  gl.bindTexture(gl.TEXTURE_2D, vr.tex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
+}
+
+// The headset's controllers, read from the session: in there they belong to the
+// immersive view, not to the page's gamepad loop. xr-standard mapping — 3 is the
+// stick click, 4 is A/X, 5 is B/Y, axis 2 is the stick sideways. The trigger is
+// handled by the session's own 'select' event.
+function _xrPollInputs(session, t) {
+  for (const src of session.inputSources) {
+    const gp = src.gamepad;
+    if (!gp) continue;
+    const id = src.handedness;
+    // Pressed buttons as a bit mask, compared with the previous frame's.
+    let now = 0;
+    for (let i = 0; i < gp.buttons.length; i++) if (gp.buttons[i].pressed) now |= 1 << i;
+    const pressed = now & ~(xr.held[id] || 0);
+    xr.held[id] = now;
+    if (pressed & (1 << 5)) { session.end().catch(() => {}); return; }
+    if (pressed & (1 << 4)) togglePlay();
+    if (pressed & (1 << 3)) xrRecenter();
+    const ax = gp.axes[2] ?? 0;
+    if (Math.abs(ax) < 0.6) { xr.seekAt[id] = 0; continue; }
+    // One step on the flick, then a repeat while held — slower to start than to
+    // continue, so a single flick never lands two steps. The step is the pad's
+    // medium one, so the headset seeks like everything else.
+    if (!xr.seekAt[id] || t >= xr.seekAt[id]) {
+      const step = cfg.seek_medium || 30;
+      skip(ax > 0 ? step : -step);
+      xr.seekAt[id] = t + (xr.seekAt[id] ? 250 : 500);
+    }
+  }
+}
+
+function _xrFrame(t, frame) {
+  const session = frame.session;
+  if (session !== xr.session) return;
+  session.requestAnimationFrame(_xrFrame);
+  _xrPollInputs(session, t);
+  if (xr.session !== session) return;   // B/Y just ended it
+  const pose = frame.getViewerPose(xr.refSpace);
+  if (!pose) return;   // tracking lost for this frame: the headset keeps the last one
+  xr.lastHead = pose.transform.matrix;
+  const gl = vr.gl, layer = session.renderState.baseLayer;
+  _xrUpload();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, layer.framebuffer);
+  gl.useProgram(xr.prog);
+  gl.bindTexture(gl.TEXTURE_2D, vr.tex);
+  gl.clearColor(0, 0, 0, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  // Convergence as in the flat side-by-side: each eye turned by half of it, in
+  // opposite directions. A mono view ('none') gets neither.
+  const half = vr.convergence * Math.PI / 360;
+  for (const view of pose.views) {
+    const vp = layer.getViewport(view);
+    gl.viewport(vp.x, vp.y, vp.width, vp.height);
+    const p = view.projectionMatrix;
+    gl.uniform4f(xr.u.uProj, p[0], p[5], p[8], p[9]);
+    gl.uniform2f(xr.u.uUvOrigin, view.eye === 'right' ? 0.5 : 0, 0);
+    gl.uniform2f(xr.u.uUvSize, 0.5, 1);
+    const eyeYaw = view.eye === 'left' ? half : view.eye === 'right' ? -half : 0;
+    gl.uniformMatrix3fv(xr.u.uRot, false,
+      _xrMul3(_xrYaw(eyeYaw - xr.yaw0, xr.m0), _xrRot3(view.transform.matrix, xr.m1), xr.m2));
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+  }
+}
+
+// Takes where the head points now as the middle of the film. Yaw only: the
+// horizon stays level, since a tilted horizon is the one thing nobody asks for.
+function xrRecenter() {
+  const m = xr.lastHead;
+  if (m) xr.yaw0 = Math.atan2(-m[8], m[10]);
+}
+
+async function enterXr() {
+  if (xr.session || xr.starting) return;
+  if (vr.blocked) { showToast('🥽 indisponible sur un flux transcodé'); return; }
+  if (!xr.supported) {
+    showToast(window.isSecureContext ? '🥽 aucun casque VR disponible'
+                                     : '🥽 le mode immersif demande une adresse https');
+    return;
+  }
+  if (!_vrInit()) return;
+  xr.starting = true;
+  let session = null;
+  try {
+    // First await after the click: a browser only grants an immersive session
+    // from inside the gesture that asked for it, so nothing may come before.
+    session = await navigator.xr.requestSession('immersive-vr');
+    await vr.gl.makeXRCompatible();
+    // Making the context XR-compatible may lose and restore it — moving it to
+    // the headset's GPU does that. The lost handler has dropped every object by
+    // then, so rebuild them on the restored context before going on.
+    if (!vr.gl && !_vrInit()) throw new Error('context lost on makeXRCompatible');
+    if (!_xrInitProgram()) throw new Error('XR program unavailable');
+    session.updateRenderState({ baseLayer: new XRWebGLLayer(session, vr.gl) });
+    xr.refSpace = await session.requestReferenceSpace('local');
+  } catch (err) {
+    xr.starting = false;
+    session?.end().catch(() => {});
+    console.error('XR session failed:', err);
+    showToast('🥽 impossible d\'ouvrir la session VR');
+    return;
+  }
+  xr.starting = false;
+  xr.session = session;
+  xr.prevMode = vr.mode;
+  xr.prevView = vrIsActive()
+    ? { yaw: vr.yaw, pitch: vr.pitch, fov: vr.fov, widen: vr.widen, sbsLayout: vr.sbsLayout }
+    : null;
+  // The flat renderer shares the context: stop it rather than have two loops
+  // drawing through the same program state.
+  if (vrIsActive()) setVrMode('off');
+  else vr.convergence = currentFile?.vr_convergence ?? cfg.vr_convergence ?? 0;
+  xr.yaw0 = 0; xr.lastHead = null; xr.held = {}; xr.seekAt = {};
+  xr.lastTime = -1; xr.frameReady = false; xr.lastVfcAt = -1e9;
+  session.addEventListener('end', () => _xrOnEnd(session));
+  session.addEventListener('select', () => togglePlay());
+  _xrWatchFrames();
+  _xrSyncButton();
+  session.requestAnimationFrame(_xrFrame);
+}
+
+function _xrOnEnd(session) {
+  if (xr.session !== session) return;
+  xr.session = null; xr.refSpace = null;
+  xr.vfcGen++;
+  if (xr.vfc && video.cancelVideoFrameCallback) video.cancelVideoFrameCallback(xr.vfc);
+  xr.vfc = 0;
+  if (vr.gl) {
+    vr.gl.bindFramebuffer(vr.gl.FRAMEBUFFER, null);
+    vr.gl.useProgram(vr.prog);
+  }
+  // Back to the flat mode that was on before, framing included, so taking the
+  // headset view off is not also losing the one on screen. setVrMode resets the
+  // framing when it starts from 'off', hence putting it back afterwards. For
+  // side by side it also asks for fullscreen outside a gesture; a refusal falls
+  // back to the in-window kind, which is acceptable.
+  if (xr.prevMode !== 'off' && video.getAttribute('src')) {
+    setVrMode(xr.prevMode);
+    if (xr.prevView && vrIsActive()) Object.assign(vr, xr.prevView);
+  }
+  xr.prevView = null;
+  _xrSyncButton();
+}
+
+function toggleXr() {
+  if (xr.session) xr.session.end().catch(() => {});
+  else enterXr();
+}
+
+// The button only exists where a headset can be driven: a browser without
+// WebXR, or a page served over plain http, never sees it.
+function _xrSyncButton() {
+  const btn = document.getElementById('xr-btn');
+  if (!btn) return;
+  btn.style.display = xr.supported ? '' : 'none';
+  btn.disabled = vr.blocked && !xr.session;
+  btn.style.opacity = btn.disabled ? '0.35' : '';
+  btn.style.color = xr.session ? 'var(--accent)' : '';
+}
+
+async function xrProbe() {
+  try {
+    xr.supported = !!navigator.xr && await navigator.xr.isSessionSupported('immersive-vr');
+  } catch {
+    xr.supported = false;
+  }
+  _xrSyncButton();
+}
+// A headset can be switched on, or plugged in, after the page has loaded.
+navigator.xr?.addEventListener('devicechange', xrProbe);
+xrProbe();
+
+// Closing the player ends the headset view: it would otherwise keep showing the
+// last frame of a film that is gone. Switching to another file does not.
+video.addEventListener('emptied', () => {
+  if (xr.session && !video.getAttribute('src')) xr.session.end().catch(() => {});
 });
 
 // Mouse: drag to look, wheel to zoom. Only while the VR mode is on, so the

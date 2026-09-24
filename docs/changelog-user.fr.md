@@ -8,6 +8,14 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ### Ajouté
 
+- **Les vidéos 180° en vrai relief dans un casque VR.** Dans le Steam Frame, le
+  mode côte à côte s'affichait à plat, dans une fenêtre. Le nouveau bouton **XR**
+  du lecteur fait prendre tout le casque à la vidéo : chaque œil a son image, et
+  tu regardes autour de toi en tournant la tête. Les manettes du casque mettent
+  en pause, avancent, recentrent et font sortir. Le bouton n'apparaît que si ton
+  navigateur sait piloter un casque, et seulement quand Hoard est ouvert en
+  https.
+
 - **Un mode d'emploi pour le Steam Frame.** Le guide dit désormais quel
   navigateur utiliser sur le casque (Chromium : avec Firefox, les boutons X et Y
   sont inversés), comment le lancer pour que la manette soit reconnue, et ce qui
