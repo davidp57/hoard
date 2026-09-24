@@ -8,6 +8,12 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ### Ajouté
 
+- **Un mode d'emploi pour le Steam Frame.** Le guide dit désormais quel
+  navigateur utiliser sur le casque (Chromium : avec Firefox, les boutons X et Y
+  sont inversés), comment le lancer pour que la manette soit reconnue, et ce qui
+  ne marche pas encore : les manettes du Frame elles-mêmes, qui restent en
+  pointeur. Le Steam Controller, lui, fonctionne.
+
 - **Tu peux voir plus large sans perdre le relief là où tu regardes.** Au champ
   de vision juste, la profondeur est bonne mais la vue est serrée — et les deux
   vont ensemble, il n'y a pas moyen de les séparer complètement. Le nouveau

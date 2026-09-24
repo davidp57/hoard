@@ -388,6 +388,24 @@ Hoard supports game controllers via the browser's **Gamepad API** (Xbox, PlaySta
 - A « 🎮 Controller connected » toast confirms detection.
 - **Steam Deck / Firefox**: Firefox only fires `gamepadconnected` after a button press. A toast « Press a button to activate the controller » appears if the device is detected but not yet active.
 
+### Steam Frame
+
+What we know after the first tests on the headset (September 2026). This
+section will be completed.
+
+- **Use Chromium, not Firefox.** On the Frame, Firefox swaps the **X** and **Y**
+  buttons: this is a known Firefox-on-Linux defect with Steam's virtual
+  controller, not a Hoard defect. In fullscreen, Firefox also shows Hoard small
+  in a corner. Chromium has neither problem.
+- **Launch the browser from Steam, in Gaming mode.** Opened from desktop mode,
+  the browser only receives the mouse and Hoard sees no controller. Add it to
+  Steam as a non-Steam game, then launch it from the library (**Non-Steam**
+  tab).
+- **Which controller.** The **Steam Controller** works. The **Frame
+  controllers** stay in laser-pointer mode inside the browser: we have not yet
+  found how to switch them to gamepad mode.
+- **Right click in desktop mode**: click the **right stick**.
+
 ### Actions — Video Player
 
 | Button | Base | + L1 | + R1 | + L1+R1 |

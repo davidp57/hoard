@@ -393,6 +393,24 @@ Hoard supporte les manettes de jeu via la **Gamepad API** du navigateur (Xbox, P
 - Un toast « 🎮 Manette connectée » confirme la détection.
 - **Steam Deck / Firefox** : Firefox n'envoie l'événement `gamepadconnected` qu'après un appui. Un toast « Appuyez sur un bouton pour activer la manette » apparaît si la manette est détectée mais pas encore active.
 
+### Steam Frame
+
+Ce qu'on sait après les premiers essais sur le casque (septembre 2026). Cette
+section sera complétée.
+
+- **Utilise Chromium, pas Firefox.** Sur le Frame, Firefox inverse les boutons
+  **X** et **Y** : c'est un défaut connu de Firefox sous Linux avec la manette
+  virtuelle de Steam, pas un défaut de Hoard. En plein écran, Firefox affiche
+  aussi Hoard en petit dans un coin. Chromium n'a aucun de ces deux problèmes.
+- **Lance le navigateur depuis Steam, en mode Gaming.** Ouvert depuis le mode
+  bureau, le navigateur ne reçoit que la souris et Hoard ne voit aucune manette.
+  Ajoute-le à Steam comme jeu non-Steam, puis lance-le depuis la bibliothèque
+  (onglet **Non-Steam**).
+- **Quelle manette.** Le **Steam Controller** fonctionne. Les **manettes du
+  Frame**, elles, restent en pointeur à rayon dans le navigateur : on n'a pas
+  encore trouvé comment les faire passer en mode manette.
+- **Clic droit en mode bureau** : clic sur le **stick droit**.
+
 ### Actions — Lecteur vidéo
 
 | Bouton | Base | + L1 | + R1 | + L1+R1 |
