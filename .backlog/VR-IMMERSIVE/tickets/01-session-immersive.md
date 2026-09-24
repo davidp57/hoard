@@ -1,6 +1,6 @@
 # BL-136 — Session immersive depuis le lecteur
 
-Status: 🧑 waiting-human
+Status: 🧑 waiting-human — en pause : le navigateur du Frame n'expose pas WebXR (testé le 2026-09-24, voir le PRD)
 Type: feat
 Files: `frontend/index.html`, `docs/user-guide.*.md`, `docs/developer.en.md`
 
