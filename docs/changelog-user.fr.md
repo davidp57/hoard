@@ -178,6 +178,10 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ### Corrigé
 
+- **L'interface ne rétrécit plus en plein écran**, dans le Steam Frame comme sur
+  un grand écran. Au-delà d'un affichage de 1920×1080, Hoard grossit avec la
+  place disponible et garde la même taille apparente. Sur un laptop, un iPad, le
+  Steam Deck ou un téléphone, rien ne change.
 - **Le badge en coin affiche maintenant R2**, en plus de L1 et R1. Il ne montrait
   pas la couche VR, alors qu'elle en est une : une gâchette qui n'arrive pas
   jusqu'à Hoard — parce qu'elle est remappée dans la configuration de ta manette,

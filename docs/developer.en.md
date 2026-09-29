@@ -651,6 +651,24 @@ above. **Not yet tried on real hardware.**
 - Breakpoint at **700 px**: above, split view (list + player). Below, full-screen list with player as overlay.
 - `dvh` used throughout to avoid mobile viewport unit issues.
 
+### Interface scale (BL-137)
+
+- **Write every size in `rem`**, never in `px`. `html` carries the one scale of
+  the interface: `font-size: max(10px, min(100vw / 192, 100dvh / 108))`, so
+  `1rem` is 10px up to a 1920×1080 viewport and grows with the smaller of the two
+  ratios past it. A headset browser going fullscreen reports many more CSS pixels
+  on the same virtual screen; fixed pixels made the interface shrink.
+- `body` is `1.6rem`, the 16px browser default the page was designed on.
+- Exceptions that stay in `px`: hairlines of 1-2px (they are meant to stay thin),
+  media query breakpoints (a `rem` there ignores the root font size), the
+  bookmarklet (it runs on someone else's page) and `IntersectionObserver`
+  margins.
+- The pad windows (BL-126) keep their own width-based growth on top of the root
+  scale — `max(1.3rem, clamp(...vw...))` — because a 3840×1080 side-by-side
+  display is twice as wide but no taller, which the root scale ignores.
+- CSS `zoom` was measured and rejected: in Chromium it also multiplies `vw`/`dvh`
+  (`100dvh` came out at 1800px in a 900px window at `zoom: 2`).
+
 ### PWA Shell
 
 - `frontend/manifest.webmanifest` provides install metadata for supported browsers and home-screen launchers.

@@ -416,6 +416,10 @@ section will be completed.
   buttons: this is a known Firefox-on-Linux defect with Steam's virtual
   controller, not a Hoard defect. In fullscreen, Firefox also shows Hoard small
   in a corner. Chromium has neither problem.
+- **Chromium fullscreen.** Hoard grows with the screen: past a 1920×1080
+  display, the whole interface scales with the space available, so it keeps the
+  same apparent size when the browser goes fullscreen. Below that, nothing
+  changes — laptop, iPad, Steam Deck, phone.
 - **Launch the browser from Steam, in Gaming mode.** Opened from desktop mode,
   the browser only receives the mouse and Hoard sees no controller. Add it to
   Steam as a non-Steam game, then launch it from the library (**Non-Steam**

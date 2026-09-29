@@ -116,6 +116,10 @@ This is not the stereo OpenXR renderer that [ADR 0003](docs/adr/0003-client-nati
 ruled out for the native client: it stays in the browser and reuses the
 shader the flat modes already have.
 
+## Interface scale *(built, awaiting a test on the Frame)*
+
+- [x] **One scale for the whole UI** (BL-137, lot [FIX-UI-SCALE](.backlog/FIX-UI-SCALE/PRD.md)) — every size in `rem`, root size proportional to the viewport past 1920×1080, so the UI no longer shrinks in the Frame's fullscreen Chromium.
+
 ## v3.0 — Native client *(in progress)*
 
 Native Flutter client talking to the existing HTTP API, targeting Steam Deck
