@@ -421,6 +421,10 @@ section sera complétée.
   **X** et **Y** : c'est un défaut connu de Firefox sous Linux avec la manette
   virtuelle de Steam, pas un défaut de Hoard. En plein écran, Firefox affiche
   aussi Hoard en petit dans un coin. Chromium n'a aucun de ces deux problèmes.
+- **Plein écran de Chromium.** Hoard grandit avec l'écran : au-delà d'un
+  affichage de 1920×1080, toute l'interface grossit en proportion de la place
+  disponible, donc garde la même taille apparente quand le navigateur passe en
+  plein écran. En dessous, rien ne change — laptop, iPad, Steam Deck, téléphone.
 - **Lance le navigateur depuis Steam, en mode Gaming.** Ouvert depuis le mode
   bureau, le navigateur ne reçoit que la souris et Hoard ne voit aucune manette.
   Ajoute-le à Steam comme jeu non-Steam, puis lance-le depuis la bibliothèque

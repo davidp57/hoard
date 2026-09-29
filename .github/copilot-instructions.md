@@ -67,6 +67,7 @@ Documentation must be kept up to date with every code change. Update in the **sa
   - Single file — inline CSS and JS. No external dependencies beyond what the browser provides natively.
   - Global `cfg` object holds all settings loaded from `/api/settings` at startup.
   - Touch gesture constants come from `cfg`, never hardcoded.
+- Sizes are written in `rem`, never `px` (BL-137): the root font size is the interface's one scale and grows with the viewport past 1920x1080. Only 1-2px hairlines and media query breakpoints stay in `px`.
   - `localStorage` holds **device-local settings only**: today `volume` and `sbs_global`
   (the whole-interface side-by-side toggle). Everything else is in the backend DB, so
   that it follows the user from the laptop to the Deck. Adding a third one is a

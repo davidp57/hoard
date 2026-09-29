@@ -17,6 +17,7 @@ Convention détaillée : [`docs/agents/issue-tracker.md`](../docs/agents/issue-t
 
 | Lot | Statut |
 |-----|--------|
+| [FIX-UI-SCALE](FIX-UI-SCALE/PRD.md) — Une taille apparente constante en plein écran (interface en `rem`, échelle à la racine BL-137 ; reste l'essai sur le Frame) | 🧑 |
 | [VR-IMMERSIVE](VR-IMMERSIVE/PRD.md) — Le relief dans le casque par WebXR (session immersive BL-136 mergée ; en pause : pas de WebXR dans le navigateur du Frame) | 🧑 |
 | [SEC-AUTH](SEC-AUTH/PRD.md) — Une instance ouverte doit se voir (contrôle de santé BL-105, annonce de l'état d'authentification BL-106) | ✅ |
 | [CLIENT-NATIVE](CLIENT-NATIVE/PRD.md) — Client natif Flutter pour Steam Deck, Steam Frame et Windows (faisabilité BL-104 ✅, puis BL-107..117) | 🔄 |

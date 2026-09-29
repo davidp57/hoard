@@ -470,6 +470,23 @@ Tous les tokens de couleur sont définis dans `:root` :
 - Breakpoint à **700 px** : au-delà, vue divisée (liste + player). En dessous, liste plein écran et player en overlay.
 - `dvh` utilisé partout pour éviter les problèmes d'unité viewport sur mobile.
 
+### Échelle de l'interface (BL-137)
+
+- **Toutes les tailles s'écrivent en `rem`**, jamais en `px`. `html` porte
+  l'unique échelle de l'interface : `font-size: max(10px, min(100vw / 192, 100dvh / 108))`,
+  donc `1rem` vaut 10px jusqu'à 1920×1080 et grandit ensuite avec le plus petit
+  des deux rapports. En plein écran, le navigateur d'un casque annonce bien plus
+  de pixels CSS pour le même écran virtuel ; en pixels fixes, l'interface rétrécissait.
+- `body` est à `1.6rem`, les 16px par défaut du navigateur sur lesquels la page a été dessinée.
+- Restent en `px` : les filets de 1-2px (ils doivent rester fins), les seuils des
+  media queries (un `rem` y ignore la taille de la racine), la bookmarklet (elle
+  tourne sur la page d'un autre site) et les marges d'`IntersectionObserver`.
+- Les fenêtres manette (BL-126) gardent leur croissance en largeur par-dessus
+  l'échelle racine — `max(1.3rem, clamp(...vw...))` — car un affichage côte à côte
+  3840×1080 est deux fois plus large sans être plus haut.
+- La propriété CSS `zoom` a été mesurée et écartée : dans Chromium elle multiplie
+  aussi `vw`/`dvh` (`100dvh` donnait 1800px dans une fenêtre de 900px à `zoom: 2`).
+
 ### Shell PWA
 
 - `frontend/manifest.webmanifest` fournit les métadonnées d'installation pour les navigateurs compatibles et les lanceurs home-screen.
