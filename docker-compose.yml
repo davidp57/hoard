@@ -2,7 +2,6 @@ services:
   hoard:
     image: ghcr.io/davidp57/hoard:main
     container_name: hoard
-    user: root
     ports:
       - "8000:8000"
     volumes:
@@ -13,6 +12,11 @@ services:
     environment:
       - MEDIA_ROOT=/media
       - DB_PATH=/data/progress.db
+      # Hoard never runs as root: it takes the uid:gid that owns the media
+      # folder. Set these only to force another one (find it on the NAS with
+      # stat -c "%u:%g" /volume1/downloads).
+      # - PUID=1026
+      # - PGID=100
       # ── Authentication ──────────────────────────────────────────────────
       # Hoard has NO authentication unless you set both of these. Every
       # endpoint is then open, including file deletion, moves and arbitrary
@@ -20,7 +24,7 @@ services:
       # reverse proxy reachable from the internet.
       # Write the values without quotes — in this list form, quotes become
       # part of the value.
-      # - HOARD_AUTH_USER=david
+      # - HOARD_AUTH_USER=<your-username>
       # - HOARD_AUTH_PASS=generate-one-with-openssl-rand-base64-24
       # Uncomment to enable HTTPS (no reverse proxy needed).
       # Generate a self-signed cert: openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 3650 -nodes -subj "/CN=nas.local"

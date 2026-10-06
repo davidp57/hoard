@@ -176,6 +176,22 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
   de suite. Un réglage de convergence est disponible dans le menu de la manette,
   à laisser à zéro sauf si un fichier précis te fatigue les yeux.
 
+### Sécurité
+
+- **Hoard est mieux protégé contre les sites web que tu visites.**
+  Une page ouverte dans un autre onglet ne peut plus lire ton Hoard, ni y déplacer, supprimer ou relancer quoi que ce soit à ta place.
+  La bookmarklet, elle, fonctionne comme avant.
+- **Hoard vérifie mieux les adresses qu'on lui demande de télécharger**, pour ne pas aller chercher ce qui se trouve sur ton réseau local.
+- **Hoard ne tourne plus avec tous les droits sur ton NAS.**
+  Avec Docker, il travaille sous l'identité du propriétaire de ton dossier de vidéos.
+  Sur un NAS Synology, ce propriétaire est souvent l'administrateur du système : Hoard le signale alors dans ses logs et continue comme avant, et le guide d'installation explique les deux lignes à ajouter pour qu'il travaille sous ton propre compte.
+  Bonus : les fichiers qu'il télécharge t'appartiennent, et se modifient depuis le partage réseau sans droits d'administrateur.
+  Si tu avais déjà installé Hoard, le guide d'installation explique comment récupérer les fichiers qu'il a créés jusqu'ici.
+- **Les fichiers dont le nom contient une apostrophe s'ouvrent à nouveau** depuis l'historique des téléchargements, le fil d'Ariane et les choix de dossier.
+- **Un nom de fichier ou de dossier ne peut plus contenir de saut de ligne** ni d'autre caractère invisible.
+- **Le transcodage ne peut plus mettre ton NAS à genoux.**
+  Deux vidéos au plus sont converties en même temps ; au-delà, le lecteur te demande de réessayer un instant plus tard au lieu de rester sur un écran noir.
+
 ### Corrigé
 
 - **L'interface ne rétrécit plus en plein écran**, dans le Steam Frame comme sur

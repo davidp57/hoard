@@ -103,6 +103,29 @@ volumes:
   - hoard_data:/data
 ```
 
+Hoard never runs as root: at start-up it takes the identity of the media folder's owner, the user that can write there.
+Nothing to configure in the usual case.
+To force another user, set `PUID` / `PGID`; to find the owner, on the NAS over SSH:
+
+```bash
+stat -c "%u:%g" /volume1/downloads   # e.g. 1026:100
+```
+
+If the media folder belongs to root, Hoard does not take that identity.
+That is the usual case for a Synology shared folder, where access goes through ACLs: set `PUID` / `PGID` to your DSM user's identity (`id -u` and `id -g` over SSH, logged in as that user).
+Without them, Hoard tries its own user, and if that one cannot write to the folder it stays root and says so in its logs rather than stop working.
+
+**If you are upgrading an install that ran as `user: root`**, the files Hoard created so far belong to root.
+Hand them back to the folder's owner once, with the values `stat` gave you:
+
+```bash
+sudo chown -R 1026:100 /volume1/downloads
+```
+
+A `user: root` line you kept in your `docker-compose.yml` can be removed; it no longer changes anything.
+
+The database (`/data`) needs nothing: Hoard hands it to `PUID:PGID` at every start.
+
 ### Start the container
 
 ```bash
@@ -141,6 +164,8 @@ All configuration is done via **environment variables** in `docker-compose.yml` 
 | `LOG_RETENTION_DAYS` | `30` | Number of daily log files kept (rotation at midnight). |
 | `RESTART_SUPERVISED` | *(auto-detected)* | `0` / `1`. Whether a supervisor restarts the process after it exits. Auto-detected inside a container; only used to word the "Restart Hoard" confirmation. |
 | `JOB_TTL_SECONDS` | `3600` | How long a finished job stays in memory. Does not affect the download history, which lives in the database. |
+| `PUID` / `PGID` | owner of `MEDIA_ROOT` | User Hoard runs as inside the container. Defaults to whoever owns the media folder (see "Adjust docker-compose.yml"). |
+| `TRANSCODE_MAX_CONCURRENCY` | `2` | Number of simultaneous transcodes. Beyond it, `/api/transcode` answers 503 rather than saturating the CPU. |
 | `DOWNLOAD_SOCKET_TIMEOUT` | `30` | Seconds of silence tolerated on a download socket before giving up. Stops a silent server from pinning the (sequential) queue. |
 
 ### Authentication — read this before exposing Hoard
@@ -161,8 +186,8 @@ Set both variables to require HTTP Basic on every request:
 
 ```yaml
 environment:
-  - HOARD_AUTH_USER=david
-  - HOARD_AUTH_PASS=nT8vQ2xK9mR4wL7pZ1sB3dF6
+  - HOARD_AUTH_USER=<your-username>
+  - HOARD_AUTH_PASS=<paste-your-generated-password-here>
 ```
 
 Generate the password rather than inventing one:

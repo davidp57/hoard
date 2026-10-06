@@ -19,9 +19,12 @@ COPY entrypoint.sh ./entrypoint.sh
 # Ensure the data volume is writable by the app user
 # Fix potential Windows CRLF line endings in entrypoint.sh
 RUN sed -i 's/\r//' /app/entrypoint.sh && \
-    mkdir -p /data && chown appuser:appuser /data && chmod +x /app/entrypoint.sh
+    mkdir -p /data && chown appuser:appuser /data && chmod +x /app/entrypoint.sh && \
+    command -v setpriv
 
-USER appuser
+# No USER here: entrypoint.sh starts as root only to hand /data to PUID:PGID, then
+# drops to that user for good with setpriv (checked above, so a base image that
+# loses it fails the build instead of the container).
 
 EXPOSE 8000
 
@@ -32,4 +35,4 @@ s = os.environ.get('SSL_CERTFILE', ''); \
 ctx = ssl._create_unverified_context() if s else None; \
 urllib.request.urlopen(('https' if s else 'http') + '://localhost:8000/healthz', context=ctx)" || exit 1
 
-CMD ["/app/entrypoint.sh"]
+ENTRYPOINT ["/app/entrypoint.sh"]

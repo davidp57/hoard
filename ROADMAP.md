@@ -23,7 +23,7 @@ was never sent and the bookmarklet blamed the site's CSP for an authentication
 failure.
 
 Out of scope and argued in the PRD: logging out as a feature (the route exists,
-the UI does not advertise it), and tightening `allow_origins=["*"]`.
+the UI does not advertise it). Tightening `allow_origins=["*"]` was done later: CORS now serves the two bookmarklet routes only.
 
 ## VR 180° side-by-side in the web player *(done, target version to be agreed)*
 

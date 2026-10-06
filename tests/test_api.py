@@ -2332,7 +2332,7 @@ class TestDownload:
         from backend.main import _sniff_video_source
 
         html = '<html><body><iframe src="https://iframe.mediadelivery.net/embed/99/xyz"></iframe></body></html>'
-        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        monkeypatch.setattr("backend.main._open_public_url", self._make_urlopen(html))
         assert (
             _sniff_video_source("https://example.com/page", None)
             == "https://iframe.mediadelivery.net/embed/99/xyz"
@@ -2343,7 +2343,7 @@ class TestDownload:
         from backend.main import _sniff_video_source
 
         html = '<html><body><video src="https://cdn.example.com/video.mp4"></video></body></html>'
-        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        monkeypatch.setattr("backend.main._open_public_url", self._make_urlopen(html))
         assert (
             _sniff_video_source("https://example.com/page", None)
             == "https://cdn.example.com/video.mp4"
@@ -2357,7 +2357,7 @@ class TestDownload:
             <video src="blob:https://example.com/fake"></video>
             <meta property="og:video" content="https://cdn.example.com/video.mp4">
         </body></html>"""
-        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        monkeypatch.setattr("backend.main._open_public_url", self._make_urlopen(html))
         assert (
             _sniff_video_source("https://example.com/page", None)
             == "https://cdn.example.com/video.mp4"
@@ -2368,7 +2368,7 @@ class TestDownload:
         from backend.main import _sniff_video_source
 
         html = '<html><head><meta property="og:video" content="https://iframe.mediadelivery.net/embed/1/abc"></head></html>'
-        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        monkeypatch.setattr("backend.main._open_public_url", self._make_urlopen(html))
         assert (
             _sniff_video_source("https://example.com/page", None)
             == "https://iframe.mediadelivery.net/embed/1/abc"
@@ -2379,7 +2379,7 @@ class TestDownload:
         from backend.main import _sniff_video_source
 
         html = '<html><head><meta property="og:video:url" content="https://cdn.example.com/clip.mp4"></head></html>'
-        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        monkeypatch.setattr("backend.main._open_public_url", self._make_urlopen(html))
         assert (
             _sniff_video_source("https://example.com/page", None)
             == "https://cdn.example.com/clip.mp4"
@@ -2390,7 +2390,7 @@ class TestDownload:
         from backend.main import _sniff_video_source
 
         html = '<html><head><meta property="og:video:secure_url" content="https://cdn.example.com/secure.mp4"></head></html>'
-        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        monkeypatch.setattr("backend.main._open_public_url", self._make_urlopen(html))
         assert (
             _sniff_video_source("https://example.com/page", None)
             == "https://cdn.example.com/secure.mp4"
@@ -2401,7 +2401,7 @@ class TestDownload:
         from backend.main import _sniff_video_source
 
         html = '<html><head><script>var p={src:"https://iframe.mediadelivery.net/embed/42/vid-id"};</script></head></html>'
-        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        monkeypatch.setattr("backend.main._open_public_url", self._make_urlopen(html))
         assert (
             _sniff_video_source("https://example.com/page", None)
             == "https://iframe.mediadelivery.net/embed/42/vid-id"
@@ -2412,7 +2412,7 @@ class TestDownload:
         from backend.main import _sniff_video_source
 
         html = '<html><head><script>var src="https://cdn.example.com/video.mp4?token=abc";</script></head></html>'
-        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        monkeypatch.setattr("backend.main._open_public_url", self._make_urlopen(html))
         assert (
             _sniff_video_source("https://example.com/page", None)
             == "https://cdn.example.com/video.mp4?token=abc"
@@ -2423,7 +2423,7 @@ class TestDownload:
         from backend.main import _sniff_video_source
 
         html = '<html><head><script>var hls="https://stream.example.com/live.m3u8";</script></head></html>'
-        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        monkeypatch.setattr("backend.main._open_public_url", self._make_urlopen(html))
         assert (
             _sniff_video_source("https://example.com/page", None)
             == "https://stream.example.com/live.m3u8"
@@ -2434,7 +2434,7 @@ class TestDownload:
         from backend.main import _sniff_video_source
 
         html = '<html><body><div data-video-src="https://iframe.mediadelivery.net/embed/5/abc123"></div></body></html>'
-        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        monkeypatch.setattr("backend.main._open_public_url", self._make_urlopen(html))
         assert (
             _sniff_video_source("https://example.com/page", None)
             == "https://iframe.mediadelivery.net/embed/5/abc123"
@@ -2445,7 +2445,7 @@ class TestDownload:
         from backend.main import _sniff_video_source
 
         html = '<html><body><div data-src="https://cdn.example.com/clip.mp4"></div></body></html>'
-        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        monkeypatch.setattr("backend.main._open_public_url", self._make_urlopen(html))
         assert (
             _sniff_video_source("https://example.com/page", None)
             == "https://cdn.example.com/clip.mp4"
@@ -2459,7 +2459,7 @@ class TestDownload:
             <video src="https://cdn.example.com/video.mp4"></video>
             <iframe src="https://iframe.mediadelivery.net/embed/99/xyz"></iframe>
         </body></html>"""
-        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        monkeypatch.setattr("backend.main._open_public_url", self._make_urlopen(html))
         assert (
             _sniff_video_source("https://example.com/page", None)
             == "https://iframe.mediadelivery.net/embed/99/xyz"
@@ -2474,7 +2474,7 @@ class TestDownload:
         </head><body>
             <video src="https://cdn.example.com/direct.mp4"></video>
         </body></html>"""
-        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        monkeypatch.setattr("backend.main._open_public_url", self._make_urlopen(html))
         assert (
             _sniff_video_source("https://example.com/page", None)
             == "https://cdn.example.com/direct.mp4"
@@ -2488,7 +2488,7 @@ class TestDownload:
             <meta property="og:video" content="https://cdn.example.com/meta.mp4">
             <script>var src="https://cdn.example.com/script.mp4";</script>
         </head></html>"""
-        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        monkeypatch.setattr("backend.main._open_public_url", self._make_urlopen(html))
         assert (
             _sniff_video_source("https://example.com/page", None)
             == "https://cdn.example.com/meta.mp4"
@@ -2499,7 +2499,7 @@ class TestDownload:
         from backend.main import _sniff_video_source
 
         html = "<html><body><p>No video here, just text.</p></body></html>"
-        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        monkeypatch.setattr("backend.main._open_public_url", self._make_urlopen(html))
         assert _sniff_video_source("https://example.com/page", None) is None
 
     def test_returns_none_on_network_error(self, monkeypatch):
@@ -2509,7 +2509,7 @@ class TestDownload:
         def _fail(req, timeout):
             raise OSError("connection refused")
 
-        monkeypatch.setattr("urllib.request.urlopen", _fail)
+        monkeypatch.setattr("backend.main._open_public_url", _fail)
         assert _sniff_video_source("https://example.com/page", None) is None
 
 
@@ -4819,3 +4819,340 @@ class TestSessionCookie:
             },
         )
         assert resp.status_code == 200
+
+
+# ── Hardening: cross-origin access, JS injection, SSRF, concat list, transcode ──
+
+
+class TestCrossOriginAccess:
+    """Only the bookmarklet routes answer cross-origin callers. Everything else is
+    same-origin: with a wildcard on every route, any page the user visits could
+    read and drive the API whenever authentication is off."""
+
+    EVIL = "https://evil.example"
+
+    def test_api_response_is_not_readable_from_another_origin(self):
+        resp = client.get("/api/settings", headers={"Origin": self.EVIL})
+        assert resp.status_code == 200
+        assert "access-control-allow-origin" not in resp.headers
+
+    def test_preflight_to_the_api_is_not_granted(self):
+        resp = client.options(
+            "/api/settings",
+            headers={
+                "Origin": self.EVIL,
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "content-type",
+            },
+        )
+        assert "access-control-allow-origin" not in resp.headers
+
+    def test_bookmarklet_routes_still_answer_any_origin(self):
+        for path in main_mod.DOWNLOAD_TOKEN_PATHS:
+            resp = client.options(
+                path,
+                headers={
+                    "Origin": "https://some-video-site.example",
+                    "Access-Control-Request-Method": "POST",
+                    "Access-Control-Request-Headers": "content-type",
+                },
+            )
+            assert resp.status_code == 200, path
+            assert resp.headers["access-control-allow-origin"] == "*", path
+
+
+class TestCrossSiteWrites:
+    """Withholding CORS stops reading, not sending: a POST with no body needs no
+    preflight. Without auth, Sec-Fetch-Site is what tells the UI from another site."""
+
+    def test_cross_site_post_is_refused(self):
+        resp = client.post("/api/restart", headers={"Sec-Fetch-Site": "cross-site"})
+        assert resp.status_code == 403
+
+    def test_same_site_but_other_origin_is_refused(self):
+        resp = client.post(
+            "/api/files/mkdir?path=", json={"name": "x"}, headers={"Sec-Fetch-Site": "same-site"}
+        )
+        assert resp.status_code == 403
+        assert not (MEDIA_ROOT / "x").exists()
+
+    def test_the_ui_itself_is_let_through(self):
+        resp = client.post(
+            "/api/files/mkdir?path=", json={"name": "x"}, headers={"Sec-Fetch-Site": "same-origin"}
+        )
+        assert resp.status_code == 200
+
+    def test_cross_site_read_is_not_this_guard_s_business(self):
+        resp = client.get("/api/settings", headers={"Sec-Fetch-Site": "cross-site"})
+        assert resp.status_code == 200
+
+    def test_bookmarklet_routes_stay_reachable_cross_site(self, monkeypatch):
+        monkeypatch.setitem(sys.modules, "yt_dlp", _make_yt_dlp_mock())
+        resp = client.post(
+            "/api/download",
+            json={"url": "https://example.com/video"},
+            headers={"Sec-Fetch-Site": "cross-site", "Origin": "https://some-video-site.example"},
+        )
+        assert resp.status_code == 200
+
+
+class TestInlineHandlerEscaping:
+    """A file name lands in onclick="fn(...)". The browser decodes the attribute's
+    entities before the JS parser sees it, so HTML escaping ('&#39;') protects
+    nothing there: only jsStr() — JSON, then the attribute escapes — does."""
+
+    def _shell(self):
+        return client.get("/").text
+
+    def test_no_inline_handler_quotes_an_interpolated_value_itself(self):
+        import re
+
+        for m in re.finditer(r'\bon[a-z]+="([^"]*)"', self._shell()):
+            handler = m.group(1)
+            assert "'${" not in handler, f"use jsStr(), not a quoted esc(): {handler}"
+
+    def test_js_str_escapes_ampersand_before_quotes(self):
+        """Without '&' → '&amp;' first, a name containing the text '&quot;' comes
+        out of the attribute as a real quote and closes the string."""
+        import re
+
+        body = re.search(r"function jsStr\(val\) \{(.*?)\n\}", self._shell(), re.S).group(1)
+        assert body.index("/&/g") < body.index('/"/g')
+
+
+class TestDownloadUrlGuard:
+    def _resolve_to(self, monkeypatch, *addresses):
+        monkeypatch.setattr(main_mod, "_resolve_host", lambda host: list(addresses))
+
+    def test_public_host_passes(self):
+        main_mod._check_public_url("https://example.com/video")
+
+    def test_host_name_pointing_at_the_lan_is_rejected(self, monkeypatch):
+        self._resolve_to(monkeypatch, "192.168.1.20")
+        with pytest.raises(ValueError):
+            main_mod._check_public_url("https://interne.example.com/x")
+        resp = client.post("/api/download", json={"url": "https://interne.example.com/x"})
+        assert resp.status_code == 400
+
+    def test_one_local_address_among_several_is_enough_to_reject(self, monkeypatch):
+        self._resolve_to(monkeypatch, "1.1.1.1", "10.0.0.5")
+        with pytest.raises(ValueError):
+            main_mod._check_public_url("https://mixed.example.com/x")
+
+    def test_unresolvable_host_is_rejected(self, monkeypatch):
+        def _fail(host):
+            raise OSError("no such host")
+
+        monkeypatch.setattr(main_mod, "_resolve_host", _fail)
+        with pytest.raises(ValueError):
+            main_mod._check_public_url("https://nowhere.invalid/x")
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "http://0.0.0.0:5000/",  # reaches the host itself on Linux
+            "http://[::ffff:192.168.1.1]/",  # IPv4-mapped IPv6
+            "http://100.64.1.1/",  # carrier-grade NAT
+            "http://[::1]/",
+            "http://nas.localhost/",
+        ],
+    )
+    def test_local_literal_addresses_are_rejected(self, url):
+        with pytest.raises(ValueError):
+            main_mod._check_public_url(url)
+
+    def test_redirect_to_the_lan_is_refused(self):
+        import urllib.error
+        import urllib.request
+
+        handler = main_mod._PublicOnlyRedirectHandler()
+        req = urllib.request.Request("https://example.com/page")
+        with pytest.raises(urllib.error.URLError):
+            handler.redirect_request(req, None, 302, "Found", {}, "http://192.168.1.1:5000/")
+
+    def test_sniff_does_not_fetch_a_local_page(self, monkeypatch):
+        # Recorded rather than raised: _sniff_video_source swallows every exception.
+        fetched = []
+        monkeypatch.setattr(main_mod, "_open_public_url", lambda req, timeout: fetched.append(req))
+        assert main_mod._sniff_video_source("http://192.168.1.1/page", None) is None
+        assert fetched == []
+
+    def test_sniffed_url_pointing_at_the_lan_is_not_downloaded(self, monkeypatch):
+        """The sniffed URL comes from the remote page: it goes through the same
+        check as the URL the user queued, and the job fails instead of fetching it."""
+        mock_yt_dlp = _make_yt_dlp_mock()
+        extracted = []
+
+        def _extract(url, download):
+            extracted.append(url)
+            raise mock_yt_dlp.utils.DownloadError(f"ERROR: Unsupported URL: {url}")
+
+        mock_yt_dlp.YoutubeDL.return_value.extract_info = MagicMock(side_effect=_extract)
+        monkeypatch.setitem(sys.modules, "yt_dlp", mock_yt_dlp)
+        monkeypatch.setattr(
+            main_mod, "_sniff_video_source", lambda url, cookies: "http://192.168.1.1:5000/webapi"
+        )
+        _sync_thread_patch(monkeypatch)
+        resp = client.post("/api/download", json={"url": "https://example.com/page"})
+        job = {j["id"]: j for j in client.get("/api/jobs").json()}[resp.json()["job_id"]]
+        assert job["status"] == "error"
+        assert "Local network" in job["error"]
+        assert extracted == ["https://example.com/page"]
+
+
+class TestControlCharactersInNames:
+    @pytest.mark.parametrize("name", ["a\nb.mp4", "a\rb.mp4", "a\tb.mp4", "a\x7fb.mp4"])
+    def test_rename_refuses_control_characters(self, video_file, name):
+        resp = client.post(f"/api/files/rename?path={video_file}", json={"new_name": name})
+        assert resp.status_code == 400
+        assert (MEDIA_ROOT / video_file).exists()
+
+    def test_mkdir_refuses_a_line_break(self):
+        resp = client.post("/api/files/mkdir?path=", json={"name": "a\nb"})
+        assert resp.status_code == 400
+
+
+class TestMergedExportList:
+    """The concat list is line-based and read with -safe 0: a line break in the
+    source path would add a `file` directive of the file name's own choosing."""
+
+    SEGMENTS = [{"seg_in": 0.0, "seg_out": 5.0}, {"seg_in": 10.0, "seg_out": 15.0}]
+
+    def _job(self):
+        import uuid
+
+        job_id = str(uuid.uuid4())
+        main_mod._jobs[job_id] = {"id": job_id, "status": "pending", "error": None}
+        return job_id
+
+    def test_line_break_in_source_fails_the_job_without_running_ffmpeg(self, monkeypatch):
+        def _never(*a, **k):
+            raise AssertionError("ffmpeg was started")
+
+        monkeypatch.setattr(main_mod.subprocess, "Popen", _never)
+        job_id = self._job()
+        source = MEDIA_ROOT / "film\nfile '/etc/passwd'\n#.mp4"  # never created
+        main_mod._run_export_segments(job_id, source, self.SEGMENTS, "merged", MEDIA_ROOT, True)
+        assert main_mod._jobs[job_id]["status"] == "error"
+        assert "line break" in main_mod._jobs[job_id]["error"]
+
+    def test_apostrophe_is_escaped_the_concat_way(self, monkeypatch):
+        written = {}
+
+        class _Proc:
+            returncode = 0
+            stderr = iter(())
+
+            def __init__(self, cmd, **kwargs):
+                written["list"] = Path(cmd[cmd.index("-i") + 1]).read_text(encoding="utf-8")
+
+            def wait(self):
+                return 0
+
+        monkeypatch.setattr(main_mod.subprocess, "Popen", _Proc)
+        source = MEDIA_ROOT / "it's.mp4"
+        source.write_bytes(b"\x00" * 16)
+        job_id = self._job()
+        main_mod._run_export_segments(job_id, source, self.SEGMENTS, "merged", MEDIA_ROOT, True)
+        expected = "file '" + str(source).replace("'", "'\\''") + "'"
+        assert written["list"].splitlines().count(expected) == 2
+        assert main_mod._jobs[job_id]["status"] == "done"
+
+
+class TestTranscodeConcurrency:
+    """Each transcode is a libx264 encode lasting as long as playback: capped like
+    thumbnails, so a few devices cannot saturate a low-power NAS."""
+
+    class _Proc:
+        def __init__(self, cmd, **kwargs):
+            import io
+
+            self.stdout = io.BytesIO(b"x" * 1000)
+            self.terminated = False
+
+        def terminate(self):
+            self.terminated = True
+
+        def wait(self, timeout=None):
+            return 0
+
+        def kill(self):
+            pass
+
+    @staticmethod
+    def _free_slots():
+        n = 0
+        while main_mod._transcode_slots.acquire(blocking=False):
+            n += 1
+        for _ in range(n):
+            main_mod._transcode_slots.release()
+        return n
+
+    @pytest.fixture(autouse=True)
+    def _fake_ffmpeg(self, monkeypatch):
+        monkeypatch.setattr(main_mod, "FFMPEG_BIN", "ffmpeg")
+        monkeypatch.setattr(main_mod.subprocess, "Popen", self._Proc)
+        # Fresh slots per test: one that fails mid-way must not leave the next at 503.
+        monkeypatch.setattr(
+            main_mod,
+            "_transcode_slots",
+            threading.BoundedSemaphore(main_mod.TRANSCODE_MAX_CONCURRENCY),
+        )
+
+    def test_busy_server_answers_503(self, video_file):
+        cap = main_mod.TRANSCODE_MAX_CONCURRENCY
+        for _ in range(cap):
+            assert main_mod._transcode_slots.acquire(blocking=False)
+        try:
+            resp = client.get(f"/api/transcode?path={video_file}")
+            assert resp.status_code == 503
+        finally:
+            for _ in range(cap):
+                main_mod._transcode_slots.release()
+
+    def test_slot_is_released_once_the_stream_ends(self, video_file):
+        resp = client.get(f"/api/transcode?path={video_file}")
+        assert resp.status_code == 200
+        assert resp.content == b"x" * 1000
+        assert self._free_slots() == main_mod.TRANSCODE_MAX_CONCURRENCY
+
+    def test_slot_is_released_when_the_stream_never_starts(self, video_file):
+        """A client gone before the first chunk leaves the generator unstarted, and
+        an unstarted generator never runs its finally."""
+        import gc
+
+        resp = main_mod.transcode_video(video_file, audio_only=False)
+        assert self._free_slots() == main_mod.TRANSCODE_MAX_CONCURRENCY - 1
+        del resp
+        gc.collect()
+        assert self._free_slots() == main_mod.TRANSCODE_MAX_CONCURRENCY
+
+    def test_ffmpeg_is_stopped_explicitly(self, video_file, monkeypatch):
+        procs = []
+
+        def _spawn(cmd, **kwargs):
+            procs.append(self._Proc(cmd))
+            return procs[-1]
+
+        monkeypatch.setattr(main_mod.subprocess, "Popen", _spawn)
+        client.get(f"/api/transcode?path={video_file}")
+        assert procs and procs[0].terminated
+
+
+class TestDeploymentExamples:
+    REPO = Path(__file__).resolve().parent.parent
+
+    def test_no_example_carries_a_real_looking_password(self):
+        """An example that looks like a generated password gets pasted as is, and
+        every install that followed the docs then shares it."""
+        import re
+
+        files = [*self.REPO.glob("docs/*.md"), self.REPO / "docker-compose.yml"]
+        for f in files:
+            for value in re.findall(r"HOARD_AUTH_PASS=(\S+)", f.read_text(encoding="utf-8")):
+                # The value is not printed: if this fails, it may be a real one.
+                assert not re.fullmatch(r"[A-Za-z0-9+/=]{12,}", value), f.name
+
+    def test_production_compose_does_not_run_as_root(self):
+        text = (self.REPO / "docker-compose.yml").read_text(encoding="utf-8")
+        assert "user: root" not in text

@@ -403,6 +403,13 @@ d'authentification. Ces deux chemins sont listés dans `DOWNLOAD_TOKEN_PATHS` et
 s'authentifient eux-mêmes via `_require_download_auth()`, si bien que leur 401
 ressort à travers `CORSMiddleware` et devient lisible par l'appelant.
 
+**CORS n'existe que pour ces deux routes.** `BookmarkletCORSMiddleware` n'applique `CORSMiddleware` (`allow_origins=["*"]`, `POST`, `Content-Type`) qu'aux chemins de `DOWNLOAD_TOKEN_PATHS`.
+L'interface est servie par le même processus et n'a besoin d'aucun en-tête CORS ; un joker sur toute l'API laisserait n'importe quelle page visitée lire et piloter Hoard quand l'authentification est désactivée.
+
+**Écritures venues d'un autre site.** Sans CORS, une page tierce ne lit plus les réponses, mais peut encore envoyer une requête qui n'exige pas de *preflight* — un `POST` sans corps, comme `/api/restart` ou la relance d'un téléchargement.
+`reject_cross_site_writes` refuse (403) les `POST` / `PUT` / `PATCH` / `DELETE` dont `Sec-Fetch-Site` vaut `cross-site` ou `same-site`, hors `DOWNLOAD_TOKEN_PATHS`.
+Une requête sans `Sec-Fetch-*` (curl, client natif) passe : ce n'est pas un navigateur qu'une page tierce peut piloter.
+
 ### Avancement pour la bookmarklet (`POST /api/download/status`)
 
 ```json

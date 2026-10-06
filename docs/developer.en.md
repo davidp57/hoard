@@ -440,6 +440,13 @@ rather than an authentication one. These two paths are listed in
 so their 401 travels back out through `CORSMiddleware` and is readable by the
 caller.
 
+**CORS exists for these two routes only.** `BookmarkletCORSMiddleware` applies `CORSMiddleware` (`allow_origins=["*"]`, `POST`, `Content-Type`) to the paths in `DOWNLOAD_TOKEN_PATHS` and to nothing else.
+The UI is served by the same process and needs no CORS header; a wildcard on the whole API would let any page the user visits read and drive Hoard whenever authentication is off.
+
+**Writes from another site.** Without CORS a third-party page can no longer read responses, but it can still send a request that needs no preflight — a `POST` with no body, such as `/api/restart` or retrying a download.
+`reject_cross_site_writes` refuses (403) any `POST` / `PUT` / `PATCH` / `DELETE` whose `Sec-Fetch-Site` is `cross-site` or `same-site`, outside `DOWNLOAD_TOKEN_PATHS`.
+A request without `Sec-Fetch-*` (curl, a native client) goes through: it is not a browser a third-party page can drive.
+
 ### Bookmarklet Progress (`POST /api/download/status`)
 
 ```json

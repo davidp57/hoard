@@ -146,3 +146,28 @@ def _forbid_real_yt_dlp():
         sys.modules.pop("yt_dlp", None)
     else:
         sys.modules["yt_dlp"] = saved
+
+
+# A public address that no test host really owns (Cloudflare's resolver).
+PUBLIC_TEST_IP = "1.1.1.1"
+
+
+@pytest.fixture(autouse=True)
+def _resolve_hosts_offline():
+    """Answer the SSRF guard's DNS lookups without a network.
+
+    The download URL check resolves host names, and the suite's hosts
+    (example.com, *.example, *.invalid) must not depend on a resolver being
+    reachable — nor on what it answers. Every name resolves to a public
+    address here; a test that needs a name pointing at the LAN patches
+    backend.main._resolve_host itself.
+    """
+    import backend.main as _main
+
+    # Patched by hand rather than through monkeypatch: requesting monkeypatch here
+    # would set it up before clean_media, and a test's own patches (Path.unlink…)
+    # would then still be active while clean_media tears down.
+    original = _main._resolve_host
+    _main._resolve_host = lambda host: [PUBLIC_TEST_IP]
+    yield
+    _main._resolve_host = original
