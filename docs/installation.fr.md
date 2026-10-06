@@ -103,6 +103,27 @@ volumes:
   - hoard_data:/data
 ```
 
+Hoard ne tourne jamais en root : au démarrage, il prend l'identité du propriétaire du dossier média, celle qui peut y écrire.
+Rien à régler dans le cas courant.
+Pour forcer un autre utilisateur, définis `PUID` / `PGID` ; pour connaître le propriétaire, sur le NAS en SSH :
+
+```bash
+stat -c "%u:%g" /volume1/downloads   # par exemple 1026:100
+```
+
+Si le dossier média appartient à root, Hoard ne prend pas cette identité : il tourne sous son propre utilisateur et le signale dans ses logs, et il faut alors définir `PUID` / `PGID`.
+
+**Si tu mets à jour une installation qui tournait en `user: root`**, les fichiers que Hoard a créés jusque-là appartiennent à root.
+Rends-les une fois pour toutes au propriétaire du dossier, avec les valeurs données par `stat` :
+
+```bash
+sudo chown -R 1026:100 /volume1/downloads
+```
+
+La ligne `user: root` de ton `docker-compose.yml`, si tu l'as gardée, peut être retirée ; elle ne change plus rien.
+
+La base (`/data`) n'a pas besoin de ce geste : Hoard la remet à `PUID:PGID` à chaque démarrage.
+
 ### Démarrer le container
 
 ```bash
@@ -141,6 +162,8 @@ Toute la configuration passe par des **variables d'environnement** dans `docker-
 | `LOG_RETENTION_DAYS` | `30` | Nombre de fichiers quotidiens conservés (rotation à minuit). |
 | `RESTART_SUPERVISED` | *(auto-détecté)* | `0` / `1`. Indique si un superviseur relance le processus après un arrêt. Détecté automatiquement dans un container ; sert uniquement à formuler le message de confirmation du bouton « Redémarrer Hoard ». |
 | `JOB_TTL_SECONDS` | `3600` | Durée de conservation en mémoire d'un job terminé. N'affecte pas l'historique des téléchargements, qui est en base. |
+| `PUID` / `PGID` | propriétaire de `MEDIA_ROOT` | Utilisateur sous lequel Hoard tourne dans le container. Par défaut celui qui possède le dossier média (voir « Adapter docker-compose.yml »). |
+| `TRANSCODE_MAX_CONCURRENCY` | `2` | Nombre de transcodages simultanés. Au-delà, `/api/transcode` répond 503 plutôt que de saturer le processeur. |
 | `DOWNLOAD_SOCKET_TIMEOUT` | `30` | Secondes de silence tolérées sur une connexion de téléchargement avant abandon. Évite qu'un serveur muet immobilise la file (séquentielle). |
 
 ### Authentification — à lire avant d'exposer Hoard
@@ -163,8 +186,8 @@ chaque requête :
 
 ```yaml
 environment:
-  - HOARD_AUTH_USER=david
-  - HOARD_AUTH_PASS=nT8vQ2xK9mR4wL7pZ1sB3dF6
+  - HOARD_AUTH_USER=<ton-identifiant>
+  - HOARD_AUTH_PASS=<colle-ici-le-mot-de-passe-généré>
 ```
 
 Génère le mot de passe plutôt que de l'inventer :

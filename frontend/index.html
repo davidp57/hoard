@@ -3176,7 +3176,7 @@ async function loadBrowseDir(path) {
   let crumbHtml = '';
   if (data.parent !== null && data.parent !== undefined) {
     const upLabel = data.parent === '' ? '&#x1f4bb; Lecteurs' : '&#8593; ' + esc(data.parent.split('/').filter(Boolean).pop() || '/');
-    crumbHtml += `<span onclick="loadBrowseDir('${esc(data.parent || '')}')" style="cursor:pointer;color:var(--accent)">${upLabel}</span>  `;
+    crumbHtml += `<span onclick="loadBrowseDir(${jsStr(data.parent || '')})" style="cursor:pointer;color:var(--accent)">${upLabel}</span>  `;
   }
   crumbHtml += `<span style="color:var(--text)">${esc(data.path || 'Lecteurs')}</span>`;
   crumbEl.innerHTML = crumbHtml;
@@ -3187,7 +3187,7 @@ async function loadBrowseDir(path) {
     return;
   }
   listEl.innerHTML = data.dirs.map(d => `
-    <div onclick="loadBrowseDir('${esc(d.path)}')" style="display:flex;align-items:center;gap:0.8rem;padding:0.9rem 1.2rem;background:var(--surface2);border:1px solid var(--border);border-radius:0.6rem;cursor:pointer;font-size:1.3rem" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+    <div onclick="loadBrowseDir(${jsStr(d.path)})" style="display:flex;align-items:center;gap:0.8rem;padding:0.9rem 1.2rem;background:var(--surface2);border:1px solid var(--border);border-radius:0.6rem;cursor:pointer;font-size:1.3rem" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
       \ud83d\udcc1 ${esc(d.name)}
     </div>
   `).join('');
@@ -3888,10 +3888,6 @@ async function startDownload() {
 }
 
 // ── Download queue helpers ────────────────────────────────────────────────────
-function _esc(s) {
-  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
 function _updateDlQueueWidget() {
   const badge = document.getElementById('dl-queue-badge');
   if (!badge) return;
@@ -3925,12 +3921,12 @@ function _renderDlQueueList() {
     const statusClass = isDone ? 'done' : isError ? 'error' : isCancelled ? 'error' : '';
     const canDismiss = isDone || isError || isCancelled;
     return `<div class="dl-job-item">
-      <div class="dl-job-name">${_esc(name)}</div>
+      <div class="dl-job-name">${esc(name)}</div>
       <div class="dl-job-bar-track"><div class="dl-job-bar-fill" style="width:${job.progress}%"></div></div>
       <div class="dl-job-row">
-        <div class="dl-job-status ${statusClass}">${_esc(statusText)}</div>
-        ${isActive ? `<button class="dl-job-dismiss" onclick="stopDlJob('${_esc(job.id)}')" title="Annuler">⏹</button>` : ''}
-        ${canDismiss ? `<button class="dl-job-dismiss" onclick="dismissDlJob('${_esc(job.id)}')" title="Retirer">✕</button>` : ''}
+        <div class="dl-job-status ${statusClass}">${esc(statusText)}</div>
+        ${isActive ? `<button class="dl-job-dismiss" onclick="stopDlJob(${jsStr(job.id)})" title="Annuler">⏹</button>` : ''}
+        ${canDismiss ? `<button class="dl-job-dismiss" onclick="dismissDlJob(${jsStr(job.id)})" title="Retirer">✕</button>` : ''}
       </div>
     </div>`;
   }).join('');
@@ -4045,17 +4041,17 @@ function _renderDlHistory() {
     const when = _dlHistoryDate(item.finished_at || item.created_at);
     const canOpen = item.status === 'done' && item.output_path;
     return `<div class="dl-job-item">
-      <div class="dl-job-name" title="${_esc(item.url)}">${_esc(name)}</div>
+      <div class="dl-job-name" title="${esc(item.url)}">${esc(name)}</div>
       <div class="dl-job-row">
-        <div class="dl-job-status ${label.cls}">${label.icon} ${_esc(label.text)}</div>
+        <div class="dl-job-status ${label.cls}">${label.icon} ${esc(label.text)}</div>
         <div style="display:flex;align-items:center;gap:0.8rem">
-          ${canOpen ? `<button class="dl-job-link" onclick="goToDownloadedFile('${_esc(item.output_path)}')">Aller au fichier</button>` : ''}
-          <button class="dl-job-retry" onclick="retryDownload('${_esc(item.id)}', ${item.status === 'done'})" title="Relancer ce téléchargement" aria-label="Relancer ce téléchargement">↻</button>
-          <span class="dl-job-meta">${_esc(when)}</span>
-          <button class="dl-job-dismiss" onclick="deleteDlHistoryEntry('${_esc(item.id)}')" title="Retirer de l'historique">✕</button>
+          ${canOpen ? `<button class="dl-job-link" onclick="goToDownloadedFile(${jsStr(item.output_path)})">Aller au fichier</button>` : ''}
+          <button class="dl-job-retry" onclick="retryDownload(${jsStr(item.id)}, ${item.status === 'done'})" title="Relancer ce téléchargement" aria-label="Relancer ce téléchargement">↻</button>
+          <span class="dl-job-meta">${esc(when)}</span>
+          <button class="dl-job-dismiss" onclick="deleteDlHistoryEntry(${jsStr(item.id)})" title="Retirer de l'historique">✕</button>
         </div>
       </div>
-      ${item.error ? `<div class="dl-job-err">${_esc(item.error)}</div>` : ''}
+      ${item.error ? `<div class="dl-job-err">${esc(item.error)}</div>` : ''}
     </div>`;
   }).join('');
   // Older entries stay reachable: the list is paginated, not truncated.
@@ -4460,7 +4456,7 @@ function renderBreadcrumb(crumbs) {
   const homeLabel = homeRoots.length > 0 ? '🏠' : (homeFolder ? homeFolder.split('/').pop() + ' \u2302' : '~');
   let html = `<span onclick="navigateHome()">${homeLabel}</span>`;
   for (const c of crumbs) {
-    html += `<span class="sep">/</span><span onclick="navigate('${esc(c.path)}')">${esc(c.name)}</span>`;
+    html += `<span class="sep">/</span><span onclick="navigate(${jsStr(c.path)})">${esc(c.name)}</span>`;
   }
   bc.innerHTML = html;
   updateHomeBtnState();
@@ -5425,6 +5421,9 @@ async function playVideo(idx) {
   currentInitialSweepState = initialSweepState;
   refreshInitialSweepAction();
   video.onerror = () => {
+    // Closing the player or releasing the file sets src = '', which fires an error
+    // too: that one must not start a transcode of the file just closed.
+    if (!video.getAttribute('src') || currentFile !== entry) return;
     if (video.error && video.error.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) {
       if (video.src.includes('audio_only=true')) {
         // Audio-only transcode failed: the browser cannot decode the video codec.
@@ -5432,7 +5431,9 @@ async function playVideo(idx) {
         return;
       }
       if (video.src.includes('/api/transcode')) {
-        // Full transcode already tried — give up.
+        // Full transcode already tried — give up, but say so: the server refuses
+        // a transcode (503) when as many are already running as it allows.
+        showToast('⚠ Transcodage impossible — serveur occupé ? Réessayez dans un instant');
         return;
       }
       if (!cfg.transcode_enabled) {
@@ -5443,7 +5444,6 @@ async function playVideo(idx) {
       const audioOnlySuffix = cfg.transcode_audio_only ? '&audio_only=true' : '';
       video.src = `${API}/api/transcode?path=${encodeURIComponent(entry.path)}${audioOnlySuffix}`;
       video.load();
-      video.onerror = null;
     }
   };
   video.onloadedmetadata = () => {
@@ -6776,7 +6776,7 @@ function openMoveModal(path, name) {
   const container = document.getElementById('modal-folders');
   if (quickFolders.length) {
     container.innerHTML = quickFolders.map(qf => `
-      <button class="modal-folder-btn" onclick="selectMoveDest('${esc(qf.path)}', '${esc(qf.name)}', this)">&#128193; ${esc(qf.name)}</button>
+      <button class="modal-folder-btn" onclick="selectMoveDest(${jsStr(qf.path)}, ${jsStr(qf.name)}, this)">&#128193; ${esc(qf.name)}</button>
     `).join('');
   } else {
     container.innerHTML = `<div style="color:var(--text-dim);font-size:1.2rem;padding:0.8rem 0;line-height:1.5">Aucun dossier rapide.<br>Clique sur 📌 dans la liste pour en épingler un.</div>`;
@@ -6964,7 +6964,7 @@ function openExportModal() {
   const container = document.getElementById('export-folders');
   if (quickFolders.length) {
     container.innerHTML = quickFolders.map(qf =>
-      `<button class="modal-folder-btn" onclick="selectExportDest('${esc(qf.path)}')">📁 ${esc(qf.name)}</button>`
+      `<button class="modal-folder-btn" onclick="selectExportDest(${jsStr(qf.path)})">📁 ${esc(qf.name)}</button>`
     ).join('');
   } else {
     container.innerHTML = `<div style="color:var(--text-dim);font-size:1.2rem">Aucun dossier rapide — saisissez un chemin ci-dessous.</div>`;
@@ -7315,10 +7315,14 @@ function esc(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
-// Safely encode a JS string literal for use inside an HTML attribute (onclick="...").
-// JSON.stringify handles all JS-special chars; replacing " with &quot; prevents breaking the HTML attribute.
+// Safely encode a JS string literal for use inside a double-quoted HTML attribute
+// (onclick="..."). JSON.stringify handles all JS-special chars.
+// The browser decodes entities in the attribute BEFORE handing it to the JS parser, so
+// '&' must be escaped first: a name containing the text "&quot;" would otherwise come
+// out as a real quote and close the string. HTML-escaping alone (esc) never protects a
+// JS string literal — '&#39;' is decoded back to an apostrophe.
 function jsStr(val) {
-  return JSON.stringify(String(val)).replace(/"/g, '&quot;');
+  return JSON.stringify(String(val)).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
 }
 
 let toastTimer;

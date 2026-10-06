@@ -12,13 +12,17 @@ import re
 import secrets
 import shutil
 import signal
+import socket
 import sqlite3
 import string as _string
 import subprocess
 import tempfile
 import threading
 import time
+import urllib.error
+import urllib.request
 import uuid
+import weakref
 import zipfile
 from contextlib import contextmanager
 from pathlib import Path
@@ -163,7 +167,32 @@ def _read_version() -> str:
 VERSION = _read_version()
 
 app = FastAPI(title="Hoard", version=VERSION)
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+
+class BookmarkletCORSMiddleware:
+    """CORS for the two bookmarklet routes, and for nothing else.
+
+    The UI is served by this same process, so it never needs CORS. The bookmarklet
+    does: it runs on a third-party page and must read the answer of
+    DOWNLOAD_TOKEN_PATHS. Opening every route to every origin instead would let any
+    web page the user visits read and drive the whole API — browse the server,
+    switch the media root, read files back — whenever authentication is off.
+    """
+
+    def __init__(self, app):
+        self.app = app
+        self.cors = CORSMiddleware(
+            app, allow_origins=["*"], allow_methods=["POST"], allow_headers=["Content-Type"]
+        )
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http" and scope["path"] in DOWNLOAD_TOKEN_PATHS:
+            await self.cors(scope, receive, send)
+        else:
+            await self.app(scope, receive, send)
+
+
+app.add_middleware(BookmarkletCORSMiddleware)
 
 # Security headers applied to every response. The CSP keeps the single-file
 # inline CSS/JS frontend working ('unsafe-inline'), allows the Google Fonts
@@ -194,6 +223,29 @@ async def add_security_headers(request: Request, call_next):
     for key, value in SECURITY_HEADERS.items():
         response.headers.setdefault(key, value)
     return response
+
+
+# Withholding CORS stops a third-party page from READING the API, not from sending to
+# it: a POST without a body (/api/restart, retrying or cancelling a download,
+# regenerating the bookmarklet token) needs no preflight. Without authentication nothing
+# else tells such a request from the UI's own — the session cookie is SameSite=Lax only
+# once auth is on. Browsers say where a
+# request comes from in Sec-Fetch-Site; anything but the UI's own origin is refused for
+# the methods that change state. Clients that send no Sec-Fetch-* (curl, a native
+# client) are not browsers and are let through. The bookmarklet routes are the one
+# legitimate cross-site caller.
+_STATE_CHANGING_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+
+
+@app.middleware("http")
+async def reject_cross_site_writes(request: Request, call_next):
+    if (
+        request.method in _STATE_CHANGING_METHODS
+        and request.url.path not in DOWNLOAD_TOKEN_PATHS
+        and request.headers.get("sec-fetch-site") in ("cross-site", "same-site")
+    ):
+        return JSONResponse({"detail": "Cross-site request refused"}, status_code=403)
+    return await call_next(request)
 
 
 # Optional HTTP Basic auth, opt-in via env vars. Disabled unless BOTH HOARD_AUTH_USER
@@ -1074,8 +1126,15 @@ def _run_export_segments(
             out_name = f"{source.stem} [{n} segment{'s' if n > 1 else ''}]{source.suffix}"
             output = dest_dir / out_name
             total_duration = sum(s["seg_out"] - s["seg_in"] for s in segments)
-            # Escape single quotes in path for FFmpeg concat demuxer format
-            escaped_source = str(source).replace("'", "\\'")
+            # The concat list is read line by line, so a line break in the path would
+            # end the `file` directive and start one of the file name's own choosing.
+            # No quoting can carry it: refuse. Inside single quotes the demuxer takes
+            # everything literally, backslash included, so a quote is written '\''.
+            if any(c in str(source) for c in "\r\n"):
+                job["status"] = "error"
+                job["error"] = "The file name contains a line break; merged export is impossible"
+                return
+            escaped_source = str(source).replace("'", "'\\''")
             with tempfile.NamedTemporaryFile(
                 mode="w", suffix=".txt", delete=False, encoding="utf-8"
             ) as f:
@@ -1387,7 +1446,6 @@ def _sniff_video_source(page_url: str, cookies_str: str | None) -> str | None:
     """
     from html.parser import HTMLParser
     from urllib.request import Request as _UrlRequest
-    from urllib.request import urlopen
 
     class _Parser(HTMLParser):
         def __init__(self) -> None:
@@ -1452,8 +1510,9 @@ def _sniff_video_source(page_url: str, cookies_str: str | None) -> str | None:
         }
         if cookies_str:
             headers["Cookie"] = cookies_str
+        _check_public_url(page_url)
         req = _UrlRequest(page_url, headers=headers)
-        with urlopen(req, timeout=10) as resp:  # noqa: S310
+        with _open_public_url(req, timeout=10) as resp:
             html_content = resp.read().decode("utf-8", errors="ignore")
         parser = _Parser()
         parser.feed(html_content)
@@ -1608,6 +1667,9 @@ def _run_download(
             sniffed = _sniff_video_source(url, cookies_str)
             if not sniffed:
                 raise
+            # The sniffed URL comes from the remote page, not from the user: it must
+            # pass the same check as the URL that was queued.
+            _check_public_url(sniffed)
             # Use the original page URL as Referer for the CDN request
             ydl_opts["http_headers"] = {"Referer": url}
             job["source_name"] = sniffed
@@ -2628,13 +2690,27 @@ def move_file(path: str, body: MoveRequest, request: Request):
     return {"job_id": job_id}
 
 
+def _is_valid_entry_name(name: str) -> bool:
+    """A single path component with no control character.
+
+    Separators would escape the parent folder. Control characters, line breaks
+    above all, have no business in a file name and break the line-based formats
+    a name is later written into, such as ffmpeg's concat list."""
+    return (
+        bool(name)
+        and name not in (".", "..")
+        and not any(c in name for c in ("/", "\\"))
+        and not any(ord(c) < 0x20 or ord(c) == 0x7F for c in name)
+    )
+
+
 @app.post("/api/files/mkdir")
 def make_directory(path: str, body: MkdirRequest):
     parent = safe_path(path)
     if not parent.is_dir():
         raise HTTPException(status_code=404, detail="Parent folder not found")
     name = body.name.strip()
-    if not name or any(c in name for c in ("/", "\\", "\0")) or name in (".", ".."):
+    if not _is_valid_entry_name(name):
         raise HTTPException(status_code=400, detail="Invalid folder name")
     new_dir = parent / name
     if new_dir.exists():
@@ -2678,7 +2754,7 @@ def rename_path(path: str, body: RenameRequest, request: Request):
     if not source.exists():
         raise HTTPException(status_code=404)
     new_name = body.new_name.strip()
-    if not new_name or any(c in new_name for c in ("/", "\\", "\0")) or new_name in (".", ".."):
+    if not _is_valid_entry_name(new_name):
         raise HTTPException(status_code=400, detail="Invalid name")
     dest = safe_path(to_rel(source.parent / new_name))  # defense-in-depth re-check
     if dest.exists():
@@ -3027,29 +3103,85 @@ _PRIVATE_NETWORKS = (
 )
 
 
-def _validate_download_url(url: str) -> None:
-    """Raise HTTPException 400 for clearly invalid or dangerous URLs."""
+def _resolve_host(host: str) -> list[str]:
+    """Every address *host* resolves to. Raises OSError when it does not resolve.
+
+    Its own function so the test suite can answer without a network."""
+    return [info[4][0] for info in socket.getaddrinfo(host, None)]
+
+
+def _is_local_address(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
+        ip = ip.ipv4_mapped
+    return (
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_reserved
+        or ip.is_unspecified
+        or ip.is_multicast
+        or any(ip in net for net in _PRIVATE_NETWORKS)
+    )
+
+
+def _check_public_url(url: str) -> None:
+    """Raise ValueError unless *url* is http(s) and reaches only public addresses.
+
+    A host name is resolved and every address it returns is checked: a public name
+    pointing at 192.168.x.x is as local as the literal address. Resolving here and
+    connecting later remain two moments (DNS rebinding); closing that gap needs
+    control of the socket, which yt-dlp does not give.
+    """
     if not url or not url.strip():
-        raise HTTPException(status_code=400, detail="URL is required")
+        raise ValueError("URL is required")
     try:
         parsed = urlparse(url)
     except Exception:
-        raise HTTPException(status_code=400, detail="Invalid URL") from None
+        raise ValueError("Invalid URL") from None
     if parsed.scheme not in ("http", "https"):
-        raise HTTPException(status_code=400, detail="Only http/https URLs are allowed")
+        raise ValueError("Only http/https URLs are allowed")
     host = (parsed.hostname or "").lower()
     if not host:
-        raise HTTPException(status_code=400, detail="URL has no host")
-    # Reject localhost by name
-    if host == "localhost":
-        raise HTTPException(status_code=400, detail="Local network URLs are not allowed")
-    # If the host is a literal IP address, reject private/reserved ranges using CIDR checks
+        raise ValueError("URL has no host")
+    if host == "localhost" or host.endswith(".localhost"):
+        raise ValueError("Local network URLs are not allowed")
     try:
-        ip = ipaddress.ip_address(host)
-        if any(ip in net for net in _PRIVATE_NETWORKS):
-            raise HTTPException(status_code=400, detail="Local network URLs are not allowed")
+        addresses = [ipaddress.ip_address(host)]
     except ValueError:
-        pass  # hostname (not a literal IP) — allow
+        try:
+            addresses = [ipaddress.ip_address(a.split("%")[0]) for a in _resolve_host(host)]
+        except (OSError, ValueError):
+            raise ValueError("URL host does not resolve") from None
+    if not addresses or any(_is_local_address(ip) for ip in addresses):
+        raise ValueError("Local network URLs are not allowed")
+
+
+class _PublicOnlyRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Re-check every redirect target: a public page may answer with a 302 to the LAN."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        try:
+            _check_public_url(newurl)
+        except ValueError as e:
+            raise urllib.error.URLError(f"redirect refused: {e}") from None
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+_public_only_opener = urllib.request.build_opener(_PublicOnlyRedirectHandler)
+
+
+def _open_public_url(req, timeout: float):
+    """urlopen() that refuses to follow a redirect towards a local address.
+    The first URL is the caller's to check (see _check_public_url)."""
+    return _public_only_opener.open(req, timeout=timeout)
+
+
+def _validate_download_url(url: str) -> None:
+    """Raise HTTPException 400 for clearly invalid or dangerous URLs."""
+    try:
+        _check_public_url(url)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from None
 
 
 def _queue_download(
@@ -3805,6 +3937,29 @@ def media_info(path: str):
     return _read_media_info(file)
 
 
+# Concurrent transcodes, capped like thumbnails (see THUMBNAIL_MAX_CONCURRENCY) and for
+# the same reason, heavier here: a full transcode is a libx264 encode that lasts as long
+# as playback. Two lets two devices play at once and absorbs the overlap of switching
+# videos, before the previous stream has noticed its client left.
+TRANSCODE_MAX_CONCURRENCY = int(os.environ.get("TRANSCODE_MAX_CONCURRENCY", "2"))
+_transcode_slots = threading.BoundedSemaphore(TRANSCODE_MAX_CONCURRENCY)
+
+
+class _TranscodeSlot:
+    """One acquired transcode slot, released exactly once whichever path gets there first."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._held = True
+
+    def release(self) -> None:
+        with self._lock:
+            if not self._held:
+                return
+            self._held = False
+        _transcode_slots.release()
+
+
 @app.get("/api/transcode")
 def transcode_video(path: str, audio_only: bool = Query(False)):
     """Transcode to H.264/AAC on-the-fly for unsupported codecs (e.g. H.265).
@@ -3859,12 +4014,20 @@ def transcode_video(path: str, audio_only: bool = Query(False)):
             "pipe:1",
         ]
 
+    if not _transcode_slots.acquire(blocking=False):
+        raise HTTPException(status_code=503, detail="Transcoding service busy")
+    slot = _TranscodeSlot()
+
     def iter_transcode():
-        proc = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-        )
+        try:
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+            )
+        except BaseException:
+            slot.release()
+            raise
         try:
             while True:
                 chunk = proc.stdout.read(65536)
@@ -3872,11 +4035,24 @@ def transcode_video(path: str, audio_only: bool = Query(False)):
                     break
                 yield chunk
         finally:
+            # The client may be gone: closing stdout only stops ffmpeg if it is
+            # writing at that moment, so stop it explicitly and never wait forever.
             proc.stdout.close()
-            proc.wait()
+            proc.terminate()
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()
+            slot.release()
 
+    stream = iter_transcode()
+    # A client that disconnects before the first chunk leaves the generator unstarted,
+    # and an unstarted generator never runs its finally: release the slot when the
+    # generator itself is dropped.
+    weakref.finalize(stream, slot.release)
     return StreamingResponse(
-        iter_transcode(),
+        stream,
         media_type="video/mp4",
         headers={"Cache-Control": "no-cache"},
     )
