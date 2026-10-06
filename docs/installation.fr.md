@@ -111,7 +111,9 @@ Pour forcer un autre utilisateur, définis `PUID` / `PGID` ; pour connaître le 
 stat -c "%u:%g" /volume1/downloads   # par exemple 1026:100
 ```
 
-Si le dossier média appartient à root, Hoard ne prend pas cette identité : il tourne sous son propre utilisateur et le signale dans ses logs, et il faut alors définir `PUID` / `PGID`.
+Si le dossier média appartient à root, Hoard ne prend pas cette identité.
+C'est le cas courant d'un dossier partagé Synology, dont l'accès passe par des ACL : définis alors `PUID` / `PGID` avec l'identité de ton utilisateur DSM (`id -u` et `id -g` en SSH, connecté sous ce compte).
+Sans ces deux variables, Hoard essaie son propre utilisateur, et si celui-ci ne peut pas écrire dans le dossier, il reste en root et l'écrit dans ses logs plutôt que de cesser de fonctionner.
 
 **Si tu mets à jour une installation qui tournait en `user: root`**, les fichiers que Hoard a créés jusque-là appartiennent à root.
 Rends-les une fois pour toutes au propriétaire du dossier, avec les valeurs données par `stat` :

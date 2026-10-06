@@ -111,7 +111,9 @@ To force another user, set `PUID` / `PGID`; to find the owner, on the NAS over S
 stat -c "%u:%g" /volume1/downloads   # e.g. 1026:100
 ```
 
-If the media folder belongs to root, Hoard does not take that identity: it runs as its own user and says so in its logs, and you then need to set `PUID` / `PGID`.
+If the media folder belongs to root, Hoard does not take that identity.
+That is the usual case for a Synology shared folder, where access goes through ACLs: set `PUID` / `PGID` to your DSM user's identity (`id -u` and `id -g` over SSH, logged in as that user).
+Without them, Hoard tries its own user, and if that one cannot write to the folder it stays root and says so in its logs rather than stop working.
 
 **If you are upgrading an install that ran as `user: root`**, the files Hoard created so far belong to root.
 Hand them back to the folder's owner once, with the values `stat` gave you:

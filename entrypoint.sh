@@ -4,27 +4,48 @@
 set -e
 
 # The container starts as root only to hand /data to the runtime user, then drops
-# to PUID:PGID for good. Left unset, they default to the owner of the media folder,
-# which is the user that must be able to write there — so an install upgraded from
+# to PUID:PGID for good. Left unset, PUID defaults to the owner of the media folder,
+# the user that must be able to write there, so an install upgraded from
 # `user: root` keeps working without editing its compose file. A media folder owned
-# by root falls back to the image's own unprivileged appuser.
+# by root (a Synology shared folder often is, access going through ACLs) falls back
+# to the image's own appuser — and, if appuser cannot write there either, to root
+# with a warning rather than to an install that silently stops writing.
+as_runtime_user() { setpriv --reuid="$PUID" --regid="$PGID" --clear-groups "$@"; }
+
 if [ "$(id -u)" = "0" ]; then
     MEDIA_DIR="${MEDIA_ROOT:-/media}"
-    if [ -z "$PUID" ] && [ -d "$MEDIA_DIR" ] && [ "$(stat -c %u "$MEDIA_DIR")" != "0" ]; then
-        PUID="$(stat -c %u "$MEDIA_DIR")"
-        PGID="${PGID:-$(stat -c %g "$MEDIA_DIR")}"
+    if [ -z "$PGID" ] && [ -d "$MEDIA_DIR" ] && [ "$(stat -c %g "$MEDIA_DIR")" != "0" ]; then
+        PGID="$(stat -c %g "$MEDIA_DIR")"
     fi
-    if [ -z "$PUID" ]; then
-        echo "WARNING: PUID unset and $MEDIA_DIR is missing or owned by root, running as" \
-            "appuser, which may not be able to write there. Set PUID/PGID to its owner."
-    fi
-    PUID="${PUID:-$(id -u appuser)}"
     PGID="${PGID:-$(id -g appuser)}"
+    if [ -z "$PUID" ]; then
+        if [ -d "$MEDIA_DIR" ] && [ "$(stat -c %u "$MEDIA_DIR")" != "0" ]; then
+            PUID="$(stat -c %u "$MEDIA_DIR")"
+        else
+            PUID="$(id -u appuser)"
+            if [ -d "$MEDIA_DIR" ] && ! as_runtime_user test -w "$MEDIA_DIR"; then
+                echo "WARNING: $MEDIA_DIR is owned by root and appuser cannot write there:" \
+                    "staying root. Set PUID/PGID to a user that can (on Synology, your DSM user)."
+                PUID=0
+            fi
+        fi
+    fi
     if [ "$PUID" = "0" ]; then
-        echo "WARNING: PUID=0 — Hoard runs as root, with full rights on every mounted volume"
+        echo "WARNING: running as root, with full rights on every mounted volume"
     else
         mkdir -p /data
         chown -R "$PUID:$PGID" /data
+        # A key generated on the host is often readable by its creator only. Root can
+        # still read it: hand the runtime user a private copy rather than crash-loop.
+        if [ -n "$SSL_CERTFILE" ] && [ -n "$SSL_KEYFILE" ] \
+            && ! as_runtime_user test -r "$SSL_KEYFILE"; then
+            mkdir -p /tmp/hoard-tls
+            cp "$SSL_CERTFILE" /tmp/hoard-tls/cert.pem
+            cp "$SSL_KEYFILE" /tmp/hoard-tls/key.pem
+            chown -R "$PUID:$PGID" /tmp/hoard-tls
+            chmod 600 /tmp/hoard-tls/key.pem
+            export SSL_CERTFILE=/tmp/hoard-tls/cert.pem SSL_KEYFILE=/tmp/hoard-tls/key.pem
+        fi
         # HOME stays /root otherwise, which the runtime user cannot write (yt-dlp cache).
         export HOME=/tmp
         exec setpriv --reuid="$PUID" --regid="$PGID" --clear-groups "$0" "$@"

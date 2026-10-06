@@ -183,7 +183,8 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
   La bookmarklet, elle, fonctionne comme avant.
 - **Hoard vérifie mieux les adresses qu'on lui demande de télécharger**, pour ne pas aller chercher ce qui se trouve sur ton réseau local.
 - **Hoard ne tourne plus avec tous les droits sur ton NAS.**
-  Avec Docker, il travaille sous l'identité du propriétaire de ton dossier de vidéos, sans rien à régler.
+  Avec Docker, il travaille sous l'identité du propriétaire de ton dossier de vidéos.
+  Sur un NAS Synology, ce propriétaire est souvent l'administrateur du système : Hoard le signale alors dans ses logs et continue comme avant, et le guide d'installation explique les deux lignes à ajouter pour qu'il travaille sous ton propre compte.
   Bonus : les fichiers qu'il télécharge t'appartiennent, et se modifient depuis le partage réseau sans droits d'administrateur.
   Si tu avais déjà installé Hoard, le guide d'installation explique comment récupérer les fichiers qu'il a créés jusqu'ici.
 - **Les fichiers dont le nom contient une apostrophe s'ouvrent à nouveau** depuis l'historique des téléchargements, le fil d'Ariane et les choix de dossier.
