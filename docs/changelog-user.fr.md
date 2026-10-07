@@ -6,6 +6,16 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ## [Non publié]
 
+### Modifié
+
+- **À la manette, la main gauche règle ce que tu regardes.** Pensé pour les
+  manettes du Steam Frame, une par main. Le stick gauche règle le volume (haut /
+  bas) et la vitesse tant que tu le tiens (à gauche plus lent, à droite plus
+  vite, retour à la normale quand tu le lâches). La croix fait des sauts : ←/→
+  30 s, ↑ +60 s, ↓ +15 s. L'avance fine passe au stick droit. Le clic du stick
+  droit ne change plus la vitesse ; une vitesse fixe se choisit toujours dans le
+  menu Select.
+
 ### Ajouté
 
 - **Les vidéos 180° en vrai relief dans un casque VR.** Dans le Steam Frame, le
@@ -18,9 +28,8 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 - **Un mode d'emploi pour le Steam Frame.** Le guide dit désormais quel
   navigateur utiliser sur le casque (Chromium : avec Firefox, les boutons X et Y
-  sont inversés), comment le lancer pour que la manette soit reconnue, et ce qui
-  ne marche pas encore : les manettes du Frame elles-mêmes, qui restent en
-  pointeur. Le Steam Controller, lui, fonctionne.
+  sont inversés) et comment le lancer pour que la manette soit reconnue. Le
+  Steam Controller et les manettes du Frame fonctionnent.
 
 - **Tu peux voir plus large sans perdre le relief là où tu regardes.** Au champ
   de vision juste, la profondeur est bonne mais la vue est serrée — et les deux

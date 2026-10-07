@@ -120,6 +120,10 @@ shader the flat modes already have.
 
 - [x] **One scale for the whole UI** (BL-137, lot [FIX-UI-SCALE](.backlog/FIX-UI-SCALE/PRD.md)) — every size in `rem`, root size proportional to the viewport past 1920×1080, so the UI no longer shrinks in the Frame's fullscreen Chromium.
 
+## Pad: the left hand sets what you watch *(built, awaiting a test on the Frame)*
+
+- [ ] **Left-hand player layout** (BL-138, lot [PAD-LEFT-HAND](.backlog/PAD-LEFT-HAND/PRD.md)) — left stick: volume and held playback speed; D-pad: ∓30 s, +60 s, +15 s; fine seek on the right stick; R3 freed. Shared pad convention with PadView ([docs/pad-convention.en.md](docs/pad-convention.en.md)).
+
 ## v3.0 — Native client *(in progress)*
 
 Native Flutter client talking to the existing HTTP API, targeting Steam Deck
