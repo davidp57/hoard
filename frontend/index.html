@@ -1847,7 +1847,7 @@
         <div class="s-right"><label class="toggle"><input type="checkbox" id="s-gamepad-haptic"><div class="toggle-track"></div></label></div>
       </div>
       <div class="s-row">
-        <div><div class="s-label">Inverser les sticks</div><div class="s-desc">Stick gauche = volume / Stick droit = seek</div></div>
+        <div><div class="s-label">Inverser les sticks</div><div class="s-desc">Pour gaucher : stick droit = volume et vitesse / stick gauche = avance fine</div></div>
         <div class="s-right"><label class="toggle"><input type="checkbox" id="s-gamepad-swap-sticks"><div class="toggle-track"></div></label></div>
       </div>
       <div class="s-row">
@@ -8429,18 +8429,23 @@ const GP_DEFAULT_MAPPING = {
     8: 'open_settings',    // Select
     9: 'open_overlay',      // Start
     10: 'mute',             // L3
-    11: 'speed_cycle',      // R3
+    // R3 is free in the player since BL-138: the speed moved to the left stick.
     6: 'vr_sbs_layout',    // L2 — free in every layer; B is "cancel" everywhere
     12: 'seek_back_medium', // D-pad Up  (volume up / base: seek back medium)
     13: 'seek_fwd_medium',  // D-pad Down
     14: 'seek_back_medium', // D-pad Left
     15: 'seek_fwd_medium',  // D-pad Right
   },
-  // D-pad overrides in player context
+  // D-pad overrides in player context.
+  // BL-138: the Steam Frame's pad is two separate controllers, one per hand, so the
+  // left one carries everything about what you are watching — the volume and the
+  // speed on its stick, the jumps on its D-pad — and the right one the rest. The
+  // D-pad therefore lost the volume (now on the left stick) and gained two forward
+  // jumps of different sizes: up skips a scene, down nudges past a moment.
   player_base: {
     8: 'open_menu',   // Select — same rule everywhere: Select opens the menu
-    12: 'volume_up',
-    13: 'volume_down',
+    12: 'seek_fwd_long',
+    13: 'seek_fwd_nudge',
     14: 'seek_back_medium',
     15: 'seek_fwd_medium',
   },
@@ -8518,6 +8523,49 @@ const _GP_NAV_INITIAL_MS = 400; // delay before auto-repeat kicks in
 const _GP_NAV_REPEAT_MS  = 100; // interval between repeated moves (~10/s)
 const _GP_SCRUB_THROTTLE_MS = 100;
 let _gpLastScrubTime = 0;
+// BL-138: the D-pad's short forward jump. Fixed rather than a setting: it sits
+// between seek_short (10 s, the on-screen buttons) and seek_medium (30 s), and
+// the user asked for exactly this value.
+const _GP_SEEK_NUDGE = 15;
+// BL-138: the speed stick. Centre is 1x; each side is linear on its own, because a
+// single line through 1x could not reach both a useful slow-down and a useful
+// fast-forward (0.25x..1.75x, or -2x..4x). A transcoded stream is capped: the NAS
+// encodes in real time and cannot feed much faster than that.
+const _GP_SPEED_MIN = 0.25;
+const _GP_SPEED_MAX = 4;
+const _GP_SPEED_MAX_TRANSCODED = 2;
+const _GP_SPEED_TOAST_MS = 250;
+let _gpSpeedHeld = null;  // playbackRate in force before the stick moved; null when idle
+let _gpSpeedToastAt = 0;
+
+function _gpStickSpeed(x) {
+  const transcoded = (video.currentSrc || '').includes('/api/transcode');
+  const max = transcoded ? _GP_SPEED_MAX_TRANSCODED : _GP_SPEED_MAX;
+  const raw = x < 0 ? 1 + x * (1 - _GP_SPEED_MIN) : 1 + x * (max - 1);
+  return Math.round(raw * 20) / 20;  // 0.05 steps: a stick never rests perfectly still
+}
+
+// Applied while the stick is pushed, released back to whatever speed was in force
+// before — 1x normally, or the speed picked from the context menu.
+function _gpApplySpeedStick(x) {
+  if (x !== 0 && currentFile) {
+    if (_gpSpeedHeld === null) _gpSpeedHeld = video.playbackRate;
+    const rate = _gpStickSpeed(x);
+    if (video.playbackRate !== rate) video.playbackRate = rate;
+    const now = performance.now();
+    if (now - _gpSpeedToastAt > _GP_SPEED_TOAST_MS) {
+      _gpSpeedToastAt = now;
+      showToast(`${rate < 1 ? '🐢' : '⏩'} ${rate.toFixed(2)}×`);
+    }
+  } else if (_gpSpeedHeld !== null) {
+    if (currentFile) {
+      video.playbackRate = _gpSpeedHeld;
+      showToast(`⏱ ${_gpSpeedHeld}×`);
+    }
+    _gpSpeedHeld = null;
+    _gpSpeedToastAt = 0;
+  }
+}
 
 function _gpDeadzone(v) {
   const dz = cfg.gamepad_deadzone ?? 0.20;
@@ -8585,6 +8633,9 @@ function _gpAction(action, gamepad) {
       break;
     case 'seek_fwd_medium':
       if (hasVideo) { skip(cfg.seek_medium); _gpVibrate(gamepad, 40); }
+      break;
+    case 'seek_fwd_nudge':
+      if (hasVideo) { skip(_GP_SEEK_NUDGE); _gpVibrate(gamepad, 40); }
       break;
     case 'seek_back_long':
       if (hasVideo) { skip(-cfg.seek_long); _gpVibrate(gamepad, 60); }
@@ -8769,6 +8820,11 @@ function _gpPoll() {
   if (!cfg.gamepad_enabled) { _gpStopPolling(); return; }
 
   const gamepads = navigator.getGamepads();
+  // The speed stick holds state (the speed to restore), so it is read across every
+  // pad and applied once after the loop: per pad, an idle second controller would
+  // release what the active one had just set, every frame. No pad at all reads as
+  // a released stick, so a controller that drops out cannot leave the speed stuck.
+  let speedX = 0;
   for (const gp of gamepads) {
     if (!gp) continue;
     const idx = gp.index;
@@ -8879,22 +8935,24 @@ function _gpPoll() {
     }
 
     const _swap = cfg.gamepad_swap_sticks;
-    // The swap is honoured in VR like anywhere else — David, 2026-09-22: without
-    // R2 the right stick has to give the volume, the fine seek and the playback
-    // speed, exactly as it does on a flat screen. BL-128 pinned the seek to the
-    // left stick in VR to keep a control from moving between layers — but it does
-    // not move: under
-    // R2 it is simply suppressed, exactly as the volume already is, and R2 is the
-    // one place the right stick belongs to the view. Outside R2 the sticks now do
-    // in VR precisely what they do on a flat screen, which is the only rule worth
-    // having: seek on the swapped axis, volume on the other, speed on R3.
-    const seekAxisIdx  = _swap ? 2 : 0;  // LX unless swapped
-    const volAxisIdx   = _swap ? 1 : 3;  // LY vs RY
+    // The swap is honoured in VR like anywhere else — David, 2026-09-22: outside
+    // R2 the sticks do in VR precisely what they do on a flat screen. Under R2 they
+    // all belong to the view, so every stick reading below is suppressed there.
+    //
+    // BL-138: the left stick is the hand that watches — volume up/down, playback
+    // speed left/right — and the right stick keeps the fine seek sideways. The swap
+    // trades the two sticks whole, for a left-handed grip.
+    const speedAxisIdx = _swap ? 2 : 0;  // LX unless swapped
+    const volAxisIdx   = _swap ? 3 : 1;  // LY unless swapped
+    const seekAxisIdx  = _swap ? 0 : 2;  // RX unless swapped
+    const vrHeld = r2 && vrIsActive();
 
-    // Seek stick X — scrubbing. Suppressed while R2 holds the VR layer: the left
-    // stick is the zoom there, and a diagonal push would otherwise scrub the
-    // video while you are only trying to zoom.
-    const lx = (r2 && vrIsActive()) ? 0 : _gpDeadzone(gp.axes[seekAxisIdx] ?? 0);
+    // Speed stick X — held, not stepped: back to the previous speed on release.
+    const sx = vrHeld ? 0 : _gpDeadzone(gp.axes[speedAxisIdx] ?? 0);
+    if (Math.abs(sx) > Math.abs(speedX)) speedX = sx;
+
+    // Seek stick X — scrubbing.
+    const lx = vrHeld ? 0 : _gpDeadzone(gp.axes[seekAxisIdx] ?? 0);
     if (lx !== 0 && currentFile && video.duration) {
       const now = performance.now();
       if (now - _gpLastScrubTime > _GP_SCRUB_THROTTLE_MS) {
@@ -8907,10 +8965,8 @@ function _gpPoll() {
       }
     }
 
-    // Volume stick Y — suppressed only while R2 holds the VR layer, where both
-    // sticks are spoken for. Outside it the volume works during a VR playback
-    // like anywhere else, which it did not before.
-    const ry = (r2 && vrIsActive()) ? 0 : _gpDeadzone(gp.axes[volAxisIdx] ?? 0);
+    // Volume stick Y.
+    const ry = vrHeld ? 0 : _gpDeadzone(gp.axes[volAxisIdx] ?? 0);
     if (ry !== 0 && currentFile) {
       setVolume(Math.max(0, Math.min(1, video.volume - ry * 0.02)));
     }
@@ -8929,6 +8985,7 @@ function _gpPoll() {
       }
     }
   }
+  _gpApplySpeedStick(speedX);
 
   _gpPollId = requestAnimationFrame(_gpPoll);
 }
@@ -9257,6 +9314,7 @@ function _gpStartPolling() {
 
 function _gpStopPolling() {
   if (_gpPollId !== null) { cancelAnimationFrame(_gpPollId); _gpPollId = null; }
+  _gpApplySpeedStick(0);  // a held speed must not outlive the loop that reads it
 }
 
 function _gpScanConnected() {
@@ -9335,6 +9393,7 @@ function openGpOverlay() {
     open_shortcuts: 'Aide raccourcis clavier',
     mute: 'Couper le son',
     speed_cycle: 'Vitesse de lecture',
+    seek_fwd_nudge: `Avancer ${_GP_SEEK_NUDGE}s`,
     vr_sbs_layout: 'Image côte à côte (auto / étirée / non)',
     vr_reset_zoom: 'Remettre le zoom',
     vr_recenter_view: 'Recentrer le regard',
@@ -9389,8 +9448,10 @@ function openGpOverlay() {
   // Sticks follow the swap setting, which the old drawing's fixed footer ignored.
   const swap = !!cfg.gamepad_swap_sticks;
   const sticks = [
-    [swap ? 'Stick droit ↔' : 'Stick gauche ↔', 'Avance / recul'],
-    [swap ? 'Stick gauche ↕' : 'Stick droit ↕', 'Volume (lecture)'],
+    [swap ? 'Stick droit ↕' : 'Stick gauche ↕', 'Volume (lecture)'],
+    [swap ? 'Stick droit ↔' : 'Stick gauche ↔',
+      `Vitesse tant que tenu : ← jusqu'à ${String(_GP_SPEED_MIN).replace('.', ',')}×, → jusqu'à ${_GP_SPEED_MAX}×`],
+    [swap ? 'Stick gauche ↔' : 'Stick droit ↔', 'Avance / recul fin'],
     ['Stick gauche ↕', 'Curseur (browser)'],
     ['Stick droit', 'Regarder autour : en mode VR, sous R2'],
   ];
@@ -9411,7 +9472,7 @@ function openGpOverlay() {
       row('L3', AL.vr_reset_zoom),
       row('R3', AL.vr_recenter_view),
       row('Stick droit', 'Regarder autour'),
-      row('(sans R2)', 'Stick droit ↕ → volume'),
+      row('(sans R2)', 'Les sticks reprennent volume, vitesse et avance'),
     ].join('')) +
     // PAD-SBS-UI: listed on its own because it answers everywhere, even on the
     // PIN screen where the pad is otherwise locked to the keypad.

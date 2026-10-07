@@ -229,7 +229,7 @@ Trois états se succèdent à chaque appui :
 | **Plat** | une seule vue, redressée, que vous promenez | sur un écran normal — ordinateur, tablette |
 | **Côte à côte** | deux vues, une par œil | avec des lunettes XR en mode 3D, qui séparent elles-mêmes les deux images |
 
-Pour regarder autour de vous : **glissez le doigt** sur l'image, **tirez à la souris**, ou maintenez **R2** et poussez le **stick droit** de la manette — sans R2 ce stick règle le volume. La molette de la souris rapproche ou éloigne la vue. **Maj+V** remet le regard au centre.
+Pour regarder autour de vous : **glissez le doigt** sur l'image, **tirez à la souris**, ou maintenez **R2** et poussez le **stick droit** de la manette — sans R2 ce stick fait avancer ou reculer finement la vidéo. La molette de la souris rapproche ou éloigne la vue. **Maj+V** remet le regard au centre.
 
 Tant que le mode VR est actif, le glissement ne fait plus ni avance rapide ni réglage du volume — il sert à regarder. L'avance et le volume restent accessibles au clavier, aux boutons du lecteur et au stick gauche de la manette.
 
@@ -259,7 +259,7 @@ Tout se règle en **maintenant R2**, sans rien ouvrir : l'image change pendant q
 | **Clic stick droit** | Recentrer le regard |
 | **Stick droit** | Regarder autour |
 
-Tant que R2 est maintenu, les autres boutons ne font rien : la manette pilote la vue et rien d'autre. **Relâche R2** et les sticks font exactement ce qu'ils font sur un écran plat, en pleine lecture VR comme ailleurs : l'avance/recul fin, le volume et la vitesse de lecture (**R3**), chacun là où ton réglage d'inversion des sticks les place. Au clavier, **Maj+V** remet d'un coup le regard et le zoom.
+Tant que R2 est maintenu, les autres boutons ne font rien : la manette pilote la vue et rien d'autre. **Relâche R2** et les sticks font exactement ce qu'ils font sur un écran plat, en pleine lecture VR comme ailleurs : l'avance/recul fin, le volume et la vitesse de lecture, chacun là où ton réglage d'inversion des sticks les place. Au clavier, **Maj+V** remet d'un coup le regard et le zoom.
 
 #### Dans un casque VR (Steam Frame)
 
@@ -429,9 +429,11 @@ section sera complétée.
   bureau, le navigateur ne reçoit que la souris et Hoard ne voit aucune manette.
   Ajoute-le à Steam comme jeu non-Steam, puis lance-le depuis la bibliothèque
   (onglet **Non-Steam**).
-- **Quelle manette.** Le **Steam Controller** fonctionne. Les **manettes du
-  Frame**, elles, restent en pointeur à rayon dans le navigateur : on n'a pas
-  encore trouvé comment les faire passer en mode manette.
+- **Quelle manette.** Le **Steam Controller** fonctionne, les **manettes du
+  Frame** aussi : deux manettes séparées, une par main, que le système présente
+  comme une seule manette ordinaire. Le lecteur est disposé pour elles — la main
+  gauche règle le volume, la vitesse et les sauts, la main droite le reste (voir
+  le tableau plus bas).
 - **Clic droit en mode bureau** : clic sur le **stick droit**.
 - **Vidéos 180° en relief** : le bouton **XR** du lecteur, voir
   [Dans un casque VR](#dans-un-casque-vr-steam-frame).
@@ -445,15 +447,19 @@ section sera complétée.
 | **X** | Marquer vu / non vu | Ratio image | Déplacer → Dossier 3 | Déplacer le fichier courant |
 | **Y** | Plein écran | Marquer point IN (segment) | Confirmer segment OUT | Ouvrir la fenêtre Exporter |
 | **D-pad ←/→** | Seek moyen | Seek long | Seek très long | — |
-| **D-pad ↑/↓** | Volume ±10% | Fichier précédent/suivant | Aller à 25%/75% | ↓ : Aller à 100% |
+| **D-pad ↑** | Avancer de 60 s (seek long) | Fichier précédent | Aller à 25% | — |
+| **D-pad ↓** | Avancer de 15 s | Fichier suivant | Aller à 75% | Aller à 100% |
 | **Select** | Menu contextuel | — | — | Écran côte à côte (lunettes XR) |
 | **Start** | Afficher la carte des boutons | — | — | — |
 | **L2** | Image côte à côte : auto / étirée / non (mode VR) | — | — | — |
 | **R2** (maintenu) | Couche VR : zoom, convergence, recentrage — voir plus haut | — | — | — |
 | **L3** (clic stick) | Muet / Son | — | — | — |
-| **R3** (clic stick) | Cycle vitesse (0,5× → 1× → 1,5× → 2× → …) | — | — | — |
-| **Stick gauche X** | Scrubbing analogique | — | — | — |
-| **Stick droit Y** | Volume analogique | — | — | — |
+| **R3** (clic stick) | — (libre) | — | — | — |
+| **Stick gauche ↕** | Volume analogique | — | — | — |
+| **Stick gauche ↔** | Vitesse de lecture tant que le stick est tenu : vers la gauche jusqu'à 0,25×, vers la droite jusqu'à 4× (2× sur une vidéo transcodée) ; au lâcher, retour à la vitesse d'avant | — | — | — |
+| **Stick droit ↔** | Avance / recul fin (scrubbing) | — | — | — |
+
+La main gauche règle ce que tu regardes — volume, vitesse, sauts dans la vidéo —, la main droite pilote le reste. C'est pensé pour les manettes du Steam Frame, une par main. L'option **Inverser les sticks** échange les deux sticks en entier, pour un gaucher. Une vitesse fixe reste disponible dans le **menu contextuel** (Select).
 
 ### Actions — Navigateur de fichiers (sans vidéo)
 

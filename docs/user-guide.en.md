@@ -224,7 +224,7 @@ Each press moves to the next state:
 | **Flat** | a single straightened view you can pan | on a normal screen — computer, tablet |
 | **Side by side** | two views, one per eye | with XR glasses in 3D mode, which split the two pictures themselves |
 
-To look around: **drag your finger** on the image, **drag with the mouse**, or hold **R2** and push the **right stick** on the gamepad — without R2 that stick sets the volume. The mouse wheel zooms in and out. **Shift+V** re-centres the view.
+To look around: **drag your finger** on the image, **drag with the mouse**, or hold **R2** and push the **right stick** on the gamepad — without R2 that stick moves through the video (fine seek). The mouse wheel zooms in and out. **Shift+V** re-centres the view.
 
 While VR mode is on, dragging no longer seeks or changes the volume — it looks around. Seeking and volume stay available from the keyboard, the player buttons and the gamepad's left stick.
 
@@ -254,7 +254,7 @@ Everything is set by **holding R2**, without opening anything: the picture chang
 | **Right stick click** | Recentre the view |
 | **Right stick** | Look around |
 
-While R2 is held the other buttons do nothing: the pad is driving the view and nothing else. **Release R2** and the sticks do exactly what they do on a flat screen, VR playback included: fine seeking, volume and playback speed (**R3**), each wherever your stick-swap setting puts them. On the keyboard, **Shift+V** resets both view and zoom at once.
+While R2 is held the other buttons do nothing: the pad is driving the view and nothing else. **Release R2** and the sticks do exactly what they do on a flat screen, VR playback included: fine seeking, volume and playback speed, each wherever your stick-swap setting puts them. On the keyboard, **Shift+V** resets both view and zoom at once.
 
 #### In a VR headset (Steam Frame)
 
@@ -424,9 +424,11 @@ section will be completed.
   the browser only receives the mouse and Hoard sees no controller. Add it to
   Steam as a non-Steam game, then launch it from the library (**Non-Steam**
   tab).
-- **Which controller.** The **Steam Controller** works. The **Frame
-  controllers** stay in laser-pointer mode inside the browser: we have not yet
-  found how to switch them to gamepad mode.
+- **Which controller.** The **Steam Controller** works, and so do the **Frame
+  controllers**: two separate controllers, one per hand, which the system
+  presents as one ordinary gamepad. The player is laid out for them — the left
+  hand sets volume, speed and jumps, the right hand the rest (see the table
+  below).
 - **Right click in desktop mode**: click the **right stick**.
 - **180° videos with relief**: the player's **XR** button, see
   [In a VR headset](#in-a-vr-headset-steam-frame).
@@ -440,15 +442,19 @@ section will be completed.
 | **X** | Toggle watched | Aspect ratio | Move → Folder 3 | Move the current file |
 | **Y** | Fullscreen | Mark segment IN | Confirm segment OUT | Open the Export dialog |
 | **D-pad ←/→** | Seek medium | Seek long | Seek extra-long | — |
-| **D-pad ↑/↓** | Volume ±10% | Prev/next file | Jump to 25%/75% | ↓: Jump to 100% |
+| **D-pad ↑** | Forward 60 s (seek long) | Previous file | Jump to 25% | — |
+| **D-pad ↓** | Forward 15 s | Next file | Jump to 75% | Jump to 100% |
 | **Select** | Open the context menu | — | — | Side-by-side screen (XR glasses) |
 | **Start** | Show button map | — | — | — |
 | **L2** | Side-by-side layout: auto / stretched / not (VR mode) | — | — | — |
 | **R2** (held) | VR layer: zoom, convergence, recentre — see above | — | — | — |
 | **L3** (stick click) | Mute / Unmute | — | — | — |
-| **R3** (stick click) | Cycle speed (0.5× → 1× → 1.5× → 2× → …) | — | — | — |
-| **Left stick X** | Analog scrubbing | — | — | — |
-| **Right stick Y** | Analog volume | — | — | — |
+| **R3** (stick click) | — (free) | — | — | — |
+| **Left stick ↕** | Analog volume | — | — | — |
+| **Left stick ↔** | Playback speed while held: left down to 0.25×, right up to 4× (2× on a transcoded video); back to the previous speed on release | — | — | — |
+| **Right stick ↔** | Fine seek (scrubbing) | — | — | — |
+
+The left hand sets what you watch — volume, speed, jumps in the video — and the right hand drives the rest. It is designed for the Steam Frame's controllers, one per hand. **Swap sticks** trades the two sticks whole, for a left-handed grip. A fixed speed is still available from the **context menu** (Select).
 
 ### Actions — File Browser (no video open)
 

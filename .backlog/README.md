@@ -17,6 +17,7 @@ Convention détaillée : [`docs/agents/issue-tracker.md`](../docs/agents/issue-t
 
 | Lot | Statut |
 |-----|--------|
+| [PAD-LEFT-HAND](PAD-LEFT-HAND/PRD.md) — La main gauche règle ce qu'on regarde (volume et vitesse au stick gauche, sauts à la croix BL-138 ; convention manette commune avec PadView BL-139) | 🔄 |
 | [FIX-UI-SCALE](FIX-UI-SCALE/PRD.md) — Une taille apparente constante en plein écran (interface en `rem`, échelle à la racine BL-137 ; reste l'essai sur le Frame) | 🧑 |
 | [VR-IMMERSIVE](VR-IMMERSIVE/PRD.md) — Le relief dans le casque par WebXR (session immersive BL-136 mergée ; en pause : pas de WebXR dans le navigateur du Frame) | 🧑 |
 | [SEC-AUTH](SEC-AUTH/PRD.md) — Une instance ouverte doit se voir (contrôle de santé BL-105, annonce de l'état d'authentification BL-106) | ✅ |
