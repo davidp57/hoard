@@ -224,7 +224,7 @@ Each press moves to the next state:
 | **Flat** | a single straightened view you can pan | on a normal screen — computer, tablet |
 | **Side by side** | two views, one per eye | with XR glasses in 3D mode, which split the two pictures themselves |
 
-To look around: **drag your finger** on the image, **drag with the mouse**, or hold **R2** and push the **right stick** on the gamepad — without R2 that stick sets the volume. The mouse wheel zooms in and out. **Shift+V** re-centres the view.
+To look around: **drag your finger** on the image, **drag with the mouse**, or hold **R2** and push the **right stick** on the gamepad — without R2 that stick moves through the video (fine seek). The mouse wheel zooms in and out. **Shift+V** re-centres the view.
 
 While VR mode is on, dragging no longer seeks or changes the volume — it looks around. Seeking and volume stay available from the keyboard, the player buttons and the gamepad's left stick.
 
