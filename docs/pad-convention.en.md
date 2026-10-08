@@ -59,8 +59,10 @@ No Share, Options, Back, View, Menu or Xbox.
 
 | Setting | Value | Note |
 |---|---|---|
-| Pad polling | every frame (`requestAnimationFrame`) | PadView keeps a 50 ms poll as a fallback when frames stop |
+| Pad polling | every frame (`requestAnimationFrame`) | both keep a 50 ms poll as a fallback when frames stop |
 | Deadzone | 0.20, rescaled `(v − dz) / (1 − dz)` | configurable in Hoard |
+| Held-button repeat (D-pad) | 400 ms before the first, then every 100 ms | |
+| Pad detection | `getGamepads()` polled, never `gamepadconnected` alone | the Steam Frame's Chromium never fires the event |
 | Vibration | short, on every command (40 to 100 ms) | can be turned off: Hoard *Settings → Gamepad*, PadView *Réglages → Vibration*; Chromium only |
 | Held-modifier badge | "🎮 L1", "🎮 R2"… | Hoard top right, PadView top centre (its corners are taken) |
 | Toasts | bottom centre | |
