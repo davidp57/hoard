@@ -124,6 +124,10 @@ shader the flat modes already have.
 
 - [ ] **Left-hand player layout** (BL-138, lot [PAD-LEFT-HAND](.backlog/PAD-LEFT-HAND/PRD.md)) — left stick: volume and held playback speed; D-pad: ∓30 s, +60 s, +15 s; fine seek on the right stick; R3 freed. Shared pad convention with PadView ([docs/pad-convention.en.md](docs/pad-convention.en.md)).
 
+## Pad: zoom into a video, as in PadView *(built, awaiting a test on the Frame)*
+
+- [ ] **Flat-video framing under R2** (BL-140, lot [PAD-ZOOM](.backlog/PAD-ZOOM/PRD.md)) — left stick ↕ zooms up to 4×, right stick pans, L3 resets; framing panel with a mini-map while R2 is held. Completes the shared pad convention's R2 layer, which only VR had.
+
 ## v3.0 — Native client *(in progress)*
 
 Native Flutter client talking to the existing HTTP API, targeting Steam Deck

@@ -452,7 +452,7 @@ section sera complétée.
 | **Select** | Menu contextuel | — | — | Écran côte à côte (lunettes XR) |
 | **Start** | Afficher la carte des boutons | — | — | — |
 | **L2** | Image côte à côte : auto / étirée / non (mode VR) | — | — | — |
-| **R2** (maintenu) | Couche VR : zoom, convergence, recentrage — voir plus haut | — | — | — |
+| **R2** (maintenu) | Zoom dans l'image (voir ci-dessous) ; en mode VR, zoom, convergence, recentrage — voir plus haut | — | — | — |
 | **L3** (clic stick) | Muet / Son | — | — | — |
 | **R3** (clic stick) | — (libre) | — | — | — |
 | **Stick gauche ↕** | Volume analogique | — | — | — |
@@ -460,6 +460,20 @@ section sera complétée.
 | **Stick droit ↔** | Avance / recul fin (scrubbing) | — | — | — |
 
 La main gauche règle ce que tu regardes — volume, vitesse, sauts dans la vidéo —, la main droite pilote le reste. C'est pensé pour les manettes du Steam Frame, une par main. L'option **Inverser les sticks** échange les deux sticks en entier, pour un gaucher. Une vitesse fixe reste disponible dans le **menu contextuel** (Select).
+
+#### Zoomer dans la vidéo
+
+Sur une vidéo ordinaire, **maintiens R2** pour zoomer sur une partie de l'image, comme dans PadView :
+
+| R2 maintenu | Effet |
+|---|---|
+| **Stick gauche ↕** | Zoomer (vers le haut) ou dézoomer, jusqu'à 4× |
+| **Stick droit** | Déplacer l'image zoomée : pousse vers ce que tu veux voir |
+| **Clic stick gauche** | Revenir à 1× |
+
+Tant que R2 est tenu, un encart en haut à gauche affiche le niveau de zoom et une petite carte de l'image, avec la partie à l'écran encadrée. On ne peut pas déplacer l'image au-delà de ses bords : les bandes noires ne servent à rien.
+
+**Relâche R2** : le zoom reste en place, et les sticks reprennent le volume, la vitesse et l'avance. Le zoom repart à 1× quand tu changes de fichier ou que tu fermes le lecteur, et il ne s'applique pas en mode VR, qui a son propre zoom. Il fonctionne aussi en plein écran et quand toute l'interface est en côte à côte, où les deux yeux zooment ensemble.
 
 ### Actions — Navigateur de fichiers (sans vidéo)
 

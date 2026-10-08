@@ -447,7 +447,7 @@ section will be completed.
 | **Select** | Open the context menu | — | — | Side-by-side screen (XR glasses) |
 | **Start** | Show button map | — | — | — |
 | **L2** | Side-by-side layout: auto / stretched / not (VR mode) | — | — | — |
-| **R2** (held) | VR layer: zoom, convergence, recentre — see above | — | — | — |
+| **R2** (held) | Zoom into the picture (see below); in VR mode, zoom, convergence, recentre — see above | — | — | — |
 | **L3** (stick click) | Mute / Unmute | — | — | — |
 | **R3** (stick click) | — (free) | — | — | — |
 | **Left stick ↕** | Analog volume | — | — | — |
@@ -455,6 +455,20 @@ section will be completed.
 | **Right stick ↔** | Fine seek (scrubbing) | — | — | — |
 
 The left hand sets what you watch — volume, speed, jumps in the video — and the right hand drives the rest. It is designed for the Steam Frame's controllers, one per hand. **Swap sticks** trades the two sticks whole, for a left-handed grip. A fixed speed is still available from the **context menu** (Select).
+
+#### Zooming into the video
+
+On an ordinary video, **hold R2** to zoom into part of the picture, as in PadView:
+
+| R2 held | Effect |
+|---|---|
+| **Left stick ↕** | Zoom in (up) or out, up to 4× |
+| **Right stick** | Move the zoomed picture: push towards what you want to see |
+| **Left stick click** | Back to 1× |
+
+While R2 is held, a panel at the top left shows the zoom level and a small map of the picture, with the part on screen framed in it. The picture cannot be moved past its edges: there is nothing to see in the black bars.
+
+**Release R2**: the zoom stays, and the sticks go back to volume, speed and seeking. The zoom returns to 1× when you change file or close the player, and it does not apply in VR mode, which has its own zoom. It also works in fullscreen and when the whole interface is side by side, where both eyes zoom together.
 
 ### Actions — File Browser (no video open)
 
