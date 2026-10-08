@@ -24,6 +24,8 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ### Ajouté
 
+- **Zoomer dans une vidéo à la manette, comme dans PadView.** Maintiens R2 : le stick gauche zoome (jusqu'à 4×), le stick droit déplace l'image, le clic du stick gauche revient à la normale. Un petit encart en haut à gauche montre le niveau de zoom et la partie de l'image que tu regardes. Le zoom reste quand tu lâches R2 et repart de zéro au fichier suivant.
+
 - **Les vidéos 180° en vrai relief dans un casque VR.** Dans le Steam Frame, le
   mode côte à côte s'affichait à plat, dans une fenêtre. Le nouveau bouton **XR**
   du lecteur fait prendre tout le casque à la vidéo : chaque œil a son image, et

@@ -366,6 +366,38 @@
   }
   #vr-canvas.active { display: block; }
 
+  /* Flat-video framing panel (BL-140), shown while R2 is held: the zoom level and
+     a map of the frame with the part on screen drawn inside it. Top left, as in
+     PadView — top right is the pad badge's. */
+  #zoom-hud {
+    position: absolute;
+    top: 1.2rem;
+    left: 1.4rem;
+    z-index: 2;
+    display: none;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.6rem 0.8rem;
+    border-radius: 0.8rem;
+    background: rgba(11, 11, 15, 0.85);
+    border: 1px solid var(--accent);
+    pointer-events: none;
+  }
+  #zoom-hud.visible { display: flex; }
+  #zoom-hud-label { color: var(--accent); font: 700 1.1rem/1 'DM Mono', monospace; }
+  #zoom-hud-map {
+    position: relative;
+    border: 1px solid rgba(255, 255, 255, 0.55);
+    background: rgba(255, 255, 255, 0.08);
+  }
+  #zoom-hud-view {
+    position: absolute;
+    border: 2px solid var(--accent);
+    background: color-mix(in srgb, var(--accent) 28%, transparent);
+    box-sizing: border-box;
+  }
+
   .vr-badge { margin-left: 0.6rem; font-size: 1.1rem; }
   .vr-badge.dim { opacity: 0.45; }
 
@@ -1966,6 +1998,7 @@
 
     <div id="video-container">
       <canvas id="vr-canvas"></canvas>
+      <div id="zoom-hud"><div id="zoom-hud-label"></div><div id="zoom-hud-map"><div id="zoom-hud-view"></div></div></div>
       <div id="toast"></div>
       <div id="toast-r"></div>
       <div id="vol-osd">
@@ -2756,6 +2789,7 @@ function privacyClose() {
   if (saveInterval) { clearInterval(saveInterval); saveInterval = null; }
   currentFile = null;
   currentInitialSweepState = null;
+  videoZoomReset();
   _setMediaActive(false);
   document.getElementById('video-container').classList.remove('active');
   document.getElementById('player-empty').style.display = '';
@@ -4813,6 +4847,7 @@ function _showOnlyPanel(id) {
   if (_pass) { _pass.style.display = 'none'; _pass.innerHTML = ''; }
   document.getElementById('image-el').style.display = '';
   _resetGalleryZoom();
+  videoZoomReset();
   if (id) document.getElementById(id).classList.add('active');
 }
 
@@ -5404,6 +5439,7 @@ async function playVideo(idx) {
 
   _hideAltViewers();           // hide any gallery/image/pdf/audio viewer still open
   currentViewerMode = 'video';
+  videoZoomReset();            // the framing belongs to the file it was set on
   document.getElementById('player-empty').style.display = 'none';
   const vc = document.getElementById('video-container');
   vc.classList.add('active');
@@ -5638,7 +5674,131 @@ function toggleVideoFit() {
   showToast(isFill ? '\u26f6\ufe0e Fill' : '\u26f6\ufe0e Fit');
   const btn = document.getElementById('fit-btn');
   if (btn) btn.style.color = isFill ? 'var(--accent)' : '';
+  videoZoomApply();   // the picture inside the box changed size: re-bound the pan
 }
+
+// ── Flat-video framing: zoom and pan under R2 (BL-140) ───────────────────────
+// The other half of the pad convention's R2 layer, which only VR had: left stick
+// up/down zooms, right stick pans, L3 resets — as PadView frames a cam. A CSS
+// transform on the <video>; the side-by-side copy relays the style attribute onto
+// its stand-in canvas, so the right eye zooms with the left one.
+// Not remembered: a file is watched once, and the framing goes with the file.
+const VIDEO_ZOOM_MAX = 4;
+const VIDEO_ZOOM_RATE = 1.0;   // ln(zoom) per second at full tilt: 1x to 4x in ~1.4 s
+const VIDEO_PAN_RATE = 0.8;    // box widths (or heights) per second at full tilt
+// x, y: screen px the picture is moved by. lastPollTs: the pad loop's clock.
+const videoZoom = { z: 1, x: 0, y: 0, lastPollTs: 0 };
+
+function videoZoomAvailable() {
+  return !!currentFile && currentViewerMode === 'video' && !vrIsActive();
+}
+
+// The picture as laid out in the element box. Contain letterboxes it; cover crops
+// it to the box. Either way only what lies inside the box can be shown, so that is
+// what the pan is bounded to — the bars are not something to pan towards.
+function _videoZoomPicture() {
+  const bw = video.clientWidth, bh = video.clientHeight;
+  const vw = video.videoWidth, vh = video.videoHeight;
+  if (!bw || !bh) return null;
+  if (!vw || !vh) return { bw, bh, pw: bw, ph: bh };
+  const cover = getComputedStyle(video).objectFit === 'cover';
+  const fit = cover ? Math.max(bw / vw, bh / vh) : Math.min(bw / vw, bh / vh);
+  return { bw, bh, pw: Math.min(bw, vw * fit), ph: Math.min(bh, vh * fit) };
+}
+
+function _videoZoomClamp(p) {
+  videoZoom.z = Math.max(1, Math.min(VIDEO_ZOOM_MAX, videoZoom.z));
+  const maxX = Math.max(0, (p.pw * videoZoom.z - p.bw) / 2);
+  const maxY = Math.max(0, (p.ph * videoZoom.z - p.bh) / 2);
+  videoZoom.x = Math.max(-maxX, Math.min(maxX, videoZoom.x));
+  videoZoom.y = Math.max(-maxY, Math.min(maxY, videoZoom.y));
+}
+
+function videoZoomApply() {
+  const p = videoZoomAvailable() && videoZoom.z > 1.001 ? _videoZoomPicture() : null;
+  if (!p) {
+    if (video.style.transform) { video.style.transform = ''; video.style.clipPath = ''; }
+    return;
+  }
+  _videoZoomClamp(p);
+  const { z, x, y } = videoZoom;
+  video.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) scale(${z.toFixed(3)})`;
+  // Clipped back to its own box, or the scaled picture would spill over the
+  // control bar below it. clip-path is laid out before the transform, so the box
+  // is mapped back into the element's own coordinates: screen p = c + t + z(l - c).
+  const l = p.bw / 2 - (p.bw / 2 + x) / z, r = p.bw / 2 - (p.bw / 2 - x) / z;
+  const t = p.bh / 2 - (p.bh / 2 + y) / z, b = p.bh / 2 - (p.bh / 2 - y) / z;
+  video.style.clipPath = `inset(${t.toFixed(1)}px ${r.toFixed(1)}px ${b.toFixed(1)}px ${l.toFixed(1)}px)`;
+}
+
+// Called every frame from _gpPoll while R2 is held. zoomAxis: up is negative,
+// and up zooms in. panX/panY: the stick points where you want to look.
+function videoZoomStep(zoomAxis, panX, panY, dt) {
+  // Sticks at rest change nothing, and rewriting the same styles every frame would
+  // still wake the side-by-side copy's observer.
+  if (!videoZoomAvailable() || !dt || !(zoomAxis || panX || panY)) return;
+  const p = _videoZoomPicture();
+  if (!p) return;
+  if (zoomAxis) {
+    const z0 = videoZoom.z;
+    const z1 = Math.max(1, Math.min(VIDEO_ZOOM_MAX, z0 * Math.exp(-zoomAxis * VIDEO_ZOOM_RATE * dt)));
+    // Scaling the offset with the zoom keeps the middle of the screen on the
+    // same spot of the picture, instead of drifting towards the centre.
+    videoZoom.x *= z1 / z0;
+    videoZoom.y *= z1 / z0;
+    videoZoom.z = z1;
+  }
+  videoZoom.x -= panX * p.bw * VIDEO_PAN_RATE * dt;
+  videoZoom.y -= panY * p.bh * VIDEO_PAN_RATE * dt;
+  videoZoomApply();
+}
+
+function videoZoomReset(announce = false) {
+  videoZoom.z = 1; videoZoom.x = 0; videoZoom.y = 0;
+  videoZoomApply();
+  if (announce) showToast('⛶ zoom 1×');
+}
+
+// The framing panel: level, and the frame with the part on screen drawn in it.
+function videoZoomHud(show) {
+  const hud = document.getElementById('zoom-hud');
+  if (!hud) return;
+  const p = show && videoZoomAvailable() ? _videoZoomPicture() : null;
+  hud.classList.toggle('visible', !!p);
+  if (!p) return;
+  const { z, x, y } = videoZoom;
+  // Written only when it changes: this runs every frame while R2 is held, and
+  // even an identical text is a mutation for the side-by-side copy.
+  // Compared with what was last written, not with el.style, which reserialises
+  // the value ("6.00rem" reads back "6rem") and would never match.
+  const set = (el, prop, v) => {
+    const k = `_zoom_${prop}`;
+    if (el[k] !== v) { el[k] = v; el.style[prop] = v; }
+  };
+  const label = document.getElementById('zoom-hud-label');
+  const text = `⛶ ${z.toFixed(1)}×`;
+  if (label.textContent !== text) label.textContent = text;
+  // The map has the shape of what can be shown, its long side 6rem.
+  const map = document.getElementById('zoom-hud-map');
+  const long = 6, ratio = p.pw / p.ph;
+  set(map, 'width', `${(ratio >= 1 ? long : long * ratio).toFixed(2)}rem`);
+  set(map, 'height', `${(ratio >= 1 ? long / ratio : long).toFixed(2)}rem`);
+  // The zoomed picture is pw*z wide; the screen shows bw of it, centred where the
+  // offset puts it. Fractions of the picture, 0..1.
+  const fw = Math.min(1, p.bw / (p.pw * z)), fh = Math.min(1, p.bh / (p.ph * z));
+  const cx = 0.5 - x / (p.pw * z), cy = 0.5 - y / (p.ph * z);
+  const pct = f => `${(f * 100).toFixed(2)}%`;
+  const view = document.getElementById('zoom-hud-view');
+  set(view, 'left', pct(Math.max(0, Math.min(1 - fw, cx - fw / 2))));
+  set(view, 'top', pct(Math.max(0, Math.min(1 - fh, cy - fh / 2))));
+  set(view, 'width', pct(fw));
+  set(view, 'height', pct(fh));
+}
+
+// On the element, not the window: the in-window fullscreen resizes the video
+// without a resize event, and a clip computed for the old box would cut the
+// wrong part of the picture.
+new ResizeObserver(() => videoZoomApply()).observe(video);
 
 // ── VR 180° side-by-side rendering (BL-119) ──────────────────────────────────
 // The <video> keeps playing underneath and stays the source of truth for
@@ -6070,6 +6230,9 @@ function setVrMode(mode) {
 
   const was = vr.mode;
   vr.mode = mode;
+  // VR has its own zoom, on the projection. The flat framing would only stay
+  // hidden under the canvas and come back unannounced when VR is turned off.
+  if (mode !== 'off') videoZoomReset();
   if (mode !== 'sbs') vr.autoAnnounced = null;   // so re-entering says it again
   // BL-127: flag on <body>, not on #video-container. The pad windows are moved
   // into the fullscreen element when there is one, and stay in <body> when
@@ -8509,6 +8672,11 @@ const GP_VR_MAPPING = {
   11: 'vr_recenter_view', // R3 — click the stick that looks around
 };
 
+// BL-140: the same layer on a flat video. Its sticks are read in _gpPoll too.
+const GP_ZOOM_MAPPING = {
+  10: 'video_zoom_reset', // L3 — click the stick that zooms, as in VR
+};
+
 // Of the L1+R1 layer, only these two know how to target the list cursor; the rest
 // (jump_0, jump_100, open_export) are playback actions with no meaning in the browser.
 const GP_BROWSER_LR = new Set(['delete_current', 'move_current']);
@@ -8537,6 +8705,7 @@ const _GP_SPEED_MAX_TRANSCODED = 2;
 const _GP_SPEED_TOAST_MS = 250;
 let _gpSpeedHeld = null;  // playbackRate in force before the stick moved; null when idle
 let _gpSpeedToastAt = 0;
+let _gpZoomHudShown = false;   // BL-140: the framing panel was up last frame
 
 function _gpStickSpeed(x) {
   const transcoded = (video.currentSrc || '').includes('/api/transcode');
@@ -8606,6 +8775,9 @@ function _gpAction(action, gamepad) {
     // then switching to side-by-side is a real way to work.
     case 'vr_reset_zoom':
       if (hasVideo && vrIsActive()) { vrResetZoom(); _gpVibrate(gamepad, 40); }
+      break;
+    case 'video_zoom_reset':
+      if (videoZoomAvailable()) { videoZoomReset(true); _gpVibrate(gamepad, 40); }
       break;
     case 'vr_recenter_view':
       if (hasVideo && vrIsActive()) { vrRecenterView(); _gpVibrate(gamepad, 40); }
@@ -8827,6 +8999,7 @@ function _gpPoll() {
   // release what the active one had just set, every frame. No pad at all reads as
   // a released stick, so a controller that drops out cannot leave the speed stuck.
   let speedX = 0;
+  let zoomHeld = false;   // R2 on a flat video, on any pad: shows the framing panel
   for (const gp of gamepads) {
     if (!gp) continue;
     const idx = gp.index;
@@ -8838,7 +9011,7 @@ function _gpPoll() {
     const prev = _gpPrevButtons[idx];
     const cur = gp.buttons.map(b => b.pressed);
 
-    // Detect modifier buttons (L1=4, R1=5, and R2=7 for the VR layer, BL-128)
+    // Detect modifier buttons (L1=4, R1=5, and R2=7 for the view layer, BL-128/BL-140)
     const l1 = cur[4];
     const r1 = cur[5];
     const r2 = cur[7];
@@ -8935,6 +9108,17 @@ function _gpPoll() {
     } else {
       vr.lastPollTs = 0;
     }
+    // BL-140: the same layer on a flat video — the zoom where VR has it, the
+    // right stick moving the picture where VR turns the view. Fixed sticks, like
+    // VR's: under R2 the swap has nothing left to trade.
+    if (r2 && videoZoomAvailable()) {
+      const now = performance.now();
+      const dt = videoZoom.lastPollTs ? Math.min(0.1, (now - videoZoom.lastPollTs) / 1000) : 0;
+      videoZoom.lastPollTs = now;
+      videoZoomStep(_gpDeadzone(gp.axes[1] ?? 0),
+                    _gpDeadzone(gp.axes[2] ?? 0), _gpDeadzone(gp.axes[3] ?? 0), dt);
+      zoomHeld = true;
+    }
 
     const _swap = cfg.gamepad_swap_sticks;
     // The swap is honoured in VR like anywhere else — David, 2026-09-22: outside
@@ -8947,14 +9131,14 @@ function _gpPoll() {
     const speedAxisIdx = _swap ? 2 : 0;  // LX unless swapped
     const volAxisIdx   = _swap ? 3 : 1;  // LY unless swapped
     const seekAxisIdx  = _swap ? 0 : 2;  // RX unless swapped
-    const vrHeld = r2 && vrIsActive();
+    const viewHeld = r2 && (vrIsActive() || videoZoomAvailable());
 
     // Speed stick X — held, not stepped: back to the previous speed on release.
-    const sx = vrHeld ? 0 : _gpDeadzone(gp.axes[speedAxisIdx] ?? 0);
+    const sx = viewHeld ? 0 : _gpDeadzone(gp.axes[speedAxisIdx] ?? 0);
     if (Math.abs(sx) > Math.abs(speedX)) speedX = sx;
 
     // Seek stick X — scrubbing.
-    const lx = vrHeld ? 0 : _gpDeadzone(gp.axes[seekAxisIdx] ?? 0);
+    const lx = viewHeld ? 0 : _gpDeadzone(gp.axes[seekAxisIdx] ?? 0);
     if (lx !== 0 && currentFile && video.duration) {
       const now = performance.now();
       if (now - _gpLastScrubTime > _GP_SCRUB_THROTTLE_MS) {
@@ -8968,7 +9152,7 @@ function _gpPoll() {
     }
 
     // Volume stick Y.
-    const ry = vrHeld ? 0 : _gpDeadzone(gp.axes[volAxisIdx] ?? 0);
+    const ry = viewHeld ? 0 : _gpDeadzone(gp.axes[volAxisIdx] ?? 0);
     if (ry !== 0 && currentFile) {
       setVolume(Math.max(0, Math.min(1, video.volume - ry * 0.02)));
     }
@@ -8988,6 +9172,11 @@ function _gpPoll() {
     }
   }
   _gpApplySpeedStick(speedX);
+  if (!zoomHeld) videoZoom.lastPollTs = 0;
+  // Only on a change or while held: rewriting the panel's styles every frame
+  // would wake the side-by-side copy's observer for nothing.
+  if (zoomHeld || _gpZoomHudShown) videoZoomHud(zoomHeld);
+  _gpZoomHudShown = zoomHeld;
 
   _gpPollId = requestAnimationFrame(_gpPoll);
 }
@@ -9270,11 +9459,18 @@ function _gpDispatch(btnIdx, l1, r1, gp, r2 = false) {
 
   // BL-128: the VR layer under R2. Ahead of the user mapping and of the player
   // layers, because while R2 is held the pad is driving the view and nothing
-  // else — and it answers only in VR, so R2 costs nothing anywhere else.
+  // else. It answers in the player only (VR here, flat framing just below,
+  // BL-140), so R2 costs nothing in the browser or the other viewers.
   if (r2 && hasVideo && vrIsActive()) {
     const act = GP_VR_MAPPING[btnIdx];
     if (act) { _gpAction(act, gp); return; }
     return;   // R2 held: swallow the rest rather than fire a player action
+  }
+  // BL-140: and on a flat video, the framing layer, which swallows the rest too.
+  if (r2 && videoZoomAvailable()) {
+    const act = GP_ZOOM_MAPPING[btnIdx];
+    if (act) _gpAction(act, gp);
+    return;
   }
 
   // Try user-defined mapping override first (flat, no layer)
@@ -9414,6 +9610,7 @@ function openGpOverlay() {
     seek_fwd_nudge: `Avancer ${_GP_SEEK_NUDGE}s`,
     vr_sbs_layout: 'Image côte à côte (auto / étirée / non)',
     vr_reset_zoom: 'Remettre le zoom',
+    video_zoom_reset: 'Remettre le zoom à 1×',
     vr_recenter_view: 'Recentrer le regard',
     seek_back_medium: `Reculer ${cfg.seek_medium}s`,
     seek_fwd_medium: `Avancer ${cfg.seek_medium}s`,
@@ -9471,7 +9668,7 @@ function openGpOverlay() {
       `Vitesse tant que tenu : ← jusqu'à ${String(_GP_SPEED_MIN).replace('.', ',')}×, → jusqu'à ${_GP_SPEED_MAX}×`],
     [swap ? 'Stick gauche ↔' : 'Stick droit ↔', 'Avance / recul fin'],
     ['Stick gauche ↕', 'Curseur (browser)'],
-    ['Stick droit', 'Regarder autour : en mode VR, sous R2'],
+    ['Stick droit', 'Sous R2 : regarder autour en VR, déplacer l\'image zoomée sinon'],
   ];
 
   body.innerHTML =
@@ -9491,6 +9688,13 @@ function openGpOverlay() {
       row('R3', AL.vr_recenter_view),
       row('Stick droit', 'Regarder autour'),
       row('(sans R2)', 'Les sticks reprennent volume, vitesse et avance'),
+    ].join('')) +
+    // BL-140: the same layer on a flat video, spelled out for the same reason.
+    group('Vidéo + R2 (cadrage)', [
+      row('Stick gauche ↕', `Zoom, jusqu'à ${VIDEO_ZOOM_MAX}×`),
+      row('Stick droit', 'Déplacer l\'image zoomée'),
+      row('L3', AL.video_zoom_reset),
+      row('(sans R2)', 'Le zoom reste ; les sticks reprennent volume, vitesse et avance'),
     ].join('')) +
     // PAD-SBS-UI: listed on its own because it answers everywhere, even on the
     // PIN screen where the pad is otherwise locked to the keypad.

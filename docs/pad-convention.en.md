@@ -26,7 +26,7 @@ Hence the split:
 | **B** in a window | Close / back | ✓ | ✓ |
 | **A** in a window | Confirm | ✓ | ✓ |
 | **D-pad** in a window | Choose / scroll | ✓ | ✓ |
-| **R2 held** | View layer: left stick ↕ zoom, right stick pans / looks, L3 resets the zoom | framing (Stripchat) | VR layer |
+| **R2 held** | View layer: left stick ↕ zoom, right stick pans / looks, L3 resets the zoom | framing (Stripchat) | framing on a flat video (BL-140), VR layer in VR |
 | **L1** | Modifier | ✓ | ✓ (with R1) |
 | **Left stick ↕** | Volume | ✓ | ✓ |
 | **Left stick ↔** (video) | Speed while held: 1× at rest, linear on each side, 0.25× fully left, 4× fully right; back to the previous speed on release | ThisVid | ✓ (2× max when transcoded) |
