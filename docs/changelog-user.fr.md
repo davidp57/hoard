@@ -6,6 +6,12 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ## [Non publié]
 
+### Corrigé
+
+- **La manette marche dans le navigateur du Steam Frame.** Hoard attendait un
+  signal de connexion que ce navigateur n'envoie pas : la manette restait
+  ignorée. Hoard la cherche maintenant de lui-même, chaque seconde.
+
 ### Modifié
 
 - **À la manette, la main gauche règle ce que tu regardes.** Pensé pour les

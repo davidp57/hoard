@@ -8816,7 +8816,9 @@ function _gpActivateCursor() {
 }
 
 // ── Gamepad poll loop ─────────────────────────────────────────────────────────
+let _gpLastPollTs = 0;
 function _gpPoll() {
+  _gpLastPollTs = performance.now();
   if (!cfg.gamepad_enabled) { _gpStopPolling(); return; }
 
   const gamepads = navigator.getGamepads();
@@ -9325,13 +9327,12 @@ function _gpScanConnected() {
     if (!_gpConnected[gp.index]) {
       _gpConnected[gp.index] = true;
       anyNew = true;
-      // Firefox: if mapping is '' the gamepad needs a button press to activate
-      if (gp.mapping === '') {
-        showToast('🎮 Appuyez sur un bouton pour activer la manette');
-      } else {
-        showToast(`🎮 Manette connectée : ${gp.id.slice(0, 30)}`);
-        _gpStartPolling();
-      }
+      // The loop starts whatever the mapping says. A non-standard mapping ('') used
+      // to stop here with a "press a button" toast, but getGamepads() only lists a
+      // pad once a button has been pressed — so a pad seen here has already been,
+      // and the loop never started. PadView reads such pads without trouble.
+      showToast(`🎮 Manette connectée : ${gp.id.slice(0, 30)}`);
+      _gpStartPolling();
     }
   }
   return anyNew;
@@ -9358,6 +9359,23 @@ window.addEventListener('gamepaddisconnected', (e) => {
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) _gpScanConnected();
 });
+
+// Scan once a second too, rather than trusting gamepadconnected alone. The Steam
+// Frame's Chromium lists the pad in getGamepads() without ever firing the event
+// (David, 2026-10-08: PadView, which polls, saw the pad in the same browser while
+// Hoard showed no connection toast at all) — and nothing else would ever look.
+// Cheap: one getGamepads() call, and a scan that finds nothing new does nothing.
+setInterval(() => { if (cfg.gamepad_enabled) _gpScanConnected(); }, 1000);
+
+// And a 50 ms fallback for the loop itself, as PadView has: when the browser stops
+// handing out animation frames while still delivering pad input, the rAF chain
+// stalls and the pad goes dead. A stalled chain has its pending frame cancelled
+// and is driven by hand; when frames come back the chain takes over again.
+setInterval(() => {
+  if (_gpPollId === null || performance.now() - _gpLastPollTs < 100) return;
+  cancelAnimationFrame(_gpPollId);
+  _gpPoll();
+}, 50);
 
 // ── Gamepad mapping overlay ───────────────────────────────────────────────────
 function _gpOverlayBackdropClose(e) {
