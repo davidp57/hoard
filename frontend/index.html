@@ -1887,6 +1887,11 @@
         <div class="s-right"><input type="number" class="s-num" id="s-gamepad-deadzone" min="0" max="50" step="1"> <span style="font-size:1.2rem;color:var(--text-dim)">%</span></div>
       </div>
       <div class="s-row" style="flex-direction:column;align-items:flex-start;gap:0.6rem">
+        <div class="s-label">Diagnostic manette</div>
+        <div class="s-desc">En direct : appuyez sur un bouton de la manette, la ligne « Dernier bouton » doit réagir.</div>
+        <pre id="gp-diag" style="margin:0;font-size:1.2rem;white-space:pre-wrap;word-break:break-all;color:var(--text-dim)"></pre>
+      </div>
+      <div class="s-row" style="flex-direction:column;align-items:flex-start;gap:0.6rem">
         <div class="s-label">Aide raccourcis manette</div>
         <button class="s-btn" onclick="openGpOverlay()">Afficher la carte des boutons</button>
       </div>
@@ -9533,6 +9538,38 @@ function _gpScanConnected() {
   }
   return anyNew;
 }
+
+// Live diagnostic in Settings → Gamepad, for a device with no console (the Steam
+// Frame has no keyboard): says what the browser exposes and what the loop does.
+let _gpDiagEvents = 0;
+window.addEventListener('gamepadconnected', () => { _gpDiagEvents++; });
+setInterval(() => {
+  const el = document.getElementById('gp-diag');
+  if (!el || !el.offsetParent) return;
+  const lines = [
+    `Contexte sécurisé : ${window.isSecureContext ? 'oui' : 'NON (https requis)'}`,
+    `Manette activée (réglage) : ${cfg.gamepad_enabled ? 'oui' : 'NON'}`,
+    `Boucle de lecture : ${_gpPollId !== null ? 'active' : 'arrêtée'}`,
+    `Événements gamepadconnected reçus : ${_gpDiagEvents}`,
+  ];
+  let pads = [];
+  try {
+    if (typeof navigator.getGamepads !== 'function') throw new Error('getGamepads absent');
+    pads = [...navigator.getGamepads()].filter(Boolean);
+    lines.push(`Manettes listées par le navigateur : ${pads.length}`);
+  } catch (err) {
+    lines.push(`getGamepads : ERREUR ${err.message}`);
+  }
+  for (const gp of pads) {
+    const down = gp.buttons.map((b, i) => b.pressed ? i : null).filter(i => i !== null);
+    lines.push(`#${gp.index} ${gp.id.slice(0, 40)} · mapping « ${gp.mapping} » · ${gp.buttons.length} boutons`);
+    lines.push(`  Boutons enfoncés : ${down.length ? down.join(', ') : 'aucun'}`);
+    if (down.length) _gpDiagLast = down.join('+');
+  }
+  lines.push(`Dernier bouton : ${_gpDiagLast || 'aucun encore'}`);
+  el.textContent = lines.join('\n');
+}, 250);
+let _gpDiagLast = '';
 
 window.addEventListener('gamepadconnected', (e) => {
   _gpConnected[e.gamepad.index] = true;

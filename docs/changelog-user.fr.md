@@ -6,6 +6,13 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ## [Non publié]
 
+### Ajouté
+
+- **Un diagnostic de la manette dans les Réglages.** La section Manette affiche
+  maintenant ce que le navigateur voit : manette détectée ou non, boutons
+  enfoncés en direct. Pratique quand la manette ne répond pas et qu'on n'a pas
+  de clavier pour chercher pourquoi.
+
 ### Corrigé
 
 - **La manette marche dans le navigateur du Steam Frame.** Hoard attendait un

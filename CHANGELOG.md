@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Diagnostic manette en direct dans Réglages → Manette.** Le Steam Frame n'a ni clavier ni console, et la manette y reste muette malgré la détection par sondage de 2.8.12 : l'encart affiche contexte sécurisé, réglage actif, boucle de lecture, événements `gamepadconnected` reçus, manettes listées par le navigateur (`id`, `mapping`, nombre de boutons), boutons enfoncés et dernier bouton lu. Chaque ligne départage une cause (http au lieu de https, réglage coupé, manette non donnée à la page, bug de lecture). Vérifié avec une manette simulée sans événement de connexion.
+
 ### Fixed
 - **La manette n'était jamais détectée dans le Chromium du Steam Frame.** Hoard ne commençait à lire la manette que sur l'événement `gamepadconnected` (ou au retour sur l'onglet), et ce navigateur liste la manette sans jamais émettre l'événement : aucun toast, rien ne répondait. Constaté par David le 2026-10-08 — PadView, qui interroge la manette en continu, la voyait dans le même navigateur. Hoard sonde désormais `getGamepads()` chaque seconde, démarre la boucle quel que soit le `mapping` (un mapping vide arrêtait tout derrière un toast « appuyez sur un bouton », alors qu'une manette listée a déjà reçu un appui), et la boucle a un filet à 50 ms quand le navigateur cesse de fournir des images d'animation — comme PadView. Défaut présent depuis BL-024 (mai 2026), pas introduit par BL-138. Vérifié avec une manette simulée sans événement de connexion et une boucle d'affichage gelée : toast, démarrage, curseur qui répond à la croix.
 
