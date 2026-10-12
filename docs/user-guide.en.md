@@ -429,6 +429,10 @@ section will be completed.
   presents as one ordinary gamepad. The player is laid out for them — the left
   hand sets volume, speed and jumps, the right hand the rest (see the table
   below).
+- **HEVC (H.265) to be confirmed.** The Frame's Chromium may not play HEVC,
+  while the Steam Deck does. Open **Settings → Player → Test codecs**: the
+  "HEVC" line says whether the browser can decode it. The NAS does not
+  transcode, so a file the browser cannot decode will not play.
 - **Right click in desktop mode**: click the **right stick**.
 - **180° videos with relief**: the player's **XR** button, see
   [In a VR headset](#in-a-vr-headset-steam-frame).
