@@ -1791,6 +1791,12 @@
         <div><div class="s-label">Transcodage audio uniquement</div><div class="s-desc">Copie la vidéo telle quelle et ne réencode que l'audio (AAC). Plus léger sur le NAS. Nécessite que le navigateur supporte le codec vidéo d'origine (HEVC sur Chrome/Edge).</div></div>
         <div class="s-right"><label class="toggle"><input type="checkbox" id="s-transcode-audio-only"><div class="toggle-track"></div></label></div>
       </div>
+      <div class="s-row" style="flex-direction:column;align-items:flex-start;gap:0.6rem">
+        <div class="s-label">Diagnostic codecs</div>
+        <div class="s-desc">Ce que le navigateur de cet appareil sait décoder (H.264, HEVC, VP9, AV1). Utile quand un fichier ne se lit pas ici alors qu'il se lit ailleurs.</div>
+        <button class="s-btn" onclick="runCodecDiag()">Tester les codecs</button>
+        <pre id="codec-diag" style="margin:0;font-size:1.2rem;white-space:pre-wrap;word-break:break-all;color:var(--text-dim)"></pre>
+      </div>
     </div>
 
     <!-- XR glasses (PAD-SBS-UI) -->
@@ -9575,6 +9581,49 @@ setInterval(() => {
   el.textContent = lines.join('\n');
 }, 250);
 let _gpDiagLast = '';
+
+// Codec diagnostic in Settings → Playback, for a device with no console: asks the
+// browser the same two questions choosePlaybackSource asks (canPlayType and
+// mediaCapabilities) for a fixed list of codecs, so a Chromium without HEVC shows up.
+const _CODEC_DIAG_PROBES = [
+  ['H.264 High', 'avc1.640028'],
+  ['HEVC Main (hvc1)', 'hvc1.1.6.L120.90'],
+  ['HEVC Main (hev1)', 'hev1.1.6.L120.90'],
+  ['HEVC Main 10', 'hvc1.2.4.L120.90'],
+  ['VP9', 'vp09.00.10.08'],
+  ['AV1', 'av01.0.08M.08'],
+];
+
+async function runCodecDiag() {
+  const el = document.getElementById('codec-diag');
+  if (!el) return;
+  el.textContent = 'Test en cours…';
+  const lines = [`Navigateur : ${navigator.userAgent}`];
+  const hasMc = typeof navigator.mediaCapabilities?.decodingInfo === 'function';
+  if (!hasMc) lines.push('mediaCapabilities : absent de ce navigateur');
+  for (const [label, codec] of _CODEC_DIAG_PROBES) {
+    const canPlay = video.canPlayType(`video/mp4; codecs="${codec}"`) || 'non';
+    let mc = 'n/a';
+    if (hasMc) {
+      try {
+        const r = await navigator.mediaCapabilities.decodingInfo({
+          type: 'file',
+          video: {
+            contentType: `video/mp4; codecs="${codec}"`,
+            width: 1920, height: 1080, bitrate: 8000000, framerate: 30,
+          },
+        });
+        mc = r.supported
+          ? `oui${r.smooth ? ', fluide' : ', pas fluide'}${r.powerEfficient ? ', matériel' : ', logiciel'}`
+          : 'NON';
+      } catch (err) {
+        mc = `erreur ${err.message}`;
+      }
+    }
+    lines.push(`${label} : canPlayType ${canPlay} · décodage ${mc}`);
+  }
+  el.textContent = lines.join('\n');
+}
 
 window.addEventListener('gamepadconnected', (e) => {
   _gpConnected[e.gamepad.index] = true;

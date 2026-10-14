@@ -434,6 +434,10 @@ section sera complétée.
   comme une seule manette ordinaire. Le lecteur est disposé pour elles — la main
   gauche règle le volume, la vitesse et les sauts, la main droite le reste (voir
   le tableau plus bas).
+- **HEVC (H.265) à confirmer.** Le Chromium du Frame ne lit peut-être pas le
+  HEVC, alors que le Steam Deck le lit. Ouvre **Paramètres → Player → Tester les
+  codecs** : la ligne « HEVC » dit si le navigateur sait le décoder. Le NAS ne
+  transcode pas, donc un fichier que le navigateur ne décode pas ne se lira pas.
 - **Clic droit en mode bureau** : clic sur le **stick droit**.
 - **Vidéos 180° en relief** : le bouton **XR** du lecteur, voir
   [Dans un casque VR](#dans-un-casque-vr-steam-frame).

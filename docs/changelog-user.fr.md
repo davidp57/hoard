@@ -8,6 +8,10 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ### Ajouté
 
+- **Un diagnostic des formats vidéo dans les Réglages.** Le bouton « Tester les
+  codecs » dit quels formats (H.264, HEVC, VP9, AV1) le navigateur de l'appareil
+  sait lire. Pratique quand une vidéo ne se lit pas sur un appareil alors
+  qu'elle se lit sur un autre.
 - **Un diagnostic de la manette dans les Réglages.** La section Manette affiche
   maintenant ce que le navigateur voit : manette détectée ou non, boutons
   enfoncés en direct. Pratique quand la manette ne répond pas et qu'on n'a pas

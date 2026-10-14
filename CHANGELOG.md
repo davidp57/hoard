@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Diagnostic de codecs dans Paramètres → Player.** Le HEVC se lit sur le Steam Deck mais pas sur le Steam Frame, et le NAS ne peut pas transcoder : il faut savoir ce que le Chromium de l'appareil décode. Le bouton « Tester les codecs » affiche le user-agent puis, pour H.264, HEVC (`hvc1`, `hev1`, Main 10), VP9 et AV1, le verdict de `canPlayType` et de `mediaCapabilities.decodingInfo` (supporté, fluide, matériel ou logiciel) — les deux questions que pose déjà `choosePlaybackSource`. Sans clavier ni console, comme le diagnostic manette.
 - **Diagnostic manette en direct dans Réglages → Manette.** Le Steam Frame n'a ni clavier ni console, et la manette y reste muette malgré la détection par sondage de 2.8.12 : l'encart affiche contexte sécurisé, réglage actif, boucle de lecture, événements `gamepadconnected` reçus, manettes listées par le navigateur (`id`, `mapping`, nombre de boutons), boutons enfoncés et dernier bouton lu. Chaque ligne départage une cause (http au lieu de https, réglage coupé, manette non donnée à la page, bug de lecture). Vérifié avec une manette simulée sans événement de connexion.
 
 ### Fixed
