@@ -1895,7 +1895,8 @@
       <div class="s-row" style="flex-direction:column;align-items:flex-start;gap:0.6rem">
         <div class="s-label">Diagnostic manette</div>
         <div class="s-desc">En direct : appuyez sur un bouton de la manette, la ligne « Dernier bouton » doit réagir.</div>
-        <pre id="gp-diag" style="margin:0;font-size:1.2rem;white-space:pre-wrap;word-break:break-all;color:var(--text-dim)"></pre>
+        <button class="s-btn" onclick="gpRestartLoop()">Relancer la lecture de la manette</button>
+        <pre id="gp-diag"style="margin:0;font-size:1.2rem;white-space:pre-wrap;word-break:break-all;color:var(--text-dim)"></pre>
       </div>
       <div class="s-row" style="flex-direction:column;align-items:flex-start;gap:0.6rem">
         <div class="s-label">Aide raccourcis manette</div>
@@ -9542,6 +9543,10 @@ function _gpScanConnected() {
       _gpStartPolling();
     }
   }
+  // A listed pad with a stopped loop is never "new" once it is in _gpConnected, so
+  // the branch above cannot restart it: after the setting is switched off and on,
+  // or after a disconnect event that stopped the loop while another pad stayed.
+  if (_gpPollId === null && gamepads.some(Boolean)) _gpStartPolling();
   return anyNew;
 }
 
@@ -9634,8 +9639,19 @@ window.addEventListener('gamepaddisconnected', (e) => {
   delete _gpConnected[e.gamepad.index];
   delete _gpPrevButtons[e.gamepad.index];
   showToast('🎮 Manette déconnectée');
-  if (Object.keys(_gpConnected).length === 0) _gpStopPolling();
+  // The loop keeps running: an idle frame costs one getGamepads() call, and every
+  // stop path left a pad silent once (the Frame sends a disconnect per controller).
 });
+
+// Settings → Gamepad button: drop the loop's state and start it again by hand.
+function gpRestartLoop() {
+  _gpStopPolling();
+  _gpConnected = {};
+  _gpPrevButtons = {};
+  _gpScanConnected();
+  _gpStartPolling();
+  showToast('🎮 Lecture de la manette relancée');
+}
 
 // Scan on load + on tab visibility (Firefox compat)
 document.addEventListener('visibilitychange', () => {

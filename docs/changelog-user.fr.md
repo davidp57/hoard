@@ -19,6 +19,11 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ### Corrigé
 
+- **La manette ne se « débranche » plus toute seule.** Dans certains cas la
+  lecture de la manette s'arrêtait et ne reprenait pas, même manette branchée
+  (par exemple en coupant puis rallumant l'option dans les Réglages). Elle
+  repart maintenant d'elle-même, et un bouton « Relancer la lecture de la
+  manette » dans les Réglages la remet en route à la main si besoin.
 - **La manette marche dans le navigateur du Steam Frame.** Hoard attendait un
   signal de connexion que ce navigateur n'envoie pas : la manette restait
   ignorée. Hoard la cherche maintenant de lui-même, chaque seconde.
