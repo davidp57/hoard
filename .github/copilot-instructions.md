@@ -68,10 +68,11 @@ Documentation must be kept up to date with every code change. Update in the **sa
   - Global `cfg` object holds all settings loaded from `/api/settings` at startup.
   - Touch gesture constants come from `cfg`, never hardcoded.
 - Sizes are written in `rem`, never `px` (BL-137): the root font size is the interface's one scale and grows with the viewport past 1920x1080. Only 1-2px hairlines and media query breakpoints stay in `px`.
-  - `localStorage` holds **device-local settings only**: today `volume` and `sbs_global`
-  (the whole-interface side-by-side toggle). Everything else is in the backend DB, so
-  that it follows the user from the laptop to the Deck. Adding a third one is a
-  decision, not a convenience.
+  - `localStorage` holds **device-local settings only**: today `volume`, `sbs_global`
+  (the whole-interface side-by-side toggle) and `gamepad_profile` (standard or Steam
+  Frame right hand only). Everything else is in the backend DB, so that it follows
+  the user from the laptop to the Deck. Adding another one is a decision, not a
+  convenience.
 
 - **Database** (SQLite, native `sqlite3`):
   - Schema is created on startup via `init_db()` — no migration tool.

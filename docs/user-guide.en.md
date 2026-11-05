@@ -436,6 +436,38 @@ section will be completed.
 - **Right click in desktop mode**: click the **right stick**.
 - **180° videos with relief**: the player's **XR** button, see
   [In a VR headset](#in-a-vr-headset-steam-frame).
+- **Only one controller at hand?** Pick the **Steam Frame, right hand only** profile, described just below.
+
+### Controller profiles
+
+Hoard has two profiles, to pick according to what you have at hand:
+
+- **Standard (two hands)**: a full controller (Xbox, Steam Deck, both Frame controllers). This is everything the tables below describe.
+- **Steam Frame, right hand only**: the Frame's right controller alone, so **A, B, X, Y, R1, R2, the right stick and its click (R3)**. The most useful commands are gathered there.
+
+Pick the profile in **Settings → 🎮 Controller → Profile**, or with the controller through the **🎮 Profil manette** line of the context menu. It is specific to each device: switching the Frame to right hand only changes nothing on the Steam Deck.
+
+In the **right hand only** profile:
+
+| | File list | Player |
+|---|---|---|
+| **Stick ↕** | Move the cursor | Volume |
+| **Stick ↔** | — | Speed while the stick is held (as the standard profile's left stick) |
+| **A** | Open | Play / Pause |
+| **B** | Up one level | Close player |
+| **Y** | Context menu | Fullscreen |
+| **R3** (stick click) | — | Fit / Fill |
+| **R1 + stick** | — | ← back 30 s, → forward 30 s, ↑ forward 60 s, ↓ forward 15 s |
+| **R1 + X** | Move the selected entry | Move the file |
+| **R1 + B** | Delete the selected entry | Delete the file |
+| **R2 held + stick** | — | Pan the zoomed picture; in VR mode, look around |
+| **R1 + R2 + stick ↕** | — | Zoom in / out |
+| **R2 + R3** | — | Back to 1×; in VR mode, recentre the view |
+| **R1 + R2 + R3** | — | In VR mode, reset the zoom |
+
+In every window (menu, move, delete, tags, settings, button map…), the **stick** stands in for the D-pad: it chooses, **A** confirms, **B** cancels or closes. Held, it scrolls as a held D-pad does.
+
+So that setting the speed does not touch the volume, only the direction the stick is pushed furthest counts. There is no fine seek in this profile: the jumps under R1 and the speed up to 4× replace it. The context menu only opens from the list, since Y is fullscreen in the player. The button map (the menu's **🎮 Aide manette** line) shows this profile while it is active.
 
 ### Actions — Video Player
 
@@ -528,6 +560,7 @@ In **Settings → 🎮 Controller**:
 | Setting | Description |
 |---------|-------------|
 | **Controller enabled** | Enable / disable gamepad detection entirely |
+| **Profile** | Standard (two hands) or Steam Frame, right hand only — see [Controller profiles](#controller-profiles). Specific to this device. |
 | **Haptic feedback** | Short vibration on play/pause, seek, watched toggle (Chrome only) |
 | **Dead zone** | Stick detection threshold (default 20%). Increase if sticks drift. |
 

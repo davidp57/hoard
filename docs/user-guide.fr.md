@@ -441,6 +441,38 @@ section sera complétée.
 - **Clic droit en mode bureau** : clic sur le **stick droit**.
 - **Vidéos 180° en relief** : le bouton **XR** du lecteur, voir
   [Dans un casque VR](#dans-un-casque-vr-steam-frame).
+- **Une seule manette sous la main ?** Choisis le profil **Steam Frame, main droite seule**, décrit juste en dessous.
+
+### Profils de manette
+
+Hoard a deux profils, à choisir selon ce que tu as sous la main :
+
+- **Standard (deux mains)** : une manette complète (Xbox, Steam Deck, les deux manettes du Frame). C'est tout ce que décrivent les tableaux plus bas.
+- **Steam Frame, main droite seule** : seulement la manette droite du Frame, donc **A, B, X, Y, R1, R2, le stick droit et son clic (R3)**. Les commandes les plus utiles y sont regroupées.
+
+Le profil se choisit dans **Paramètres → 🎮 Manette → Profil**, ou à la manette avec la ligne **🎮 Profil manette** du menu contextuel. Il est propre à chaque appareil : passer le Frame en main droite ne change rien sur le Steam Deck.
+
+Dans le profil **main droite seule** :
+
+| | Liste de fichiers | Lecteur |
+|---|---|---|
+| **Stick ↕** | Déplacer le curseur | Volume |
+| **Stick ↔** | — | Vitesse tant que le stick est tenu (comme le stick gauche du profil Standard) |
+| **A** | Ouvrir | Lecture / Pause |
+| **B** | Remonter d'un niveau | Fermer le lecteur |
+| **Y** | Menu contextuel | Plein écran |
+| **R3** (clic du stick) | — | Fit / Fill |
+| **R1 + stick** | — | ← reculer de 30 s, → avancer de 30 s, ↑ avancer de 60 s, ↓ avancer de 15 s |
+| **R1 + X** | Déplacer l'entrée sélectionnée | Déplacer le fichier |
+| **R1 + B** | Supprimer l'entrée sélectionnée | Supprimer le fichier |
+| **R2 maintenu + stick** | — | Déplacer l'image zoomée ; en mode VR, regarder autour |
+| **R1 + R2 + stick ↕** | — | Zoomer / dézoomer |
+| **R2 + R3** | — | Revenir à 1× ; en mode VR, recentrer le regard |
+| **R1 + R2 + R3** | — | En mode VR, remettre le zoom |
+
+Dans toutes les fenêtres (menu, déplacer, supprimer, tags, paramètres, carte des boutons…), le **stick** remplace la croix : il choisit, **A** valide, **B** annule ou ferme. Tenu, il fait défiler comme la croix tenue.
+
+Pour éviter de toucher le volume en réglant la vitesse, seul le sens où le stick est le plus poussé compte. Il n'y a pas d'avance fine dans ce profil : les sauts sous R1 et la vitesse jusqu'à 4× la remplacent. Le menu contextuel ne s'ouvre que depuis la liste, puisque Y fait le plein écran dans le lecteur. La carte des boutons (ligne **🎮 Aide manette** du menu) affiche ce profil quand il est actif.
 
 ### Actions — Lecteur vidéo
 
@@ -533,6 +565,7 @@ Dans **Paramètres → 🎮 Manette** :
 | Paramètre | Description |
 |-----------|-------------|
 | **Manette activée** | Active / désactive complètement la détection gamepad |
+| **Profil** | Standard (deux mains) ou Steam Frame, main droite seule — voir [Profils de manette](#profils-de-manette). Propre à cet appareil. |
 | **Retour haptique** | Vibration courte sur play/pause, seek, vu/non vu (Chrome uniquement) |
 | **Zone morte** | Seuil de détection des sticks (défaut 20%). Augmenter si les sticks dérivent. |
 
