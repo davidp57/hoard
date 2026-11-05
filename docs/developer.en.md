@@ -604,6 +604,23 @@ mirror already duplicates those windows.
 with the glasses wants it and the iPad must not inherit it, and because the PIN
 screen is drawn before the settings are loaded.
 
+### Gamepad profiles (PAD-PROFILES, BL-141)
+
+Two profiles, picked in *Settings → Gamepad* or from the context menu, stored device-local in `localStorage['gamepad_profile']`: a Frame used one-handed must not change the Deck's pad.
+
+- **`standard`** — `GP_DEFAULT_MAPPING`, `GP_BROWSER_MAPPING` and the stick roles in `_gpPoll`, unchanged. The user's `gamepad_mapping` overrides apply here only.
+- **`frame_right`** — the Steam Frame's right controller alone: A, B, X, Y, R1, R2, right stick, R3. Buttons come from `GP_RIGHT_MAPPING` (`browser`, `player`, and `r1` for both contexts), resolved in `_gpDispatch` after the R2 view layers and before the user overrides.
+
+In `frame_right` the right stick has three roles, decided per frame in `_gpPoll`:
+
+| Context | Stick |
+|---|---|
+| List, or any window open (`_gpPadOwner()`, the same routing `_gpDispatch` uses: pad help, menu, modal, settings — including over the image viewer), or R1 held in the player | D-pad: `_gpStickPadStep()` dispatches 12..15 on the dominant axis past half-tilt, with the real D-pad's repeat timing (no repeat for player jumps); its state is kept per pad index, since an idle second pad must not reset the active one |
+| Player, R2 held | the view: pan / look around, zoom (↕) with R1 too |
+| Player otherwise | ↔ speed while held (`_gpApplySpeedStick`), ↕ volume — dominant axis only, so a push for speed does not drift the volume |
+
+Windows need no code of their own: they already answer the D-pad buttons, and the stick sends those. The pad help (`openGpOverlay`) renders a separate map for this profile.
+
 ### Immersive VR through WebXR (BL-136)
 
 The 180° modes draw both eyes into the page. A headset such as the Steam Frame

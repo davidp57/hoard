@@ -128,6 +128,10 @@ shader the flat modes already have.
 
 - [ ] **Flat-video framing under R2** (BL-140, lot [PAD-ZOOM](.backlog/PAD-ZOOM/PRD.md)) — left stick ↕ zooms up to 4×, right stick pans, L3 resets; framing panel with a mini-map while R2 is held. Completes the shared pad convention's R2 layer, which only VR had.
 
+## Pad: profiles, one of them for the Frame's right hand alone *(built, awaiting a test on the Frame)*
+
+- [ ] **Steam Frame, right hand only** (BL-141, lot [PAD-PROFILES](.backlog/PAD-PROFILES/PRD.md)) — a device-local profile choice; the standard profile is unchanged, the right-hand one fits list, windows and player on A/B/X/Y, R1, R2, the right stick and R3.
+
 ## v3.0 — Native client *(in progress)*
 
 Native Flutter client talking to the existing HTTP API, targeting Steam Deck

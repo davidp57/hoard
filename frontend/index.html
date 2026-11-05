@@ -1881,6 +1881,10 @@
         <div class="s-right"><label class="toggle"><input type="checkbox" id="s-gamepad-enabled"><div class="toggle-track"></div></label></div>
       </div>
       <div class="s-row">
+        <div><div class="s-label">Profil</div><div class="s-desc">Propre à cet appareil. « Main droite seule » : tout se fait avec A, B, X, Y, R1, R2 et le stick droit</div></div>
+        <div class="s-right"><select class="s-num" id="s-gamepad-profile" style="width:auto" onchange="setGpProfile(this.value)"><option value="standard">Standard (deux mains)</option><option value="frame_right">Steam Frame, main droite seule</option></select></div>
+      </div>
+      <div class="s-row">
         <div><div class="s-label">Retour haptique</div><div class="s-desc">Vibration sur les actions (Chrome uniquement)</div></div>
         <div class="s-right"><label class="toggle"><input type="checkbox" id="s-gamepad-haptic"><div class="toggle-track"></div></label></div>
       </div>
@@ -3595,6 +3599,7 @@ function openSettings() {
   document.getElementById('s-transcode-audio-only').checked = cfg.transcode_audio_only;
   // Device-local, so it comes from localStorage and never rides in the payload.
   document.getElementById('s-sbs-global').checked = sbsIsOn();
+  document.getElementById('s-gamepad-profile').value = gpProfile;  // device-local too
   document.getElementById('s-gamepad-enabled').checked  = cfg.gamepad_enabled;
   document.getElementById('s-gamepad-haptic').checked   = cfg.gamepad_haptic;
   document.getElementById('s-gamepad-swap-sticks').checked = cfg.gamepad_swap_sticks;
@@ -8462,6 +8467,7 @@ function _gpMenuBuildPlayer() {
     value: sbsIsOn() ? 'activé' : 'désactivé',
     run: () => toggleSbsGlobal(),
   });
+  items.push({ label: '🎮 Profil manette', value: GP_PROFILES[gpProfile], run: () => cycleGpProfile() });
   items.push({ label: '🎮 Aide manette', run: () => openGpOverlay() });
   return items;
 }
@@ -8533,6 +8539,7 @@ function _gpMenuBuild() {
     run: () => toggleSbsGlobal(),
   });
   items.push({ label: '⚙️ Paramètres', run: () => openSettings() });
+  items.push({ label: '🎮 Profil manette', value: GP_PROFILES[gpProfile], run: () => cycleGpProfile() });
   items.push({ label: '🎮 Aide manette', run: () => openGpOverlay() });
 
   return items;
@@ -8582,7 +8589,10 @@ function _gpMenuActivate(idx) {
 }
 
 function _gpHandleMenu(btnIdx, gp) {
-  if (btnIdx === 1 || btnIdx === 8) { closeGpMenu(); _gpVibrate(gp, 60); return; }
+  // Y opened it in the right-hand profile, so Y closes it there too.
+  if (btnIdx === 1 || btnIdx === 8 || (btnIdx === 3 && gpOneHand())) {
+    closeGpMenu(); _gpVibrate(gp, 60); return;
+  }
   if (btnIdx === 12) { _gpMenuMove(-1); _gpVibrate(gp, 40); return; }
   if (btnIdx === 13) { _gpMenuMove(1); _gpVibrate(gp, 40); return; }
   if (btnIdx === 0) { _gpMenuActivate(); _gpVibrate(gp, 60); }
@@ -8689,6 +8699,61 @@ const GP_ZOOM_MAPPING = {
   10: 'video_zoom_reset', // L3 — click the stick that zooms, as in VR
 };
 
+// ── Gamepad profiles (PAD-PROFILES, BL-141) ──────────────────────────────────
+// The Steam Frame's pad is two controllers, and some evenings only the right one
+// is at hand (David, 2026-11-05). The 'standard' profile is everything above,
+// untouched; 'frame_right' fits the useful commands on what the right hand alone
+// has — A, B, X, Y, R1, R2, the right stick and its click (R3). Device-local,
+// like the volume: picking it on the Frame must not change the Deck's pad.
+const GP_PROFILE_KEY = 'gamepad_profile';
+const GP_PROFILES = {
+  standard: 'Standard (deux mains)',
+  frame_right: 'Steam Frame, main droite seule',
+};
+let gpProfile = 'standard';
+try {
+  const saved = localStorage.getItem(GP_PROFILE_KEY);
+  if (saved in GP_PROFILES) gpProfile = saved;
+} catch { /* storage blocked: standard */ }
+
+function gpOneHand() { return gpProfile === 'frame_right'; }
+
+function setGpProfile(p) {
+  if (!(p in GP_PROFILES)) return;
+  gpProfile = p;
+  try { localStorage.setItem(GP_PROFILE_KEY, p); } catch { /* storage blocked */ }
+  const sel = document.getElementById('s-gamepad-profile');
+  if (sel) sel.value = p;
+  _gpStickPads = {};
+  showToast(`🎮 Profil : ${GP_PROFILES[p]}`);
+}
+
+function cycleGpProfile() {
+  const keys = Object.keys(GP_PROFILES);
+  setGpProfile(keys[(keys.indexOf(gpProfile) + 1) % keys.length]);
+}
+
+// The right-hand profile's buttons. Its sticks are read in _gpPoll: ↕ is the
+// volume in the player and a D-pad everywhere else (list, menus, dialogs,
+// settings), ↔ the speed while held; under R1 the stick is a D-pad in the player
+// too, which gives back the standard profile's jumps.
+const GP_RIGHT_MAPPING = {
+  browser: { 0: 'nav_enter', 1: 'nav_back', 3: 'open_menu', 12: 'nav_up', 13: 'nav_down' },
+  player: { 0: 'play_pause', 1: 'close_player', 3: 'fullscreen', 11: 'aspect_ratio' },
+  // Both contexts: delete and move act on the open file or on the list cursor.
+  r1: {
+    1: 'delete_current', 2: 'move_current',
+    12: 'seek_fwd_long', 13: 'seek_fwd_nudge', 14: 'seek_back_medium', 15: 'seek_fwd_medium',
+  },
+};
+
+// The stick-as-D-pad state, per pad index: the virtual button held (12..15, -1
+// when centred), with the same hold-to-repeat timing as the real D-pad. Per pad,
+// because the loop visits every listed pad each frame and an idle one (SteamOS
+// often lists two) would otherwise reset the held direction of the active one.
+let _gpStickPads = {};
+const _GP_STICK_PAD_THRESHOLD = 0.5;
+
 // Of the L1+R1 layer, only these two know how to target the list cursor; the rest
 // (jump_0, jump_100, open_export) are playback actions with no meaning in the browser.
 const GP_BROWSER_LR = new Set(['delete_current', 'move_current']);
@@ -8697,8 +8762,12 @@ const GP_BROWSER_LR = new Set(['delete_current', 'move_current']);
 let _gpPollId = null;
 let _gpConnected = {};          // index -> true
 let _gpPrevButtons = {};        // index -> bool[]
-let _gpNavAccum = 0;            // accumulator for left-stick Y cursor navigation
-let _gpNavRepeat = { btn: -1, start: 0, last: 0 }; // D-pad hold-to-repeat state
+// Both per pad index: the poll loop visits every listed pad each frame, and with
+// one global an idle second pad (SteamOS often lists two) reset what the active
+// one was building — the left stick never reached a step, a held D-pad never
+// repeated.
+let _gpNavAccum = {};           // index -> accumulator for left-stick Y cursor navigation
+let _gpNavRepeat = {};          // index -> { btn, start, last }, D-pad hold-to-repeat state
 const _GP_NAV_INITIAL_MS = 400; // delay before auto-repeat kicks in
 const _GP_NAV_REPEAT_MS  = 100; // interval between repeated moves (~10/s)
 const _GP_SCRUB_THROTTLE_MS = 100;
@@ -8769,7 +8838,15 @@ function _gpAction(action, gamepad) {
       if (hasVideo) { togglePlay(); _gpVibrate(gamepad, 60); }
       break;
     case 'close_player':
-      if (hasVideo) { privacyClose(); }
+      // Each viewer has its own close, as Escape knows: privacyClose() only tears
+      // down the video, so B on a photo left the image viewer marked active and
+      // currentViewerMode stuck on 'image' — which then routed every later stick
+      // reading to the gallery branch of _gpPoll and left the list stick dead.
+      if (!hasVideo) break;
+      if (currentViewerMode === 'image') closeImageViewer();
+      else if (currentViewerMode === 'audio') closeAudioPlayer();
+      else if (currentViewerMode === 'pdf') closePdfViewer();
+      else privacyClose();
       break;
     case 'toggle_watched':
       if (hasVideo) { _gpToggleWatched(); _gpVibrate(gamepad, 60); }
@@ -9052,28 +9129,51 @@ function _gpPoll() {
     _gpPrevButtons[idx] = prev;
 
     // D-pad hold-to-repeat for list navigation (browser mode, no modifier)
+    // Per pad, like the stick-as-D-pad below: an idle second pad must not reset it.
     if (!currentFile && !l1 && !r1) {
       const now = performance.now();
       const heldBtn = [12, 13, 14, 15].find(i => cur[i]);
+      const rep = _gpNavRepeat[idx];
       if (heldBtn !== undefined) {
-        if (_gpNavRepeat.btn !== heldBtn) {
+        if (!rep || rep.btn !== heldBtn) {
           // New button held — first press already dispatched above
-          _gpNavRepeat = { btn: heldBtn, start: now, last: now };
+          _gpNavRepeat[idx] = { btn: heldBtn, start: now, last: now };
         } else if (
-          now - _gpNavRepeat.start >= _GP_NAV_INITIAL_MS &&
-          now - _gpNavRepeat.last  >= _GP_NAV_REPEAT_MS
+          now - rep.start >= _GP_NAV_INITIAL_MS &&
+          now - rep.last  >= _GP_NAV_REPEAT_MS
         ) {
-          _gpNavRepeat.last = now;
+          rep.last = now;
           _gpDispatch(heldBtn, false, false, gp, r2);
         }
       } else {
-        _gpNavRepeat.btn = -1;
+        delete _gpNavRepeat[idx];
       }
     } else {
-      _gpNavRepeat.btn = -1;
+      delete _gpNavRepeat[idx];
     } // axis assignment depends on gamepad_swap_sticks setting
+
+    // PAD-PROFILES: in the right-hand profile the stick stands in for the D-pad
+    // wherever the D-pad chooses something — the list, and any window (menu,
+    // dialogs, settings, pad help) — and in the player under R1, for the jumps.
+    // The image viewer keeps its own stick handling below, except under a window.
+    let stickIsPad = false;
+    if (gpOneHand()) {
+      const px = _gpDeadzone(gp.axes[2] ?? 0);
+      const py = _gpDeadzone(gp.axes[3] ?? 0);
+      // Only looked up while the stick is off centre: it reads the styles of
+      // every modal, which is not worth doing on every frame of a playback.
+      const win = !!currentFile && (px !== 0 || py !== 0) && _gpPadOwner() !== null;
+      stickIsPad = win || (currentViewerMode !== 'image' && (!currentFile || (r1 && !r2)));
+      if (stickIsPad) {
+        // Held repeat to scroll a list; a jump in the player fires once per push.
+        _gpStickPadStep(gp, px, py, !!currentFile && !win && r1, !currentFile || win);
+      } else {
+        delete _gpStickPads[gp.index];
+      }
+    }
     // Gallery viewer: left stick pans, right stick Y zooms (when an image is shown).
     if (currentViewerMode === 'image') {
+      if (stickIsPad) continue;   // a window over the image owns the stick
       if (_galleryImageZoomActive()) {
         const gx = _gpDeadzone(gp.axes[0] ?? 0);
         const gy = _gpDeadzone(gp.axes[1] ?? 0);
@@ -9100,7 +9200,19 @@ function _gpPoll() {
       // with or without R2, which cost the volume for the whole of a VR playback:
       // the right stick was taken by the view, so the volume had nowhere to go.
       // Under R2 the view owns the stick, outside it the volume gets it back.
-      if (r2) {
+      if (r2 && gpOneHand()) {
+        // Right-hand profile: one stick for both — it looks around, or zooms
+        // (↕) when R1 is held too. No convergence on the stick: that is the
+        // left hand's in the standard profile, and the menu still steps it.
+        const vrx = _gpDeadzone(gp.axes[2] ?? 0);
+        const vry = _gpDeadzone(gp.axes[3] ?? 0);
+        if (r1) {
+          if (vry) vrZoom(vry * VR_ZOOM_RATE * dt);
+        } else if (vrx || vry) {
+          const sp = vrLookSpeed();
+          vrLook(vrx * sp * dt, -vry * sp * dt);
+        }
+      } else if (r2) {
         const vrx = _gpDeadzone(gp.axes[2] ?? 0);
         const vry = _gpDeadzone(gp.axes[3] ?? 0);
         const sp = vrLookSpeed();
@@ -9127,8 +9239,15 @@ function _gpPoll() {
       const now = performance.now();
       const dt = videoZoom.lastPollTs ? Math.min(0.1, (now - videoZoom.lastPollTs) / 1000) : 0;
       videoZoom.lastPollTs = now;
-      videoZoomStep(_gpDeadzone(gp.axes[1] ?? 0),
-                    _gpDeadzone(gp.axes[2] ?? 0), _gpDeadzone(gp.axes[3] ?? 0), dt);
+      const rx = _gpDeadzone(gp.axes[2] ?? 0);
+      const ryz = _gpDeadzone(gp.axes[3] ?? 0);
+      if (gpOneHand()) {
+        // Right-hand profile: the stick pans, or zooms (↕) with R1 held too.
+        if (r1) videoZoomStep(ryz, 0, 0, dt);
+        else videoZoomStep(0, rx, ryz, dt);
+      } else {
+        videoZoomStep(_gpDeadzone(gp.axes[1] ?? 0), rx, ryz, dt);
+      }
       zoomHeld = true;
     }
 
@@ -9140,17 +9259,27 @@ function _gpPoll() {
     // BL-138: the left stick is the hand that watches — volume up/down, playback
     // speed left/right — and the right stick keeps the fine seek sideways. The swap
     // trades the two sticks whole, for a left-handed grip.
-    const speedAxisIdx = _swap ? 2 : 0;  // LX unless swapped
-    const volAxisIdx   = _swap ? 3 : 1;  // LY unless swapped
-    const seekAxisIdx  = _swap ? 0 : 2;  // RX unless swapped
+    //
+    // PAD-PROFILES: the right-hand profile has one stick, so it carries the
+    // volume (↕) and the speed (↔) and there is no fine seek — the jumps under
+    // R1 replace it. The swap means nothing with a single stick and is ignored.
+    const oneHand = gpOneHand();
+    const speedAxisIdx = oneHand || _swap ? 2 : 0;  // LX unless swapped
+    const volAxisIdx   = oneHand || _swap ? 3 : 1;  // LY unless swapped
+    const seekAxisIdx  = _swap ? 0 : 2;             // RX unless swapped
     const viewHeld = r2 && (vrIsActive() || videoZoomAvailable());
+    const sticksFree = !viewHeld && !stickIsPad;
 
     // Speed stick X — held, not stepped: back to the previous speed on release.
-    const sx = viewHeld ? 0 : _gpDeadzone(gp.axes[speedAxisIdx] ?? 0);
+    let sx = sticksFree ? _gpDeadzone(gp.axes[speedAxisIdx] ?? 0) : 0;
+    let ry = sticksFree ? _gpDeadzone(gp.axes[volAxisIdx] ?? 0) : 0;
+    // One stick for speed and volume: only the dominant axis counts, or a push
+    // for speed would drift the volume along with it.
+    if (oneHand) { if (Math.abs(sx) >= Math.abs(ry)) ry = 0; else sx = 0; }
     if (Math.abs(sx) > Math.abs(speedX)) speedX = sx;
 
     // Seek stick X — scrubbing.
-    const lx = viewHeld ? 0 : _gpDeadzone(gp.axes[seekAxisIdx] ?? 0);
+    const lx = sticksFree && !oneHand ? _gpDeadzone(gp.axes[seekAxisIdx] ?? 0) : 0;
     if (lx !== 0 && currentFile && video.duration) {
       const now = performance.now();
       if (now - _gpLastScrubTime > _GP_SCRUB_THROTTLE_MS) {
@@ -9164,22 +9293,24 @@ function _gpPoll() {
     }
 
     // Volume stick Y.
-    const ry = viewHeld ? 0 : _gpDeadzone(gp.axes[volAxisIdx] ?? 0);
     if (ry !== 0 && currentFile) {
       setVolume(Math.max(0, Math.min(1, video.volume - ry * 0.02)));
     }
 
-    // Nav stick Y — browser cursor navigation (always left stick Y, axes[1])
-    if (!currentFile) {
+    // Nav stick Y — browser cursor navigation (always left stick Y, axes[1]);
+    // the right-hand profile navigates with its stick-as-D-pad instead.
+    if (!currentFile && !oneHand) {
       const ly = _gpDeadzone(gp.axes[1] ?? 0);
       if (Math.abs(ly) > 0.5) {
-        _gpNavAccum += ly;
-        if (Math.abs(_gpNavAccum) >= 10) {
-          _gpMoveCursor(Math.sign(_gpNavAccum));
-          _gpNavAccum = 0;
+        const acc = (_gpNavAccum[idx] ?? 0) + ly;
+        if (Math.abs(acc) >= 10) {
+          _gpMoveCursor(Math.sign(acc));
+          _gpNavAccum[idx] = 0;
+        } else {
+          _gpNavAccum[idx] = acc;
         }
       } else {
-        _gpNavAccum = 0;
+        _gpNavAccum[idx] = 0;
       }
     }
   }
@@ -9423,6 +9554,40 @@ function _gpHandleSettings(btnIdx, gp) {
   }
 }
 
+// What owns the pad ahead of the player, in priority order: the pad help, the
+// context menu, a modal (the element itself), the settings page — or null. One
+// source for _gpDispatch's routing and for the right-hand profile's stick, so a
+// new window cannot be routed by one and missed by the other.
+function _gpPadOwner() {
+  if (document.getElementById('gp-overlay').classList.contains('open')) return 'overlay';
+  if (document.getElementById('gp-menu').classList.contains('open')) return 'menu';
+  const modal = _gpOpenModal();
+  if (modal) return modal;
+  if (document.getElementById('settings-page').classList.contains('open')) return 'settings';
+  return null;
+}
+
+// PAD-PROFILES: the stick read as a D-pad. The dominant axis past half-tilt picks
+// one direction, dispatched as the matching D-pad button (12..15) on the push and
+// then, when `repeat`, at the real D-pad's hold-to-repeat pace.
+function _gpStickPadStep(gp, x, y, r1, repeat) {
+  const ax = Math.abs(x), ay = Math.abs(y);
+  const btn = Math.max(ax, ay) <= _GP_STICK_PAD_THRESHOLD ? -1
+    : ay >= ax ? (y < 0 ? 12 : 13) : (x < 0 ? 14 : 15);
+  if (btn === -1) { delete _gpStickPads[gp.index]; return; }
+  const now = performance.now();
+  const st = _gpStickPads[gp.index];
+  if (!st || st.btn !== btn) {
+    _gpStickPads[gp.index] = { btn, start: now, last: now };
+    _gpDispatch(btn, false, r1, gp, false);
+  } else if (repeat
+      && now - st.start >= _GP_NAV_INITIAL_MS
+      && now - st.last >= _GP_NAV_REPEAT_MS) {
+    st.last = now;
+    _gpDispatch(btn, false, r1, gp, false);
+  }
+}
+
 function _gpDispatch(btnIdx, l1, r1, gp, r2 = false) {
   // 0. Side-by-side, ahead of everything else. It is the one gesture that has to
   // answer from the PIN screen, where the pad is otherwise locked to the keypad —
@@ -9434,7 +9599,8 @@ function _gpDispatch(btnIdx, l1, r1, gp, r2 = false) {
   // 1. Gamepad overlay open → closing, plus D-pad scrolling: BL-126 turned the
   // drawing into a list that can outgrow the box on a narrow screen, and the pad
   // had no way to reach what fell below the fold.
-  if (document.getElementById('gp-overlay').classList.contains('open')) {
+  const owner = _gpPadOwner();
+  if (owner === 'overlay') {
     if (btnIdx === 1 || btnIdx === 9) { closeGpOverlay(); return; } // B or Start
     const box = document.getElementById('gp-overlay-box');
     if (btnIdx === 12 || btnIdx === 13) {
@@ -9448,20 +9614,19 @@ function _gpDispatch(btnIdx, l1, r1, gp, r2 = false) {
 
   // 1b. Context menu open → it owns the pad (its own cursor, not DOM focus, so it is
   // handled here rather than through the generic modal path)
-  if (document.getElementById('gp-menu').classList.contains('open')) {
+  if (owner === 'menu') {
     _gpHandleMenu(btnIdx, gp);
     return;
   }
 
   // 2. Any modal/dialog open → route to dialog handler (BL-046: includes div-based overlays)
-  const openDialog = _gpOpenModal();
-  if (openDialog) {
-    _gpHandleDialog(openDialog, btnIdx, gp);
+  if (owner instanceof Element) {
+    _gpHandleDialog(owner, btnIdx, gp);
     return;
   }
 
   // 3. Settings page open → route to settings handler
-  if (document.getElementById('settings-page').classList.contains('open')) {
+  if (owner === 'settings') {
     _gpHandleSettings(btnIdx, gp);
     return;
   }
@@ -9474,13 +9639,28 @@ function _gpDispatch(btnIdx, l1, r1, gp, r2 = false) {
   // else. It answers in the player only (VR here, flat framing just below,
   // BL-140), so R2 costs nothing in the browser or the other viewers.
   if (r2 && hasVideo && vrIsActive()) {
+    // Right-hand profile: R3 recentres as in the standard one; with R1 too (the
+    // profile's zoom layer) it resets the zoom, which L3 does elsewhere.
+    if (gpOneHand() && btnIdx === 11 && r1) { _gpAction('vr_reset_zoom', gp); return; }
     const act = GP_VR_MAPPING[btnIdx];
     if (act) { _gpAction(act, gp); return; }
     return;   // R2 held: swallow the rest rather than fire a player action
   }
   // BL-140: and on a flat video, the framing layer, which swallows the rest too.
   if (r2 && videoZoomAvailable()) {
-    const act = GP_ZOOM_MAPPING[btnIdx];
+    // Right-hand profile: no L3, so the click of the one stick resets the framing.
+    const act = gpOneHand() && btnIdx === 11 ? 'video_zoom_reset' : GP_ZOOM_MAPPING[btnIdx];
+    if (act) _gpAction(act, gp);
+    return;
+  }
+
+  // PAD-PROFILES: the right-hand profile has its own small table. The user's
+  // overrides stay with the standard profile — one of them landing on Y would
+  // take the menu away from a profile that has no other way to it.
+  if (gpOneHand()) {
+    const layer = r1 ? GP_RIGHT_MAPPING.r1
+      : hasVideo ? GP_RIGHT_MAPPING.player : GP_RIGHT_MAPPING.browser;
+    const act = layer[btnIdx];
     if (act) _gpAction(act, gp);
     return;
   }
@@ -9729,7 +9909,7 @@ function openGpOverlay() {
     jump_50: 'Aller à 50%',
     jump_75: 'Aller à 75%',
     jump_100: 'Aller à 100%',
-    aspect_ratio: 'Ratio image',
+    aspect_ratio: 'Fit / Fill',
     subtitles: 'Sous-titres',
     move_quick_1: `Déplacer → ${quickFolders[0]?.name ?? 'Dossier 1'}`,
     move_quick_2: `Déplacer → ${quickFolders[1]?.name ?? 'Dossier 2'}`,
@@ -9758,6 +9938,42 @@ function openGpOverlay() {
     .filter(i => map[i])
     .map(i => row(GP_BTN_NAMES[i], AL[map[i]] ?? map[i]))
     .join(''));
+
+  // PAD-PROFILES: the right-hand profile gets its own map — listing the standard
+  // layers would describe buttons that hand does not have.
+  if (gpOneHand()) {
+    const R = GP_RIGHT_MAPPING;
+    const STICK = { 12: 'Stick ↑', 13: 'Stick ↓', 14: 'Stick ←', 15: 'Stick →' };
+    const rows = (map, keys) => keys.filter(i => map[i])
+      .map(i => row(STICK[i] ?? GP_BTN_NAMES[i], AL[map[i]] ?? map[i])).join('');
+    const btns = [0, 1, 2, 3, 11];
+    body.innerHTML =
+      group(`Profil : ${GP_PROFILES[gpProfile]}`,
+        row('Changer', 'Réglages → Manette, ou le menu (Y) dans la liste')) +
+      group('Liste', row('Stick ↕', 'Curseur') + rows(R.browser, btns)) +
+      group('Lecteur',
+        row('Stick ↕', 'Volume') +
+        row('Stick ↔', `Vitesse tant que tenu : ← jusqu'à ${String(_GP_SPEED_MIN).replace('.', ',')}×, → jusqu'à ${_GP_SPEED_MAX}×`) +
+        rows(R.player, btns)) +
+      group('Lecteur + R1', rows(R.r1, [12, 13, 14, 15])) +
+      group('R1 (liste et lecteur)', rows(R.r1, [1, 2])) +
+      group('Vidéo + R2 (cadrage)', [
+        row('Stick', 'Déplacer l\'image zoomée'),
+        row('R1 + stick ↕', `Zoom, jusqu'à ${VIDEO_ZOOM_MAX}×`),
+        row('R3', AL.video_zoom_reset),
+      ].join('')) +
+      group('Mode VR + R2', [
+        row('Stick', 'Regarder autour'),
+        row('R1 + stick ↕', 'Zoom'),
+        row('R3', AL.vr_recenter_view),
+        row('R1 + R3', AL.vr_reset_zoom),
+      ].join('')) +
+      group('Fenêtres (menu, dialogues, réglages)',
+        row('Stick ↕', 'Choisir') + row('A', 'Valider') + row('B', 'Annuler / fermer'));
+    document.getElementById('gp-overlay').classList.add('open');
+    _gpSyncMirror('gp-overlay-box', 'gp-overlay-box-r');
+    return;
+  }
 
   // The base player layer is what _gpDispatch resolves: player_base over base.
   const playerBase = { ...GP_DEFAULT_MAPPING.base, ...GP_DEFAULT_MAPPING.player_base };

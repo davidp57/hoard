@@ -8,6 +8,7 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ### Ajouté
 
+- **Hoard se pilote avec la seule manette droite du Steam Frame.** Un nouveau profil de manette, « Steam Frame, main droite seule », regroupe les commandes utiles sur A, B, X, Y, R1, R2 et le stick droit : parcourir la liste et les fenêtres au stick, régler le volume et la vitesse, sauter dans la vidéo, déplacer ou supprimer un fichier, zoomer. Le profil se choisit dans les Réglages ou dans le menu de la manette, et il ne change que l'appareil où on le choisit.
 - **Un diagnostic des formats vidéo dans les Réglages.** Le bouton « Tester les
   codecs » dit quels formats (H.264, HEVC, VP9, AV1) le navigateur de l'appareil
   sait lire. Pratique quand une vidéo ne se lit pas sur un appareil alors
@@ -19,6 +20,8 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ### Corrigé
 
+- **Fermer une photo avec B à la manette la ferme vraiment.** Avant, la photo restait à moitié ouverte, et le stick ne déplaçait plus le curseur de la liste ensuite.
+- **La manette navigue même quand l'appareil en voit deux.** Sur certains appareils (le Steam Frame en particulier), le navigateur voit deux manettes ; celle qui ne servait pas empêchait le stick gauche de déplacer le curseur et la croix tenue de défiler.
 - **La manette ne se « débranche » plus toute seule.** Dans certains cas la
   lecture de la manette s'arrêtait et ne reprenait pas, même manette branchée
   (par exemple en coupant puis rallumant l'option dans les Réglages). Elle

@@ -50,6 +50,12 @@ Its D-pad keeps the volume while watching (↑/↓ this model's level, ←/→ t
 | **Guide** | Boss screen | — |
 | **L1 + R1 + Select** | — | Side-by-side screen |
 
+## Profiles
+
+Everything above is Hoard's **standard** profile.
+Hoard also has a **Steam Frame, right hand only** profile (PAD-PROFILES, 2026-11-05) for the evenings when only the right controller is at hand: the stick carries the volume and the speed and stands in for the D-pad in lists and windows, Y opens the menu in the list, R1 + X / B move / delete.
+It is specific to Hoard and does not bind PadView.
+
 ## Button names
 
 Both help screens name the buttons **A, B, X, Y, L1, R1, L2, R2, L3, R3, Select, Start, Guide**, D-pad ↑ ↓ ← →.
