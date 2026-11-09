@@ -103,8 +103,8 @@ volumes:
   - hoard_data:/data
 ```
 
-Hoard ne tourne jamais en root : au démarrage, il prend l'identité du propriétaire du dossier média, celle qui peut y écrire.
-Rien à régler dans le cas courant.
+Hoard évite de tourner en root : au démarrage, il prend l'identité du propriétaire du dossier média, celle qui peut y écrire.
+Rien à régler quand ce propriétaire est un utilisateur ordinaire.
 Pour forcer un autre utilisateur, définis `PUID` / `PGID` ; pour connaître le propriétaire, sur le NAS en SSH :
 
 ```bash
@@ -113,13 +113,28 @@ stat -c "%u:%g" /volume1/downloads   # par exemple 1026:100
 
 Si le dossier média appartient à root, Hoard ne prend pas cette identité.
 C'est le cas courant d'un dossier partagé Synology, dont l'accès passe par des ACL : définis alors `PUID` / `PGID` avec l'identité de ton utilisateur DSM (`id -u` et `id -g` en SSH, connecté sous ce compte).
-Sans ces deux variables, Hoard essaie son propre utilisateur, et si celui-ci ne peut pas écrire dans le dossier, il reste en root et l'écrit dans ses logs plutôt que de cesser de fonctionner.
+Sans ces deux variables, Hoard essaie son propre utilisateur, et si celui-ci ne peut pas écrire dans le dossier, il reste en root et l'écrit dans ses logs plutôt que de cesser de fonctionner :
 
-**Si tu mets à jour une installation qui tournait en `user: root`**, les fichiers que Hoard a créés jusque-là appartiennent à root.
-Rends-les une fois pour toutes au propriétaire du dossier, avec les valeurs données par `stat` :
+```text
+WARNING: /media is owned by root and appuser cannot write there: staying root. ...
+WARNING: running as root, with full rights on every mounted volume
+```
+
+Si tu vois ces lignes, définis `PUID` / `PGID` et redémarre le container.
+
+**Si tu mets à jour une installation qui tournait en root**, les fichiers que Hoard a créés jusque-là appartiennent à root.
+Rends-les une fois pour toutes à l'utilisateur sous lequel Hoard tourne désormais : le `PUID:PGID` que tu as défini, ou à défaut le propriétaire du dossier donné par `stat`.
+Ne reprends pas les valeurs de `stat` pour un dossier qui appartient à root (`0:0`) : les fichiers resteraient à root.
+Seules les entrées appartenant à root changent ; le dossier partagé lui-même et les dossiers d'index `@eaDir` de Synology restent tels quels :
 
 ```bash
-sudo chown -R 1026:100 /volume1/downloads
+sudo find /volume1/downloads -mindepth 1 -name @eaDir -prune -o -user root -exec chown 1026:100 {} +
+```
+
+Pour vérifier, cette commande doit afficher `0` :
+
+```bash
+find /volume1/downloads -mindepth 1 -name @eaDir -prune -o -user root -print | wc -l
 ```
 
 La ligne `user: root` de ton `docker-compose.yml`, si tu l'as gardée, peut être retirée ; elle ne change plus rien.

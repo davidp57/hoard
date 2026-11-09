@@ -103,8 +103,8 @@ volumes:
   - hoard_data:/data
 ```
 
-Hoard never runs as root: at start-up it takes the identity of the media folder's owner, the user that can write there.
-Nothing to configure in the usual case.
+Hoard avoids running as root: at start-up it takes the identity of the media folder's owner, the user that can write there.
+Nothing to configure when that owner is an ordinary user.
 To force another user, set `PUID` / `PGID`; to find the owner, on the NAS over SSH:
 
 ```bash
@@ -113,13 +113,28 @@ stat -c "%u:%g" /volume1/downloads   # e.g. 1026:100
 
 If the media folder belongs to root, Hoard does not take that identity.
 That is the usual case for a Synology shared folder, where access goes through ACLs: set `PUID` / `PGID` to your DSM user's identity (`id -u` and `id -g` over SSH, logged in as that user).
-Without them, Hoard tries its own user, and if that one cannot write to the folder it stays root and says so in its logs rather than stop working.
+Without them, Hoard tries its own user, and if that one cannot write to the folder it stays root and says so in its logs rather than stop working:
 
-**If you are upgrading an install that ran as `user: root`**, the files Hoard created so far belong to root.
-Hand them back to the folder's owner once, with the values `stat` gave you:
+```text
+WARNING: /media is owned by root and appuser cannot write there: staying root. ...
+WARNING: running as root, with full rights on every mounted volume
+```
+
+If you see these lines, set `PUID` / `PGID` and restart the container.
+
+**If you are upgrading an install that ran as root**, the files Hoard created so far belong to root.
+Hand them once to the user Hoard now runs as: the `PUID:PGID` you set, or the folder's owner given by `stat` if you set none.
+Do not use the values `stat` gives for a root-owned folder (`0:0`): that would hand them to root again.
+Only the root-owned entries are changed; the shared folder itself and Synology's `@eaDir` index folders stay as they are:
 
 ```bash
-sudo chown -R 1026:100 /volume1/downloads
+sudo find /volume1/downloads -mindepth 1 -name @eaDir -prune -o -user root -exec chown 1026:100 {} +
+```
+
+To check, this must print `0`:
+
+```bash
+find /volume1/downloads -mindepth 1 -name @eaDir -prune -o -user root -print | wc -l
 ```
 
 A `user: root` line you kept in your `docker-compose.yml` can be removed; it no longer changes anything.

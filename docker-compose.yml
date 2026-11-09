@@ -12,9 +12,9 @@ services:
     environment:
       - MEDIA_ROOT=/media
       - DB_PATH=/data/progress.db
-      # Hoard never runs as root: it takes the uid:gid that owns the media
-      # folder. Set these only to force another one (find it on the NAS with
-      # stat -c "%u:%g" /volume1/downloads).
+      # Hoard takes the uid:gid that owns the media folder. A Synology shared
+      # folder belongs to root: set these to your DSM user (id -u / id -g over
+      # SSH), or Hoard may stay root — its logs then say so.
       # - PUID=1026
       # - PGID=100
       # ── Authentication ──────────────────────────────────────────────────
