@@ -20,7 +20,8 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ### Corrigé
 
-- **Un dossier que Hoard n'a pas le droit de lire ne bloque plus l'affichage.** Avant, la liste entière restait vide avec une erreur ; maintenant le dossier s'affiche quand même (sans indication vu / en cours), et le reste de la liste est normal.
+- **Un dossier que Hoard n'a pas le droit de lire ne bloque plus l'application.** Avant, un seul dossier interdit suffisait pour que la page reste vide avec une erreur ; maintenant Hoard l'ignore (ou l'affiche sans indication vu / en cours) et tout le reste fonctionne.
+- **Installation sur Synology : la doc indique le bon groupe à donner à Hoard.** Elle conseillait le groupe de ton compte DSM (souvent `users`), qui n'a pas toujours accès au dossier partagé ; elle explique maintenant comment trouver le groupe autorisé (souvent `administrators`) et le symptôme quand ce n'est pas le bon.
 - **Fermer une photo avec B à la manette la ferme vraiment.** Avant, la photo restait à moitié ouverte, et le stick ne déplaçait plus le curseur de la liste ensuite.
 - **La manette navigue même quand l'appareil en voit deux.** Sur certains appareils (le Steam Frame en particulier), le navigateur voit deux manettes ; celle qui ne servait pas empêchait le stick gauche de déplacer le curseur et la croix tenue de défiler.
 - **La manette ne se « débranche » plus toute seule.** Dans certains cas la

@@ -112,7 +112,7 @@ stat -c "%u:%g" /volume1/downloads   # par exemple 1026:100
 ```
 
 Si le dossier média appartient à root, Hoard ne prend pas cette identité.
-C'est le cas courant d'un dossier partagé Synology, dont l'accès passe par des ACL : définis alors `PUID` / `PGID` avec l'identité de ton utilisateur DSM (`id -u` et `id -g` en SSH, connecté sous ce compte).
+C'est le cas courant d'un dossier partagé Synology, dont l'accès passe par des ACL : définis alors `PUID` avec l'uid de ton utilisateur DSM (`id -u` en SSH, connecté sous ce compte), et `PGID` avec le groupe auquel l'ACL du dossier partagé ouvre l'accès (voir ci-dessous) — pas le `id -g` de ton compte.
 Sans ces deux variables, Hoard essaie son propre utilisateur, et si celui-ci ne peut pas écrire dans le dossier, il reste en root et l'écrit dans ses logs plutôt que de cesser de fonctionner :
 
 ```text
@@ -121,6 +121,21 @@ WARNING: running as root, with full rights on every mounted volume
 ```
 
 Si tu vois ces lignes, définis `PUID` / `PGID` et redémarre le container.
+
+**Sur Synology, `PGID` doit être le groupe que l'ACL du dossier partagé autorise.**
+Hoard tourne avec un seul groupe, celui de `PGID`, sans les groupes secondaires de ton compte DSM : être membre d'`administrators` ne lui sert à rien si `PGID` vaut `users` (100).
+Or l'ACL d'un dossier partagé ouvre souvent l'accès au seul groupe `administrators` (gid 101 en général), et refuse les autres.
+Pour le vérifier, sur le NAS en SSH :
+
+```bash
+sudo /usr/syno/bin/synoacltool -get /volume1/downloads   # adapte le nom du partage
+grep '^administrators:' /etc/group                       # donne le gid : administrators:x:101:...
+```
+
+Repère la ligne `group:<nom>:allow:…` du résultat de `synoacltool` et prends le gid de ce groupe pour `PGID` (`grep '^<nom>:' /etc/group`).
+
+Symptôme d'un `PGID` qui n'a pas accès : la page s'affiche mais l'application ne charge pas, et les logs du container montrent des `PermissionError: [Errno 13] Permission denied` sur des chemins de `/media`.
+Depuis la version 2.8.18, Hoard ne tombe plus en panne pour autant : il ignore les dossiers inaccessibles et le signale dans ses logs (`Cannot access /media/…, left out`) ; corriger `PGID` les rend de nouveau visibles.
 
 **Si tu mets à jour une installation qui tournait en root**, les fichiers que Hoard a créés jusque-là appartiennent à root.
 Rends-les une fois pour toutes à l'utilisateur sous lequel Hoard tourne désormais : le `PUID:PGID` que tu as défini, ou à défaut le propriétaire du dossier donné par `stat`.
@@ -179,7 +194,7 @@ Toute la configuration passe par des **variables d'environnement** dans `docker-
 | `LOG_RETENTION_DAYS` | `30` | Nombre de fichiers quotidiens conservés (rotation à minuit). |
 | `RESTART_SUPERVISED` | *(auto-détecté)* | `0` / `1`. Indique si un superviseur relance le processus après un arrêt. Détecté automatiquement dans un container ; sert uniquement à formuler le message de confirmation du bouton « Redémarrer Hoard ». |
 | `JOB_TTL_SECONDS` | `3600` | Durée de conservation en mémoire d'un job terminé. N'affecte pas l'historique des téléchargements, qui est en base. |
-| `PUID` / `PGID` | propriétaire de `MEDIA_ROOT` | Utilisateur sous lequel Hoard tourne dans le container. Par défaut celui qui possède le dossier média (voir « Adapter docker-compose.yml »). |
+| `PUID` / `PGID` | propriétaire de `MEDIA_ROOT` | Utilisateur sous lequel Hoard tourne dans le container. Par défaut celui qui possède le dossier média (voir « Adapter docker-compose.yml »). Sur Synology, `PGID` est le groupe que l'ACL du dossier partagé autorise, souvent `administrators` (101). |
 | `TRANSCODE_MAX_CONCURRENCY` | `2` | Nombre de transcodages simultanés. Au-delà, `/api/transcode` répond 503 plutôt que de saturer le processeur. |
 | `DOWNLOAD_SOCKET_TIMEOUT` | `30` | Secondes de silence tolérées sur une connexion de téléchargement avant abandon. Évite qu'un serveur muet immobilise la file (séquentielle). |
 
