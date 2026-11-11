@@ -77,6 +77,42 @@ logger = logging.getLogger("hoard")
 if _log_setup_error:
     logger.warning(_log_setup_error)
 
+
+# Paths already reported as unreadable. A listing that keeps hitting the same
+# untraversable folder (every refresh, every client) must not flood the log, so
+# each path is warned about once; the set is reset when it grows too large, which
+# at worst repeats a warning instead of growing without bound.
+_unreadable_warned: set[str] = set()
+_UNREADABLE_WARNED_MAX = 4096
+
+
+def _warn_unreadable(path: Path, exc: OSError) -> None:
+    """Log, once per path, an entry the server is not allowed to read or traverse."""
+    key = str(path)
+    if key in _unreadable_warned:
+        return
+    if len(_unreadable_warned) >= _UNREADABLE_WARNED_MAX:
+        _unreadable_warned.clear()
+    _unreadable_warned.add(key)
+    logger.warning("Cannot access %s, left out: %s", path, exc)
+
+
+def _is_dir(path: Path) -> bool:
+    """``path.is_dir()``, with a path the server may not access counted as absent.
+
+    Up to Python 3.13, pathlib only swallows ENOENT/ENOTDIR/EBADF/ELOOP: a folder
+    behind a parent the server cannot traverse (a Synology shared folder whose ACL
+    does not admit the container's group) raises EACCES instead of answering False.
+    For a path that comes from the settings or the DB, inaccessible means unusable,
+    so it is reported as absent and logged.
+    """
+    try:
+        return path.is_dir()
+    except OSError as exc:
+        _warn_unreadable(path, exc)
+        return False
+
+
 # ── Config ────────────────────────────────────────────────────────────────────
 MEDIA_ROOT = Path(os.environ.get("MEDIA_ROOT", "/media"))
 # MEDIA_ROOT can be reassigned at runtime via POST /api/settings. Guard writes
@@ -167,6 +203,20 @@ def _read_version() -> str:
 VERSION = _read_version()
 
 app = FastAPI(title="Hoard", version=VERSION)
+
+
+@app.exception_handler(PermissionError)
+async def permission_error_handler(request: Request, exc: PermissionError):
+    """A path the server is not allowed to access answers 403, not 500.
+
+    Every ``exists()`` / ``is_dir()`` / ``is_file()`` on a user-supplied path can
+    raise EACCES when a parent folder is not traversable by the container's user
+    (see ``_is_dir``). Routes that must degrade gracefully (settings, quick folders,
+    home roots, listings) guard their own probes; for every other route the request
+    simply cannot be served, and 403 says why. The path is logged once.
+    """
+    _warn_unreadable(Path(exc.filename) if exc.filename else Path(request.url.path), exc)
+    return JSONResponse({"detail": "Access denied"}, status_code=403)
 
 
 class BookmarkletCORSMiddleware:
@@ -581,7 +631,7 @@ def healthz():
             conn.execute("SELECT 1").fetchone()
     except sqlite3.Error:
         return JSONResponse({"status": "error"}, status_code=503)
-    if not get_media_root().is_dir():
+    if not _is_dir(get_media_root()):
         return JSONResponse({"status": "error"}, status_code=503)
     return {"status": "ok"}
 
@@ -805,7 +855,7 @@ def reload_media_root():
         row = conn.execute("SELECT value FROM settings WHERE key='media_root'").fetchone()
     if row:
         candidate = Path(row["value"])
-        if candidate.exists() and candidate.is_dir():
+        if _is_dir(candidate):
             set_media_root(candidate)
 
 
@@ -2249,25 +2299,6 @@ def _last_watched_index(conn) -> dict[str, int]:
     return index
 
 
-# Paths already reported as unreadable. A listing that keeps hitting the same
-# untraversable folder (every refresh, every client) must not flood the log, so
-# each path is warned about once; the set is reset when it grows too large, which
-# at worst repeats a warning instead of growing without bound.
-_unreadable_warned: set[str] = set()
-_UNREADABLE_WARNED_MAX = 4096
-
-
-def _warn_unreadable(path: Path, exc: OSError) -> None:
-    """Log, once per path, an entry the server is not allowed to read or traverse."""
-    key = str(path)
-    if key in _unreadable_warned:
-        return
-    if len(_unreadable_warned) >= _UNREADABLE_WARNED_MAX:
-        _unreadable_warned.clear()
-    _unreadable_warned.add(key)
-    logger.warning("Unreadable path %s (skipped or shown without state): %s", path, exc)
-
-
 def get_folder_state(folder: Path, progress_map: dict) -> str:
     """Return 'new', 'inprogress', or 'seen' based on recursive video file progress.
 
@@ -3384,7 +3415,7 @@ def list_quick_folders():
     result = []
     for row in rows:
         p = MEDIA_ROOT / row["path"]
-        if p.exists() and p.is_dir():
+        if _is_dir(p):
             result.append({"path": row["path"], "name": p.name})
     return result
 
@@ -3423,7 +3454,7 @@ def list_home_roots():
     result = []
     for row in rows:
         p = MEDIA_ROOT / row["path"]
-        if p.is_dir():
+        if _is_dir(p):
             result.append(
                 {
                     "id": row["id"],
@@ -3803,7 +3834,7 @@ def get_settings():
     try:
         dl_dir = safe_path(s.get("download_folder", "Downloads"))
         result["download_folder_abs"] = str(dl_dir).replace("\\", "/")
-        result["download_folder_exists"] = dl_dir.is_dir()
+        result["download_folder_exists"] = _is_dir(dl_dir)
     except HTTPException:
         result["download_folder_abs"] = ""
         result["download_folder_exists"] = False

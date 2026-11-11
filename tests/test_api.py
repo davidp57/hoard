@@ -5257,7 +5257,7 @@ class TestUnreadableEntries:
         with caplog.at_level("WARNING", logger="hoard"):
             client.get("/api/files?path=")
             client.get("/api/files?path=")
-        messages = [r.getMessage() for r in caplog.records if "Unreadable path" in r.getMessage()]
+        messages = [r.getMessage() for r in caplog.records if "Cannot access" in r.getMessage()]
         # The second listing hits the same unreadable entries and logs nothing new.
         assert messages
         assert len(messages) == len(set(messages))
@@ -5271,9 +5271,84 @@ class TestUnreadableEntries:
     def test_real_permissions(self, target, mode):
         downloads, bad = self._make_tree()
         blocked = downloads if target == "downloads" else bad
+        with main_mod.get_db() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO settings (key, value) VALUES ('download_folder', ?)",
+                ("downloads/[[_downloads/sub",),
+            )
+            conn.execute("INSERT INTO quick_folders (path) VALUES ('downloads/[[_downloads/sub')")
+            conn.commit()
         os.chmod(blocked, mode)
         try:
-            for url in ("/api/files?path=", "/api/files?path=downloads", "/api/search?q=a"):
+            for url in (
+                "/api/settings",
+                "/api/quick-folders",
+                "/api/files?path=",
+                "/api/files?path=downloads",
+                "/api/search?q=a",
+            ):
                 assert client.get(url).status_code == 200, url
         finally:
             os.chmod(blocked, 0o755)
+
+    # Startup routes: before this guard, /api/settings answered 500 in production
+    # (the download folder sat behind an untraversable share), so the frontend never
+    # loaded its configuration and the whole app looked dead.
+
+    def test_settings_survive_inaccessible_download_folder(self, monkeypatch):
+        downloads, _ = self._make_tree()
+        with main_mod.get_db() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO settings (key, value) VALUES ('download_folder', ?)",
+                ("downloads/[[_downloads",),
+            )
+            conn.commit()
+        _block_children_of(monkeypatch, downloads)
+        resp = client.get("/api/settings")
+        assert resp.status_code == 200
+        assert resp.json()["download_folder_exists"] is False
+
+    def test_quick_folders_skip_inaccessible_entries(self, monkeypatch):
+        downloads, _ = self._make_tree()
+        (MEDIA_ROOT / "movies").mkdir()
+        with main_mod.get_db() as conn:
+            for rel in ("downloads/[[_review", "movies"):
+                conn.execute("INSERT INTO quick_folders (path) VALUES (?)", (rel,))
+            conn.commit()
+        _block_children_of(monkeypatch, downloads)
+        resp = client.get("/api/quick-folders")
+        assert resp.status_code == 200
+        assert [q["path"] for q in resp.json()] == ["movies"]
+
+    def test_home_roots_skip_inaccessible_entries(self, monkeypatch):
+        downloads, _ = self._make_tree()
+        (MEDIA_ROOT / "movies").mkdir()
+        with main_mod.get_db() as conn:
+            for rel in ("downloads/[[_downloads", "movies"):
+                conn.execute("INSERT INTO home_roots (name, path) VALUES (?, ?)", (rel, rel))
+            conn.commit()
+        _block_children_of(monkeypatch, downloads)
+        resp = client.get("/api/home-roots")
+        assert resp.status_code == 200
+        assert [r["path"] for r in resp.json()] == ["movies"]
+
+    def test_healthz_reports_inaccessible_media_root(self, monkeypatch):
+        import pathlib
+
+        original = pathlib.Path.is_dir
+        root = main_mod.get_media_root()
+
+        def is_dir(self, *args, **kwargs):
+            if self == root:
+                raise PermissionError(13, "Permission denied", str(self))
+            return original(self, *args, **kwargs)
+
+        monkeypatch.setattr(pathlib.Path, "is_dir", is_dir)
+        assert client.get("/healthz").status_code == 503
+
+    def test_other_routes_answer_403_not_500(self, monkeypatch):
+        downloads, _ = self._make_tree()
+        _block_children_of(monkeypatch, downloads)
+        resp = client.get("/api/file?path=downloads/b.mp4")
+        assert resp.status_code == 403
+        assert resp.json() == {"detail": "Access denied"}
