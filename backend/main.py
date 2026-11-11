@@ -2265,7 +2265,7 @@ def _warn_unreadable(path: Path, exc: OSError) -> None:
     if len(_unreadable_warned) >= _UNREADABLE_WARNED_MAX:
         _unreadable_warned.clear()
     _unreadable_warned.add(key)
-    logger.warning("Unreadable path %s, shown without state: %s", path, exc)
+    logger.warning("Unreadable path %s (skipped or shown without state): %s", path, exc)
 
 
 def get_folder_state(folder: Path, progress_map: dict) -> str:

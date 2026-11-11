@@ -1,6 +1,7 @@
 """Unit tests for MediaBrowser API endpoints."""
 
 import json
+import os
 import sys
 import threading
 import time
@@ -5263,13 +5264,11 @@ class TestUnreadableEntries:
         assert any(str(downloads) in m for m in messages)
 
     @pytest.mark.skipif(
-        sys.platform == "win32" or getattr(__import__("os"), "geteuid", lambda: 0)() == 0,
+        sys.platform == "win32" or os.geteuid() == 0,
         reason="needs POSIX permissions and a non-root user",
     )
     @pytest.mark.parametrize("target,mode", [("downloads", 0o444), ("bad", 0o444), ("bad", 0)])
     def test_real_permissions(self, target, mode):
-        import os
-
         downloads, bad = self._make_tree()
         blocked = downloads if target == "downloads" else bad
         os.chmod(blocked, mode)
