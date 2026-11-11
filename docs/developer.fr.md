@@ -80,6 +80,15 @@ def safe_path(rel: str) -> Path:
     return resolved
 ```
 
+### Chemins inaccessibles
+
+Sous Python 3.12 (la version de l'image Docker, mesuré), `Path.exists()`, `is_dir()`, `is_file()` et `is_symlink()` n'avalent que ENOENT, ENOTDIR, EBADF et ELOOP : quand un dossier parent n'est pas traversable par l'utilisateur du container (dossier partagé Synology dont l'ACL n'admet pas `PGID`), ils lèvent `PermissionError` au lieu de répondre `False`. Un tel dossier ne doit jamais faire tomber une route entière :
+
+- `_is_dir(path)` sonde un chemin issu des réglages ou de la base (dossier de téléchargement, raccourcis, racines d'accueil, `media_root` enregistré, `/healthz`) et compte un chemin inaccessible comme absent.
+- Les listings (`/api/files`, `get_folder_state`, `is_gallery`) et `/api/search` gardent chaque entrée : listée sans état calculé si on peut la `stat`, sautée sinon. Un dossier non listable répond 403.
+- Toute autre route qui rencontre une `PermissionError` répond **403** `{"detail": "Access denied"}` via un gestionnaire d'exception global, pas 500.
+- `_warn_unreadable()` journalise chaque chemin inaccessible une fois en WARNING (`Cannot access <chemin>: <erreur>`), avec un ensemble de dédoublonnage borné.
+
 ### En-têtes de sécurité
 
 Un middleware HTTP (`add_security_headers`) injecte sur chaque réponse :
@@ -126,7 +135,7 @@ l'accès à toutes les instances en réseau local au prochain redémarrage.
 
 | Méthode | Route | Description |
 |---------|-------|-------------|
-| GET | `/api/files?path=` | Liste le contenu d'un dossier |
+| GET | `/api/files?path=` | Liste le contenu d'un dossier. Une entrée qu'on ne peut pas `stat` est sautée ; un dossier qu'on peut `stat` mais pas lire ni traverser est listé avec `folder_state: "new"`, sans détection de galerie. **403** si le dossier lui-même n'est pas listable |
 | GET | `/api/progress?path=` | Lit la progression d'un fichier |
 | POST | `/api/progress?path=` | Sauvegarde `{position, duration}` |
 | DELETE | `/api/files?path=` | Supprime un fichier ou dossier |

@@ -80,6 +80,15 @@ def safe_path(rel: str) -> Path:
     return resolved
 ```
 
+### Inaccessible Paths
+
+On Python 3.12 (the Docker image's version, measured), `Path.exists()`, `is_dir()`, `is_file()` and `is_symlink()` only swallow ENOENT, ENOTDIR, EBADF and ELOOP: when a parent folder is not traversable by the container's user (a Synology shared folder whose ACL does not admit `PGID`), they raise `PermissionError` instead of answering `False`. One such folder must never take a whole route down:
+
+- `_is_dir(path)` probes a path that comes from the settings or the DB (download folder, quick folders, home roots, saved `media_root`, `/healthz`) and counts an inaccessible one as absent.
+- Listings (`/api/files`, `get_folder_state`, `is_gallery`) and `/api/search` guard each entry: one that can be stat-ed stays listed without computed state, one that cannot is skipped. A folder that cannot be listed at all answers 403.
+- Any other route that hits a `PermissionError` answers **403** `{"detail": "Access denied"}` through an app-level exception handler, not 500.
+- `_warn_unreadable()` logs each inaccessible path once at WARNING (`Cannot access <path>: <error>`), with a bounded dedup set.
+
 ### Security Headers
 
 An HTTP middleware (`add_security_headers`) injects on every response:
@@ -142,7 +151,7 @@ wins, including `"off"` on a file the guess got wrong.
 
 | Method | Route | Description |
 |--------|-------|-------------|
-| GET | `/api/files?path=` | List folder contents |
+| GET | `/api/files?path=` | List folder contents. An entry the server cannot stat is skipped; a folder it can stat but not read or traverse is listed with `folder_state: "new"` and no gallery detection. Each unreadable path is logged once at WARNING. **403** when the folder itself cannot be listed |
 | GET | `/api/progress?path=` | Read watch progress for a file |
 | POST | `/api/progress?path=` | Save `{position, duration}` (clears the explicit watched flag) |
 | POST | `/api/progress/watched?path=` | Set `{watched}` without playing the media; unmarking rewinds the position |

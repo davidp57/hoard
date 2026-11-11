@@ -112,7 +112,7 @@ stat -c "%u:%g" /volume1/downloads   # e.g. 1026:100
 ```
 
 If the media folder belongs to root, Hoard does not take that identity.
-That is the usual case for a Synology shared folder, where access goes through ACLs: set `PUID` / `PGID` to your DSM user's identity (`id -u` and `id -g` over SSH, logged in as that user).
+That is the usual case for a Synology shared folder, where access goes through ACLs: set `PUID` to your DSM user's uid (`id -u` over SSH, logged in as that user), and `PGID` to the group the shared folder's ACL grants access to (see below) — not your account's `id -g`.
 Without them, Hoard tries its own user, and if that one cannot write to the folder it stays root and says so in its logs rather than stop working:
 
 ```text
@@ -121,6 +121,21 @@ WARNING: running as root, with full rights on every mounted volume
 ```
 
 If you see these lines, set `PUID` / `PGID` and restart the container.
+
+**On Synology, `PGID` must be the group the shared folder's ACL allows.**
+Hoard runs with a single group, the one in `PGID`, without your DSM account's secondary groups: being a member of `administrators` does not help it if `PGID` is `users` (100).
+A shared folder's ACL often grants access to the `administrators` group only (usually gid 101) and denies the others.
+To check, on the NAS over SSH:
+
+```bash
+sudo /usr/syno/bin/synoacltool -get /volume1/downloads   # adjust the share name
+grep '^administrators:' /etc/group                       # gives the gid: administrators:x:101:...
+```
+
+Find the `group:<name>:allow:…` line in the `synoacltool` output and use that group's gid for `PGID` (`grep '^<name>:' /etc/group`).
+
+Symptom of a `PGID` without access: the page shows but the app does not load, and the container logs show `PermissionError: [Errno 13] Permission denied` on paths under `/media`.
+Since version 2.8.18 Hoard no longer breaks down over it: it leaves inaccessible folders out and says so in its logs (`Cannot access /media/…`); fixing `PGID` brings them back.
 
 **If you are upgrading an install that ran as root**, the files Hoard created so far belong to root.
 Hand them once to the user Hoard now runs as: the `PUID:PGID` you set, or the folder's owner given by `stat` if you set none.
@@ -179,7 +194,7 @@ All configuration is done via **environment variables** in `docker-compose.yml` 
 | `LOG_RETENTION_DAYS` | `30` | Number of daily log files kept (rotation at midnight). |
 | `RESTART_SUPERVISED` | *(auto-detected)* | `0` / `1`. Whether a supervisor restarts the process after it exits. Auto-detected inside a container; only used to word the "Restart Hoard" confirmation. |
 | `JOB_TTL_SECONDS` | `3600` | How long a finished job stays in memory. Does not affect the download history, which lives in the database. |
-| `PUID` / `PGID` | owner of `MEDIA_ROOT` | User Hoard runs as inside the container. Defaults to whoever owns the media folder (see "Adjust docker-compose.yml"). |
+| `PUID` / `PGID` | owner of `MEDIA_ROOT` | User Hoard runs as inside the container. Defaults to whoever owns the media folder (see "Adjust docker-compose.yml"). On Synology, `PGID` is the group the shared folder's ACL allows, often `administrators` (101). |
 | `TRANSCODE_MAX_CONCURRENCY` | `2` | Number of simultaneous transcodes. Beyond it, `/api/transcode` answers 503 rather than saturating the CPU. |
 | `DOWNLOAD_SOCKET_TIMEOUT` | `30` | Seconds of silence tolerated on a download socket before giving up. Stops a silent server from pinning the (sequential) queue. |
 

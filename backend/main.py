@@ -77,6 +77,42 @@ logger = logging.getLogger("hoard")
 if _log_setup_error:
     logger.warning(_log_setup_error)
 
+
+# Paths already reported as unreadable. A listing that keeps hitting the same
+# untraversable folder (every refresh, every client) must not flood the log, so
+# each path is warned about once; the set is reset when it grows too large, which
+# at worst repeats a warning instead of growing without bound.
+_unreadable_warned: set[str] = set()
+_UNREADABLE_WARNED_MAX = 4096
+
+
+def _warn_unreadable(path: Path, exc: OSError) -> None:
+    """Log, once per path, an entry the server is not allowed to read or traverse."""
+    key = str(path)
+    if key in _unreadable_warned:
+        return
+    if len(_unreadable_warned) >= _UNREADABLE_WARNED_MAX:
+        _unreadable_warned.clear()
+    _unreadable_warned.add(key)
+    logger.warning("Cannot access %s: %s", path, exc)
+
+
+def _is_dir(path: Path) -> bool:
+    """``path.is_dir()``, with a path the server may not access counted as absent.
+
+    On Python 3.12 (the Docker image), pathlib only swallows ENOENT/ENOTDIR/EBADF/ELOOP: a folder
+    behind a parent the server cannot traverse (a Synology shared folder whose ACL
+    does not admit the container's group) raises EACCES instead of answering False.
+    For a path that comes from the settings or the DB, inaccessible means unusable,
+    so it is reported as absent and logged.
+    """
+    try:
+        return path.is_dir()
+    except OSError as exc:
+        _warn_unreadable(path, exc)
+        return False
+
+
 # ── Config ────────────────────────────────────────────────────────────────────
 MEDIA_ROOT = Path(os.environ.get("MEDIA_ROOT", "/media"))
 # MEDIA_ROOT can be reassigned at runtime via POST /api/settings. Guard writes
@@ -167,6 +203,20 @@ def _read_version() -> str:
 VERSION = _read_version()
 
 app = FastAPI(title="Hoard", version=VERSION)
+
+
+@app.exception_handler(PermissionError)
+async def permission_error_handler(request: Request, exc: PermissionError):
+    """A path the server is not allowed to access answers 403, not 500.
+
+    Every ``exists()`` / ``is_dir()`` / ``is_file()`` on a user-supplied path can
+    raise EACCES when a parent folder is not traversable by the container's user
+    (see ``_is_dir``). Routes that must degrade gracefully (settings, quick folders,
+    home roots, listings) guard their own probes; for every other route the request
+    simply cannot be served, and 403 says why. The path is logged once.
+    """
+    _warn_unreadable(Path(exc.filename) if exc.filename else Path(request.url.path), exc)
+    return JSONResponse({"detail": "Access denied"}, status_code=403)
 
 
 class BookmarkletCORSMiddleware:
@@ -581,7 +631,7 @@ def healthz():
             conn.execute("SELECT 1").fetchone()
     except sqlite3.Error:
         return JSONResponse({"status": "error"}, status_code=503)
-    if not get_media_root().is_dir():
+    if not _is_dir(get_media_root()):
         return JSONResponse({"status": "error"}, status_code=503)
     return {"status": "ok"}
 
@@ -805,7 +855,7 @@ def reload_media_root():
         row = conn.execute("SELECT value FROM settings WHERE key='media_root'").fetchone()
     if row:
         candidate = Path(row["value"])
-        if candidate.exists() and candidate.is_dir():
+        if _is_dir(candidate):
             set_media_root(candidate)
 
 
@@ -2250,8 +2300,24 @@ def _last_watched_index(conn) -> dict[str, int]:
 
 
 def get_folder_state(folder: Path, progress_map: dict) -> str:
-    """Return 'new', 'inprogress', or 'seen' based on recursive video file progress."""
-    video_files = [f for f in folder.rglob("*") if f.is_file() and is_video(f)]
+    """Return 'new', 'inprogress', or 'seen' based on recursive video file progress.
+
+    Unreadable parts of the tree are left out: a sub-folder the server can list but
+    not traverse yields children that cannot be stat-ed, and one such folder must not
+    take the whole listing down. If the walk itself fails, the state is unknown and
+    'new' (the neutral state) is returned rather than a partial, misleading count.
+    """
+    video_files = []
+    try:
+        for f in folder.rglob("*"):
+            try:
+                if is_video(f) and f.is_file():
+                    video_files.append(f)
+            except OSError as exc:
+                _warn_unreadable(f.parent, exc)
+    except OSError as exc:
+        _warn_unreadable(folder, exc)
+        return "new"
     if not video_files:
         return "new"
     total = len(video_files)
@@ -2275,22 +2341,24 @@ def is_gallery(folder: Path) -> bool:
     folder of galleries shows each sub-folder as its own gallery rather than flattening
     everything into one huge sequence. Own-level scan only (no recursion)."""
     media_root = MEDIA_ROOT.resolve()
-    try:
-        children = list(folder.iterdir())
-    except PermissionError:
-        return False
     image_count = 0
-    for f in children:
-        if f.name.startswith("."):
-            continue
-        if f.is_symlink() and not f.resolve().is_relative_to(media_root):
-            continue
-        if f.is_dir():
-            return False  # has a sub-folder → container, not a gallery
-        if is_video(f):
-            return False
-        if is_image(f):
-            image_count += 1
+    try:
+        for f in folder.iterdir():
+            if f.name.startswith("."):
+                continue
+            if f.is_symlink() and not f.resolve().is_relative_to(media_root):
+                continue
+            if f.is_dir():
+                return False  # has a sub-folder → container, not a gallery
+            if is_video(f):
+                return False
+            if is_image(f):
+                image_count += 1
+    except OSError as exc:
+        # Listable but not traversable (or not listable at all): its content cannot
+        # be classified, so it is shown as a plain folder.
+        _warn_unreadable(folder, exc)
+        return False
     return image_count > 3
 
 
@@ -2365,16 +2433,24 @@ def list_files(path: str = ""):
     for tr in tag_rows:
         tags_map.setdefault(tr["path"], []).append(tr["tag"])
 
-    # Gather items with stat cached
+    # Gather items with stat cached. An entry that cannot even be stat-ed is skipped:
+    # without a stat there is no telling a file from a folder, nor any way to open it.
+    # One that can be stat-ed is listed, even if its content turns out unreadable.
     items_with_stat = []
-    for item in folder.iterdir():
-        if item.name.startswith("."):
-            continue
-        try:
-            st = item.stat()
-        except PermissionError:
-            continue
-        items_with_stat.append((item, st))
+    try:
+        for item in folder.iterdir():
+            if item.name.startswith("."):
+                continue
+            try:
+                st = item.stat()
+            except OSError as exc:
+                _warn_unreadable(item, exc)
+                continue
+            items_with_stat.append((item, st))
+    except PermissionError as exc:
+        # The folder itself cannot be listed: a clear 403, not a 500.
+        _warn_unreadable(folder, exc)
+        raise HTTPException(status_code=403, detail="Access denied") from None
 
     # Sort by modification time descending (atime excluded — changes on every rglob scan)
     items_with_stat.sort(key=lambda x: x[1].st_mtime, reverse=True)
@@ -2424,6 +2500,29 @@ def list_files(path: str = ""):
     return {"path": path, "breadcrumb": parts, "entries": entries}
 
 
+def _search_matches(folder: Path, needle: str):
+    """Yield (path, stat) for every entry under *folder* whose name contains *needle*.
+
+    An entry the server cannot stat (typically a child of a folder it can list but
+    not traverse) is skipped and logged, so one unreadable folder cannot fail the
+    whole search.
+    """
+    media_root = MEDIA_ROOT.resolve()
+    for item in folder.rglob("*"):
+        if item.name.startswith("."):
+            continue
+        if needle not in item.name.lower():
+            continue
+        try:
+            if item.is_symlink() and not item.resolve().is_relative_to(media_root):
+                continue
+            st = item.stat()
+        except OSError as exc:
+            _warn_unreadable(item.parent, exc)
+            continue
+        yield item, st
+
+
 @app.get("/api/search")
 def search_files(q: str, path: str = ""):
     """Search filenames recursively under *path* (default: MEDIA_ROOT)."""
@@ -2451,17 +2550,7 @@ def search_files(q: str, path: str = ""):
         tags_map_s.setdefault(tr["path"], []).append(tr["tag"])
 
     entries = []
-    for item in folder.rglob("*"):
-        if item.is_symlink() and not item.resolve().is_relative_to(MEDIA_ROOT.resolve()):
-            continue
-        if item.name.startswith("."):
-            continue
-        if needle not in item.name.lower():
-            continue
-        try:
-            st = item.stat()
-        except PermissionError:
-            continue
+    for item, st in _search_matches(folder, needle):
         rel = to_rel(item)
         _media_type_s = get_media_type(item) if item.is_file() else "other"
         entry = {
@@ -3326,7 +3415,7 @@ def list_quick_folders():
     result = []
     for row in rows:
         p = MEDIA_ROOT / row["path"]
-        if p.exists() and p.is_dir():
+        if _is_dir(p):
             result.append({"path": row["path"], "name": p.name})
     return result
 
@@ -3365,7 +3454,7 @@ def list_home_roots():
     result = []
     for row in rows:
         p = MEDIA_ROOT / row["path"]
-        if p.is_dir():
+        if _is_dir(p):
             result.append(
                 {
                     "id": row["id"],
@@ -3745,7 +3834,7 @@ def get_settings():
     try:
         dl_dir = safe_path(s.get("download_folder", "Downloads"))
         result["download_folder_abs"] = str(dl_dir).replace("\\", "/")
-        result["download_folder_exists"] = dl_dir.is_dir()
+        result["download_folder_exists"] = _is_dir(dl_dir)
     except HTTPException:
         result["download_folder_abs"] = ""
         result["download_folder_exists"] = False
