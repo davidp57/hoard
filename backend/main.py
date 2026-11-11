@@ -94,13 +94,13 @@ def _warn_unreadable(path: Path, exc: OSError) -> None:
     if len(_unreadable_warned) >= _UNREADABLE_WARNED_MAX:
         _unreadable_warned.clear()
     _unreadable_warned.add(key)
-    logger.warning("Cannot access %s, left out: %s", path, exc)
+    logger.warning("Cannot access %s: %s", path, exc)
 
 
 def _is_dir(path: Path) -> bool:
     """``path.is_dir()``, with a path the server may not access counted as absent.
 
-    Up to Python 3.13, pathlib only swallows ENOENT/ENOTDIR/EBADF/ELOOP: a folder
+    On Python 3.12 (the Docker image), pathlib only swallows ENOENT/ENOTDIR/EBADF/ELOOP: a folder
     behind a parent the server cannot traverse (a Synology shared folder whose ACL
     does not admit the container's group) raises EACCES instead of answering False.
     For a path that comes from the settings or the DB, inaccessible means unusable,

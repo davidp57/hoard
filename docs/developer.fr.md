@@ -82,12 +82,12 @@ def safe_path(rel: str) -> Path:
 
 ### Chemins inaccessibles
 
-Jusqu'à Python 3.13, `Path.exists()`, `is_dir()`, `is_file()` et `is_symlink()` n'avalent que ENOENT, ENOTDIR, EBADF et ELOOP : quand un dossier parent n'est pas traversable par l'utilisateur du container (dossier partagé Synology dont l'ACL n'admet pas `PGID`), ils lèvent `PermissionError` au lieu de répondre `False`. Un tel dossier ne doit jamais faire tomber une route entière :
+Sous Python 3.12 (la version de l'image Docker, mesuré), `Path.exists()`, `is_dir()`, `is_file()` et `is_symlink()` n'avalent que ENOENT, ENOTDIR, EBADF et ELOOP : quand un dossier parent n'est pas traversable par l'utilisateur du container (dossier partagé Synology dont l'ACL n'admet pas `PGID`), ils lèvent `PermissionError` au lieu de répondre `False`. Un tel dossier ne doit jamais faire tomber une route entière :
 
 - `_is_dir(path)` sonde un chemin issu des réglages ou de la base (dossier de téléchargement, raccourcis, racines d'accueil, `media_root` enregistré, `/healthz`) et compte un chemin inaccessible comme absent.
 - Les listings (`/api/files`, `get_folder_state`, `is_gallery`) et `/api/search` gardent chaque entrée : listée sans état calculé si on peut la `stat`, sautée sinon. Un dossier non listable répond 403.
 - Toute autre route qui rencontre une `PermissionError` répond **403** `{"detail": "Access denied"}` via un gestionnaire d'exception global, pas 500.
-- `_warn_unreadable()` journalise chaque chemin inaccessible une fois en WARNING (`Cannot access <chemin>, left out`), avec un ensemble de dédoublonnage borné.
+- `_warn_unreadable()` journalise chaque chemin inaccessible une fois en WARNING (`Cannot access <chemin>: <erreur>`), avec un ensemble de dédoublonnage borné.
 
 ### En-têtes de sécurité
 
