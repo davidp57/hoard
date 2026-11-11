@@ -142,7 +142,7 @@ wins, including `"off"` on a file the guess got wrong.
 
 | Method | Route | Description |
 |--------|-------|-------------|
-| GET | `/api/files?path=` | List folder contents |
+| GET | `/api/files?path=` | List folder contents. An entry the server cannot stat is skipped; a folder it can stat but not read or traverse is listed with `folder_state: "new"` and no gallery detection. Each unreadable path is logged once at WARNING. **403** when the folder itself cannot be listed |
 | GET | `/api/progress?path=` | Read watch progress for a file |
 | POST | `/api/progress?path=` | Save `{position, duration}` (clears the explicit watched flag) |
 | POST | `/api/progress/watched?path=` | Set `{watched}` without playing the media; unmarking rewinds the position |

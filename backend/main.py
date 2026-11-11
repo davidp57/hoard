@@ -2249,9 +2249,44 @@ def _last_watched_index(conn) -> dict[str, int]:
     return index
 
 
+# Paths already reported as unreadable. A listing that keeps hitting the same
+# untraversable folder (every refresh, every client) must not flood the log, so
+# each path is warned about once; the set is reset when it grows too large, which
+# at worst repeats a warning instead of growing without bound.
+_unreadable_warned: set[str] = set()
+_UNREADABLE_WARNED_MAX = 4096
+
+
+def _warn_unreadable(path: Path, exc: OSError) -> None:
+    """Log, once per path, an entry the server is not allowed to read or traverse."""
+    key = str(path)
+    if key in _unreadable_warned:
+        return
+    if len(_unreadable_warned) >= _UNREADABLE_WARNED_MAX:
+        _unreadable_warned.clear()
+    _unreadable_warned.add(key)
+    logger.warning("Unreadable path %s, shown without state: %s", path, exc)
+
+
 def get_folder_state(folder: Path, progress_map: dict) -> str:
-    """Return 'new', 'inprogress', or 'seen' based on recursive video file progress."""
-    video_files = [f for f in folder.rglob("*") if f.is_file() and is_video(f)]
+    """Return 'new', 'inprogress', or 'seen' based on recursive video file progress.
+
+    Unreadable parts of the tree are left out: a sub-folder the server can list but
+    not traverse yields children that cannot be stat-ed, and one such folder must not
+    take the whole listing down. If the walk itself fails, the state is unknown and
+    'new' (the neutral state) is returned rather than a partial, misleading count.
+    """
+    video_files = []
+    try:
+        for f in folder.rglob("*"):
+            try:
+                if is_video(f) and f.is_file():
+                    video_files.append(f)
+            except OSError as exc:
+                _warn_unreadable(f.parent, exc)
+    except OSError as exc:
+        _warn_unreadable(folder, exc)
+        return "new"
     if not video_files:
         return "new"
     total = len(video_files)
@@ -2275,22 +2310,24 @@ def is_gallery(folder: Path) -> bool:
     folder of galleries shows each sub-folder as its own gallery rather than flattening
     everything into one huge sequence. Own-level scan only (no recursion)."""
     media_root = MEDIA_ROOT.resolve()
-    try:
-        children = list(folder.iterdir())
-    except PermissionError:
-        return False
     image_count = 0
-    for f in children:
-        if f.name.startswith("."):
-            continue
-        if f.is_symlink() and not f.resolve().is_relative_to(media_root):
-            continue
-        if f.is_dir():
-            return False  # has a sub-folder → container, not a gallery
-        if is_video(f):
-            return False
-        if is_image(f):
-            image_count += 1
+    try:
+        for f in folder.iterdir():
+            if f.name.startswith("."):
+                continue
+            if f.is_symlink() and not f.resolve().is_relative_to(media_root):
+                continue
+            if f.is_dir():
+                return False  # has a sub-folder → container, not a gallery
+            if is_video(f):
+                return False
+            if is_image(f):
+                image_count += 1
+    except OSError as exc:
+        # Listable but not traversable (or not listable at all): its content cannot
+        # be classified, so it is shown as a plain folder.
+        _warn_unreadable(folder, exc)
+        return False
     return image_count > 3
 
 
@@ -2365,16 +2402,24 @@ def list_files(path: str = ""):
     for tr in tag_rows:
         tags_map.setdefault(tr["path"], []).append(tr["tag"])
 
-    # Gather items with stat cached
+    # Gather items with stat cached. An entry that cannot even be stat-ed is skipped:
+    # without a stat there is no telling a file from a folder, nor any way to open it.
+    # One that can be stat-ed is listed, even if its content turns out unreadable.
     items_with_stat = []
-    for item in folder.iterdir():
-        if item.name.startswith("."):
-            continue
-        try:
-            st = item.stat()
-        except PermissionError:
-            continue
-        items_with_stat.append((item, st))
+    try:
+        for item in folder.iterdir():
+            if item.name.startswith("."):
+                continue
+            try:
+                st = item.stat()
+            except OSError as exc:
+                _warn_unreadable(item, exc)
+                continue
+            items_with_stat.append((item, st))
+    except PermissionError as exc:
+        # The folder itself cannot be listed: a clear 403, not a 500.
+        _warn_unreadable(folder, exc)
+        raise HTTPException(status_code=403, detail="Access denied") from None
 
     # Sort by modification time descending (atime excluded — changes on every rglob scan)
     items_with_stat.sort(key=lambda x: x[1].st_mtime, reverse=True)
@@ -2424,6 +2469,29 @@ def list_files(path: str = ""):
     return {"path": path, "breadcrumb": parts, "entries": entries}
 
 
+def _search_matches(folder: Path, needle: str):
+    """Yield (path, stat) for every entry under *folder* whose name contains *needle*.
+
+    An entry the server cannot stat (typically a child of a folder it can list but
+    not traverse) is skipped and logged, so one unreadable folder cannot fail the
+    whole search.
+    """
+    media_root = MEDIA_ROOT.resolve()
+    for item in folder.rglob("*"):
+        if item.name.startswith("."):
+            continue
+        if needle not in item.name.lower():
+            continue
+        try:
+            if item.is_symlink() and not item.resolve().is_relative_to(media_root):
+                continue
+            st = item.stat()
+        except OSError as exc:
+            _warn_unreadable(item.parent, exc)
+            continue
+        yield item, st
+
+
 @app.get("/api/search")
 def search_files(q: str, path: str = ""):
     """Search filenames recursively under *path* (default: MEDIA_ROOT)."""
@@ -2451,17 +2519,7 @@ def search_files(q: str, path: str = ""):
         tags_map_s.setdefault(tr["path"], []).append(tr["tag"])
 
     entries = []
-    for item in folder.rglob("*"):
-        if item.is_symlink() and not item.resolve().is_relative_to(MEDIA_ROOT.resolve()):
-            continue
-        if item.name.startswith("."):
-            continue
-        if needle not in item.name.lower():
-            continue
-        try:
-            st = item.stat()
-        except PermissionError:
-            continue
+    for item, st in _search_matches(folder, needle):
         rel = to_rel(item)
         _media_type_s = get_media_type(item) if item.is_file() else "other"
         entry = {
