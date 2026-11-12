@@ -135,7 +135,7 @@ grep '^administrators:' /etc/group                       # donne le gid : admini
 Repère la ligne `group:<nom>:allow:…` du résultat de `synoacltool` et prends le gid de ce groupe pour `PGID` (`grep '^<nom>:' /etc/group`).
 
 Symptôme d'un `PGID` qui n'a pas accès : la page s'affiche mais l'application ne charge pas, et les logs du container montrent des `PermissionError: [Errno 13] Permission denied` sur des chemins de `/media`.
-Depuis la version 2.8.18, Hoard ne tombe plus en panne pour autant : il ignore les dossiers inaccessibles et le signale dans ses logs (`Cannot access /media/…`) ; corriger `PGID` les rend de nouveau visibles.
+Depuis la version 2.9.0, Hoard ne tombe plus en panne pour autant : il ignore les dossiers inaccessibles et le signale dans ses logs (`Cannot access /media/…`) ; corriger `PGID` les rend de nouveau visibles.
 
 **Si tu mets à jour une installation qui tournait en root**, les fichiers que Hoard a créés jusque-là appartiennent à root.
 Rends-les une fois pour toutes à l'utilisateur sous lequel Hoard tourne désormais : le `PUID:PGID` que tu as défini, ou à défaut le propriétaire du dossier donné par `stat`.
