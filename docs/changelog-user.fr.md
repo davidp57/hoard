@@ -6,6 +6,330 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ## [Non publié]
 
+## [v2.9.0] — 2026-11-12
+
+Grosse version : Hoard devient utilisable en VR et entièrement pilotable à la manette, Steam Frame compris.
+
+- Les vidéos 180° côte à côte se regardent enfin : à plat sur un écran normal, en relief dans des lunettes XR ou dans un casque VR.
+- La profondeur se règle à la manette en regardant l'image, et elle est retenue pour chaque fichier.
+- Toute l'interface peut s'afficher en côte à côte pour des lunettes XR.
+- À la manette, la main gauche règle le volume, la vitesse et les sauts. On peut zoomer dans une vidéo, et un profil permet de jouer avec la seule main droite du Steam Frame.
+- Plus besoin de retaper son mot de passe à chaque fois, et le bouton de téléchargement des favoris refonctionne.
+- Sécurité : Hoard ne tourne plus avec tous les droits sur le NAS, et il est mieux protégé contre les sites visités.
+- Un dossier que Hoard n'a pas le droit de lire ne bloque plus l'application.
+- Des diagnostics de la manette et des formats vidéo sont dans les Réglages.
+
+### Ajouté
+
+- **Hoard se pilote avec la seule manette droite du Steam Frame.** Un nouveau profil de manette, « Steam Frame, main droite seule », regroupe les commandes utiles sur A, B, X, Y, R1, R2 et le stick droit : parcourir la liste et les fenêtres au stick, régler le volume et la vitesse, sauter dans la vidéo, déplacer ou supprimer un fichier, zoomer. Le profil se choisit dans les Réglages ou dans le menu de la manette, et il ne change que l'appareil où on le choisit.
+- **Un diagnostic des formats vidéo dans les Réglages.** Le bouton « Tester les
+  codecs » dit quels formats (H.264, HEVC, VP9, AV1) le navigateur de l'appareil
+  sait lire. Pratique quand une vidéo ne se lit pas sur un appareil alors
+  qu'elle se lit sur un autre.
+- **Un diagnostic de la manette dans les Réglages.** La section Manette affiche
+  maintenant ce que le navigateur voit : manette détectée ou non, boutons
+  enfoncés en direct. Pratique quand la manette ne répond pas et qu'on n'a pas
+  de clavier pour chercher pourquoi.
+
+### Corrigé
+
+- **Un dossier que Hoard n'a pas le droit de lire ne bloque plus l'application.** Avant, un seul dossier interdit suffisait pour que la page reste vide avec une erreur ; maintenant Hoard l'ignore (ou l'affiche sans indication vu / en cours) et tout le reste fonctionne.
+- **Installation sur Synology : la doc indique le bon groupe à donner à Hoard.** Elle conseillait le groupe de ton compte DSM (souvent `users`), qui n'a pas toujours accès au dossier partagé ; elle explique maintenant comment trouver le groupe autorisé (souvent `administrators`) et le symptôme quand ce n'est pas le bon.
+- **Fermer une photo avec B à la manette la ferme vraiment.** Avant, la photo restait à moitié ouverte, et le stick ne déplaçait plus le curseur de la liste ensuite.
+- **La manette navigue même quand l'appareil en voit deux.** Sur certains appareils (le Steam Frame en particulier), le navigateur voit deux manettes ; celle qui ne servait pas empêchait le stick gauche de déplacer le curseur et la croix tenue de défiler.
+- **La manette ne se « débranche » plus toute seule.** Dans certains cas la
+  lecture de la manette s'arrêtait et ne reprenait pas, même manette branchée
+  (par exemple en coupant puis rallumant l'option dans les Réglages). Elle
+  repart maintenant d'elle-même, et un bouton « Relancer la lecture de la
+  manette » dans les Réglages la remet en route à la main si besoin.
+- **La manette marche dans le navigateur du Steam Frame.** Hoard attendait un
+  signal de connexion que ce navigateur n'envoie pas : la manette restait
+  ignorée. Hoard la cherche maintenant de lui-même, chaque seconde.
+
+### Modifié
+
+- **À la manette, la main gauche règle ce que tu regardes.** Pensé pour les
+  manettes du Steam Frame, une par main. Le stick gauche règle le volume (haut /
+  bas) et la vitesse tant que tu le tiens (à gauche plus lent, à droite plus
+  vite, retour à la normale quand tu le lâches). La croix fait des sauts : ←/→
+  30 s, ↑ +60 s, ↓ +15 s. L'avance fine passe au stick droit. Le clic du stick
+  droit ne change plus la vitesse ; une vitesse fixe se choisit toujours dans le
+  menu Select.
+
+### Ajouté
+
+- **Zoomer dans une vidéo à la manette, comme dans PadView.** Maintiens R2 : le stick gauche zoome (jusqu'à 4×), le stick droit déplace l'image, le clic du stick gauche revient à la normale. Un petit encart en haut à gauche montre le niveau de zoom et la partie de l'image que tu regardes. Le zoom reste quand tu lâches R2 et repart de zéro au fichier suivant.
+
+- **Les vidéos 180° en vrai relief dans un casque VR.** Dans le Steam Frame, le
+  mode côte à côte s'affichait à plat, dans une fenêtre. Le nouveau bouton **XR**
+  du lecteur fait prendre tout le casque à la vidéo : chaque œil a son image, et
+  tu regardes autour de toi en tournant la tête. Les manettes du casque mettent
+  en pause, avancent, recentrent et font sortir. Le bouton n'apparaît que si ton
+  navigateur sait piloter un casque, et seulement quand Hoard est ouvert en
+  https.
+
+- **Un mode d'emploi pour le Steam Frame.** Le guide dit désormais quel
+  navigateur utiliser sur le casque (Chromium : avec Firefox, les boutons X et Y
+  sont inversés) et comment le lancer pour que la manette soit reconnue. Le
+  Steam Controller et les manettes du Frame fonctionnent.
+
+- **Tu peux voir plus large sans perdre le relief là où tu regardes.** Au champ
+  de vision juste, la profondeur est bonne mais la vue est serrée — et les deux
+  vont ensemble, il n'y a pas moyen de les séparer complètement. Le nouveau
+  réglage **Vue élargie** fait au mieux : il ne comprime que **vers les bords**,
+  en laissant le centre intact. Le chiffre dit de combien le bord va plus loin :
+  **+40 %**, c'est 40 % d'angle en plus sur les côtés.
+
+  Ça se paie là où ça comprime — le relief s'y aplatit et les lignes droites s'y
+  incurvent — donc c'est **désactivé par défaut** et ça se règle à ton goût :
+  20 à 40 restent discrets. Tu peux l'essayer sans quitter le film, depuis le
+  menu **Select**, ou fixer ta valeur dans **Paramètres → Player**.
+
+- **La profondeur des vidéos 180° est juste par défaut.** Le lecteur partait de
+  90°, alors que des lunettes XR ne montrent qu'environ 45° à chaque œil : tout
+  paraissait géant et lointain, et un objet qui s'approchait enflait
+  démesurément pendant que tes yeux disaient qu'il était encore loin. Le défaut
+  passe à **45°**, et si tu avais l'ancienne valeur enregistrée elle est reprise
+  automatiquement au démarrage.
+
+- **Le réglage s'appelle maintenant « Champ de vision de l'écran ».** Ce n'est
+  pas un zoom malgré les apparences : il faut y mettre l'angle que tes lunettes
+  — ou ton écran — présentent réellement à un œil, et c'est cette valeur qui
+  rend la profondeur correcte. À retenir : plus elle est petite, plus la
+  profondeur est juste, et moins tu vois de la scène à la fois. Les deux vont
+  ensemble.
+
+- **Tu cales tes yeux au stick, en regardant l'image se caler.** La convergence
+  passe sur le **stick gauche, gauche/droite, sous R2** : le réglage suit ton
+  doigt — une pichenette ajuste au dixième, une poussée à fond traverse toute la
+  plage en deux secondes. Le D-pad garde son pas lent si tu veux finir au
+  millimètre. La plage va maintenant jusqu'à **±8°** au lieu de ±3, parce que
+  plus tu resserres le champ de vision, plus l'image est agrandie — et le moindre
+  décalage entre les deux yeux avec elle.
+
+- **Tes sticks font la même chose en vidéo 180° et sur un écran normal.** Si tu
+  as activé *inverser les sticks*, l'avance/recul fin quittait le stick droit dès
+  que tu passais en VR et n'y revenait qu'en sortant. Maintenant, dès que tu
+  relâches **R2**, les deux sticks reprennent exactement leurs rôles habituels —
+  avance/recul, volume, et la vitesse au clic du stick droit. **R2** maintenu
+  reste le seul moment où le stick droit sert à regarder autour.
+
+- **Tu gardes la barre du lecteur et le temps sous les yeux en vidéo 180°.**
+  Jusqu'ici, dès que le lecteur passait en côte à côte, la barre de progression,
+  la bulle de volume et l'afficheur du temps disparaissaient — ils auraient été
+  coupés en deux et illisibles. Avec l'écran entier en côte à côte ce n'est plus
+  le cas : chaque œil reçoit une image complète, donc chacun reçoit aussi sa
+  barre. Tu sais de nouveau où tu en es dans le fichier sans avoir à toucher à
+  quoi que ce soit.
+
+- **Toute l'interface s'affiche en côte à côte pour des lunettes XR.** Avec des
+  lunettes en mode 3D, l'image est coupée en deux tout le temps, pas seulement
+  pendant une vidéo : l'écran du code, la liste des fichiers, les photos, les PDF
+  et les fenêtres tombaient donc à cheval sur la coupure, et chaque œil n'en
+  voyait qu'une moitié. Il fallait sortir les lunettes du mode 3D — dix secondes
+  d'écran noir, et parfois des réglages à refaire.
+
+  Désormais un seul geste dessine **toute** l'application deux fois, une par œil :
+  **L1 + R1 + Select** à la manette, **Y** au clavier. Le même geste l'éteint, donc
+  l'allumer par erreur sur un écran normal ne t'enferme nulle part. Ça se trouve
+  aussi dans le menu **Select** et dans **Paramètres → Lunettes XR**.
+
+  Les deux yeux voient la même image : ce n'est pas de la 3D, et c'est justement
+  ce qui la rend lisible et reposante.
+
+- **Ce réglage-là ne suit pas d'un appareil à l'autre.** Le Deck avec les lunettes
+  le garde allumé, ton iPad et ton laptop ne le voient jamais. Il reste en place
+  après un rechargement de la page, et il est déjà là quand l'écran du code
+  apparaît.
+
+- **Une vidéo ordinaire reste visible des deux yeux, sans travail en double.** Le
+  fichier n'est téléchargé qu'une fois et décodé qu'une fois : l'œil droit reçoit
+  une copie de l'image, pas une seconde lecture.
+
+- **Une vidéo 180° garde tout son relief.** C'est la seule chose de l'écran que
+  tes deux yeux ne voient pas à l'identique, et c'est voulu : ce genre de fichier
+  contient deux images différentes, une par œil, et c'est cette différence qui
+  fait la profondeur. Mets le lecteur en côte à côte (touche **V** ou le menu
+  **Select**) et chaque moitié de l'écran reçoit son œil, en entier. Le réglage
+  « image étirée ou non » n'a plus d'objet dans ce mode et disparaît du menu.
+
+- **Tu règles la vue VR à la manette, en voyant l'image changer.** Maintiens
+  **R2** pendant la lecture : le **stick gauche** zoome, le **D-pad gauche/droite**
+  ajuste la convergence, le **clic du stick gauche** remet le zoom et celui du
+  **stick droit** recentre le regard. Plus besoin d'ouvrir un menu qui recouvre
+  justement l'image que tu essaies de juger. Tant que R2 est maintenu, les autres
+  boutons ne font rien : la manette pilote la vue et rien d'autre.
+
+- **La convergence est retenue pour chaque fichier.** Si une vidéo te fatigue les
+  yeux et que tu l'ajustes, le réglage revient tout seul la prochaine fois que tu
+  l'ouvres — et les autres vidéos ne sont pas touchées. C'est voulu : la gêne
+  vient de la façon dont la vidéo a été tournée, pas de tes yeux.
+
+- **Tu ne retapes plus ton mot de passe à chaque fois.** Depuis que Hoard demande
+  un identifiant, chaque nouvelle fenêtre du navigateur réclamait à nouveau tes
+  identifiants, dans une petite fenêtre grise du navigateur — pénible à remplir à
+  la manette sur le Steam Deck, et qui n'avait rien à voir avec le reste de Hoard.
+
+  Hoard a maintenant **son propre écran de connexion**, aux mêmes couleurs que le
+  reste, et il se pilote entièrement à la manette : le D-pad passe d'un champ à
+  l'autre, **A** ouvre le clavier, **A** sur le bouton valide.
+
+  **Tu te connectes une fois, et c'est retenu 30 jours** — un délai qui repart à
+  zéro dès que tu utilises Hoard. En usage régulier, tu ne ressaisis donc jamais
+  rien. Chaque appareil a sa propre connexion.
+
+  Si ta connexion expire pendant que tu navigues, l'écran revient et **tu reprends
+  exactement où tu étais** : le dossier ouvert et la vidéo en cours ne sont pas
+  perdus.
+
+  Pour tout déconnecter d'un coup (un appareil perdu, par exemple), il y a un
+  moyen côté serveur : voir le guide d'installation, variable `HOARD_SECRET_KEY`.
+
+  À noter : **le code PIN reste une autre chose.** Il verrouille l'écran d'une
+  session déjà ouverte sur ton appareil ; la connexion, elle, décide si le serveur
+  te répond. Les deux continuent de fonctionner indépendamment.
+
+- **Hoard reconnaît tout seul tes fichiers VR.** Un petit 🥽 apparaît dans la liste
+  à côté de ceux qu'il a repérés — au nom du fichier, et à la forme de l'image une
+  fois celui-ci ouvert. Il ne bascule pas en mode VR pour autant : le bouton se met
+  simplement en évidence, parce qu'ouvrir un fichier pour y jeter un œil ne doit pas
+  te catapulter dans une vue de casque.
+
+  En revanche, **le mode que tu choisis est retenu pour ce fichier** et remis en
+  place à la réouverture, même depuis une autre machine. Et si Hoard se trompe sur
+  un fichier, coupe le mode dessus : il ne te le reproposera plus.
+
+- **Les réglages VR sont dans Paramètres → Player** : champ de vision, vitesse du
+  regard à la manette, image étirée ou non, et convergence. Un changement s'applique
+  tout de suite, sans recharger la page.
+
+- **Les vidéos VR 180° sont enfin regardables.** Ces fichiers contiennent deux
+  images accolées, une par œil, chacune étirée pour couvrir un demi-tour
+  d'horizon : affichés tels quels, ils ne ressemblaient à rien. Le bouton 🥽 du
+  lecteur (ou la touche **V**) redresse l'image et te laisse regarder autour de
+  toi — au doigt, à la souris, ou au stick droit de la manette. Un deuxième appui
+  passe en affichage côte à côte, celui qu'attendent des lunettes XR en mode 3D ;
+  un troisième revient à l'image normale. **Maj+V** remet le regard au centre.
+  Tant que le mode est actif, glisser le doigt sert à regarder et non plus à
+  avancer dans la vidéo ou à régler le son, qui restent au clavier, aux boutons et
+  au stick gauche.
+
+  Une précision utile : ces fichiers sont très lourds, et Hoard te les envoie sans
+  les convertir. C'est donc l'appareil sur lequel tu regardes qui doit savoir les
+  lire. Si ça saccade, c'est là qu'est la limite.
+
+- **L'affichage côte à côte est prêt pour des lunettes XR.** Il passe tout seul en
+  plein écran et efface les commandes du lecteur pendant ce temps : affichées une
+  seule fois sur une image coupée en deux, elles tomberaient à moitié dans chaque
+  œil. Tu pilotes à la manette ou au clavier, et tout revient en sortant du mode.
+  Si l'image te paraît écrasée ou étirée du double, la touche **B** bascule entre
+  les deux façons dont des lunettes lisent ce genre d'image — l'effet se voit tout
+  de suite. Un réglage de convergence est disponible dans le menu de la manette,
+  à laisser à zéro sauf si un fichier précis te fatigue les yeux.
+
+### Sécurité
+
+- **Hoard est mieux protégé contre les sites web que tu visites.**
+  Une page ouverte dans un autre onglet ne peut plus lire ton Hoard, ni y déplacer, supprimer ou relancer quoi que ce soit à ta place.
+  La bookmarklet, elle, fonctionne comme avant.
+- **Hoard vérifie mieux les adresses qu'on lui demande de télécharger**, pour ne pas aller chercher ce qui se trouve sur ton réseau local.
+- **Hoard ne tourne plus avec tous les droits sur ton NAS.**
+  Avec Docker, il travaille sous l'identité du propriétaire de ton dossier de vidéos.
+  Sur un NAS Synology, ce propriétaire est souvent l'administrateur du système : Hoard le signale alors dans ses logs et continue comme avant, et le guide d'installation explique les deux lignes à ajouter pour qu'il travaille sous ton propre compte.
+  Bonus : les fichiers qu'il télécharge t'appartiennent, et se modifient depuis le partage réseau sans droits d'administrateur.
+  Si tu avais déjà installé Hoard, le guide d'installation explique comment récupérer les fichiers qu'il a créés jusqu'ici.
+- **Les fichiers dont le nom contient une apostrophe s'ouvrent à nouveau** depuis l'historique des téléchargements, le fil d'Ariane et les choix de dossier.
+- **Un nom de fichier ou de dossier ne peut plus contenir de saut de ligne** ni d'autre caractère invisible.
+- **Le transcodage ne peut plus mettre ton NAS à genoux.**
+  Deux vidéos au plus sont converties en même temps ; au-delà, le lecteur te demande de réessayer un instant plus tard au lieu de rester sur un écran noir.
+
+### Corrigé
+
+- **L'interface ne rétrécit plus en plein écran**, dans le Steam Frame comme sur
+  un grand écran. Au-delà d'un affichage de 1920×1080, Hoard grossit avec la
+  place disponible et garde la même taille apparente. Sur un laptop, un iPad, le
+  Steam Deck ou un téléphone, rien ne change.
+- **Le badge en coin affiche maintenant R2**, en plus de L1 et R1. Il ne montrait
+  pas la couche VR, alors qu'elle en est une : une gâchette qui n'arrive pas
+  jusqu'à Hoard — parce qu'elle est remappée dans la configuration de ta manette,
+  par exemple — ressemblait exactement à une gâchette qui arrive.
+
+- **Le stick droit ne sert plus à regarder autour sans maintenir R2.** Il le
+  faisait tout le temps, ce qui coûtait le **volume** pendant toute une lecture
+  VR : le regard occupait le stick, et le volume n'avait plus où aller. Maintiens
+  R2 pour regarder autour, relâche pour régler le volume comme partout ailleurs.
+
+- **Le menu de la manette est enfin lisible en mode côte à côte.** Il s'affichait
+  une seule fois, au milieu, donc à cheval sur la coupure entre les deux yeux :
+  chacun n'en voyait que la moitié. Le menu **Select** et la carte des boutons
+  sont maintenant écrits **une fois par œil**, comme les messages du lecteur
+  depuis la version précédente.
+
+- **L'image côte à côte a enfin les bonnes proportions dans les lunettes XR.**
+  Sur le Steam Deck avec des Viture Beast, les personnages paraissaient trop
+  hauts et trop étroits. Hoard devine maintenant tout seul comment tes lunettes
+  consomment l'image, à partir de sa forme : un affichage deux fois plus large
+  que la normale — celui qu'il faut régler pour obtenir la 3D — n'a pas besoin
+  d'être réétiré, un affichage ordinaire si. Il te dit ce qu'il a deviné par un
+  message au moment où le mode s'active, et ton propre choix l'emporte toujours.
+
+- **Les messages du lecteur sont enfin lisibles en mode côte à côte.** Ils
+  n'apparaissaient tout simplement pas : écrits une seule fois sur une image
+  coupée en deux, ils tombaient à moitié dans chaque œil. Ils sont maintenant
+  écrits une fois par œil.
+
+- **Changer la disposition côte à côte se fait à la manette, avec L2.** Il
+  fallait jusqu'ici un clavier — que le Steam Deck n'a pas — ou passer par deux
+  menus. L2 fait le tour des trois réglages : automatique, étirée, non étirée.
+  Le bouton B garde son rôle habituel.
+
+- **Le menu de la manette et la carte des boutons s'adaptent enfin à la taille de
+  ton écran.** Sur un affichage très large — celui qu'il faut régler pour obtenir
+  la 3D sur des lunettes XR — le menu **Select** occupait deux fois moins de place
+  qu'ailleurs et devenait pénible à lire. Il grandit maintenant avec l'écran, et
+  son texte avec lui. Rien ne change sur un écran ordinaire ni sur téléphone.
+
+- **La carte des boutons — touche Start — n'est plus un dessin de manette, mais
+  une liste.** Le dessin gardait la même petite taille quel que soit l'écran, si bien
+  que les noms d'actions écrits autour étaient trop petits pour être lus, même sur
+  un écran normal. À la place : la liste de toutes les actions, rangée par couche,
+  répartie en autant de colonnes que l'écran est large. Deux commandes qui
+  n'apparaissaient nulle part y sont enfin — **L3** coupe le son, **R3** change la
+  vitesse de lecture — et les sticks y sont décrits dans le bon sens quand tu as
+  inversé les deux. Le **D-pad ↑/↓** fait défiler la liste si elle est plus longue
+  que l'écran.
+
+- **La vieille fenêtre grise du navigateur ne s'invite plus avant l'écran de
+  connexion.** Elle réapparaissait juste avant, et il fallait l'annuler pour voir
+  l'écran de Hoard. Elle ne s'affiche plus du tout : tu vas directement sur
+  l'écran de connexion.
+
+- **Le bouton de téléchargement de ta barre de favoris refonctionne.** Depuis que
+  Hoard demande un identifiant et un mot de passe, cliquer sur le favori depuis une
+  page vidéo ne faisait plus rien d'utile : il annonçait « Site incompatible » et
+  ouvrait un onglet, alors que le site n'y était pour rien. Ton navigateur, par
+  sécurité, ne transmet pas ton mot de passe Hoard depuis le site de quelqu'un
+  d'autre — le favori n'avait donc aucun moyen de prouver que c'était bien toi.
+
+  Il en a un maintenant : **le lien du favori contient un jeton personnel**, qui
+  autorise seulement deux choses, lancer un téléchargement et en suivre
+  l'avancement. Il ne donne accès ni à tes fichiers, ni à tes réglages. Comme ce
+  jeton est dans le lien, **il faut réinstaller le favori** : ouvre les paramètres
+  et glisse à nouveau le lien dans ta barre. Si tu diffuses ce lien par mégarde, le
+  bouton **🔑 Nouveau jeton** le rend aussitôt inutilisable.
+
+- **Quand quelque chose échoue, le favori te le dit.** La petite fenêtre de suivi
+  pouvait rester indéfiniment sur « Analyse de l'URL… » sans jamais rien annoncer.
+  Elle affiche désormais ce qui s'est passé : accès refusé (avec la marche à suivre),
+  téléchargement en échec, ou suivi interrompu.
+
+- **Le tri de la liste reste celui que tu as choisi.** Passer la liste en « Vu »
+  (ou en « Nom », en « Taille »…) tenait jusqu'à la fermeture de Hoard : en
+  revenant, tout était retombé sur « Date ». Le tri est maintenant enregistré, et
+  retrouvé tel quel à la réouverture — y compris si tu reprends sur la tablette
+  après le laptop. Le réglage des paramètres, renommé **Tri de la liste**, affiche
+  simplement le tri en cours ; enregistrer les paramètres ne le remet plus à zéro.
+
 ## [v2.6.5] — 2026-09-21
 
 ### Sécurité

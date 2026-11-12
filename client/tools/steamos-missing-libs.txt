@@ -1,0 +1,80 @@
+# Shared libraries libmpv needs that SteamOS does NOT ship.
+#
+# Measured on a Steam Deck (SteamOS BUILD_ID 20260716.1, glibc 2.41) by
+# comparing libmpv's dependency closure against `ldconfig -p`. Of the 178
+# libraries in that closure, 118 are already on SteamOS — bundling those is
+# what broke the first attempt: the system's libgio-2.0 required MOUNT_2_40
+# from a libmount we had shipped from Ubuntu, which does not provide it, and
+# nothing started at all.
+#
+# So this is a whitelist, not a blacklist. A blacklist has to name every
+# transitive dependency of everything excluded, and missing one is silent.
+#
+# Regenerate on the target (with /tmp/sys.txt from `ldconfig -p | awk '{print $1}' | sort -u`):
+#   for f in <bundle>/lib/*.so*; do b=$(basename "$f"); \
+#     grep -qxF "$b" /tmp/sys.txt || echo "$b"; done | sort
+
+libapparmor.so.1
+libavcodec.so.60
+libavdevice.so.60
+libavfilter.so.9
+libavformat.so.60
+libavutil.so.58
+libcdio_cdda.so.2
+libcdio_paranoia.so.2
+libcdio.so.19
+libchromaprint.so.1
+libcjson.so.1
+libcodec2.so.1.2
+libdc1394.so.25
+libFLAC.so.12
+libflite_cmulex.so.1
+libflite_cmu_us_awb.so.1
+libflite_cmu_us_kal16.so.1
+libflite_cmu_us_kal.so.1
+libflite_cmu_us_rms.so.1
+libflite_cmu_us_slt.so.1
+libflite.so.1
+libflite_usenglish.so.1
+libgme.so.0
+libicudata.so.74
+libicuuc.so.74
+libjxl.so.0.7
+libjxl_threads.so.0.7
+liblua5.2.so.0
+libmbedcrypto.so.7
+libmpv.so.2
+libmujs.so.3
+libnorm.so.1
+libplacebo.so.338
+libpocketsphinx.so.3
+libpostproc.so.57
+librabbitmq.so.4
+librav1e.so.0
+librist.so.4
+librubberband.so.2
+libselinux.so.1
+libshine.so.3
+libsixel.so.1
+libsndio.so.7
+libsodium.so.23
+libsphinxbase.so.3
+libsrt-gnutls.so.1.5
+libssh-gcrypt.so.4
+libSvtAv1Enc.so.1
+libswresample.so.4
+libswscale.so.7
+libtheoradec.so.1
+libtheoraenc.so.1
+libtinfo.so.6
+libuchardet.so.0
+libudfread.so.0
+libunibreak.so.5
+libvidstab.so.1.1
+libx265.so.199
+libxml2.so.2
+libzvbi.so.0
+
+# Absent from SteamOS and not part of libmpv's closure as resolved on the
+# build machine, but the loader asks for it on the target.
+libXpresent.so.1

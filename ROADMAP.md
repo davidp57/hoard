@@ -1,5 +1,163 @@
 # Roadmap — Hoard
 
+## v2.9.0 — Session cookie and bookmarklet token *(done)*
+
+HTTP Basic auth went live in production on 2026-09-21. It protects correctly and
+cost two things: credentials retyped in every new browser window, through the
+browser's native dialog — barely steerable with a gamepad on the Deck and the
+Frame — and a **broken bookmarklet**, since a cross-origin POST carries no Basic
+credentials. Two deliberately distinct mechanisms, because one cannot fix the
+other: a correct session cookie is `SameSite=Lax`, which is precisely what stops a
+third-party page from acting on your behalf. See lot
+[SEC-SESSION](.backlog/archive/SEC-SESSION.md).
+
+- [x] **Login screen and signed session cookie** (BL-123) — 30 days, slid on use;
+      `WWW-Authenticate` withheld from browsers, kept for `curl -u`; Basic still
+      accepted
+- [x] **Dedicated token for the bookmarklet** (BL-124) — in the request body,
+      never in a URL; opens the two download routes and nothing else
+
+Reproducing BL-124 corrected the diagnosis: the CORS **preflight** was refused
+first, by the auth middleware sitting outside `CORSMiddleware`, so the real POST
+was never sent and the bookmarklet blamed the site's CSP for an authentication
+failure.
+
+Out of scope and argued in the PRD: logging out as a feature (the route exists,
+the UI does not advertise it). Tightening `allow_origins=["*"]` was done later: CORS now serves the two bookmarklet routes only.
+
+## v2.9.0 — VR 180° side-by-side in the web player *(done)*
+
+180° stereoscopic side-by-side files opened as ordinary video — two squashed
+pictures, unwatchable. The web player now deprojects the hemisphere onto a WebGL
+canvas laid over the `<video>`, which keeps driving playback and progress. Two
+outputs: a flat view to pan on a normal screen, and a side-by-side output for XR
+glasses in 3D mode (Steam Deck + Viture Beast). See lot
+[FEAT-VR180](.backlog/archive/FEAT-VR180.md).
+
+- [x] **Deprojection, flat view and look controls** (BL-119) — the gate ticket
+- [x] **Side-by-side output** for XR glasses (BL-120)
+- [x] **VR file detection and per-file memory** (BL-121)
+- [x] **Settings**: field of view, convergence, look speed, sbs layout (BL-122)
+
+The Deck-and-glasses check was done on 2026-09-21 and found two usability
+defects, fixed by lot [FIX-XR-DISPLAY](.backlog/archive/FIX-XR-DISPLAY.md):
+
+- [x] **Pad windows at the screen's scale** (BL-126) — the Select menu kept a
+      fixed 380px width, and the button map was an SVG drawing that never grew,
+      so its callouts rendered at 5.7px whatever the resolution. The drawing is
+      now a text list flowing into columns.
+- [x] **Guess the side-by-side layout** (BL-125) — 3840×1080, the output those
+      glasses need for 3D, is full-SBS, while the setting defaulted to `half`
+      and so halved the vertical field of view. The layout is now deduced from
+      the canvas shape; an explicit choice still wins, and **L2** toggles it on
+      the pad, **B** on the keyboard.
+
+Verified on the hardware the same day: the Select menu reads `auto : non
+étirée`, so the guess picks `full` on its own and that is the right one on the
+Beast. That test in turn surfaced two gaps — about driving rather than about the
+picture — covered by lot [PAD-VR](.backlog/archive/PAD-VR.md):
+
+- [x] **Readable pad windows in side-by-side** (BL-127) — the Select menu and the
+      button map were drawn once, centred, so they straddled the split and each
+      eye got half of them. Now drawn once per eye, like the toast.
+- [x] **A VR layer under R2** (BL-128) — zoom, convergence and the two recentres,
+      adjustable while watching the picture change instead of through a menu that
+      covers it. Convergence had no pad shortcut at all, and the field of view
+      only had the mouse wheel.
+- [x] **Per-file convergence** (BL-129) — the strain comes from how a file was
+      shot, so it is remembered per file rather than globally.
+
+## v2.9.0 — The whole UI side by side, on a toggle *(done)*
+
+XR glasses in 3D mode split the picture in two **all the time**, not only during
+playback, so every screen of Hoard is drawn once astride the split and each eye
+gets half of it. Leaving 3D mode is not a way out — it costs ten seconds of black
+screen and sometimes loses the glasses' settings. PAD-VR mirrored the three
+things you drive a playback with; this covers the rest, which is what you spend
+the most time in: you browse far more than you adjust.
+
+A toggle, device-local, covering the whole application — PIN screen, browser,
+images, PDF, video and dialogs. See lot [PAD-SBS-UI](.backlog/archive/PAD-SBS-UI.md).
+It is not stereoscopy: both eyes are shown the same picture, which is exactly
+what makes an interface readable rather than tiring.
+
+Shipped: **L1+R1+Select** on the pad (the path that matters — there is no
+keyboard on a Deck with glasses), **Y** on the keyboard, and a setting. The copy
+lives in a shadow root so no document query ever reaches it, and a
+MutationObserver keeps it current. A playing video is repainted into the copy
+rather than cloned, so the file is downloaded and decoded once. A 180° video is
+the one exception to "both eyes see the same picture" — that file holds two
+different pictures and the difference is the relief — so the player gives a whole
+canvas to each eye. Costs are measured, not estimated: see the developer guide.
+
+The same constraint was expected from the **Steam Frame**; it turned out that the
+Frame shows the page as a flat window instead, which is why the immersive mode
+below exists.
+
+This does not reopen [ADR 0003](docs/adr/0003-client-natif.md): an immersive
+OpenXR session for the Steam Frame stays out of scope for the native client. What the ADR ruled out was a stereo OpenXR renderer, not a
+deprojection in the browser — and the Deck-plus-glasses half of the need is met
+by a plain side-by-side picture, with no OpenXR at all.
+
+## Immersive VR in the headset, through WebXR *(built, awaiting a test on the Frame)*
+
+On the Steam Frame the side-by-side picture reaches the eyes as a flat window,
+so it gives no relief. The player now opens a WebXR `immersive-vr` session: one
+picture per eye, turned by the head, drawn by the existing deprojection with the
+headset's own projection. See lot [VR-IMMERSIVE](.backlog/VR-IMMERSIVE/PRD.md).
+
+- [x] **Immersive session from the player** (BL-136) — XR button shown only when
+      the browser can drive a headset over https; controller play/pause, seek,
+      recentre and exit; per-file convergence carried over
+- [ ] **Test on the Frame** — whether its browser exposes WebXR at all is the
+      open question; built on the assumption that it does
+
+This is not the stereo OpenXR renderer that [ADR 0003](docs/adr/0003-client-natif.md)
+ruled out for the native client: it stays in the browser and reuses the
+shader the flat modes already have.
+
+## Interface scale *(built, awaiting a test on the Frame)*
+
+- [x] **One scale for the whole UI** (BL-137, lot [FIX-UI-SCALE](.backlog/FIX-UI-SCALE/PRD.md)) — every size in `rem`, root size proportional to the viewport past 1920×1080, so the UI no longer shrinks in the Frame's fullscreen Chromium.
+
+## Pad: the left hand sets what you watch *(built, awaiting a test on the Frame)*
+
+- [ ] **Left-hand player layout** (BL-138, lot [PAD-LEFT-HAND](.backlog/PAD-LEFT-HAND/PRD.md)) — left stick: volume and held playback speed; D-pad: ∓30 s, +60 s, +15 s; fine seek on the right stick; R3 freed. Shared pad convention with PadView ([docs/pad-convention.en.md](docs/pad-convention.en.md)).
+
+## Pad: zoom into a video, as in PadView *(built, awaiting a test on the Frame)*
+
+- [ ] **Flat-video framing under R2** (BL-140, lot [PAD-ZOOM](.backlog/PAD-ZOOM/PRD.md)) — left stick ↕ zooms up to 4×, right stick pans, L3 resets; framing panel with a mini-map while R2 is held. Completes the shared pad convention's R2 layer, which only VR had.
+
+## Pad: profiles, one of them for the Frame's right hand alone *(built, awaiting a test on the Frame)*
+
+- [ ] **Steam Frame, right hand only** (BL-141, lot [PAD-PROFILES](.backlog/PAD-PROFILES/PRD.md)) — a device-local profile choice; the standard profile is unchanged, the right-hand one fits list, windows and player on A/B/X/Y, R1, R2, the right stick and R3.
+
+## v3.0 — Native client *(in progress)*
+
+Native Flutter client talking to the existing HTTP API, targeting Steam Deck
+(x86_64), Steam Frame (ARM64) and the Windows touch laptop. Playback uses
+libmpv via `media_kit`, reading raw files from `/api/file` — no server-side
+transcoding. See [ADR 0003](docs/adr/0003-client-natif.md) and lot
+[CLIENT-NATIVE](.backlog/CLIENT-NATIVE/PRD.md).
+
+- [x] **Feasibility spike** (BL-104) — measured on a real Steam Deck
+- [ ] **Renderer decision** (BL-109) — the pivotal ticket, see below
+- [ ] **Full UI parity** with the web frontend (BL-107, BL-108, BL-110..115)
+- [ ] **Packaging**: Flatpak x86_64 then ARM64, Windows build, CI (BL-116, BL-117)
+
+What the spike changed. The keyboard fault that motivated the lot was
+**Edge-only**: Steam+X works in a native app, so the built-in keyboard drops to
+a comfort feature. Hardware decoding engages (`auto-safe` → `vaapi-copy`, 102%
+of one core against 118% in software); forcing `vaapi` is counterproductive.
+The actual blocker is that **`media_kit` never tells Flutter a new frame
+landed** — 8 fps at rest, 25 as soon as any animation runs. That does not
+question Flutter, it questions the video brick, and BL-109 must settle it by
+measurement.
+
+The web frontend stays maintained — it serves the iPad and any browser.
+Immersive VR playback (SBS 180°/360°) is explicitly **out of scope**: it needs
+OpenXR stereo rendering and will be a separate application.
+
 ## v2.6.5 — An open instance must be visible *(done)*
 
 HTTP Basic auth (BL-011) was correct but switched itself off in silence when
@@ -8,7 +166,7 @@ protected one. Startup now states the auth state and names what "disabled"
 means; `docker-compose.yml` and the installation docs carry the warning. A new
 public `/healthz` route fixes the container health check, which hit a protected
 route with no credentials and marked every authenticated deployment unhealthy.
-See lot [SEC-AUTH](.backlog/SEC-AUTH/PRD.md).
+See lot [SEC-AUTH](.backlog/archive/SEC-AUTH.md).
 
 - [x] **Health probe surviving auth** (BL-105)
 - [x] **Auth state announced at startup, in compose and in the docs** (BL-106)

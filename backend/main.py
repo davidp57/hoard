@@ -9,15 +9,20 @@ import mimetypes
 import os
 import queue as _queue_module
 import re
+import secrets
 import shutil
 import signal
+import socket
 import sqlite3
 import string as _string
 import subprocess
 import tempfile
 import threading
 import time
+import urllib.error
+import urllib.request
 import uuid
+import weakref
 import zipfile
 from contextlib import contextmanager
 from pathlib import Path
@@ -71,6 +76,42 @@ logging.basicConfig(
 logger = logging.getLogger("hoard")
 if _log_setup_error:
     logger.warning(_log_setup_error)
+
+
+# Paths already reported as unreadable. A listing that keeps hitting the same
+# untraversable folder (every refresh, every client) must not flood the log, so
+# each path is warned about once; the set is reset when it grows too large, which
+# at worst repeats a warning instead of growing without bound.
+_unreadable_warned: set[str] = set()
+_UNREADABLE_WARNED_MAX = 4096
+
+
+def _warn_unreadable(path: Path, exc: OSError) -> None:
+    """Log, once per path, an entry the server is not allowed to read or traverse."""
+    key = str(path)
+    if key in _unreadable_warned:
+        return
+    if len(_unreadable_warned) >= _UNREADABLE_WARNED_MAX:
+        _unreadable_warned.clear()
+    _unreadable_warned.add(key)
+    logger.warning("Cannot access %s: %s", path, exc)
+
+
+def _is_dir(path: Path) -> bool:
+    """``path.is_dir()``, with a path the server may not access counted as absent.
+
+    On Python 3.12 (the Docker image), pathlib only swallows ENOENT/ENOTDIR/EBADF/ELOOP: a folder
+    behind a parent the server cannot traverse (a Synology shared folder whose ACL
+    does not admit the container's group) raises EACCES instead of answering False.
+    For a path that comes from the settings or the DB, inaccessible means unusable,
+    so it is reported as absent and logged.
+    """
+    try:
+        return path.is_dir()
+    except OSError as exc:
+        _warn_unreadable(path, exc)
+        return False
+
 
 # ── Config ────────────────────────────────────────────────────────────────────
 MEDIA_ROOT = Path(os.environ.get("MEDIA_ROOT", "/media"))
@@ -162,7 +203,46 @@ def _read_version() -> str:
 VERSION = _read_version()
 
 app = FastAPI(title="Hoard", version=VERSION)
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+
+@app.exception_handler(PermissionError)
+async def permission_error_handler(request: Request, exc: PermissionError):
+    """A path the server is not allowed to access answers 403, not 500.
+
+    Every ``exists()`` / ``is_dir()`` / ``is_file()`` on a user-supplied path can
+    raise EACCES when a parent folder is not traversable by the container's user
+    (see ``_is_dir``). Routes that must degrade gracefully (settings, quick folders,
+    home roots, listings) guard their own probes; for every other route the request
+    simply cannot be served, and 403 says why. The path is logged once.
+    """
+    _warn_unreadable(Path(exc.filename) if exc.filename else Path(request.url.path), exc)
+    return JSONResponse({"detail": "Access denied"}, status_code=403)
+
+
+class BookmarkletCORSMiddleware:
+    """CORS for the two bookmarklet routes, and for nothing else.
+
+    The UI is served by this same process, so it never needs CORS. The bookmarklet
+    does: it runs on a third-party page and must read the answer of
+    DOWNLOAD_TOKEN_PATHS. Opening every route to every origin instead would let any
+    web page the user visits read and drive the whole API — browse the server,
+    switch the media root, read files back — whenever authentication is off.
+    """
+
+    def __init__(self, app):
+        self.app = app
+        self.cors = CORSMiddleware(
+            app, allow_origins=["*"], allow_methods=["POST"], allow_headers=["Content-Type"]
+        )
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http" and scope["path"] in DOWNLOAD_TOKEN_PATHS:
+            await self.cors(scope, receive, send)
+        else:
+            await self.app(scope, receive, send)
+
+
+app.add_middleware(BookmarkletCORSMiddleware)
 
 # Security headers applied to every response. The CSP keeps the single-file
 # inline CSS/JS frontend working ('unsafe-inline'), allows the Google Fonts
@@ -195,6 +275,29 @@ async def add_security_headers(request: Request, call_next):
     return response
 
 
+# Withholding CORS stops a third-party page from READING the API, not from sending to
+# it: a POST without a body (/api/restart, retrying or cancelling a download,
+# regenerating the bookmarklet token) needs no preflight. Without authentication nothing
+# else tells such a request from the UI's own — the session cookie is SameSite=Lax only
+# once auth is on. Browsers say where a
+# request comes from in Sec-Fetch-Site; anything but the UI's own origin is refused for
+# the methods that change state. Clients that send no Sec-Fetch-* (curl, a native
+# client) are not browsers and are let through. The bookmarklet routes are the one
+# legitimate cross-site caller.
+_STATE_CHANGING_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+
+
+@app.middleware("http")
+async def reject_cross_site_writes(request: Request, call_next):
+    if (
+        request.method in _STATE_CHANGING_METHODS
+        and request.url.path not in DOWNLOAD_TOKEN_PATHS
+        and request.headers.get("sec-fetch-site") in ("cross-site", "same-site")
+    ):
+        return JSONResponse({"detail": "Cross-site request refused"}, status_code=403)
+    return await call_next(request)
+
+
 # Optional HTTP Basic auth, opt-in via env vars. Disabled unless BOTH HOARD_AUTH_USER
 # and HOARD_AUTH_PASS are set — suitable for exposing Hoard behind a reverse proxy
 # or direct HTTPS without building a full account system. When disabled, behavior
@@ -222,17 +325,295 @@ def _check_basic_auth(header: str) -> bool:
 # "/healthz-something" slip past the guard.
 HEALTH_PATH = "/healthz"
 
+# Routes the bookmarklet calls from a third-party page. They are cross-origin, so
+# the browser never attaches Basic credentials to them and sends a CORS preflight
+# first. This middleware runs OUTSIDE CORSMiddleware, so a 401 raised here carries
+# no CORS headers at all — the browser then discards it and the caller only ever
+# sees an opaque "Failed to fetch", which is how the bookmarklet came to report a
+# CSP problem for what is really an authentication failure. These two routes are
+# therefore let through here and authenticate themselves (see _require_download_auth),
+# which lets their 401 travel back through CORSMiddleware and be readable.
+DOWNLOAD_TOKEN_PATHS = frozenset({"/api/download", "/api/download/status"})
+
+
+# The login screen posts here, so it cannot itself require credentials.
+LOGIN_PATH = "/api/login"
+LOGOUT_PATH = "/api/logout"
+
+# The app shell, served without credentials so the login screen can exist at all.
+# Withholding WWW-Authenticate from browsers (below) removes the native dialog; if
+# the page were also behind the guard, an unauthenticated browser would get a blank
+# 401 with no way in whatsoever.
+#
+# What this exposes is the shell and nothing else: every /api/* route stays guarded,
+# so no file, setting or listing is reachable. It exposes the app's structure, which
+# is already public — davidp57/hoard is a public repository and frontend/index.html
+# can be read there.
+SHELL_PATHS = frozenset(
+    {"/", "/index.html", "/service-worker.js", "/manifest.webmanifest", "/favicon.svg"}
+)
+
+# ── Signed session cookie (BL-123) ────────────────────────────────────────────
+# Basic auth protects correctly but has to be retyped in every new browser window,
+# through the browser's own native dialog — which is barely steerable with a
+# gamepad on the Deck and the Frame. A signed cookie removes the retyping without
+# removing Basic, which curl, a future native client and any external reader still
+# need.
+#
+# Signed, NOT encrypted: the payload says who and until when, and neither is a
+# secret. What matters is that it cannot be forged, which the HMAC gives.
+#
+# SameSite=Lax is not optional here. Basic credentials are never sent by a browser
+# on a cross-site request, so a third-party page could not trigger anything; a
+# cookie would be sent, and this API exposes DELETE /api/files and
+# POST /api/files/move. Lax is what keeps that door shut.
+SESSION_COOKIE = "hoard_session"
+SESSION_MAX_AGE = 30 * 24 * 3600  # 30 days
+SESSION_SECRET_SETTING = "session_secret"
+
+# The backend sits behind the Synology reverse proxy and is spoken to in plain HTTP,
+# so it cannot detect that the client is on HTTPS — hence a setting rather than
+# request introspection. Default on: getting this wrong in the safe direction costs
+# a cookie that is not sent over plain HTTP, the other way it leaks the session.
+HOARD_COOKIE_SECURE = os.environ.get("HOARD_COOKIE_SECURE", "1") not in ("0", "false", "False")
+
+# An explicit key makes session revocation possible: change it and every cookie
+# stops verifying. Without one, a key is minted on first use and kept in `settings`
+# so a fresh install just works.
+HOARD_SECRET_KEY = os.environ.get("HOARD_SECRET_KEY", "")
+
+
+# Cached for the life of the process. Verifying a cookie signs a payload, which
+# needs the key, and that happens on EVERY authenticated request — while get_db()
+# opens a fresh SQLite connection (and an mkdir) each time it is called. Measured
+# on GET /api/files: 4.97 ms with the lookup against 4.05 ms without, 23% slower,
+# to re-read a value that cannot change while the process runs. This is the
+# default path, on a NAS picked for being low-powered.
+_session_secret_cached: str | None = None
+
+
+def _session_secret() -> str:
+    """HMAC key for the session cookie: the env var if set, else a generated one.
+
+    The env var is read on every call rather than cached, so that changing it
+    revokes sessions — that is the whole point of having it.
+    """
+    global _session_secret_cached
+    if HOARD_SECRET_KEY:
+        return HOARD_SECRET_KEY
+    if _session_secret_cached is not None:
+        return _session_secret_cached
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT value FROM settings WHERE key = ?", (SESSION_SECRET_SETTING,)
+        ).fetchone()
+        if row and row["value"]:
+            _session_secret_cached = row["value"]
+            return _session_secret_cached
+        secret = secrets.token_urlsafe(48)
+        _write_setting(conn, SESSION_SECRET_SETTING, secret)
+        conn.commit()
+    _session_secret_cached = secret
+    return secret
+
+
+def _sign_session(payload: bytes) -> str:
+    """Sign with the secret AND the current credentials.
+
+    Binding the credentials into the key is what makes changing the password
+    close every session. Without it, the reflex move after a suspected leak —
+    change the password — revoked nothing: a stolen cookie stayed valid for its
+    full 30 days, and only rotating HOARD_SECRET_KEY (which nobody would think
+    to do) would have helped.
+    """
+    # json.dumps keeps the two fields unambiguous: a separator character
+    # appearing inside a username could otherwise make two different pairs
+    # derive the same key.
+    cred = json.dumps([HOARD_AUTH_USER, HOARD_AUTH_PASS], separators=(",", ":")).encode()
+    key = hmac.new(_session_secret().encode("utf-8"), cred, hashlib.sha256).digest()
+    digest = hmac.new(key, payload, hashlib.sha256).digest()
+    return base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
+
+
+def _make_session_cookie(user: str, expires_at: int | None = None) -> str:
+    exp = expires_at if expires_at is not None else int(time.time()) + SESSION_MAX_AGE
+    payload = json.dumps({"u": user, "exp": exp}, separators=(",", ":")).encode("utf-8")
+    encoded = base64.urlsafe_b64encode(payload).decode("ascii").rstrip("=")
+    return f"{encoded}.{_sign_session(payload)}"
+
+
+def _read_session_cookie(raw: str | None) -> dict | None:
+    """Return the cookie's payload, or None if it is absent, forged or expired.
+
+    The signature is verified BEFORE the payload is parsed: parsing first would be
+    acting on bytes nobody has vouched for yet.
+    """
+    if not raw or "." not in raw:
+        return None
+    encoded, _, signature = raw.partition(".")
+    try:
+        payload = base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4))
+    except (ValueError, TypeError):
+        return None
+    if not hmac.compare_digest(signature, _sign_session(payload)):
+        return None
+    try:
+        data = json.loads(payload)
+    except (ValueError, UnicodeDecodeError):
+        return None
+    if not isinstance(data, dict) or not isinstance(data.get("exp"), int):
+        return None
+    if data["exp"] <= int(time.time()):
+        return None
+    return data
+
+
+def _set_session_cookie(response: Response, user: str) -> None:
+    response.set_cookie(
+        SESSION_COOKIE,
+        _make_session_cookie(user),
+        max_age=SESSION_MAX_AGE,
+        httponly=True,
+        samesite="lax",
+        secure=HOARD_COOKIE_SECURE,
+        path="/",
+    )
+
+
+def _looks_like_a_browser(request: Request) -> bool:
+    """Whether this request came from a browser, in any of its request modes.
+
+    Testing `Accept: text/html` alone was wrong, and only wrong for the case that
+    matters. Measured, per client:
+
+        navigation      Accept: text/html,...   Sec-Fetch-Mode: navigate
+        fetch()         Accept: */*             Sec-Fetch-Mode: cors
+        curl            Accept: */*             (no Sec-Fetch-* at all)
+
+    A page's first act is fetch('/api/settings'), which looks exactly like curl by
+    the Accept header — so it got the challenge, and Firefox popped its native
+    dialog on a fetch. Chrome suppresses that dialog for fetch/XHR, which is why a
+    Chrome-only check missed it entirely.
+
+    Three signals, any one of which is enough. Sec-Fetch-* is the reliable one
+    (every request from a modern browser carries it, navigation or not); the other
+    two cover a browser old enough not to send it. curl sends none of the three.
+    """
+    if any(name.startswith("sec-fetch-") for name in request.headers):
+        return True
+    if "text/html" in request.headers.get("accept", ""):
+        return True
+    return "Mozilla" in request.headers.get("user-agent", "")
+
 
 @app.middleware("http")
 async def require_basic_auth(request: Request, call_next):
-    if request.url.path == HEALTH_PATH:
+    if request.url.path in (HEALTH_PATH, LOGIN_PATH, LOGOUT_PATH):
         return await call_next(request)
-    if not _AUTH_ENABLED or _check_basic_auth(request.headers.get("authorization", "")):
+    if request.url.path in SHELL_PATHS:
         return await call_next(request)
-    return Response(
-        status_code=401,
-        headers={"WWW-Authenticate": 'Basic realm="Hoard"'},
-    )
+    if request.url.path in DOWNLOAD_TOKEN_PATHS:
+        return await call_next(request)
+    if not _AUTH_ENABLED:
+        return await call_next(request)
+
+    # Cookie first: it spares a base64 decode on every request, and it is what the
+    # browser sends on the overwhelming majority of them.
+    session = _read_session_cookie(request.cookies.get(SESSION_COOKIE))
+    if session:
+        response = await call_next(request)
+        # Sliding renewal: past the halfway mark, reissue. Without it "30 days"
+        # would mean "30 days after the first login", which brings back exactly the
+        # retyping this ticket removes.
+        if session["exp"] - int(time.time()) < SESSION_MAX_AGE // 2:
+            _set_session_cookie(response, session.get("u", ""))
+        return response
+
+    if _check_basic_auth(request.headers.get("authorization", "")):
+        return await call_next(request)
+
+    # WWW-Authenticate is withheld from browsers on purpose: while it is sent, the
+    # browser opens its own credentials dialog and the in-app login screen never
+    # gets a chance to appear.
+    #
+    # It is kept for everything else, though measurement says no client we use
+    # actually needs it: `curl -u` sends Authorization on the FIRST request,
+    # without waiting to be challenged — that wait is a Digest behaviour, not a
+    # Basic one. (An earlier comment here claimed the opposite and was the stated
+    # reason for this branch.) Keeping it costs nothing and leaves a client that
+    # does wait for a challenge able to authenticate.
+    headers = {} if _looks_like_a_browser(request) else {"WWW-Authenticate": 'Basic realm="Hoard"'}
+    return Response(status_code=401, headers=headers)
+
+
+# ── Bookmarklet download token ────────────────────────────────────────────────
+# The bookmarklet posts from whatever third-party page the user is on, so it can
+# offer neither Basic credentials (the browser does not attach them cross-origin)
+# nor the session cookie (SameSite deliberately withholds it — that is the whole
+# point of the attribute). It carries this dedicated token instead, in the request
+# BODY, never in the URL: a credential in a URL ends up in the reverse proxy's
+# access log and in the browser history.
+#
+# The token is deliberately narrow: it opens the two download routes and nothing
+# else. It travels inside a bookmark, on arbitrary sites, so it must not be able
+# to list, move or delete anything.
+DOWNLOAD_TOKEN_SETTING = "download_token"
+
+
+def _get_or_create_download_token() -> str:
+    """Return the bookmarklet token, minting one on first use."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT value FROM settings WHERE key = ?", (DOWNLOAD_TOKEN_SETTING,)
+        ).fetchone()
+        if row and row["value"]:
+            return row["value"]
+        token = secrets.token_urlsafe(32)
+        _write_setting(conn, DOWNLOAD_TOKEN_SETTING, token)
+        conn.commit()
+    return token
+
+
+def _regenerate_download_token() -> str:
+    """Mint a fresh token, invalidating the previous one."""
+    token = secrets.token_urlsafe(32)
+    with get_db() as conn:
+        _write_setting(conn, DOWNLOAD_TOKEN_SETTING, token)
+        conn.commit()
+    return token
+
+
+def _check_download_token(token: str | None) -> bool:
+    if not token:
+        return False
+    return hmac.compare_digest(token, _get_or_create_download_token())
+
+
+def _require_download_auth(request: Request, token: str | None) -> None:
+    """Guard the two routes the blanket auth middleware lets through.
+
+    Accepts any of the three ways a caller can be legitimate here:
+
+    - the **session cookie**, because the Hoard UI calls these same routes
+      same-origin and that is how a browser is authenticated since BL-123.
+      Accepting it is safe against CSRF: the cookie is SameSite=Lax, so a
+      third-party page's POST carries no cookie at all.
+    - **Basic**, for curl, a native client or any external reader.
+    - the **bookmarklet token**, the only one of the three a third-party page
+      can present.
+
+    Raises 401 otherwise — and because these routes sit inside CORSMiddleware,
+    that 401 reaches the bookmarklet with CORS headers, so it can show it.
+    """
+    if not _AUTH_ENABLED:
+        return
+    if _read_session_cookie(request.cookies.get(SESSION_COOKIE)):
+        return
+    if _check_basic_auth(request.headers.get("authorization", "")):
+        return
+    if _check_download_token(token):
+        return
+    raise HTTPException(status_code=401, detail="Invalid or missing download token")
 
 
 @app.get(HEALTH_PATH)
@@ -250,7 +631,7 @@ def healthz():
             conn.execute("SELECT 1").fetchone()
     except sqlite3.Error:
         return JSONResponse({"status": "error"}, status_code=503)
-    if not get_media_root().is_dir():
+    if not _is_dir(get_media_root()):
         return JSONResponse({"status": "error"}, status_code=503)
     return {"status": "ok"}
 
@@ -304,6 +685,23 @@ def init_db():
                 value TEXT NOT NULL
             )
         """)
+        # BL-121: the VR mode a file was last watched in. Kept server-side and
+        # not in localStorage, because the whole point is that the choice made
+        # on the laptop still holds on the Deck.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS vr_modes (
+                path TEXT PRIMARY KEY,
+                mode TEXT NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        # Migration (BL-129): per-file convergence rides on the same row as the
+        # mode. Same key, same lifecycle, same rename/move/delete rules — a table
+        # of its own would duplicate all three for one number.
+        try:
+            conn.execute("ALTER TABLE vr_modes ADD COLUMN convergence REAL")
+        except Exception:
+            pass
         conn.execute("""
             CREATE TABLE IF NOT EXISTS initial_sweep_folders (
                 path TEXT PRIMARY KEY,
@@ -373,6 +771,35 @@ def init_db():
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_progress_active ON progress(duration, position, path)"
         )
+        # One-shot migration (BL-125). 'vr_sbs_layout' gained an 'auto' default,
+        # which only applies when no explicit choice is stored. The settings form
+        # posts every field at once, so saving any unrelated setting wrote 'half'
+        # — the old default — into the table, and that row would now read as a
+        # deliberate choice and permanently suppress the guess. The setting was
+        # introduced by BL-122 earlier the same day, so no stored 'half' can be
+        # one. It runs once and leaves a marker: init_db() runs on every start,
+        # and without the marker this would eat a deliberate 'half' at each
+        # restart — which is the very thing the setting exists to let you pick.
+        # Remove this block, and the marker row, once every instance has started.
+        if not conn.execute(
+            "SELECT 1 FROM settings WHERE key = 'vr_sbs_layout_reset_done'"
+        ).fetchone():
+            conn.execute("DELETE FROM settings WHERE key = 'vr_sbs_layout' AND value = 'half'")
+            conn.execute(
+                "INSERT INTO settings (key, value) VALUES ('vr_sbs_layout_reset_done', '1')"
+            )
+        # Same shape, same reason, for the field of view. 90° was the shipped
+        # default and the form posts every field at once, so a stored 90 is
+        # almost certainly that default written back rather than a choice — and
+        # left there it would keep hiding the new one. Unlike BL-125's 'half' a
+        # deliberate 90 is not impossible, only implausible: no XR glasses
+        # present 90° to an eye, and anyone who wants it types it again after
+        # this has run once.
+        if not conn.execute(
+            "SELECT 1 FROM settings WHERE key = 'vr_fov_default_45_done'"
+        ).fetchone():
+            conn.execute("DELETE FROM settings WHERE key = 'vr_fov' AND value = '90'")
+            conn.execute("INSERT INTO settings (key, value) VALUES ('vr_fov_default_45_done', '1')")
         conn.commit()
 
 
@@ -428,7 +855,7 @@ def reload_media_root():
         row = conn.execute("SELECT value FROM settings WHERE key='media_root'").fetchone()
     if row:
         candidate = Path(row["value"])
-        if candidate.exists() and candidate.is_dir():
+        if _is_dir(candidate):
             set_media_root(candidate)
 
 
@@ -517,6 +944,14 @@ class DownloadRequest(BaseModel):
     cookies: str | None = None  # document.cookie string from the bookmarklet
     referer: str | None = None  # page URL (when url is a direct video source)
     title: str | None = None  # user-supplied filename hint (from bookmarklet page title)
+    token: str | None = None  # bookmarklet token; unused when the caller is the Hoard UI
+
+
+class DownloadStatusRequest(BaseModel):
+    """Progress lookup for the bookmarklet, POSTed so the token stays out of the URL."""
+
+    job_id: str
+    token: str | None = None
 
 
 # ── Job store (in-memory) ─────────────────────────────────────────────────────
@@ -741,8 +1176,15 @@ def _run_export_segments(
             out_name = f"{source.stem} [{n} segment{'s' if n > 1 else ''}]{source.suffix}"
             output = dest_dir / out_name
             total_duration = sum(s["seg_out"] - s["seg_in"] for s in segments)
-            # Escape single quotes in path for FFmpeg concat demuxer format
-            escaped_source = str(source).replace("'", "\\'")
+            # The concat list is read line by line, so a line break in the path would
+            # end the `file` directive and start one of the file name's own choosing.
+            # No quoting can carry it: refuse. Inside single quotes the demuxer takes
+            # everything literally, backslash included, so a quote is written '\''.
+            if any(c in str(source) for c in "\r\n"):
+                job["status"] = "error"
+                job["error"] = "The file name contains a line break; merged export is impossible"
+                return
+            escaped_source = str(source).replace("'", "'\\''")
             with tempfile.NamedTemporaryFile(
                 mode="w", suffix=".txt", delete=False, encoding="utf-8"
             ) as f:
@@ -1054,7 +1496,6 @@ def _sniff_video_source(page_url: str, cookies_str: str | None) -> str | None:
     """
     from html.parser import HTMLParser
     from urllib.request import Request as _UrlRequest
-    from urllib.request import urlopen
 
     class _Parser(HTMLParser):
         def __init__(self) -> None:
@@ -1119,8 +1560,9 @@ def _sniff_video_source(page_url: str, cookies_str: str | None) -> str | None:
         }
         if cookies_str:
             headers["Cookie"] = cookies_str
+        _check_public_url(page_url)
         req = _UrlRequest(page_url, headers=headers)
-        with urlopen(req, timeout=10) as resp:  # noqa: S310
+        with _open_public_url(req, timeout=10) as resp:
             html_content = resp.read().decode("utf-8", errors="ignore")
         parser = _Parser()
         parser.feed(html_content)
@@ -1275,6 +1717,9 @@ def _run_download(
             sniffed = _sniff_video_source(url, cookies_str)
             if not sniffed:
                 raise
+            # The sniffed URL comes from the remote page, not from the user: it must
+            # pass the same check as the URL that was queued.
+            _check_public_url(sniffed)
             # Use the original page URL as Referer for the CDN request
             ydl_opts["http_headers"] = {"Referer": url}
             job["source_name"] = sniffed
@@ -1448,6 +1893,43 @@ def is_pdf(path: Path) -> bool:
 
 def is_archive(path: Path) -> bool:
     return path.suffix.lower() in ARCHIVE_EXTENSIONS
+
+
+# VR 180° side-by-side detection (BL-121).
+#
+# None of the files carry spherical metadata (no st3d/sv3d box was found on any
+# of the 24 sampled), so there is nothing authoritative to read. Two clues are
+# left: the file name, and the 2:1 aspect ratio that a square-per-eye layout
+# produces.
+#
+# Only the name is usable HERE. The listing does not know pixel dimensions, and
+# running ffprobe per entry would mean one subprocess per file on a deliberately
+# weak NAS, on every folder open. The ratio clue is therefore checked in the
+# player, where the <video> hands over videoWidth/videoHeight for free.
+#
+# Measured on the sample: the name catches 15 of the 23 distinct files, the ratio
+# catches the remaining 8. Neither is sufficient on its own, which is why both
+# exist — and why the user can always override the verdict.
+_VR_NAME_PATTERNS = (
+    re.compile(r"(?:^|[\W_])vr180(?:[\W_]|$)"),
+    re.compile(r"(?:^|[\W_])180x180(?:[\W_]|$)"),
+    re.compile(r"(?:^|[\W_])3dh(?:[\W_]|$)"),
+    re.compile(r"(?:^|[\W_])sbs(?:[\W_]|$)"),
+    re.compile(r"(?:^|[\W_])lr(?:[\W_]|$)"),
+    re.compile(r"oculus[-_ ]?rift"),
+)
+# A bare "180" was tried and dropped: it flagged "Episode 180 - The Long
+# Goodbye.mkv", and measured against the sample it recognised not one file the
+# patterns above had missed. It cost a false positive and bought nothing.
+
+
+def guess_vr_from_name(name: str) -> str | None:
+    """Return "sbs180" when the file name says side-by-side 180°, else None."""
+    lowered = name.lower()
+    for pattern in _VR_NAME_PATTERNS:
+        if pattern.search(lowered):
+            return "sbs180"
+    return None
 
 
 def get_media_type(path: Path) -> str:
@@ -1818,8 +2300,24 @@ def _last_watched_index(conn) -> dict[str, int]:
 
 
 def get_folder_state(folder: Path, progress_map: dict) -> str:
-    """Return 'new', 'inprogress', or 'seen' based on recursive video file progress."""
-    video_files = [f for f in folder.rglob("*") if f.is_file() and is_video(f)]
+    """Return 'new', 'inprogress', or 'seen' based on recursive video file progress.
+
+    Unreadable parts of the tree are left out: a sub-folder the server can list but
+    not traverse yields children that cannot be stat-ed, and one such folder must not
+    take the whole listing down. If the walk itself fails, the state is unknown and
+    'new' (the neutral state) is returned rather than a partial, misleading count.
+    """
+    video_files = []
+    try:
+        for f in folder.rglob("*"):
+            try:
+                if is_video(f) and f.is_file():
+                    video_files.append(f)
+            except OSError as exc:
+                _warn_unreadable(f.parent, exc)
+    except OSError as exc:
+        _warn_unreadable(folder, exc)
+        return "new"
     if not video_files:
         return "new"
     total = len(video_files)
@@ -1843,22 +2341,24 @@ def is_gallery(folder: Path) -> bool:
     folder of galleries shows each sub-folder as its own gallery rather than flattening
     everything into one huge sequence. Own-level scan only (no recursion)."""
     media_root = MEDIA_ROOT.resolve()
-    try:
-        children = list(folder.iterdir())
-    except PermissionError:
-        return False
     image_count = 0
-    for f in children:
-        if f.name.startswith("."):
-            continue
-        if f.is_symlink() and not f.resolve().is_relative_to(media_root):
-            continue
-        if f.is_dir():
-            return False  # has a sub-folder → container, not a gallery
-        if is_video(f):
-            return False
-        if is_image(f):
-            image_count += 1
+    try:
+        for f in folder.iterdir():
+            if f.name.startswith("."):
+                continue
+            if f.is_symlink() and not f.resolve().is_relative_to(media_root):
+                continue
+            if f.is_dir():
+                return False  # has a sub-folder → container, not a gallery
+            if is_video(f):
+                return False
+            if is_image(f):
+                image_count += 1
+    except OSError as exc:
+        # Listable but not traversable (or not listable at all): its content cannot
+        # be classified, so it is shown as a plain folder.
+        _warn_unreadable(folder, exc)
+        return False
     return image_count > 3
 
 
@@ -1924,21 +2424,33 @@ def list_files(path: str = ""):
         progress_map = {row["path"]: _watch_percent(row) for row in rows}
         watched_map = _last_watched_index(conn)
         tag_rows = conn.execute("SELECT path, tag FROM file_tags").fetchall()
+        vr_map = {
+            r["path"]: (r["mode"], r["convergence"])
+            for r in conn.execute("SELECT path, mode, convergence FROM vr_modes")
+        }
 
     tags_map: dict[str, list[str]] = {}
     for tr in tag_rows:
         tags_map.setdefault(tr["path"], []).append(tr["tag"])
 
-    # Gather items with stat cached
+    # Gather items with stat cached. An entry that cannot even be stat-ed is skipped:
+    # without a stat there is no telling a file from a folder, nor any way to open it.
+    # One that can be stat-ed is listed, even if its content turns out unreadable.
     items_with_stat = []
-    for item in folder.iterdir():
-        if item.name.startswith("."):
-            continue
-        try:
-            st = item.stat()
-        except PermissionError:
-            continue
-        items_with_stat.append((item, st))
+    try:
+        for item in folder.iterdir():
+            if item.name.startswith("."):
+                continue
+            try:
+                st = item.stat()
+            except OSError as exc:
+                _warn_unreadable(item, exc)
+                continue
+            items_with_stat.append((item, st))
+    except PermissionError as exc:
+        # The folder itself cannot be listed: a clear 403, not a 500.
+        _warn_unreadable(folder, exc)
+        raise HTTPException(status_code=403, detail="Access denied") from None
 
     # Sort by modification time descending (atime excluded — changes on every rglob scan)
     items_with_stat.sort(key=lambda x: x[1].st_mtime, reverse=True)
@@ -1971,6 +2483,11 @@ def list_files(path: str = ""):
         }
         if _media_type != "other":
             entry["progress"] = get_progress(item)
+        if entry["is_video"]:
+            entry["vr_hint"] = guess_vr_from_name(item.name)
+            row = vr_map.get(rel)
+            entry["vr_mode"] = row[0] if row else None
+            entry["vr_convergence"] = row[1] if row else None
         entry["tags"] = tags_map.get(rel, [])
         entries.append(entry)
     parts = []
@@ -1981,6 +2498,29 @@ def list_files(path: str = ""):
         parts.append({"name": part, "path": str(accumulated).replace("\\", "/")})
 
     return {"path": path, "breadcrumb": parts, "entries": entries}
+
+
+def _search_matches(folder: Path, needle: str):
+    """Yield (path, stat) for every entry under *folder* whose name contains *needle*.
+
+    An entry the server cannot stat (typically a child of a folder it can list but
+    not traverse) is skipped and logged, so one unreadable folder cannot fail the
+    whole search.
+    """
+    media_root = MEDIA_ROOT.resolve()
+    for item in folder.rglob("*"):
+        if item.name.startswith("."):
+            continue
+        if needle not in item.name.lower():
+            continue
+        try:
+            if item.is_symlink() and not item.resolve().is_relative_to(media_root):
+                continue
+            st = item.stat()
+        except OSError as exc:
+            _warn_unreadable(item.parent, exc)
+            continue
+        yield item, st
 
 
 @app.get("/api/search")
@@ -2000,23 +2540,17 @@ def search_files(q: str, path: str = ""):
         }
         tag_rows_s = conn.execute("SELECT path, tag FROM file_tags").fetchall()
         watched_map_s = _last_watched_index(conn)
+        vr_map_s = {
+            r["path"]: (r["mode"], r["convergence"])
+            for r in conn.execute("SELECT path, mode, convergence FROM vr_modes")
+        }
 
     tags_map_s: dict[str, list[str]] = {}
     for tr in tag_rows_s:
         tags_map_s.setdefault(tr["path"], []).append(tr["tag"])
 
     entries = []
-    for item in folder.rglob("*"):
-        if item.is_symlink() and not item.resolve().is_relative_to(MEDIA_ROOT.resolve()):
-            continue
-        if item.name.startswith("."):
-            continue
-        if needle not in item.name.lower():
-            continue
-        try:
-            st = item.stat()
-        except PermissionError:
-            continue
+    for item, st in _search_matches(folder, needle):
         rel = to_rel(item)
         _media_type_s = get_media_type(item) if item.is_file() else "other"
         entry = {
@@ -2033,6 +2567,11 @@ def search_files(q: str, path: str = ""):
         }
         if _media_type_s != "other":
             entry["progress"] = get_progress(item)
+        if entry["is_video"]:
+            entry["vr_hint"] = guess_vr_from_name(item.name)
+            row = vr_map_s.get(rel)
+            entry["vr_mode"] = row[0] if row else None
+            entry["vr_convergence"] = row[1] if row else None
         entry["tags"] = tags_map_s.get(rel, [])
         entries.append(entry)
 
@@ -2100,6 +2639,55 @@ def set_watched(path: str, body: WatchedUpdate):
     return get_progress(file)
 
 
+class VrModePayload(BaseModel):
+    # BL-129: both optional, and at least one required — the pad can now set the
+    # convergence on a file whose mode was never chosen, and the settings flow
+    # still sets the mode alone.
+    mode: str | None = None
+    convergence: float | None = Field(default=None, ge=-3.0, le=3.0)
+
+
+@app.post("/api/vr-mode")
+def set_vr_mode(path: str, body: VrModePayload):
+    """Remember how a file should be rendered: "off", "flat" or "sbs" (BL-121).
+
+    An explicit choice always wins over the guess, including the choice to say
+    "this is not a VR file" — the guess reads a file name and a shape, so it is
+    wrong sometimes, and being wrong must be correctable rather than permanent.
+    """
+    if body.mode is None and body.convergence is None:
+        raise HTTPException(status_code=400, detail="Nothing to set")
+    if body.mode is not None and body.mode not in ("off", "flat", "sbs"):
+        raise HTTPException(status_code=400, detail="Invalid VR mode")
+    file = safe_path(path)
+    if not file.exists():
+        raise HTTPException(status_code=404)
+    rel = to_rel(file)
+    with get_db() as conn:
+        # Two things to get right here. `mode` is NOT NULL, so a convergence-only
+        # write on a file with no row yet must supply one — 'flat' rather than
+        # 'off', which would switch VR off on a file being watched in VR. And the
+        # UPDATE branch reads the parameters again rather than `excluded`: that
+        # row already carries the 'flat' fallback, so COALESCE against it would
+        # silently overwrite a mode the caller never meant to touch.
+        conn.execute(
+            """
+            INSERT INTO vr_modes (path, mode, convergence, updated_at)
+            VALUES (?, COALESCE(?, 'flat'), ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(path) DO UPDATE SET
+                mode=COALESCE(?, vr_modes.mode),
+                convergence=COALESCE(?, vr_modes.convergence),
+                updated_at=CURRENT_TIMESTAMP
+            """,
+            (rel, body.mode, body.convergence, body.mode, body.convergence),
+        )
+        row = conn.execute(
+            "SELECT mode, convergence FROM vr_modes WHERE path = ?", (rel,)
+        ).fetchone()
+        conn.commit()
+    return {"path": rel, "mode": row["mode"], "convergence": row["convergence"]}
+
+
 def _purge_paths(conn, rel: str) -> None:
     """Drop every metadata row attached to a path: the entry itself and, when it is a
     folder, everything below it (prefix match). Uses substr equality (not LIKE) so
@@ -2113,6 +2701,8 @@ def _purge_paths(conn, rel: str) -> None:
     conn.execute("DELETE FROM segments WHERE substr(path, 1, ?) = ?", (tail_start, prefix))
     conn.execute("DELETE FROM file_tags WHERE path = ?", (rel,))
     conn.execute("DELETE FROM file_tags WHERE substr(path, 1, ?) = ?", (tail_start, prefix))
+    conn.execute("DELETE FROM vr_modes WHERE path = ?", (rel,))
+    conn.execute("DELETE FROM vr_modes WHERE substr(path, 1, ?) = ?", (tail_start, prefix))
 
 
 @app.delete("/api/files")
@@ -2189,13 +2779,27 @@ def move_file(path: str, body: MoveRequest, request: Request):
     return {"job_id": job_id}
 
 
+def _is_valid_entry_name(name: str) -> bool:
+    """A single path component with no control character.
+
+    Separators would escape the parent folder. Control characters, line breaks
+    above all, have no business in a file name and break the line-based formats
+    a name is later written into, such as ffmpeg's concat list."""
+    return (
+        bool(name)
+        and name not in (".", "..")
+        and not any(c in name for c in ("/", "\\"))
+        and not any(ord(c) < 0x20 or ord(c) == 0x7F for c in name)
+    )
+
+
 @app.post("/api/files/mkdir")
 def make_directory(path: str, body: MkdirRequest):
     parent = safe_path(path)
     if not parent.is_dir():
         raise HTTPException(status_code=404, detail="Parent folder not found")
     name = body.name.strip()
-    if not name or any(c in name for c in ("/", "\\", "\0")) or name in (".", ".."):
+    if not _is_valid_entry_name(name):
         raise HTTPException(status_code=400, detail="Invalid folder name")
     new_dir = parent / name
     if new_dir.exists():
@@ -2226,6 +2830,11 @@ def _migrate_renamed_paths(conn, old_rel: str, new_rel: str) -> None:
         "UPDATE file_tags SET path = ? || substr(path, ?) WHERE substr(path, 1, ?) = ?",
         (new_rel, tail_start, tail_start, prefix),
     )
+    conn.execute("UPDATE vr_modes SET path = ? WHERE path = ?", (new_rel, old_rel))
+    conn.execute(
+        "UPDATE vr_modes SET path = ? || substr(path, ?) WHERE substr(path, 1, ?) = ?",
+        (new_rel, tail_start, tail_start, prefix),
+    )
 
 
 @app.post("/api/files/rename")
@@ -2234,7 +2843,7 @@ def rename_path(path: str, body: RenameRequest, request: Request):
     if not source.exists():
         raise HTTPException(status_code=404)
     new_name = body.new_name.strip()
-    if not new_name or any(c in new_name for c in ("/", "\\", "\0")) or new_name in (".", ".."):
+    if not _is_valid_entry_name(new_name):
         raise HTTPException(status_code=400, detail="Invalid name")
     dest = safe_path(to_rel(source.parent / new_name))  # defense-in-depth re-check
     if dest.exists():
@@ -2583,29 +3192,85 @@ _PRIVATE_NETWORKS = (
 )
 
 
-def _validate_download_url(url: str) -> None:
-    """Raise HTTPException 400 for clearly invalid or dangerous URLs."""
+def _resolve_host(host: str) -> list[str]:
+    """Every address *host* resolves to. Raises OSError when it does not resolve.
+
+    Its own function so the test suite can answer without a network."""
+    return [info[4][0] for info in socket.getaddrinfo(host, None)]
+
+
+def _is_local_address(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
+        ip = ip.ipv4_mapped
+    return (
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_reserved
+        or ip.is_unspecified
+        or ip.is_multicast
+        or any(ip in net for net in _PRIVATE_NETWORKS)
+    )
+
+
+def _check_public_url(url: str) -> None:
+    """Raise ValueError unless *url* is http(s) and reaches only public addresses.
+
+    A host name is resolved and every address it returns is checked: a public name
+    pointing at 192.168.x.x is as local as the literal address. Resolving here and
+    connecting later remain two moments (DNS rebinding); closing that gap needs
+    control of the socket, which yt-dlp does not give.
+    """
     if not url or not url.strip():
-        raise HTTPException(status_code=400, detail="URL is required")
+        raise ValueError("URL is required")
     try:
         parsed = urlparse(url)
     except Exception:
-        raise HTTPException(status_code=400, detail="Invalid URL") from None
+        raise ValueError("Invalid URL") from None
     if parsed.scheme not in ("http", "https"):
-        raise HTTPException(status_code=400, detail="Only http/https URLs are allowed")
+        raise ValueError("Only http/https URLs are allowed")
     host = (parsed.hostname or "").lower()
     if not host:
-        raise HTTPException(status_code=400, detail="URL has no host")
-    # Reject localhost by name
-    if host == "localhost":
-        raise HTTPException(status_code=400, detail="Local network URLs are not allowed")
-    # If the host is a literal IP address, reject private/reserved ranges using CIDR checks
+        raise ValueError("URL has no host")
+    if host == "localhost" or host.endswith(".localhost"):
+        raise ValueError("Local network URLs are not allowed")
     try:
-        ip = ipaddress.ip_address(host)
-        if any(ip in net for net in _PRIVATE_NETWORKS):
-            raise HTTPException(status_code=400, detail="Local network URLs are not allowed")
+        addresses = [ipaddress.ip_address(host)]
     except ValueError:
-        pass  # hostname (not a literal IP) — allow
+        try:
+            addresses = [ipaddress.ip_address(a.split("%")[0]) for a in _resolve_host(host)]
+        except (OSError, ValueError):
+            raise ValueError("URL host does not resolve") from None
+    if not addresses or any(_is_local_address(ip) for ip in addresses):
+        raise ValueError("Local network URLs are not allowed")
+
+
+class _PublicOnlyRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Re-check every redirect target: a public page may answer with a 302 to the LAN."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        try:
+            _check_public_url(newurl)
+        except ValueError as e:
+            raise urllib.error.URLError(f"redirect refused: {e}") from None
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+_public_only_opener = urllib.request.build_opener(_PublicOnlyRedirectHandler)
+
+
+def _open_public_url(req, timeout: float):
+    """urlopen() that refuses to follow a redirect towards a local address.
+    The first URL is the caller's to check (see _check_public_url)."""
+    return _public_only_opener.open(req, timeout=timeout)
+
+
+def _validate_download_url(url: str) -> None:
+    """Raise HTTPException 400 for clearly invalid or dangerous URLs."""
+    try:
+        _check_public_url(url)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from None
 
 
 def _queue_download(
@@ -2671,9 +3336,73 @@ def _queue_download(
 @app.post("/api/download")
 def start_download(body: DownloadRequest, request: Request):
     """Start a yt-dlp download in the background and return a job_id."""
+    _require_download_auth(request, body.token)
     logger.info("download started: url=%s ip=%s", body.url, _client_ip(request))
     job_id = _queue_download(body.url, title=body.title, referer=body.referer, cookies=body.cookies)
     return {"job_id": job_id}
+
+
+@app.post("/api/download/status")
+def download_status(body: DownloadStatusRequest, request: Request):
+    """Progress of ONE job, for the bookmarklet's status dialog.
+
+    Deliberately not a widened /api/jobs: the token lives in a bookmark that is
+    clicked on arbitrary sites, and the full job list would hand any such site the
+    titles, source URLs and destination paths of every download.
+    """
+    _require_download_auth(request, body.token)
+    job = _jobs.get(body.job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return {
+        "status": job.get("status"),
+        "progress": job.get("progress", 0),
+        "error": job.get("error"),
+    }
+
+
+class LoginRequest(BaseModel):
+    user: str
+    password: str
+
+
+@app.post(LOGIN_PATH)
+def login(body: LoginRequest):
+    """Exchange credentials for a session cookie.
+
+    Both fields are compared in constant time, and both are always evaluated, so
+    the response time says nothing about which one was wrong. The failure is a bare
+    401: telling the caller whether the user exists would be a gift to a guesser.
+    """
+    if not _AUTH_ENABLED:
+        # Nothing to log into. Say so plainly rather than handing out a cookie that
+        # would protect nothing.
+        return {"ok": True, "auth_enabled": False}
+    user_ok = hmac.compare_digest(body.user, HOARD_AUTH_USER)
+    pass_ok = hmac.compare_digest(body.password, HOARD_AUTH_PASS)
+    if not (user_ok and pass_ok):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    response = JSONResponse({"ok": True, "auth_enabled": True})
+    _set_session_cookie(response, body.user)
+    return response
+
+
+@app.post(LOGOUT_PATH)
+def logout():
+    """Clear the session cookie.
+
+    A cookie that cannot be cleared is a defect, so this exists — but logging out
+    is not a goal of this lot and the UI does not advertise it.
+    """
+    response = JSONResponse({"ok": True})
+    response.delete_cookie(SESSION_COOKIE, path="/")
+    return response
+
+
+@app.post("/api/download/token/regenerate")
+def regenerate_download_token():
+    """Mint a new bookmarklet token; the previous one stops working immediately."""
+    return {"download_token": _regenerate_download_token()}
 
 
 # ── Quick folders ─────────────────────────────────────────────────────────────
@@ -2686,7 +3415,7 @@ def list_quick_folders():
     result = []
     for row in rows:
         p = MEDIA_ROOT / row["path"]
-        if p.exists() and p.is_dir():
+        if _is_dir(p):
             result.append({"path": row["path"], "name": p.name})
     return result
 
@@ -2725,7 +3454,7 @@ def list_home_roots():
     result = []
     for row in rows:
         p = MEDIA_ROOT / row["path"]
-        if p.is_dir():
+        if _is_dir(p):
             result.append(
                 {
                     "id": row["id"],
@@ -3003,6 +3732,22 @@ _SETTINGS_DEFAULTS: dict[str, str] = {
     "gamepad_mapping": "{}",
     "fs_progress_zoom": "20",
     "gestures_overlay_seen": "0",
+    # Installation flag, not a setting the user picks — declared here so it leaves
+    # GET /api/settings as a decision rather than an oversight, the way BL-123 made
+    # the secret exclusion explicit. Goes away with the BL-125 migration below.
+    "vr_sbs_layout_reset_done": "0",
+    "vr_fov_default_45_done": "0",
+    # 45° and not 90°: this is the angle the display actually presents to each
+    # eye, and it is what makes the depth of a 180° file correct. Measured by
+    # David on 2026-09-22 against his XR glasses — at 90° the world looked giant
+    # and distant, at 45° it looked right. See the setting's own description.
+    "vr_fov": "45",
+    "vr_convergence": "0",
+    # BL-135: 0 is off. A trade, not an improvement — the centre keeps its true
+    # depth and the edges buy width with theirs — so nobody gets it unasked.
+    "vr_widen": "0",
+    "vr_look_speed": "90",
+    "vr_sbs_layout": "auto",
 }
 
 
@@ -3056,14 +3801,28 @@ class SettingsPayload(BaseModel):
     gamepad_swap_sticks: bool | None = None
     gamepad_mapping: str | None = None  # raw JSON string
     fs_progress_zoom: int | None = Field(default=None, ge=5, le=50)
+    vr_fov: int | None = Field(default=None, ge=30, le=120)
+    vr_widen: int | None = Field(default=None, ge=0, le=100)
+    vr_convergence: float | None = Field(default=None, ge=-3.0, le=3.0)
+    vr_look_speed: int | None = Field(default=None, ge=10, le=360)
+    vr_sbs_layout: str | None = None
+
+
+# Settings rows that must never leave the server. `settings` is a generic key/value
+# table and GET /api/settings returns it wholesale, so any secret parked there would
+# ship to the frontend by default. Listing them here makes the exclusion a decision
+# rather than an oversight — the download token is NOT among them, it is meant to be
+# displayed so the bookmarklet can embed it.
+SECRET_SETTINGS = frozenset({"pin_hash", SESSION_SECRET_SETTING})
 
 
 @app.get("/api/settings")
 def get_settings():
+    # Minted on first read so the frontend can always build a working bookmarklet.
+    _get_or_create_download_token()
     with get_db() as conn:
         s = _read_all_settings(conn)
-    # Never expose the raw hash; just tell the frontend whether a PIN is set
-    result = {k: v for k, v in s.items() if k != "pin_hash"}
+    result = {k: v for k, v in s.items() if k not in SECRET_SETTINGS}
     result["pin_set"] = bool(s.get("pin_hash"))
     result["media_root"] = str(MEDIA_ROOT).replace("\\", "/")
     result["app_version"] = VERSION
@@ -3075,7 +3834,7 @@ def get_settings():
     try:
         dl_dir = safe_path(s.get("download_folder", "Downloads"))
         result["download_folder_abs"] = str(dl_dir).replace("\\", "/")
-        result["download_folder_exists"] = dl_dir.is_dir()
+        result["download_folder_exists"] = _is_dir(dl_dir)
     except HTTPException:
         result["download_folder_abs"] = ""
         result["download_folder_exists"] = False
@@ -3199,6 +3958,10 @@ def update_settings(body: SettingsPayload, request: Request):
             ("gamepad_deadzone", body.gamepad_deadzone),
             ("gamepad_mapping", body.gamepad_mapping),
             ("fs_progress_zoom", body.fs_progress_zoom),
+            ("vr_fov", body.vr_fov),
+            ("vr_widen", body.vr_widen),
+            ("vr_convergence", body.vr_convergence),
+            ("vr_look_speed", body.vr_look_speed),
         ]
         for key, val in _simple:
             if val is not None:
@@ -3220,6 +3983,13 @@ def update_settings(body: SettingsPayload, request: Request):
         for key, val in _bools:
             if val is not None:
                 _write_setting(conn, key, "1" if val else "0")
+
+        # Validated separately: this one is an enum, and an unknown value would
+        # leave the player computing the wrong aspect with no way to notice.
+        if body.vr_sbs_layout is not None:
+            if body.vr_sbs_layout not in ("auto", "half", "full"):
+                raise HTTPException(status_code=422, detail="Invalid vr_sbs_layout")
+            _write_setting(conn, "vr_sbs_layout", body.vr_sbs_layout)
 
         conn.commit()
 
@@ -3254,6 +4024,29 @@ def media_info(path: str):
     if not file.exists() or not is_video(file):
         raise HTTPException(status_code=404)
     return _read_media_info(file)
+
+
+# Concurrent transcodes, capped like thumbnails (see THUMBNAIL_MAX_CONCURRENCY) and for
+# the same reason, heavier here: a full transcode is a libx264 encode that lasts as long
+# as playback. Two lets two devices play at once and absorbs the overlap of switching
+# videos, before the previous stream has noticed its client left.
+TRANSCODE_MAX_CONCURRENCY = int(os.environ.get("TRANSCODE_MAX_CONCURRENCY", "2"))
+_transcode_slots = threading.BoundedSemaphore(TRANSCODE_MAX_CONCURRENCY)
+
+
+class _TranscodeSlot:
+    """One acquired transcode slot, released exactly once whichever path gets there first."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._held = True
+
+    def release(self) -> None:
+        with self._lock:
+            if not self._held:
+                return
+            self._held = False
+        _transcode_slots.release()
 
 
 @app.get("/api/transcode")
@@ -3310,12 +4103,20 @@ def transcode_video(path: str, audio_only: bool = Query(False)):
             "pipe:1",
         ]
 
+    if not _transcode_slots.acquire(blocking=False):
+        raise HTTPException(status_code=503, detail="Transcoding service busy")
+    slot = _TranscodeSlot()
+
     def iter_transcode():
-        proc = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-        )
+        try:
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+            )
+        except BaseException:
+            slot.release()
+            raise
         try:
             while True:
                 chunk = proc.stdout.read(65536)
@@ -3323,11 +4124,24 @@ def transcode_video(path: str, audio_only: bool = Query(False)):
                     break
                 yield chunk
         finally:
+            # The client may be gone: closing stdout only stops ffmpeg if it is
+            # writing at that moment, so stop it explicitly and never wait forever.
             proc.stdout.close()
-            proc.wait()
+            proc.terminate()
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()
+            slot.release()
 
+    stream = iter_transcode()
+    # A client that disconnects before the first chunk leaves the generator unstarted,
+    # and an unstarted generator never runs its finally: release the slot when the
+    # generator itself is dropped.
+    weakref.finalize(stream, slot.release)
     return StreamingResponse(
-        iter_transcode(),
+        stream,
         media_type="video/mp4",
         headers={"Cache-Control": "no-cache"},
     )

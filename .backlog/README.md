@@ -17,17 +17,14 @@ Convention détaillée : [`docs/agents/issue-tracker.md`](../docs/agents/issue-t
 
 | Lot | Statut |
 |-----|--------|
-| [SEC-AUTH](SEC-AUTH/PRD.md) — Une instance ouverte doit se voir (contrôle de santé BL-105, annonce de l'état d'authentification BL-106) | ✅ |
-| [CLIENT-NATIVE](CLIENT-NATIVE/PRD.md) — Client natif Flutter pour Steam Deck, Steam Frame et Windows (faisabilité BL-104) | ⬜ |
+| [PAD-PROFILES](PAD-PROFILES/PRD.md) — Des profils de manette, dont un pour la seule main droite du Steam Frame (BL-141 ; reste l'essai sur le Frame) | 🧑 |
+| [PAD-ZOOM](PAD-ZOOM/PRD.md) — Zoomer dans une vidéo à la manette, comme dans PadView (couche R2 sur vidéo plate BL-140 ; reste l'essai sur le Frame) | 🧑 |
+| [PAD-LEFT-HAND](PAD-LEFT-HAND/PRD.md) — La main gauche règle ce qu'on regarde (volume et vitesse au stick gauche, sauts à la croix BL-138 ; convention manette commune avec PadView BL-139 ; reste l'essai sur le Frame) | 🧑 |
+| [FIX-UI-SCALE](FIX-UI-SCALE/PRD.md) — Une taille apparente constante en plein écran (interface en `rem`, échelle à la racine BL-137 ; reste l'essai sur le Frame) | 🧑 |
+| [VR-IMMERSIVE](VR-IMMERSIVE/PRD.md) — Le relief dans le casque par WebXR (session immersive BL-136 mergée ; en pause : pas de WebXR dans le navigateur du Frame) | 🧑 |
+| [CLIENT-NATIVE](CLIENT-NATIVE/PRD.md) — Client natif Flutter pour Steam Deck, Steam Frame et Windows (faisabilité BL-104 ✅, puis BL-107..117) | 🔄 |
 | [FEAT-ADVANCED](FEAT-ADVANCED/PRD.md) — Fonctionnalités avancées (thème clair BL-013, multi-utilisateur BL-015) | ⬜ |
 | [ARCH-PERF](ARCH-PERF/PRD.md) — Architecture & Performance (split `main.py` BL-041, transcodage HW BL-042) | ⬜ |
-| [FEAT-GALLERY](FEAT-GALLERY/PRD.md) — Galeries d'images (dossier comme média opaque, comme une archive) | ✅ |
-| [OPS-VISIBILITY](OPS-VISIBILITY/PRD.md) — Traçabilité & exploitation (historique de téléchargement BL-075, rétention des logs BL-076, redémarrage depuis l'UI BL-077, résilience du worker BL-078) | ✅ |
-| [DL-INTEGRITY](DL-INTEGRITY/PRD.md) — Un téléchargement « terminé » doit exister (skip silencieux BL-079, destination visible BL-080, sûreté du test de redémarrage BL-081, sélecteur de dossier BL-082, isolation réseau des tests BL-083) | ✅ |
-| [DL-RETRY](DL-RETRY/PRD.md) — Relancer un téléchargement depuis l'historique (BL-084) | ✅ |
-| [SORT-WATCHED](SORT-WATCHED/PRD.md) — Trier par date de dernier visionnage (BL-085) | ✅ |
-| [PAD-REACH](PAD-REACH/PRD.md) — Toute l'UI atteignable à la manette (modals BL-088, actions inertes BL-087, marquer vu BL-003, menu contextuel BL-086) | ✅ |
-| [MOVE-COLLISION](MOVE-COLLISION/PRD.md) — Déplacer vers une destination occupée (choix écraser/annuler BL-090, métadonnées des dossiers BL-091, job en échec BL-092, curseur manette générique BL-093) | ✅ |
 
 ## Lots archivés
 
@@ -35,6 +32,20 @@ Voir [`archive/`](archive/). Les lignes sont ajoutées ici au fur et à mesure d
 
 | Lot | Statut | Terminé |
 |-----|--------|---------|
+| [VR-COMFORT](archive/VR-COMFORT.md) — Que la profondeur soit juste, et réglable en regardant | ✅ | 2026-09-22 |
+| [PAD-SBS-UI](archive/PAD-SBS-UI.md) — Toute l'interface en côte à côte, sur bascule | ✅ | 2026-09-22 |
+| [SORT-WATCHED](archive/SORT-WATCHED.md) — Trier par date de dernier visionnage | ✅ | 2026-09-21 |
+| [SEC-SESSION](archive/SEC-SESSION.md) — Session par cookie et jeton pour la bookmarklet | ✅ | 2026-09-21 |
+| [SEC-AUTH](archive/SEC-AUTH.md) — Une instance ouverte doit se voir | ✅ | 2026-09-21 |
+| [PAD-VR](archive/PAD-VR.md) — Piloter le VR à la manette en voyant ce qu'on règle | ✅ | 2026-09-21 |
+| [FIX-XR-DISPLAY](archive/FIX-XR-DISPLAY.md) — Hoard utilisable sur lunettes XR en 3840×1080 | ✅ | 2026-09-21 |
+| [FEAT-VR180](archive/FEAT-VR180.md) — Lecture des vidéos 180° SBS dans le lecteur web | ✅ | 2026-09-21 |
+| [MOVE-COLLISION](archive/MOVE-COLLISION.md) — Déplacer vers une destination occupée | ✅ | 2026-09-15 |
+| [PAD-REACH](archive/PAD-REACH.md) — Toute l'UI atteignable à la manette | ✅ | 2026-09-14 |
+| [DL-RETRY](archive/DL-RETRY.md) — Relancer un téléchargement depuis l'historique | ✅ | 2026-08-25 |
+| [DL-INTEGRITY](archive/DL-INTEGRITY.md) — Un téléchargement « terminé » doit exister | ✅ | 2026-08-25 |
+| [OPS-VISIBILITY](archive/OPS-VISIBILITY.md) — Traçabilité & exploitation | ✅ | 2026-08-24 |
+| [FEAT-GALLERY](archive/FEAT-GALLERY.md) — Galeries d'images | ✅ | 2026-06-27 |
 | [KBD-DPAD-PARITY](archive/KBD-DPAD-PARITY.md) — Clavier ↔ pad : équivalence navigation | ✅ | 2026-06-23 |
 | [INPUT-HARMONIZATION](archive/INPUT-HARMONIZATION.md) — Harmonisation clavier / pad / touch | ✅ | 2026-05-19 |
 | [ALT-READERS](archive/ALT-READERS.md) — Lecteurs alternatifs (images, archives, PDF, audio) | ✅ | 2026-05-15 |

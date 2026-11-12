@@ -103,6 +103,59 @@ volumes:
   - hoard_data:/data
 ```
 
+Hoard avoids running as root: at start-up it takes the identity of the media folder's owner, the user that can write there.
+Nothing to configure when that owner is an ordinary user.
+To force another user, set `PUID` / `PGID`; to find the owner, on the NAS over SSH:
+
+```bash
+stat -c "%u:%g" /volume1/downloads   # e.g. 1026:100
+```
+
+If the media folder belongs to root, Hoard does not take that identity.
+That is the usual case for a Synology shared folder, where access goes through ACLs: set `PUID` to your DSM user's uid (`id -u` over SSH, logged in as that user), and `PGID` to the group the shared folder's ACL grants access to (see below) — not your account's `id -g`.
+Without them, Hoard tries its own user, and if that one cannot write to the folder it stays root and says so in its logs rather than stop working:
+
+```text
+WARNING: /media is owned by root and appuser cannot write there: staying root. ...
+WARNING: running as root, with full rights on every mounted volume
+```
+
+If you see these lines, set `PUID` / `PGID` and restart the container.
+
+**On Synology, `PGID` must be the group the shared folder's ACL allows.**
+Hoard runs with a single group, the one in `PGID`, without your DSM account's secondary groups: being a member of `administrators` does not help it if `PGID` is `users` (100).
+A shared folder's ACL often grants access to the `administrators` group only (usually gid 101) and denies the others.
+To check, on the NAS over SSH:
+
+```bash
+sudo /usr/syno/bin/synoacltool -get /volume1/downloads   # adjust the share name
+grep '^administrators:' /etc/group                       # gives the gid: administrators:x:101:...
+```
+
+Find the `group:<name>:allow:…` line in the `synoacltool` output and use that group's gid for `PGID` (`grep '^<name>:' /etc/group`).
+
+Symptom of a `PGID` without access: the page shows but the app does not load, and the container logs show `PermissionError: [Errno 13] Permission denied` on paths under `/media`.
+Since version 2.9.0 Hoard no longer breaks down over it: it leaves inaccessible folders out and says so in its logs (`Cannot access /media/…`); fixing `PGID` brings them back.
+
+**If you are upgrading an install that ran as root**, the files Hoard created so far belong to root.
+Hand them once to the user Hoard now runs as: the `PUID:PGID` you set, or the folder's owner given by `stat` if you set none.
+Do not use the values `stat` gives for a root-owned folder (`0:0`): that would hand them to root again.
+Only the root-owned entries are changed; the shared folder itself and Synology's `@eaDir` index folders stay as they are:
+
+```bash
+sudo find /volume1/downloads -mindepth 1 -name @eaDir -prune -o -user root -exec chown 1026:100 {} +
+```
+
+To check, this must print `0`:
+
+```bash
+find /volume1/downloads -mindepth 1 -name @eaDir -prune -o -user root -print | wc -l
+```
+
+A `user: root` line you kept in your `docker-compose.yml` can be removed; it no longer changes anything.
+
+The database (`/data`) needs nothing: Hoard hands it to `PUID:PGID` at every start.
+
 ### Start the container
 
 ```bash
@@ -133,12 +186,16 @@ All configuration is done via **environment variables** in `docker-compose.yml` 
 | `PREDEFINED_FOLDERS` | `Vu,A revoir,A supprimer` | Quick folders (comma-separated) |
 | `SSL_CERTFILE` | *(unset)* | Path to a PEM certificate file. Enables native HTTPS — no reverse proxy needed. |
 | `SSL_KEYFILE` | *(unset)* | Path to the matching PEM private key file. |
-| `HOARD_AUTH_USER` / `HOARD_AUTH_PASS` | *(unset)* | Set both to require HTTP Basic auth on every request. Recommended when exposing Hoard outside your LAN. Use HTTPS so credentials are not sent in clear text. |
+| `HOARD_AUTH_USER` / `HOARD_AUTH_PASS` | *(unset)* | Set both to require authentication on every request. Recommended when exposing Hoard outside your LAN. Use HTTPS so credentials are not sent in clear text. |
+| `HOARD_SECRET_KEY` | *(generated)* | Key signing the session cookie. Without one, a key is minted on first start and kept in the database, so a fresh install just works. Setting it gives you revocation: change the value and every session on every device stops working at once. |
+| `HOARD_COOKIE_SECURE` | `1` | Whether the session cookie carries `Secure` (HTTPS only). Leave it at `1` in production. Set `0` only to reach a dev instance over plain HTTP from another machine — browsers treat `localhost` as secure already, so local development needs no change. |
 | `LOG_LEVEL` | `INFO` | Logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`). |
 | `LOG_DIR` | `<DB_PATH directory>/logs` | Directory holding the log files. Empty string disables file logging (stdout only). |
 | `LOG_RETENTION_DAYS` | `30` | Number of daily log files kept (rotation at midnight). |
 | `RESTART_SUPERVISED` | *(auto-detected)* | `0` / `1`. Whether a supervisor restarts the process after it exits. Auto-detected inside a container; only used to word the "Restart Hoard" confirmation. |
 | `JOB_TTL_SECONDS` | `3600` | How long a finished job stays in memory. Does not affect the download history, which lives in the database. |
+| `PUID` / `PGID` | owner of `MEDIA_ROOT` | User Hoard runs as inside the container. Defaults to whoever owns the media folder (see "Adjust docker-compose.yml"). On Synology, `PGID` is the group the shared folder's ACL allows, often `administrators` (101). |
+| `TRANSCODE_MAX_CONCURRENCY` | `2` | Number of simultaneous transcodes. Beyond it, `/api/transcode` answers 503 rather than saturating the CPU. |
 | `DOWNLOAD_SOCKET_TIMEOUT` | `30` | Seconds of silence tolerated on a download socket before giving up. Stops a silent server from pinning the (sequential) queue. |
 
 ### Authentication — read this before exposing Hoard
@@ -159,8 +216,8 @@ Set both variables to require HTTP Basic on every request:
 
 ```yaml
 environment:
-  - HOARD_AUTH_USER=david
-  - HOARD_AUTH_PASS=nT8vQ2xK9mR4wL7pZ1sB3dF6
+  - HOARD_AUTH_USER=<your-username>
+  - HOARD_AUTH_PASS=<paste-your-generated-password-here>
 ```
 
 Generate the password rather than inventing one:

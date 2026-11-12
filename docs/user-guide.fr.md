@@ -43,7 +43,7 @@ La barre de tri propose cinq critères, chacun inversable avec le bouton **↓ /
 
 Le tri **Vu** répond à « qu'ai-je regardé en dernier ». Un dossier prend la date du média le plus récemment regardé **n'importe où en dessous de lui**, même à plusieurs niveaux de profondeur : reprendre une vidéo enfouie dans un sous-dossier fait remonter tout le dossier parent en tête de liste. Les entrées jamais ouvertes n'ont pas de date de visionnage : elles sont regroupées en fin de liste, classées entre elles par date de fichier.
 
-Le critère choisi dans **Paramètres → Tri par défaut** s'applique à l'ouverture de l'application.
+Le tri est **mémorisé** : le critère et le sens choisis dans la barre sont enregistrés côté serveur et réappliqués à la réouverture de l'application, y compris depuis un autre appareil. **Paramètres → Tri de la liste** affiche le tri en cours et permet de le changer sans passer par la barre.
 
 ### Recherche
 
@@ -217,6 +217,118 @@ Des boutons `[IN` et `OUT]` permettent de définir une zone de lecture restreint
 
 La liste de fichiers se met à jour toutes les 30 secondes quand l'onglet est visible, la vidéo en pause et aucune recherche active. Cela permet de voir apparaître de nouveaux fichiers sans recharger la page.
 
+### Vidéos 180° côte à côte (VR)
+
+Une vidéo VR 180° contient deux images accolées, une par œil, chacune déformée pour couvrir un demi-tour d'horizon. Affichée telle quelle, elle est illisible. Le bouton 🥽 du lecteur (ou la touche **V**) redresse l'image et vous laisse regarder autour de vous.
+
+Trois états se succèdent à chaque appui :
+
+| État | Ce que vous voyez | Quand l'utiliser |
+|------|-------------------|------------------|
+| Désactivé | l'image brute du fichier | vidéo ordinaire |
+| **Plat** | une seule vue, redressée, que vous promenez | sur un écran normal — ordinateur, tablette |
+| **Côte à côte** | deux vues, une par œil | avec des lunettes XR en mode 3D, qui séparent elles-mêmes les deux images |
+
+Pour regarder autour de vous : **glissez le doigt** sur l'image, **tirez à la souris**, ou maintenez **R2** et poussez le **stick droit** de la manette — sans R2 ce stick fait avancer ou reculer finement la vidéo. La molette de la souris rapproche ou éloigne la vue. **Maj+V** remet le regard au centre.
+
+Tant que le mode VR est actif, le glissement ne fait plus ni avance rapide ni réglage du volume — il sert à regarder. L'avance et le volume restent accessibles au clavier, aux boutons du lecteur et au stick gauche de la manette.
+
+#### Avec des lunettes XR
+
+Le mode côte à côte passe automatiquement en plein écran : c'est le seul affichage qui ait un sens dans des lunettes. Les commandes du lecteur disparaissent pendant ce temps — affichées une seule fois sur une image qui va être coupée en deux, elles tomberaient à moitié dans chaque œil et ne seraient lisibles nulle part. Ce qui sert à piloter, en revanche, est écrit **une fois par œil** et reste donc lisible des deux : les messages du lecteur, le menu **Select** et la carte des boutons. Pilote à la manette ou au clavier ; sortir du mode fait tout revenir.
+
+> **Sauf si l'écran entier est déjà en côte à côte** (voir [Toute l'interface en côte à côte](#toute-linterface-en-côte-à-côte) plus bas) : chaque moitié montre alors une image entière, donc la barre du lecteur, la bulle de volume et l'afficheur du temps restent là, en un exemplaire par œil. Tu gardes la position dans le fichier sous les yeux, ce qui n'est pas le cas autrement.
+
+Quatre réglages, selon tes lunettes et selon ce que tu regardes :
+
+- **Champ de vision de l'écran** (**R2 + stick gauche haut/bas**, la molette à la souris, ou **Paramètres → Player**). C'est le réglage qui décide si la profondeur est juste, et ce n'est pas un zoom malgré les apparences : il faut y mettre l'angle que tes lunettes présentent **réellement** à un œil. Trop grand, le monde paraît géant et lointain, et un objet qui s'approche enfle démesurément pendant que tes yeux disent qu'il est loin ; trop petit, la scène rétrécit et le relief s'exagère. Des lunettes XR tournent autour de **45°**, qui est le défaut. Règle-le une fois sur une vidéo 180° en cherchant le point où la scène paraît naturelle, et reporte la valeur dans les paramètres. Attention au compromis : plus la valeur est petite, plus la profondeur est juste — et moins tu vois de la scène à la fois. Les deux vont ensemble et il n'y a pas moyen de les séparer.
+- **Image étirée ou non** (touche **B** au clavier, **L2** à la manette, ou le menu de la manette). **Par défaut Hoard le devine** à la forme de l'image : pour obtenir la 3D, des lunettes comme les Viture Beast demandent une sortie deux fois plus large que la normale — du 3840×1080 — et sur une image de cette forme chaque moitié est déjà aux bonnes proportions, donc rien n'est réétiré. Sur un affichage ordinaire, à l'inverse, chaque moitié est réétirée sur toute la largeur. Hoard annonce ce qu'il a deviné par un message au moment où le mode s'active. Si l'image te paraît quand même écrasée ou étirée du double en hauteur, change le réglage — l'effet se voit immédiatement, et ton choix l'emporte toujours sur la devinette. Le raccourci fait le tour des trois états : automatique, étirée, non étirée.
+- **Convergence** (**R2 + stick gauche ←/→**, le D-pad pour le pas à pas, ou le menu de la manette). C'est l'angle dont on écarte ou rapproche les deux points de vue : ça change la distance à laquelle ton cerveau place la scène. À laisser à zéro, où les deux images sont exactement telles que les caméras les ont prises — ce qui est correct pour un fichier bien tourné. Si un fichier particulier te fatigue les yeux, c'est qu'il a été tourné avec un écartement de caméras qui ne te va pas, ou remonté de travers. Le stick est proportionnel : une pichenette ajuste, une poussée à fond traverse la plage en deux secondes. **Plus le champ de vision est serré, plus il faut corriger** — l'image est plus agrandie, donc le désalignement aussi. La plage va jusqu'à ±8°, assez pour que ce soit ton œil qui décide et non la borne. **La valeur est retenue pour ce fichier-là**, pas pour les autres : la gêne vient du tournage, un fichier mal monté ne doit pas contaminer le reste.
+- **Vue élargie** (menu **Select** pendant la lecture, ou **Paramètres → Player**). La réponse au compromis ci-dessus, dans la mesure où il y en a une. Plutôt que de comprimer toute l'image pour voir plus large, on ne comprime que **vers les bords** : le centre garde son échelle, donc sa profondeur juste, et les côtés vont chercher plus de scène. La valeur dit de combien le bord va plus loin — **+40 %** montre 40 % d'angle en plus sur les côtés. Le prix se paie là où ça comprime : le relief s'y aplatit et les lignes droites s'y incurvent, d'autant plus que la valeur monte. **0 est le défaut** : c'est un échange, pas une amélioration. 20 à 40 restent discrets ; au-delà, ou avec un grand champ de vision, les bords peuvent devenir noirs parce que la caméra n'a pas filmé plus loin.
+
+#### Régler la vue à la manette
+
+Tout se règle en **maintenant R2**, sans rien ouvrir : l'image change pendant que tu règles, ce qui est le seul moyen de juger.
+
+| R2 maintenu | Effet |
+|---|---|
+| **Stick gauche ↕** | Zoom |
+| **Stick gauche ↔** | Convergence (proportionnelle) |
+| **D-pad ←/→** | Convergence, pas à pas |
+| **Clic stick gauche** | Remettre le zoom |
+| **Clic stick droit** | Recentrer le regard |
+| **Stick droit** | Regarder autour |
+
+Tant que R2 est maintenu, les autres boutons ne font rien : la manette pilote la vue et rien d'autre. **Relâche R2** et les sticks font exactement ce qu'ils font sur un écran plat, en pleine lecture VR comme ailleurs : l'avance/recul fin, le volume et la vitesse de lecture, chacun là où ton réglage d'inversion des sticks les place. Au clavier, **Maj+V** remet d'un coup le regard et le zoom.
+
+#### Dans un casque VR (Steam Frame)
+
+Dans un casque, le mode côte à côte ne donne pas de relief : le casque affiche la page comme un écran plat flottant devant toi, et les deux images y arrivent l'une à côté de l'autre. Le bouton **XR** du lecteur fait l'inverse : la vidéo **prend tout le casque**, chaque œil reçoit son image, et tu regardes autour de toi **en tournant la tête**.
+
+Le bouton n'apparaît que si le navigateur sait piloter un casque, **et** si Hoard est ouvert par une adresse en **https**. Sur une adresse en `http://` (une adresse IP du réseau local, par exemple), le navigateur refuse l'accès au casque et le bouton reste caché.
+
+Le bouton se clique avec le **pointeur des manettes du casque** : pour des raisons de sécurité, les navigateurs n'ouvrent la vue immersive que sur un clic. Une fois dedans :
+
+| Manettes du casque | Effet |
+|---|---|
+| **Gâchette** ou **A / X** | Lecture / pause |
+| **Stick ←/→** | Recul / avance du seek moyen, 30 s par défaut, comme le D-pad de la manette (maintenu, ça répète) |
+| **Clic stick** | Recentrer : là où tu regardes devient le centre du film |
+| **B / Y** | Sortir de la vue immersive |
+
+Le bouton système du casque en sort aussi. En sortant, tu retrouves le lecteur tel qu'il était, mode 180° compris. Fermer le lecteur ferme la vue immersive ; passer au fichier suivant ne la ferme pas.
+
+La **convergence** du fichier s'applique aussi dans le casque. Le champ de vision, la vue élargie et l'image étirée ou non, en revanche, n'y servent à rien : c'est le casque qui connaît l'angle de ses écrans, donc la profondeur est juste d'office. Les messages du lecteur ne s'affichent pas dans le casque.
+
+#### Reconnaissance et mémorisation
+
+Un fichier VR se signale par un 🥽 dans la liste. Hoard le devine de deux façons : par le nom (les studios y mettent presque toujours `LR`, `3dh`, `180x180`, `VR180` ou `SBS`), et par la forme de l'image — deux yeux carrés côte à côte donnent exactement le double de large que de haut. Le nom se lit dès la liste ; la forme, seulement à l'ouverture du fichier.
+
+Reconnaître un fichier **n'active pas** le mode : le bouton 🥽 se met simplement en évidence. Ouvrir un fichier pour vérifier quelque chose ne doit pas te projeter dans une vue de casque.
+
+En revanche, **le mode que tu choisis est retenu pour ce fichier** et appliqué à sa réouverture, y compris depuis une autre machine — le choix fait sur le laptop vaut sur le Deck. Ça marche aussi dans l'autre sens : si Hoard se trompe et marque comme VR un fichier qui ne l'est pas, désactive le mode et il ne reviendra plus sur celui-là.
+
+Enfin, le mode VR est refusé sur une vidéo lue en transcodage : redresser une image que le serveur est déjà en train de recalculer n'aurait pas de sens, et le NAS n'en a pas les moyens.
+
+Les valeurs par défaut (champ de vision, vitesse du regard, image étirée ou non, convergence) se règlent dans **Paramètres → Player**.
+
+> **Ce que votre machine doit pouvoir faire.** Ces fichiers sont souvent très définis (jusqu'à 8K) et encodés en HEVC. Hoard les envoie tels quels, sans les convertir : c'est l'appareil qui regarde qui doit savoir les décoder. Si l'image saccade ou refuse de s'ouvrir, c'est cette limite-là, et non le mode VR.
+
+---
+
+## Toute l'interface en côte à côte
+
+Des lunettes XR en mode 3D coupent l'image en deux **en permanence**, pas seulement pendant une vidéo. Une interface dessinée une seule fois tombe donc à cheval sur la coupure : chaque œil n'en voit qu'une moitié. Et en sortir coûte une dizaine de secondes d'écran noir, parfois des réglages perdus.
+
+Ce mode dessine **toute** l'application deux fois, une par œil : le code PIN, le navigateur, les visionneuses d'images et de PDF, la vidéo, les réglages et les dialogues. Les deux yeux voient **la même image** — ce n'est pas de la 3D, et c'est précisément ce qui la rend lisible et reposante.
+
+### L'allumer et l'éteindre
+
+| Comment | Geste |
+|---|---|
+| À la manette | **L1 + R1 + Select** — marche partout, y compris sur l'écran du code PIN |
+| Au clavier | **Y** (ou **Alt+Y** si le curseur est dans un champ de saisie) |
+| Au menu **Select** | ligne *🥽 Écran côte à côte* |
+| Aux réglages | **Paramètres → Lunettes XR** |
+
+**Le même geste l'éteint.** L'allumer par erreur sur un écran normal ne t'enferme donc pas dans un écran illisible.
+
+### Un réglage par appareil
+
+Contrairement à tout le reste, ce mode **ne suit pas d'une machine à l'autre** : il est enregistré dans le navigateur qui l'utilise. Le Deck avec les lunettes le garde allumé, le laptop et l'iPad ne le voient jamais. Il survit en revanche à un rechargement de la page, et il est en place avant même l'écran du code PIN.
+
+### Avec une vidéo
+
+Une **vidéo ordinaire** se voit des deux yeux avec **un seul téléchargement et un seul décodage** : l'œil droit reçoit une copie de l'image, pas une seconde lecture.
+
+Une **vidéo 180°** garde tout son relief, et c'est la seule chose de l'écran qui ne soit pas identique dans les deux yeux — normal : ce fichier contient justement deux images différentes, une par œil, et cette différence *est* le relief. Mets le lecteur en **côte à côte** (touche **V**, ou le menu **Select**) et chaque moitié de l'écran reçoit l'œil qui lui revient, en entier.
+
+Un réglage devient sans objet dans ce mode : **Image côte à côte étirée ou non** (touche **B**). Il sert à savoir si tes lunettes réétirent chaque demi-image ; ici chaque œil reçoit déjà une image entière, il n'y a rien à réétirer. La ligne disparaît du menu et la touche te le dit.
+
+### Ce que ça coûte
+
+Il y a deux fois plus d'interface à dessiner, donc la machine travaille davantage — mesuré sur un dossier de 2 000 fichiers, ce qui est un cas extrême. Déplacer le curseur y reste instantané ; changer de tri ou de dossier redessine la liste entière et prend à peu près deux fois le temps habituel. Sur un dossier de taille ordinaire, ça ne se voit pas.
+
 ---
 
 ## Gestes tactiles
@@ -300,22 +412,104 @@ Hoard supporte les manettes de jeu via la **Gamepad API** du navigateur (Xbox, P
 - Un toast « 🎮 Manette connectée » confirme la détection.
 - **Steam Deck / Firefox** : Firefox n'envoie l'événement `gamepadconnected` qu'après un appui. Un toast « Appuyez sur un bouton pour activer la manette » apparaît si la manette est détectée mais pas encore active.
 
+### Steam Frame
+
+Ce qu'on sait après les premiers essais sur le casque (septembre 2026). Cette
+section sera complétée.
+
+- **Utilise Chromium, pas Firefox.** Sur le Frame, Firefox inverse les boutons
+  **X** et **Y** : c'est un défaut connu de Firefox sous Linux avec la manette
+  virtuelle de Steam, pas un défaut de Hoard. En plein écran, Firefox affiche
+  aussi Hoard en petit dans un coin. Chromium n'a aucun de ces deux problèmes.
+- **Plein écran de Chromium.** Hoard grandit avec l'écran : au-delà d'un
+  affichage de 1920×1080, toute l'interface grossit en proportion de la place
+  disponible, donc garde la même taille apparente quand le navigateur passe en
+  plein écran. En dessous, rien ne change — laptop, iPad, Steam Deck, téléphone.
+- **Lance le navigateur depuis Steam, en mode Gaming.** Ouvert depuis le mode
+  bureau, le navigateur ne reçoit que la souris et Hoard ne voit aucune manette.
+  Ajoute-le à Steam comme jeu non-Steam, puis lance-le depuis la bibliothèque
+  (onglet **Non-Steam**).
+- **Quelle manette.** Le **Steam Controller** fonctionne, les **manettes du
+  Frame** aussi : deux manettes séparées, une par main, que le système présente
+  comme une seule manette ordinaire. Le lecteur est disposé pour elles — la main
+  gauche règle le volume, la vitesse et les sauts, la main droite le reste (voir
+  le tableau plus bas).
+- **HEVC (H.265) à confirmer.** Le Chromium du Frame ne lit peut-être pas le
+  HEVC, alors que le Steam Deck le lit. Ouvre **Paramètres → Player → Tester les
+  codecs** : la ligne « HEVC » dit si le navigateur sait le décoder. Le NAS ne
+  transcode pas, donc un fichier que le navigateur ne décode pas ne se lira pas.
+- **Clic droit en mode bureau** : clic sur le **stick droit**.
+- **Vidéos 180° en relief** : le bouton **XR** du lecteur, voir
+  [Dans un casque VR](#dans-un-casque-vr-steam-frame).
+- **Une seule manette sous la main ?** Choisis le profil **Steam Frame, main droite seule**, décrit juste en dessous.
+
+### Profils de manette
+
+Hoard a deux profils, à choisir selon ce que tu as sous la main :
+
+- **Standard (deux mains)** : une manette complète (Xbox, Steam Deck, les deux manettes du Frame). C'est tout ce que décrivent les tableaux plus bas.
+- **Steam Frame, main droite seule** : seulement la manette droite du Frame, donc **A, B, X, Y, R1, R2, le stick droit et son clic (R3)**. Les commandes les plus utiles y sont regroupées.
+
+Le profil se choisit dans **Paramètres → 🎮 Manette → Profil**, ou à la manette avec la ligne **🎮 Profil manette** du menu contextuel. Il est propre à chaque appareil : passer le Frame en main droite ne change rien sur le Steam Deck.
+
+Dans le profil **main droite seule** :
+
+| | Liste de fichiers | Lecteur |
+|---|---|---|
+| **Stick ↕** | Déplacer le curseur | Volume |
+| **Stick ↔** | — | Vitesse tant que le stick est tenu (comme le stick gauche du profil Standard) |
+| **A** | Ouvrir | Lecture / Pause |
+| **B** | Remonter d'un niveau | Fermer le lecteur |
+| **Y** | Menu contextuel | Plein écran |
+| **R3** (clic du stick) | — | Fit / Fill |
+| **R1 + stick** | — | ← reculer de 30 s, → avancer de 30 s, ↑ avancer de 60 s, ↓ avancer de 15 s |
+| **R1 + X** | Déplacer l'entrée sélectionnée | Déplacer le fichier |
+| **R1 + B** | Supprimer l'entrée sélectionnée | Supprimer le fichier |
+| **R2 maintenu + stick** | — | Déplacer l'image zoomée ; en mode VR, regarder autour |
+| **R1 + R2 + stick ↕** | — | Zoomer / dézoomer |
+| **R2 + R3** | — | Revenir à 1× ; en mode VR, recentrer le regard |
+| **R1 + R2 + R3** | — | En mode VR, remettre le zoom |
+
+Dans toutes les fenêtres (menu, déplacer, supprimer, tags, paramètres, carte des boutons…), le **stick** remplace la croix : il choisit, **A** valide, **B** annule ou ferme. Tenu, il fait défiler comme la croix tenue.
+
+Pour éviter de toucher le volume en réglant la vitesse, seul le sens où le stick est le plus poussé compte. Il n'y a pas d'avance fine dans ce profil : les sauts sous R1 et la vitesse jusqu'à 4× la remplacent. Le menu contextuel ne s'ouvre que depuis la liste, puisque Y fait le plein écran dans le lecteur. La carte des boutons (ligne **🎮 Aide manette** du menu) affiche ce profil quand il est actif.
+
 ### Actions — Lecteur vidéo
 
 | Bouton | Base | + L1 | + R1 | + L1+R1 |
 |--------|------|------|------|---------|
 | **A** | Lecture / Pause | Sous-titres | Déplacer → Dossier 1 | Aller à 0% |
-| **B** | Fermer le lecteur | — | Déplacer → Dossier 2 | — |
-| **X** | Marquer vu / non vu | Ratio image | Déplacer → Dossier 3 | Aller à 50% |
-| **Y** | Plein écran | Aller à 0% | — | Aller à 100% |
+| **B** | Fermer le lecteur | — | Déplacer → Dossier 2 | Supprimer le fichier courant |
+| **X** | Marquer vu / non vu | Ratio image | Déplacer → Dossier 3 | Déplacer le fichier courant |
+| **Y** | Plein écran | Marquer point IN (segment) | Confirmer segment OUT | Ouvrir la fenêtre Exporter |
 | **D-pad ←/→** | Seek moyen | Seek long | Seek très long | — |
-| **D-pad ↑/↓** | Volume ±10% | Fichier précédent/suivant | Aller à 25%/75% | — |
-| **Select** | Paramètres | — | — | — |
+| **D-pad ↑** | Avancer de 60 s (seek long) | Fichier précédent | Aller à 25% | — |
+| **D-pad ↓** | Avancer de 15 s | Fichier suivant | Aller à 75% | Aller à 100% |
+| **Select** | Menu contextuel | — | — | Écran côte à côte (lunettes XR) |
 | **Start** | Afficher la carte des boutons | — | — | — |
+| **L2** | Image côte à côte : auto / étirée / non (mode VR) | — | — | — |
+| **R2** (maintenu) | Zoom dans l'image (voir ci-dessous) ; en mode VR, zoom, convergence, recentrage — voir plus haut | — | — | — |
 | **L3** (clic stick) | Muet / Son | — | — | — |
-| **R3** (clic stick) | Cycle vitesse (0,5× → 1× → 1,5× → 2× → …) | — | — | — |
-| **Stick gauche X** | Scrubbing analogique | — | — | — |
-| **Stick droit Y** | Volume analogique | — | — | — |
+| **R3** (clic stick) | — (libre) | — | — | — |
+| **Stick gauche ↕** | Volume analogique | — | — | — |
+| **Stick gauche ↔** | Vitesse de lecture tant que le stick est tenu : vers la gauche jusqu'à 0,25×, vers la droite jusqu'à 4× (2× sur une vidéo transcodée) ; au lâcher, retour à la vitesse d'avant | — | — | — |
+| **Stick droit ↔** | Avance / recul fin (scrubbing) | — | — | — |
+
+La main gauche règle ce que tu regardes — volume, vitesse, sauts dans la vidéo —, la main droite pilote le reste. C'est pensé pour les manettes du Steam Frame, une par main. L'option **Inverser les sticks** échange les deux sticks en entier, pour un gaucher. Une vitesse fixe reste disponible dans le **menu contextuel** (Select).
+
+#### Zoomer dans la vidéo
+
+Sur une vidéo ordinaire, **maintiens R2** pour zoomer sur une partie de l'image, comme dans PadView :
+
+| R2 maintenu | Effet |
+|---|---|
+| **Stick gauche ↕** | Zoomer (vers le haut) ou dézoomer, jusqu'à 4× |
+| **Stick droit** | Déplacer l'image zoomée : pousse vers ce que tu veux voir |
+| **Clic stick gauche** | Revenir à 1× |
+
+Tant que R2 est tenu, un encart en haut à gauche affiche le niveau de zoom et une petite carte de l'image, avec la partie à l'écran encadrée. On ne peut pas déplacer l'image au-delà de ses bords : les bandes noires ne servent à rien.
+
+**Relâche R2** : le zoom reste en place, et les sticks reprennent le volume, la vitesse et l'avance. Le zoom repart à 1× quand tu changes de fichier ou que tu fermes le lecteur, et il ne s'applique pas en mode VR, qui a son propre zoom. Il fonctionne aussi en plein écran et quand toute l'interface est en côte à côte, où les deux yeux zooment ensemble.
 
 ### Actions — Navigateur de fichiers (sans vidéo)
 
@@ -356,11 +550,13 @@ Maintenir **L1** ou **R1** active une couche de commandes supplémentaires. Les 
 
 ### Carte des boutons
 
-Appuie sur **Start** (ou le bouton « Afficher la carte des boutons » dans Paramètres) pour afficher un overlay listant toutes les actions disponibles par couche, mis à jour dynamiquement avec les durées de seek configurées.
+Appuie sur **Start** (ou le bouton « Afficher la carte des boutons » dans Paramètres) pour afficher la liste de toutes les actions, groupée par couche — le lecteur, ses trois couches LB / RB / LB+RB, le browser et les sticks. Les durées d'avance et de recul y sont celles que tu as réglées, et les dossiers rapides y portent leurs vrais noms.
+
+La liste se répartit en colonnes selon la largeur de l'écran : une seule sur téléphone, quatre sur un écran de bureau, six sur un affichage très large. **D-pad ↑/↓** fait défiler, **B** ou **Start** ferme.
 
 ### Fenêtres et manette
 
-Toutes les fenêtres de Hoard (tags, renommage, nouveau dossier, sélecteur de dossier, file de téléchargements, écran de code PIN) se pilotent à la manette : **D-pad** parcourt les champs et les boutons, **A** active celui qui est sélectionné, **B** ferme la fenêtre. Aucun écran ne demande de reprendre la souris.
+Toutes les fenêtres de Hoard (tags, renommage, nouveau dossier, sélecteur de dossier, file de téléchargements, écran de code PIN, écran de connexion) se pilotent à la manette : **D-pad** parcourt les champs et les boutons, **A** active celui qui est sélectionné, **B** ferme la fenêtre. Aucun écran ne demande de reprendre la souris.
 
 ### Paramètres manette
 
@@ -369,8 +565,37 @@ Dans **Paramètres → 🎮 Manette** :
 | Paramètre | Description |
 |-----------|-------------|
 | **Manette activée** | Active / désactive complètement la détection gamepad |
+| **Profil** | Standard (deux mains) ou Steam Frame, main droite seule — voir [Profils de manette](#profils-de-manette). Propre à cet appareil. |
 | **Retour haptique** | Vibration courte sur play/pause, seek, vu/non vu (Chrome uniquement) |
 | **Zone morte** | Seuil de détection des sticks (défaut 20%). Augmenter si les sticks dérivent. |
+
+---
+
+## Connexion
+
+Quand Hoard est configuré avec un identifiant et un mot de passe (variables
+`HOARD_AUTH_USER` / `HOARD_AUTH_PASS`, voir le guide d'installation), l'ouverture
+affiche un **écran de connexion aux couleurs de Hoard** — plus la fenêtre grise du
+navigateur, qui se pilotait mal à la manette sur le Steam Deck et le Steam Frame.
+
+- **Une seule saisie.** La connexion est retenue **30 jours**, et le décompte
+  repart dès que tu utilises Hoard : en usage régulier, tu ne ressaisis jamais
+  rien. Chaque appareil a sa propre connexion.
+- **À la manette** : le **D-pad** passe d'un champ à l'autre, **A** ouvre le
+  clavier sur le champ sélectionné, puis **A** sur « Se connecter ».
+- **Si la session expire** pendant que tu navigues, l'écran revient et tu
+  reprends exactement où tu en étais — pas de page rechargée, pas de lecture
+  perdue.
+- **Tout déconnecter d'un coup** : définis la variable `HOARD_SECRET_KEY` et
+  change sa valeur. Toutes les sessions, sur tous les appareils, cessent
+  immédiatement d'être valables.
+
+> **Le code PIN est autre chose.** Il verrouille l'écran d'une session déjà
+> ouverte, sur ton propre appareil ; la connexion décide si le serveur te répond.
+> Les deux restent indépendants.
+
+> **`curl` continue de fonctionner** avec `-u identifiant:motdepasse`, comme
+> avant — utile pour les scripts.
 
 ---
 
@@ -393,11 +618,23 @@ Hoard peut télécharger des vidéos depuis le web via **yt-dlp** et les sauvega
 2. Descends jusqu'à la section **Téléchargements**.
 3. **Glisse** le lien « 📥 Télécharger avec Hoard » vers ta barre de favoris.
 
+> **Le lien contient un jeton d'accès personnel.** La bookmarklet s'exécute sur la
+> page web de quelqu'un d'autre : ton navigateur n'y envoie jamais tes identifiants
+> Hoard, et c'est ce jeton qui lui permet d'atteindre Hoard. Il autorise deux
+> choses et rien d'autre : lancer un téléchargement, et en suivre l'avancement. Il
+> ne permet ni de parcourir, ni de déplacer, ni de supprimer tes fichiers. Ne
+> partage pas ce lien. Si ça t'arrive par erreur, utilise **🔑 Nouveau jeton** dans
+> les paramètres : l'ancien lien cesse aussitôt de fonctionner, et tu réinstalles
+> le favori en glissant le nouveau lien.
+
 ### Télécharger une vidéo
 
 **Depuis n'importe quelle page web** — clique sur la bookmarklet. Elle soumet le téléchargement **en arrière-plan** et injecte une fenêtre de statut en direct directement dans la page courante — aucune navigation, aucun onglet ouvert. Le dialogue progresse à travers ⌛ « Analyse de l'URL… » → 📥 « Téléchargement… X% » → ✅ « Terminé ! » (fermeture automatique après 4 s). Si la file est occupée, il affiche ⏳ « En attente dans la file… — titre.mp4 » jusqu'à ce qu'un slot se libère. Tu peux annuler le job depuis le dialogue ou depuis le modal de file de téléchargement de Hoard.
 
-> **Sites avec une CSP restrictive** : certains sites (souvent des sites de streaming chargés de publicités) bloquent, via leur `Content-Security-Policy`, les requêtes sortantes vers un domaine tiers comme celui de Hoard. Dans ce cas, la bookmarklet affiche ℹ️ « Site incompatible (CSP) » et ouvre automatiquement Hoard dans un nouvel onglet pour y terminer le téléchargement.
+> **Sites avec une CSP restrictive** : certains sites (souvent des sites de streaming chargés de publicités) bloquent, via leur `Content-Security-Policy`, les requêtes sortantes vers un domaine tiers comme celui de Hoard. Dans ce cas, la bookmarklet affiche ℹ️ « Hoard injoignable depuis cette page » et ouvre automatiquement Hoard dans un nouvel onglet pour y terminer le téléchargement.
+
+> **« Hoard : accès refusé »** : le favori a été enregistré avant que le jeton ne
+> soit régénéré. Ouvre les paramètres et glisse à nouveau le lien pour le remplacer.
 
 > **Détection intelligente de la source vidéo** : si un élément `<video>` est en lecture sur la page, la bookmarklet capture son URL source directe au lieu de l'URL de la page. Cela permet de télécharger depuis des sites où yt-dlp n'a pas d'extracteur dédié (Patreon, lecteurs vidéo custom, embeds BunnyCDN, etc.). Le modal affiche un indicateur 🎬 quand une source directe a été détectée. L'URL de la page d'origine est automatiquement envoyée comme en-tête `Referer` pour que les CDN qui vérifient l'origine acceptent la requête.
 

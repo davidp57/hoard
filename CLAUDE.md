@@ -94,7 +94,19 @@ Documentation must be kept up to date with every code change. Update in the **sa
   - Single file — inline CSS and JS. No external dependencies beyond what the browser provides natively.
   - Global `cfg` object holds all settings loaded from `/api/settings` at startup.
   - Touch gesture constants come from `cfg`, never hardcoded.
-  - `localStorage` is only used for `volume` (device-local). Everything else is in the backend DB.
+  - Sizes are written in `rem`, never `px` (BL-137): the root font size is the
+    interface's one scale and grows with the viewport past 1920x1080. Only 1-2px
+    hairlines and media query breakpoints stay in `px`.
+  - `localStorage` holds **device-local settings only**, and nothing else: today
+    `volume`, `sbs_global` (the whole-interface side-by-side toggle, PAD-SBS-UI)
+    and `gamepad_profile` (standard or Steam Frame right hand only, PAD-PROFILES:
+    picking it on the Frame must not change the Deck's pad — David, 2026-11-05).
+    Everything else is in the backend DB, because every other setting is meant to
+    follow the user from the laptop to the Deck. A setting belongs here when
+    following would be wrong — the Deck with XR glasses wants side-by-side, the
+    iPad must not inherit it — or when it has to be readable before the settings
+    are loaded, as the PIN screen requires. Adding another one is a decision, not
+    a convenience.
 
 - **Database** (SQLite, native `sqlite3`):
   - Schema is created on startup via `init_db()` — no migration tool.
@@ -109,7 +121,7 @@ hoard/
 │   ├── copilot-instructions.md    # GitHub Copilot instructions (mirror of this file's rules)
 │   └── workflows/
 │       ├── ci.yml                 # Lint + tests on every push/PR
-│       └── docker-build.yml       # Build Docker image on main / tags
+│       └── docker-build.yml       # Build Docker image on main / develop / tags
 ├── pyproject.toml                 # pytest + ruff config
 ├── requirements-dev.txt           # Dev dependencies (fastapi, uvicorn, pytest, httpx, ruff)
 ├── Dockerfile

@@ -65,6 +65,8 @@ hoard/
 | `RESTART_SUPERVISED` | *(auto)* | `0`/`1`. Surcharge la détection de container (`/.dockerenv`) utilisée pour formuler la confirmation de redémarrage dans l'UI. |
 | `HOARD_AUTH_USER` | *(non défini)* | Identifiant pour l'auth HTTP Basic optionnelle. L'auth n'est active que si celui-ci ET `HOARD_AUTH_PASS` sont définis. |
 | `HOARD_AUTH_PASS` | *(non défini)* | Mot de passe pour l'auth HTTP Basic optionnelle. |
+| `HOARD_SECRET_KEY` | *(générée)* | Clé HMAC qui signe le cookie de session. Repli sur une ligne `session_secret` créée au premier usage. La changer révoque toutes les sessions. |
+| `HOARD_COOKIE_SECURE` | `1` | Indique si le cookie de session porte `Secure`. Un réglage plutôt qu'une détection : derrière le reverse proxy Synology, le backend ne voit jamais que du HTTP en clair. |
 
 ### Sécurité des chemins
 
@@ -78,6 +80,15 @@ def safe_path(rel: str) -> Path:
     return resolved
 ```
 
+### Chemins inaccessibles
+
+Sous Python 3.12 (la version de l'image Docker, mesuré), `Path.exists()`, `is_dir()`, `is_file()` et `is_symlink()` n'avalent que ENOENT, ENOTDIR, EBADF et ELOOP : quand un dossier parent n'est pas traversable par l'utilisateur du container (dossier partagé Synology dont l'ACL n'admet pas `PGID`), ils lèvent `PermissionError` au lieu de répondre `False`. Un tel dossier ne doit jamais faire tomber une route entière :
+
+- `_is_dir(path)` sonde un chemin issu des réglages ou de la base (dossier de téléchargement, raccourcis, racines d'accueil, `media_root` enregistré, `/healthz`) et compte un chemin inaccessible comme absent.
+- Les listings (`/api/files`, `get_folder_state`, `is_gallery`) et `/api/search` gardent chaque entrée : listée sans état calculé si on peut la `stat`, sautée sinon. Un dossier non listable répond 403.
+- Toute autre route qui rencontre une `PermissionError` répond **403** `{"detail": "Access denied"}` via un gestionnaire d'exception global, pas 500.
+- `_warn_unreadable()` journalise chaque chemin inaccessible une fois en WARNING (`Cannot access <chemin>: <erreur>`), avec un ensemble de dédoublonnage borné.
+
 ### En-têtes de sécurité
 
 Un middleware HTTP (`add_security_headers`) injecte sur chaque réponse :
@@ -88,14 +99,18 @@ Google Fonts (`fonts.googleapis.com` / `fonts.gstatic.com`) et les sources
 `blob:`/`data:` utilisées par les lecteurs média et PDF.js. Les en-têtes sont
 posés avec `setdefault`, donc un endpoint peut les surcharger si besoin.
 
-### Auth HTTP Basic optionnelle
+### Authentification optionnelle
 
 Définir à la fois `HOARD_AUTH_USER` et `HOARD_AUTH_PASS` impose une
-authentification HTTP Basic sur chaque requête (middleware `require_basic_auth`).
+authentification sur chaque requête (middleware `require_basic_auth`).
 Si l'une des deux n'est pas définie, l'auth est désactivée et le comportement
 est inchangé. Les identifiants sont comparés en temps constant. Pensé pour
 exposer Hoard derrière un reverse proxy ou en HTTPS direct sans système de
 comptes — utiliser HTTPS pour ne pas transmettre les identifiants en clair.
+
+Depuis BL-123, le middleware accepte **soit** un cookie de session signé, **soit**
+Basic. Voir *Authentification (BL-011, BL-123)* plus bas pour le cookie, l'en-tête
+`WWW-Authenticate` retenu et les fichiers de la page servis sans authentification.
 
 **Une route est exemptée : `/healthz`.** Le `HEALTHCHECK` du container n'a pas
 d'identifiants à présenter, et avant cette exemption, activer l'auth faisait
@@ -120,7 +135,7 @@ l'accès à toutes les instances en réseau local au prochain redémarrage.
 
 | Méthode | Route | Description |
 |---------|-------|-------------|
-| GET | `/api/files?path=` | Liste le contenu d'un dossier |
+| GET | `/api/files?path=` | Liste le contenu d'un dossier. Une entrée qu'on ne peut pas `stat` est sautée ; un dossier qu'on peut `stat` mais pas lire ni traverser est listé avec `folder_state: "new"`, sans détection de galerie. **403** si le dossier lui-même n'est pas listable |
 | GET | `/api/progress?path=` | Lit la progression d'un fichier |
 | POST | `/api/progress?path=` | Sauvegarde `{position, duration}` |
 | DELETE | `/api/files?path=` | Supprime un fichier ou dossier |
@@ -286,12 +301,140 @@ Les titres passent par `_outtmpl_literal()` avant d'entrer dans le template de s
 - `url` — requis. URL de la page web ou de la vidéo directe.
 - `cookies` — optionnel. Chaîne `document.cookie` brute capturée par la bookmarklet. Convertie au format Netscape et transmise à yt-dlp.
 - `referer` — optionnel. URL de la page d'origine. Quand fourni, envoyé comme en-tête HTTP `Referer` pour que les CDN qui vérifient l'origine acceptent la requête. La bookmarklet le renseigne automatiquement quand une source `<video>` directe est détectée.
+- `token` — optionnel. Jeton de téléchargement de la bookmarklet (voir plus bas). Ignoré quand l'appelant s'authentifie normalement, ce qui est le cas de l'interface Hoard elle-même.
 
 **Réponse :**
 
 ```json
 { "job_id": "abc123" }
 ```
+
+### Authentification (BL-011, BL-123)
+
+Deux mécanismes, tous deux acceptés par `require_basic_auth`, pour deux appelants
+différents.
+
+**HTTP Basic** — activé par `HOARD_AUTH_USER` / `HOARD_AUTH_PASS`. Conservé, pas
+remplacé : le retirer casserait `curl -u`, un futur client natif et tout lecteur
+externe.
+
+**Cookie de session signé** — ce qu'un navigateur utilise après l'écran de connexion.
+
+| Aspect | Choix | Pourquoi |
+|---|---|---|
+| Contenu | `{u, exp}` + HMAC-SHA256, base64url | Signé, pas chiffré : aucun des deux champs n'est un secret, ce qui compte est qu'on ne puisse pas le forger. La signature est vérifiée **avant** que le contenu ne soit analysé. |
+| Clé | `HOARD_SECRET_KEY`, sinon une ligne `session_secret` créée au premier usage | Clé explicite ⇒ révocation par rotation. Pas de clé ⇒ une installation neuve marche sans configuration. |
+| Durée | 30 jours, reposé dès qu'il reste moins de la moitié | Sans renouvellement glissant, « 30 jours » veut dire « 30 jours après la première connexion », ce qui ramène la ressaisie que la fonctionnalité supprime. |
+| `SameSite` | `Lax` | **Pas optionnel.** Les identifiants Basic ne sont jamais envoyés en cross-site : un site tiers ne pouvait rien déclencher. Un cookie, lui, partirait — sur une API qui expose `DELETE /api/files` et `POST /api/files/move`. C'est `Lax` qui ferme cette porte. |
+| `Secure` | `HOARD_COOKIE_SECURE`, actif par défaut | Le backend est joint en HTTP clair derrière le reverse proxy Synology : il ne peut pas détecter HTTPS. Un réglage, pas une introspection. |
+| `HttpOnly` | toujours | Met le cookie hors de portée de tout script de la page. |
+
+**`WWW-Authenticate` n'est plus envoyé aux navigateurs**, quel que soit le type de
+requête. Tant qu'il part, le navigateur ouvre sa propre fenêtre d'identifiants et
+l'écran de connexion intégré n'apparaît jamais.
+
+C'est `_looks_like_a_browser()` qui tranche, sur trois signaux dont un seul suffit :
+un en-tête `Sec-Fetch-*`, `text/html` dans `Accept`, ou `Mozilla` dans le
+`User-Agent`. Ne tester que `Accept: text/html` — la première version — était faux
+précisément dans le cas qui compte. Mesuré, par client :
+
+| Client | `Accept` | `Sec-Fetch-Mode` |
+|---|---|---|
+| navigation | `text/html,…` | `navigate` |
+| `fetch()` | `*/*` | `cors` |
+| curl | `*/*` | *(absent)* |
+
+Le premier geste de la page est `fetch('/api/settings')`, indiscernable de curl par
+le seul `Accept` : il recevait donc le défi, et **Firefox ouvre sa fenêtre native
+sur un `fetch`**. Chrome supprime cette fenêtre pour les requêtes fetch/XHR, d'où
+un contrôle fait sur Chrome qui n'a rien vu et un défaut parti en production.
+
+Le défi reste envoyé aux non-navigateurs, bien qu'**aucun client d'ici n'en ait
+besoin** : `curl -u` envoie `Authorization` dès la **première** requête, sans
+attendre de défi. Attendre le défi est un comportement Digest, pas Basic. Une
+version antérieure de ce document affirmait le contraire et s'en servait pour
+justifier la distinction fondée sur `Accept`.
+
+**La page de l'application est servie sans identifiants** (`SHELL_PATHS` : `/`,
+`/index.html`, `/service-worker.js`, `/manifest.webmanifest`). C'est la conséquence
+du point précédent : sans fenêtre native et avec la page derrière le garde, un
+navigateur non authentifié recevrait un 401 vide et aucun moyen d'entrer. Toutes
+les routes `/api/*` restent gardées, donc aucun fichier, réglage ni listing n'est
+joignable — ce que cette page expose, c'est la structure de l'application, déjà
+publique (le dépôt est public et `frontend/index.html` s'y lit).
+
+**Ordre du middleware** : `/healthz`, `/api/login`, `/api/logout` et les fichiers de la page
+passent directement ; puis les routes à jeton de téléchargement ; puis un cookie
+valide ; puis un Basic valide ; sinon 401.
+
+**Frontend.** `#login-screen` porte `gp-modal` et volontairement pas de
+`data-gp-close`, si bien que la manette le pilote et que **B** ne peut pas le
+fermer — même règle que le verrou PIN. Deux points d'entrée le lèvent : `init()`
+traite le premier `GET /api/settings` comme la sonde de session, et `apiFetch()` le
+lève sur tout 401. En cas de succès, l'appelant est repris plutôt que la page
+rechargée : le dossier ouvert et le fichier en lecture survivent. Noter
+`#login-form input:focus:not(.gp-cursor)` dans le CSS : une règle d'ID l'emporte sur
+`.gp-modal .gp-cursor`, donc un simple `outline: none` au focus effacerait le
+curseur manette exactement quand la manette arrive sur un champ.
+
+**Le PIN est autre chose** et le reste : c'est un verrou d'écran sur une session
+déjà authentifiée, ceci décide si le serveur répond.
+
+### Jeton de téléchargement de la bookmarklet (BL-124)
+
+La bookmarklet poste vers Hoard depuis la page tierce où se trouve l'utilisateur.
+Cette requête est cross-origin : le navigateur n'attache **ni** les identifiants
+Basic **ni** le cookie de session — `SameSite` retient ce dernier volontairement, et
+l'élargir rouvrirait exactement la porte que l'attribut existe pour fermer. La
+bookmarklet porte donc un jeton à elle.
+
+- **Stockage** : une ligne `download_token` dans `settings`, créée par
+  `_get_or_create_download_token()` à la première lecture de `GET /api/settings`.
+  `POST /api/download/token/regenerate` en génère un nouveau et l'ancien cesse
+  aussitôt de fonctionner — c'est le mécanisme de révocation.
+- **Transport** : dans le **corps** de la requête, jamais dans l'URL ni la query.
+  Un identifiant dans une URL finit dans le journal d'accès du reverse proxy et
+  dans l'historique du navigateur.
+- **Portée** : `POST /api/download` et `POST /api/download/status`, rien d'autre.
+  Il circule dans un marque-page cliqué sur des sites quelconques : il ne doit
+  pouvoir ni lister, ni déplacer, ni supprimer. Comparaison en temps constant
+  (`hmac.compare_digest`).
+
+**Pourquoi ces deux routes court-circuitent le middleware global.**
+`require_basic_auth` s'exécute *à l'extérieur* de `CORSMiddleware` (`add_middleware`
+de Starlette empile le dernier ajouté le plus à l'extérieur) : un 401 levé là ne
+porte aucun en-tête CORS. Le navigateur jette une telle réponse, et l'appelant ne
+voit qu'un `TypeError: Failed to fetch` opaque. Pire, la requête **préflight**
+`OPTIONS` recevait le même traitement, donc le vrai POST n'était jamais émis. La
+branche `.catch` de la bookmarklet rapportait ça comme un problème de CSP — d'où
+une panne qui ressemblait à une incompatibilité de site plutôt qu'à un défaut
+d'authentification. Ces deux chemins sont listés dans `DOWNLOAD_TOKEN_PATHS` et
+s'authentifient eux-mêmes via `_require_download_auth()`, si bien que leur 401
+ressort à travers `CORSMiddleware` et devient lisible par l'appelant.
+
+**CORS n'existe que pour ces deux routes.** `BookmarkletCORSMiddleware` n'applique `CORSMiddleware` (`allow_origins=["*"]`, `POST`, `Content-Type`) qu'aux chemins de `DOWNLOAD_TOKEN_PATHS`.
+L'interface est servie par le même processus et n'a besoin d'aucun en-tête CORS ; un joker sur toute l'API laisserait n'importe quelle page visitée lire et piloter Hoard quand l'authentification est désactivée.
+
+**Écritures venues d'un autre site.** Sans CORS, une page tierce ne lit plus les réponses, mais peut encore envoyer une requête qui n'exige pas de *preflight* — un `POST` sans corps, comme `/api/restart` ou la relance d'un téléchargement.
+`reject_cross_site_writes` refuse (403) les `POST` / `PUT` / `PATCH` / `DELETE` dont `Sec-Fetch-Site` vaut `cross-site` ou `same-site`, hors `DOWNLOAD_TOKEN_PATHS`.
+Une requête sans `Sec-Fetch-*` (curl, client natif) passe : ce n'est pas un navigateur qu'une page tierce peut piloter.
+
+### Avancement pour la bookmarklet (`POST /api/download/status`)
+
+```json
+{ "job_id": "abc123", "token": "…" }   →   { "status": "running", "progress": 42, "error": null }
+```
+
+Une route dédiée plutôt qu'un `GET /api/jobs` élargi : la liste complète des tâches
+livrerait à n'importe quel site où l'on clique le marque-page le titre, l'URL source
+et le chemin de destination de tous les téléchargements. POST plutôt que GET pour
+que le jeton reste hors de l'URL. Répond `404` sur un identifiant de tâche inconnu.
+
+**Secrets dans `settings`.** `GET /api/settings` renvoie la table `settings` en
+entier : tout secret rangé là part vers le frontend par défaut. Le frozenset
+`SECRET_SETTINGS` est la liste d'exclusion ; `pin_hash` en fait partie. Le jeton de
+téléchargement, volontairement, **non** — le frontend doit le lire pour construire
+une bookmarklet fonctionnelle.
 
 **Sécurité (protection SSRF) :** L'endpoint rejette les URL `file://` et tout hôte résolvant vers localhost ou les plages RFC-1918 (`127.*`, `::1`, `192.168.*`, `10.*`, `172.*`).
 
@@ -342,6 +485,23 @@ Tous les tokens de couleur sont définis dans `:root` :
 
 - Breakpoint à **700 px** : au-delà, vue divisée (liste + player). En dessous, liste plein écran et player en overlay.
 - `dvh` utilisé partout pour éviter les problèmes d'unité viewport sur mobile.
+
+### Échelle de l'interface (BL-137)
+
+- **Toutes les tailles s'écrivent en `rem`**, jamais en `px`. `html` porte
+  l'unique échelle de l'interface : `font-size: max(10px, min(100vw / 192, 100dvh / 108))`,
+  donc `1rem` vaut 10px jusqu'à 1920×1080 et grandit ensuite avec le plus petit
+  des deux rapports. En plein écran, le navigateur d'un casque annonce bien plus
+  de pixels CSS pour le même écran virtuel ; en pixels fixes, l'interface rétrécissait.
+- `body` est à `1.6rem`, les 16px par défaut du navigateur sur lesquels la page a été dessinée.
+- Restent en `px` : les filets de 1-2px (ils doivent rester fins), les seuils des
+  media queries (un `rem` y ignore la taille de la racine), la bookmarklet (elle
+  tourne sur la page d'un autre site) et les marges d'`IntersectionObserver`.
+- Les fenêtres manette (BL-126) gardent leur croissance en largeur par-dessus
+  l'échelle racine — `max(1.3rem, clamp(...vw...))` — car un affichage côte à côte
+  3840×1080 est deux fois plus large sans être plus haut.
+- La propriété CSS `zoom` a été mesurée et écartée : dans Chromium elle multiplie
+  aussi `vw`/`dvh` (`100dvh` donnait 1800px dans une fenêtre de 900px à `zoom: 2`).
 
 ### Shell PWA
 

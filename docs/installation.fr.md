@@ -103,6 +103,59 @@ volumes:
   - hoard_data:/data
 ```
 
+Hoard évite de tourner en root : au démarrage, il prend l'identité du propriétaire du dossier média, celle qui peut y écrire.
+Rien à régler quand ce propriétaire est un utilisateur ordinaire.
+Pour forcer un autre utilisateur, définis `PUID` / `PGID` ; pour connaître le propriétaire, sur le NAS en SSH :
+
+```bash
+stat -c "%u:%g" /volume1/downloads   # par exemple 1026:100
+```
+
+Si le dossier média appartient à root, Hoard ne prend pas cette identité.
+C'est le cas courant d'un dossier partagé Synology, dont l'accès passe par des ACL : définis alors `PUID` avec l'uid de ton utilisateur DSM (`id -u` en SSH, connecté sous ce compte), et `PGID` avec le groupe auquel l'ACL du dossier partagé ouvre l'accès (voir ci-dessous) — pas le `id -g` de ton compte.
+Sans ces deux variables, Hoard essaie son propre utilisateur, et si celui-ci ne peut pas écrire dans le dossier, il reste en root et l'écrit dans ses logs plutôt que de cesser de fonctionner :
+
+```text
+WARNING: /media is owned by root and appuser cannot write there: staying root. ...
+WARNING: running as root, with full rights on every mounted volume
+```
+
+Si tu vois ces lignes, définis `PUID` / `PGID` et redémarre le container.
+
+**Sur Synology, `PGID` doit être le groupe que l'ACL du dossier partagé autorise.**
+Hoard tourne avec un seul groupe, celui de `PGID`, sans les groupes secondaires de ton compte DSM : être membre d'`administrators` ne lui sert à rien si `PGID` vaut `users` (100).
+Or l'ACL d'un dossier partagé ouvre souvent l'accès au seul groupe `administrators` (gid 101 en général), et refuse les autres.
+Pour le vérifier, sur le NAS en SSH :
+
+```bash
+sudo /usr/syno/bin/synoacltool -get /volume1/downloads   # adapte le nom du partage
+grep '^administrators:' /etc/group                       # donne le gid : administrators:x:101:...
+```
+
+Repère la ligne `group:<nom>:allow:…` du résultat de `synoacltool` et prends le gid de ce groupe pour `PGID` (`grep '^<nom>:' /etc/group`).
+
+Symptôme d'un `PGID` qui n'a pas accès : la page s'affiche mais l'application ne charge pas, et les logs du container montrent des `PermissionError: [Errno 13] Permission denied` sur des chemins de `/media`.
+Depuis la version 2.9.0, Hoard ne tombe plus en panne pour autant : il ignore les dossiers inaccessibles et le signale dans ses logs (`Cannot access /media/…`) ; corriger `PGID` les rend de nouveau visibles.
+
+**Si tu mets à jour une installation qui tournait en root**, les fichiers que Hoard a créés jusque-là appartiennent à root.
+Rends-les une fois pour toutes à l'utilisateur sous lequel Hoard tourne désormais : le `PUID:PGID` que tu as défini, ou à défaut le propriétaire du dossier donné par `stat`.
+Ne reprends pas les valeurs de `stat` pour un dossier qui appartient à root (`0:0`) : les fichiers resteraient à root.
+Seules les entrées appartenant à root changent ; le dossier partagé lui-même et les dossiers d'index `@eaDir` de Synology restent tels quels :
+
+```bash
+sudo find /volume1/downloads -mindepth 1 -name @eaDir -prune -o -user root -exec chown 1026:100 {} +
+```
+
+Pour vérifier, cette commande doit afficher `0` :
+
+```bash
+find /volume1/downloads -mindepth 1 -name @eaDir -prune -o -user root -print | wc -l
+```
+
+La ligne `user: root` de ton `docker-compose.yml`, si tu l'as gardée, peut être retirée ; elle ne change plus rien.
+
+La base (`/data`) n'a pas besoin de ce geste : Hoard la remet à `PUID:PGID` à chaque démarrage.
+
 ### Démarrer le container
 
 ```bash
@@ -133,12 +186,16 @@ Toute la configuration passe par des **variables d'environnement** dans `docker-
 | `PREDEFINED_FOLDERS` | `Vu,A revoir,A supprimer` | Dossiers rapides (séparés par des virgules) |
 | `SSL_CERTFILE` | *(non défini)* | Chemin vers un fichier de certificat PEM. Active le HTTPS natif — sans reverse proxy. |
 | `SSL_KEYFILE` | *(non défini)* | Chemin vers la clé privée PEM correspondante. |
-| `HOARD_AUTH_USER` / `HOARD_AUTH_PASS` | *(non défini)* | Définir les deux impose une auth HTTP Basic sur chaque requête. Recommandé pour exposer Hoard hors du LAN. Utiliser HTTPS pour ne pas transmettre les identifiants en clair. |
+| `HOARD_AUTH_USER` / `HOARD_AUTH_PASS` | *(non défini)* | Définir les deux impose une authentification sur chaque requête. Recommandé pour exposer Hoard hors du LAN. Utiliser HTTPS pour ne pas transmettre les identifiants en clair. |
+| `HOARD_SECRET_KEY` | *(générée)* | Clé qui signe le cookie de session. Sans elle, une clé est créée au premier démarrage et rangée en base : une installation neuve marche sans rien configurer. La définir donne le moyen de révoquer — changer la valeur invalide toutes les sessions, sur tous les appareils, d'un coup. |
+| `HOARD_COOKIE_SECURE` | `1` | Indique si le cookie de session porte `Secure` (HTTPS uniquement). À laisser à `1` en production. Ne passer à `0` que pour joindre une instance de développement en HTTP depuis une autre machine — les navigateurs considèrent déjà `localhost` comme sûr, donc le développement local n'a rien à changer. |
 | `LOG_LEVEL` | `INFO` | Niveau de journalisation (`DEBUG`, `INFO`, `WARNING`, `ERROR`). |
 | `LOG_DIR` | `<dossier de DB_PATH>/logs` | Dossier des fichiers de log. Chaîne vide = journalisation fichier désactivée (sortie standard uniquement). |
 | `LOG_RETENTION_DAYS` | `30` | Nombre de fichiers quotidiens conservés (rotation à minuit). |
 | `RESTART_SUPERVISED` | *(auto-détecté)* | `0` / `1`. Indique si un superviseur relance le processus après un arrêt. Détecté automatiquement dans un container ; sert uniquement à formuler le message de confirmation du bouton « Redémarrer Hoard ». |
 | `JOB_TTL_SECONDS` | `3600` | Durée de conservation en mémoire d'un job terminé. N'affecte pas l'historique des téléchargements, qui est en base. |
+| `PUID` / `PGID` | propriétaire de `MEDIA_ROOT` | Utilisateur sous lequel Hoard tourne dans le container. Par défaut celui qui possède le dossier média (voir « Adapter docker-compose.yml »). Sur Synology, `PGID` est le groupe que l'ACL du dossier partagé autorise, souvent `administrators` (101). |
+| `TRANSCODE_MAX_CONCURRENCY` | `2` | Nombre de transcodages simultanés. Au-delà, `/api/transcode` répond 503 plutôt que de saturer le processeur. |
 | `DOWNLOAD_SOCKET_TIMEOUT` | `30` | Secondes de silence tolérées sur une connexion de téléchargement avant abandon. Évite qu'un serveur muet immobilise la file (séquentielle). |
 
 ### Authentification — à lire avant d'exposer Hoard
@@ -161,8 +218,8 @@ chaque requête :
 
 ```yaml
 environment:
-  - HOARD_AUTH_USER=david
-  - HOARD_AUTH_PASS=nT8vQ2xK9mR4wL7pZ1sB3dF6
+  - HOARD_AUTH_USER=<ton-identifiant>
+  - HOARD_AUTH_PASS=<colle-ici-le-mot-de-passe-généré>
 ```
 
 Génère le mot de passe plutôt que de l'inventer :

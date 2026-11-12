@@ -65,6 +65,8 @@ hoard/
 | `RESTART_SUPERVISED` | *(auto)* | `0`/`1`. Overrides the container auto-detection (`/.dockerenv`) used to word the restart confirmation in the UI. |
 | `HOARD_AUTH_USER` | *(unset)* | Username for optional HTTP Basic auth. Auth is enabled only when both this and `HOARD_AUTH_PASS` are set. |
 | `HOARD_AUTH_PASS` | *(unset)* | Password for optional HTTP Basic auth. |
+| `HOARD_SECRET_KEY` | *(generated)* | HMAC key signing the session cookie. Falls back to a `session_secret` row minted on first use. Rotating it revokes every session. |
+| `HOARD_COOKIE_SECURE` | `1` | Whether the session cookie carries `Secure`. A setting rather than introspection: behind the Synology reverse proxy the backend only ever sees plain HTTP. |
 
 ### Path Safety
 
@@ -78,6 +80,15 @@ def safe_path(rel: str) -> Path:
     return resolved
 ```
 
+### Inaccessible Paths
+
+On Python 3.12 (the Docker image's version, measured), `Path.exists()`, `is_dir()`, `is_file()` and `is_symlink()` only swallow ENOENT, ENOTDIR, EBADF and ELOOP: when a parent folder is not traversable by the container's user (a Synology shared folder whose ACL does not admit `PGID`), they raise `PermissionError` instead of answering `False`. One such folder must never take a whole route down:
+
+- `_is_dir(path)` probes a path that comes from the settings or the DB (download folder, quick folders, home roots, saved `media_root`, `/healthz`) and counts an inaccessible one as absent.
+- Listings (`/api/files`, `get_folder_state`, `is_gallery`) and `/api/search` guard each entry: one that can be stat-ed stays listed without computed state, one that cannot is skipped. A folder that cannot be listed at all answers 403.
+- Any other route that hits a `PermissionError` answers **403** `{"detail": "Access denied"}` through an app-level exception handler, not 500.
+- `_warn_unreadable()` logs each inaccessible path once at WARNING (`Cannot access <path>: <error>`), with a bounded dedup set.
+
 ### Security Headers
 
 An HTTP middleware (`add_security_headers`) injects on every response:
@@ -88,14 +99,17 @@ Google Fonts import (`fonts.googleapis.com` / `fonts.gstatic.com`), and
 `blob:`/`data:` sources used by the media and PDF.js viewers. Headers are set
 with `setdefault`, so an endpoint may override them if needed.
 
-### Optional HTTP Basic Auth
+### Optional Authentication
 
-Set both `HOARD_AUTH_USER` and `HOARD_AUTH_PASS` to require HTTP Basic
-authentication on every request (`require_basic_auth` middleware). When either
-is unset, auth is disabled and behavior is unchanged. Credentials are compared
-in constant time. This is meant for exposing Hoard behind a reverse proxy or
-direct HTTPS without a full account system — use HTTPS so the Basic credentials
-are not sent in clear text.
+Set both `HOARD_AUTH_USER` and `HOARD_AUTH_PASS` to require authentication on
+every request (`require_basic_auth` middleware). When either is unset, auth is
+disabled and behavior is unchanged. Credentials are compared in constant time.
+This is meant for exposing Hoard behind a reverse proxy or direct HTTPS without a
+full account system — use HTTPS so the Basic credentials are not sent in clear text.
+
+Since BL-123 the middleware accepts **either** a signed session cookie **or**
+Basic. See *Authentication (BL-011, BL-123)* below for the cookie, the withheld
+`WWW-Authenticate` header and the exempt shell paths.
 
 **One route is exempt: `/healthz`.** The container's `HEALTHCHECK` has no
 credentials to offer, and before the exemption existed, enabling auth marked
@@ -114,11 +128,30 @@ Auth: DISABLED — every endpoint is open, including file deletion and moves. �
 Auth stays **off by default**: turning it on unconditionally would cut off every
 LAN instance at its next restart.
 
+### VR 180° detection (BL-121)
+
+None of the sampled VR files carry spherical metadata (no `st3d`/`sv3d`), so the
+server has only the file name to go on — `guess_vr_from_name()` matches `vr180`,
+`180x180`, `3dh`, `sbs`, a standalone `lr`, and `oculus(-|_| )?rift`. A bare
+`180` was tried and removed: it flagged ordinary files such as
+"Episode 180 - The Long Goodbye.mkv" and recognised nothing the other patterns
+had missed.
+
+The second clue, a 2:1 aspect ratio, is checked **in the player**, not here: the
+listing has no pixel dimensions, and obtaining them would mean one `ffprobe`
+subprocess per entry on every folder open. The `<video>` element already knows
+them by the time it matters.
+
+Measured on a 24-file sample: the name alone recognises 15, the ratio covers the
+rest. `vr_hint` (the guess) and `vr_mode` (the explicit choice) are both exposed
+on video entries of `/api/files` and `/api/search`; the explicit choice always
+wins, including `"off"` on a file the guess got wrong.
+
 ### API Endpoints
 
 | Method | Route | Description |
 |--------|-------|-------------|
-| GET | `/api/files?path=` | List folder contents |
+| GET | `/api/files?path=` | List folder contents. An entry the server cannot stat is skipped; a folder it can stat but not read or traverse is listed with `folder_state: "new"` and no gallery detection. Each unreadable path is logged once at WARNING. **403** when the folder itself cannot be listed |
 | GET | `/api/progress?path=` | Read watch progress for a file |
 | POST | `/api/progress?path=` | Save `{position, duration}` (clears the explicit watched flag) |
 | POST | `/api/progress/watched?path=` | Set `{watched}` without playing the media; unmarking rewinds the position |
@@ -144,6 +177,7 @@ LAN instance at its next restart.
 | GET | `/healthz` | Liveness probe for the container `HEALTHCHECK`. **The only route reachable without credentials.** Checks the database and the media root; answers `{"status": "ok"}`, or `503` and `{"status": "error"}`. Says nothing else — no version, no paths, no counts. |
 | GET | `/api/settings` | Read user settings |
 | POST | `/api/settings` | Save user settings |
+| POST | `/api/vr-mode?path=` | Remember how a file is rendered: `{mode: "off"\|"flat"\|"sbs"}` |
 | GET | `/api/media-info?path=` | Read on-demand playback metadata via ffprobe |
 | GET | `/api/file?path=` | Serve any media file (video/image/audio/PDF) with `Range` support (native seeking) |
 | GET | `/api/transcode?path=` | Transcoded stream via ffmpeg |
@@ -226,6 +260,12 @@ CREATE TABLE initial_sweep_folders (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE vr_modes (
+    path       TEXT PRIMARY KEY,
+    mode       TEXT NOT NULL,          -- "off" | "flat" | "sbs"
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE segments (
     id      INTEGER PRIMARY KEY AUTOINCREMENT,
     path    TEXT NOT NULL,
@@ -300,12 +340,138 @@ Titles are escaped with `_outtmpl_literal()` before entering the output template
 - `url` — required. The web page or direct video URL.
 - `cookies` — optional. Raw `document.cookie` string captured by the bookmarklet. Converted to Netscape format and passed to yt-dlp.
 - `referer` — optional. The original page URL. When provided, it is sent as the `Referer` HTTP header so CDNs that check the origin accept the request. The bookmarklet sets this automatically when a direct `<video>` source is detected.
+- `token` — optional. The bookmarklet download token (see below). Ignored when the caller already authenticates normally, which is the case for the Hoard UI itself.
 
 **Response:**
 
 ```json
 { "job_id": "abc123" }
 ```
+
+### Authentication (BL-011, BL-123)
+
+Two mechanisms, both accepted by `require_basic_auth`, for two different callers.
+
+**HTTP Basic** — opt-in via `HOARD_AUTH_USER` / `HOARD_AUTH_PASS`. Kept, not
+replaced: dropping it would break `curl -u`, a future native client and any
+external reader.
+
+**Signed session cookie** — what a browser uses after the login screen.
+
+| Aspect | Choice | Why |
+|---|---|---|
+| Contents | `{u, exp}` + HMAC-SHA256, base64url | Signed, not encrypted: neither field is a secret; what matters is that it cannot be forged. The signature is verified **before** the payload is parsed. |
+| Key | `HOARD_SECRET_KEY`, else a `session_secret` row minted on first use | Explicit key ⇒ revocation by rotation. No key ⇒ a fresh install works with no configuration. |
+| Lifetime | 30 days, reissued once less than half remains | Without sliding renewal, "30 days" means "30 days after the first login", which brings back the retyping the feature removes. |
+| `SameSite` | `Lax` | **Not optional.** Basic credentials are never sent cross-site, so a third-party page could not trigger anything. A cookie would be — against an API exposing `DELETE /api/files` and `POST /api/files/move`. Lax is what closes that door. |
+| `Secure` | `HOARD_COOKIE_SECURE`, default on | The backend is spoken to in plain HTTP behind the Synology reverse proxy, so it cannot detect HTTPS. A setting, not introspection. |
+| `HttpOnly` | always | Keeps the cookie out of reach of any script on the page. |
+
+**`WWW-Authenticate` is withheld from browsers**, in every request mode. While it
+is sent, the browser opens its own credentials dialog and the in-app login screen
+never appears.
+
+`_looks_like_a_browser()` decides, on three signals of which any one is enough: a
+`Sec-Fetch-*` header, `text/html` in `Accept`, or `Mozilla` in the `User-Agent`.
+Testing `Accept: text/html` alone — the first version of this — was wrong in
+exactly the case that mattered. Measured, per client:
+
+| Client | `Accept` | `Sec-Fetch-Mode` |
+|---|---|---|
+| navigation | `text/html,…` | `navigate` |
+| `fetch()` | `*/*` | `cors` |
+| curl | `*/*` | *(absent)* |
+
+A page's first act is `fetch('/api/settings')`, which is indistinguishable from
+curl by `Accept` alone — so it got the challenge, and **Firefox pops its native
+dialog on a fetch**. Chrome suppresses that dialog for fetch/XHR, which is why a
+Chrome-only check missed it and the defect reached production.
+
+The challenge is kept for non-browsers, though **no client here needs it**:
+`curl -u` sends `Authorization` on the *first* request, without waiting to be
+challenged. Waiting for a challenge is Digest behaviour, not Basic. An earlier
+version of this document claimed the opposite and used it to justify the
+`Accept`-based split.
+
+**The app shell is served without credentials** (`SHELL_PATHS`: `/`,
+`/index.html`, `/service-worker.js`, `/manifest.webmanifest`). This follows from
+the line above: with no native dialog and the page behind the guard, an
+unauthenticated browser would get a blank 401 and no way in at all. Every
+`/api/*` route stays guarded, so no file, setting or listing is reachable — what
+the shell exposes is the app's structure, which is already public (the repository
+is public and `frontend/index.html` can be read there).
+
+**Middleware order**: `/healthz`, `/api/login`, `/api/logout` and the shell pass
+straight through; then the download-token routes; then a valid cookie; then valid
+Basic; otherwise 401.
+
+**Frontend.** `#login-screen` carries `gp-modal` and deliberately no
+`data-gp-close`, so the pad drives it and **B** cannot dismiss it — the same rule
+as the PIN lock. Two entry points raise it: `init()` treats the first
+`GET /api/settings` as the session probe, and `apiFetch()` raises it on any 401.
+On success the caller is resumed rather than the page reloaded, so the open folder
+and the playing file survive. Note `#login-form input:focus:not(.gp-cursor)` in the
+CSS: an id rule outranks `.gp-modal .gp-cursor`, so a plain `outline: none` on
+focus would erase the pad cursor exactly when the pad lands on a field.
+
+**The PIN is a separate thing** and stays that way: it is a screen lock on an
+already-authenticated session, this decides whether the server answers at all.
+
+### Bookmarklet Download Token (BL-124)
+
+The bookmarklet POSTs to Hoard from whatever third-party page the user is on. That
+request is cross-origin, so the browser attaches **neither** the Basic credentials
+**nor** the session cookie — `SameSite` withholds the latter deliberately, and
+widening it would reopen exactly the door the attribute exists to close. The
+bookmarklet therefore carries a token of its own.
+
+- **Storage**: a `download_token` row in `settings`, minted by
+  `_get_or_create_download_token()` on first read of `GET /api/settings`.
+  `POST /api/download/token/regenerate` mints a new one and the previous one stops
+  working at once — that is the revocation mechanism.
+- **Transport**: in the request **body**, never in the URL or query string. A
+  credential in a URL ends up in the reverse proxy's access log and in the browser
+  history.
+- **Scope**: `POST /api/download` and `POST /api/download/status`, nothing else.
+  It travels inside a bookmark clicked on arbitrary sites, so it must not be able
+  to list, move or delete anything. Comparison is constant-time
+  (`hmac.compare_digest`).
+
+**Why these two routes bypass the blanket middleware.** `require_basic_auth` runs
+*outside* `CORSMiddleware` (Starlette's `add_middleware` stacks last-added
+outermost), so a 401 raised there carries no CORS headers whatsoever. The browser
+discards such a response, and the caller only ever sees an opaque `TypeError:
+Failed to fetch`. Worse, the **preflight** `OPTIONS` was answered the same way, so
+the real POST was never even sent. The bookmarklet's `.catch` branch reported this
+as a CSP problem — which is why the failure looked like a site incompatibility
+rather than an authentication one. These two paths are listed in
+`DOWNLOAD_TOKEN_PATHS` and authenticate themselves via `_require_download_auth()`,
+so their 401 travels back out through `CORSMiddleware` and is readable by the
+caller.
+
+**CORS exists for these two routes only.** `BookmarkletCORSMiddleware` applies `CORSMiddleware` (`allow_origins=["*"]`, `POST`, `Content-Type`) to the paths in `DOWNLOAD_TOKEN_PATHS` and to nothing else.
+The UI is served by the same process and needs no CORS header; a wildcard on the whole API would let any page the user visits read and drive Hoard whenever authentication is off.
+
+**Writes from another site.** Without CORS a third-party page can no longer read responses, but it can still send a request that needs no preflight — a `POST` with no body, such as `/api/restart` or retrying a download.
+`reject_cross_site_writes` refuses (403) any `POST` / `PUT` / `PATCH` / `DELETE` whose `Sec-Fetch-Site` is `cross-site` or `same-site`, outside `DOWNLOAD_TOKEN_PATHS`.
+A request without `Sec-Fetch-*` (curl, a native client) goes through: it is not a browser a third-party page can drive.
+
+### Bookmarklet Progress (`POST /api/download/status`)
+
+```json
+{ "job_id": "abc123", "token": "…" }   →   { "status": "running", "progress": 42, "error": null }
+```
+
+A route of its own rather than a widened `GET /api/jobs`: the full job list would
+hand any site the bookmark is clicked on the title, source URL and destination path
+of every download. POST rather than GET so the token stays out of the URL.
+Answers `404` for an unknown job id.
+
+**Secrets in `settings`.** `GET /api/settings` returns the `settings` table
+wholesale, so anything secret parked there ships to the frontend by default. The
+`SECRET_SETTINGS` frozenset is the exclusion list; `pin_hash` is in it. The
+download token is deliberately **not** — the frontend must read it to build a
+working bookmarklet.
 
 **Security (SSRF protection):** The endpoint rejects `file://` URLs and any host that resolves to localhost or RFC-1918 private addresses (`127.*`, `::1`, `192.168.*`, `10.*`, `172.*`).
 
@@ -352,10 +518,189 @@ All colour tokens are defined in `:root`:
 }
 ```
 
+### Whole-interface side-by-side (PAD-SBS-UI)
+
+XR glasses in 3D mode split the picture permanently, so the whole interface —
+not just the player — has to be drawn once per eye. A toggle wraps everything
+visible in `#app-root` and copies it into `#sbs-mirror`.
+
+**Off costs nothing.** `#app-root { display: contents }` generates no box at
+all, so the layout is byte-for-byte the one it had before the wrapper existed
+(checked against the previous revision: every element's rect identical to the
+hundredth of a pixel). `#sbs-mirror` is `display: none` and its shadow root is
+emptied.
+
+**The copy lives in a shadow root**, and that is load-bearing. Document-level
+queries do not cross a shadow boundary, so `document.querySelectorAll('#filelist
+.entry')` — which the pad cursor counts — and `.gp-modal` — which
+`_gpOpenModal()` reads — keep answering with the originals alone. It also means
+the ids can be kept inside the copy, which is what lets the page's own id-based
+rules style it: the stylesheet is cloned into the shadow as is.
+
+**A MutationObserver drives it, never a call at each render point.** BL-127
+copied three windows from their three render functions because the three were
+known; at the scale of the application a list filters, sorts and refreshes
+itself during a download, and anything that requires each render point to be
+declared will eventually miss one. A mirror frozen on a stale state is worse
+than no mirror.
+
+**Full copies are the fallback, patching is the routine.** A batch of mutations
+is applied in place through a `WeakMap` from original element to copy;
+`sbsCopy()` runs only on the first copy or when a batch cannot be applied.
+Measured on a 2 000-entry folder (24 758 nodes):
+
+| operation | cost |
+|---|---|
+| full copy (clone + insert) | ~50 ms |
+| pad cursor step (patch) | 0.1 ms |
+| sort / folder change (graft of the whole list) | ~70 ms, against ~26 ms without the mirror |
+| scroll sync | ~20 ms, dominated by the copy's layout |
+
+Two measurements shaped the design and are worth keeping in mind before
+changing it. Reading `scrollTop` over every node cost **171 ms** on that folder —
+each read makes the engine settle the layout again — so scroll containers are
+found from the stylesheet (`sbsScrollSelector()`) instead of by walking.
+And re-running the element queries every frame cost **30 ms per pad step**,
+because the scroll selector ends in `[style*="overflow"]`, which no index can
+answer; the pairs are therefore cached and rebuilt only when the copy is.
+
+**What a clone does not carry** is transferred explicitly (BL-131): `value`,
+`checked`, `selectedIndex`, a `<dialog>`'s open state and scroll positions.
+Typing, ticking and scrolling produce no mutation at all, so `input`, `change`
+and `scroll` are listened for in the capture phase. A password field's value is
+never copied — only its length, as bullets.
+
+**Pictures are repainted, not cloned** (BL-132). A cloned `<video>` plays
+nothing and would mean a second download and a second decode; a cloned
+`<canvas>` is blank, since a canvas's content is not in the DOM. Each `<video>`
+becomes a `<canvas class="sbs-picture">` in the copy, and a rAF loop blits the
+original into it — one download, one decode, one extra blit per frame. `<audio>`
+and `<iframe>` are dropped. Verified in the network inspector: opening a video
+or an image produces exactly one request.
+
+**The VR canvas is the exception, and it is blitted from `_vrRender`.** A WebGL
+canvas can only be read in the same task that drew it: once composited its buffer
+is gone, unless the context is created with `preserveDrawingBuffer`, which costs
+something on every frame whether the mirror is on or not. Copied from the generic
+painter, the VR view came out as a black rectangle over the video — found by
+review, not by the suite. `sbsBlitVr()` is therefore called at the end of
+`_vrRender`, and the generic painter skips that pair.
+
+**Real fullscreen is refused while the mode is on.** The fullscreen element goes
+to the top layer, which ignores the transform that keeps each half's overlays
+inside its half — the video would fill the whole screen, astride the split. Not a
+corner case: the Deck has a touch screen, so `pointer: coarse` matches and the
+pad's fullscreen button asks for the real one. `toggleFullscreen()` falls back to
+the in-window kind.
+
+**A 180° video is the one exception to "both eyes see the same picture".** That
+rule is what makes the interface readable, and it holds for every screen and for
+a flat video — but a 180° file *holds* two different pictures, one per eye, and
+that difference is the relief. A first version coerced `setVrMode('sbs')` to
+`'flat'` while the global mode was on, which showed the same eye twice and threw
+the depth away; David reported it (relief with the screen mode off, none with it
+on). `_vrRender` now detects `sbs && sbsIsOn()` and gives **a whole canvas to
+each eye** instead of half a canvas to each: the right eye is drawn first and
+blitted to the copy — a WebGL canvas is only readable in the task that drew it,
+so the eye that goes to the copy must be the one in the buffer at that instant —
+then the left eye is drawn over it and stays on screen. With one canvas per eye
+nothing is stretched back, so `vr.sbsLayout` (auto/half/full) has nothing to act
+on: the line leaves the pad menu and `cycleVrSbsLayout()` says so rather than
+sitting inert. BL-127's per-window copies stay switched off, since the global
+mirror already duplicates those windows.
+
+**The toggle is device-local** — `localStorage['sbs_global']` — because the Deck
+with the glasses wants it and the iPad must not inherit it, and because the PIN
+screen is drawn before the settings are loaded.
+
+### Gamepad profiles (PAD-PROFILES, BL-141)
+
+Two profiles, picked in *Settings → Gamepad* or from the context menu, stored device-local in `localStorage['gamepad_profile']`: a Frame used one-handed must not change the Deck's pad.
+
+- **`standard`** — `GP_DEFAULT_MAPPING`, `GP_BROWSER_MAPPING` and the stick roles in `_gpPoll`, unchanged. The user's `gamepad_mapping` overrides apply here only.
+- **`frame_right`** — the Steam Frame's right controller alone: A, B, X, Y, R1, R2, right stick, R3. Buttons come from `GP_RIGHT_MAPPING` (`browser`, `player`, and `r1` for both contexts), resolved in `_gpDispatch` after the R2 view layers and before the user overrides.
+
+In `frame_right` the right stick has three roles, decided per frame in `_gpPoll`:
+
+| Context | Stick |
+|---|---|
+| List, or any window open (`_gpPadOwner()`, the same routing `_gpDispatch` uses: pad help, menu, modal, settings — including over the image viewer), or R1 held in the player | D-pad: `_gpStickPadStep()` dispatches 12..15 on the dominant axis past half-tilt, with the real D-pad's repeat timing (no repeat for player jumps); its state is kept per pad index, since an idle second pad must not reset the active one |
+| Player, R2 held | the view: pan / look around, zoom (↕) with R1 too |
+| Player otherwise | ↔ speed while held (`_gpApplySpeedStick`), ↕ volume — dominant axis only, so a push for speed does not drift the volume |
+
+Windows need no code of their own: they already answer the D-pad buttons, and the stick sends those. The pad help (`openGpOverlay`) renders a separate map for this profile.
+
+### Immersive VR through WebXR (BL-136)
+
+The 180° modes draw both eyes into the page. A headset such as the Steam Frame
+shows that page as a flat window, so the side-by-side picture arrives side by
+side and there is no relief. The **XR** button opens a WebXR `immersive-vr`
+session instead, and the page draws one picture per eye into the headset.
+
+- **Same context, same texture, second program.** `_xrInitProgram()` links
+  `VR_VERT` with `XR_FRAG` on `vr.gl`, after `makeXRCompatible()`. The vertex
+  array is shared with the flat program, so `aPos` is bound to the slot the flat
+  program uses. The flat renderer assumes its program is current, so it is
+  restored when the session ends.
+- **The ray comes from the headset.** `XR_FRAG` builds the ray on the near
+  plane from four terms of the eye's projection (`P[0]`, `P[5]`, `P[8]`,
+  `P[9]`, as a headset projection is off-centre but has no skew), turns it with
+  the 3×3 orientation of `view.transform`, and samples the hemisphere exactly
+  like `VR_FRAG`. `view.eye` picks the half of the frame.
+- **Orientation only, never position.** A 180° film is shot from one point, so
+  its scene sits at infinity; translation is dropped, and so is the headset's
+  own eye separation — the relief is in the two recorded pictures.
+- **Recentring and convergence** are one yaw each, premultiplied:
+  `Y(eyeYaw − yaw0) · R_view`. `yaw0` is the head azimuth at the last stick
+  click (`xrRecenter()`); `eyeYaw` is ±half the file's convergence, with the
+  same sign as the flat side-by-side. Field of view, widening and the
+  half/full layout do not apply: the headset knows its own optics.
+- **Texture uploads** follow `requestVideoFrameCallback`. Whether it keeps
+  firing behind an immersive session is up to the browser, so when it has been
+  silent for 250 ms the upload falls back to a change of `currentTime`.
+- **Controls** are read from `session.inputSources` (xr-standard mapping), not
+  from the page's gamepad loop: `select` and A/X play/pause, stick sideways
+  seeks by `cfg.seek_medium` (the pad D-pad's step) with a repeat, stick click recentres, B/Y ends the session.
+- **Entry needs a click.** `requestSession()` is the first `await` of
+  `enterXr()`, since browsers only grant an immersive session inside the user
+  gesture; a gamepad press is not one, so there is no pad or menu entry.
+- **Visibility.** `xrProbe()` runs `isSessionSupported('immersive-vr')` at load
+  and on `devicechange`; `#xr-btn` stays hidden otherwise. `navigator.xr` does
+  not exist outside a secure context, so over plain `http://` the button never
+  shows.
+- **Lifetime.** Leaving restores the flat mode that was on when the session
+  started, unless the file changed meanwhile. Closing the player (`emptied`
+  with no `src`), a transcoded source and a lost context all end the session;
+  moving to the next file does not.
+
+Tested in Chrome with a mocked `navigator.xr` (two views, a scripted head pose
+and a scripted controller): each eye draws its own half, a 30° head turn moves
+the centre by the expected 115 px at 90° per eye, recentring puts it back, the
+convergence sign matches the flat mode, and the controls and restore behave as
+above. **Not yet tried on real hardware.**
+
 ### Responsive
 
 - Breakpoint at **700 px**: above, split view (list + player). Below, full-screen list with player as overlay.
 - `dvh` used throughout to avoid mobile viewport unit issues.
+
+### Interface scale (BL-137)
+
+- **Write every size in `rem`**, never in `px`. `html` carries the one scale of
+  the interface: `font-size: max(10px, min(100vw / 192, 100dvh / 108))`, so
+  `1rem` is 10px up to a 1920×1080 viewport and grows with the smaller of the two
+  ratios past it. A headset browser going fullscreen reports many more CSS pixels
+  on the same virtual screen; fixed pixels made the interface shrink.
+- `body` is `1.6rem`, the 16px browser default the page was designed on.
+- Exceptions that stay in `px`: hairlines of 1-2px (they are meant to stay thin),
+  media query breakpoints (a `rem` there ignores the root font size), the
+  bookmarklet (it runs on someone else's page) and `IntersectionObserver`
+  margins.
+- The pad windows (BL-126) keep their own width-based growth on top of the root
+  scale — `max(1.3rem, clamp(...vw...))` — because a 3840×1080 side-by-side
+  display is twice as wide but no taller, which the root scale ignores.
+- CSS `zoom` was measured and rejected: in Chromium it also multiplies `vw`/`dvh`
+  (`100dvh` came out at 1800px in a 900px window at `zoom: 2`).
 
 ### PWA Shell
 

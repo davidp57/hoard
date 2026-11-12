@@ -43,7 +43,7 @@ The sort bar offers five criteria, each reversible with the **↓ / ↑** button
 
 The **Vu** sort answers "what did I watch last". A folder takes the date of the most recently watched media found **anywhere below it**, however deep: resuming a video buried in a sub-folder lifts its whole top-level folder to the head of the list. Entries never opened have no watch date: they are grouped at the end of the list, ordered between themselves by file date.
 
-The criterion chosen in **Settings → Default sort** applies when the app opens.
+The sort is **remembered**: the criterion and the direction picked in the bar are stored server-side and reapplied when the app reopens, including from another device. **Settings → Tri de la liste** (list sort) shows the current sort and lets you change it without using the bar.
 
 ### Search
 
@@ -212,6 +212,118 @@ The `[IN` and `OUT]` buttons define a restricted playback zone (without modifyin
 
 The file list refreshes automatically every 30 seconds when the tab is visible, the video is paused, and no search is active. This makes new files appear without a manual page reload.
 
+### 180° Side-by-Side (VR) Videos
+
+A VR 180° video holds two pictures side by side, one per eye, each stretched to cover half a horizon. Shown as-is it is unwatchable. The player's 🥽 button (or the **V** key) straightens the image and lets you look around.
+
+Each press moves to the next state:
+
+| State | What you see | When to use it |
+|-------|--------------|----------------|
+| Off | the raw file | ordinary video |
+| **Flat** | a single straightened view you can pan | on a normal screen — computer, tablet |
+| **Side by side** | two views, one per eye | with XR glasses in 3D mode, which split the two pictures themselves |
+
+To look around: **drag your finger** on the image, **drag with the mouse**, or hold **R2** and push the **right stick** on the gamepad — without R2 that stick moves through the video (fine seek). The mouse wheel zooms in and out. **Shift+V** re-centres the view.
+
+While VR mode is on, dragging no longer seeks or changes the volume — it looks around. Seeking and volume stay available from the keyboard, the player buttons and the gamepad's left stick.
+
+#### With XR glasses
+
+Side-by-side mode goes fullscreen on its own: that is the only display that makes sense inside glasses. The player controls disappear while it is on — drawn once across a picture about to be split in two, they would land half in each eye and read as nothing anywhere. What you drive with, on the other hand, is written **once per eye** and so reads in both: the player's messages, the **Select** menu and the button map. Drive from the gamepad or the keyboard; leaving the mode brings everything back.
+
+> **Unless the whole screen is already side by side** (see [The Whole Interface Side by Side](#the-whole-interface-side-by-side) below): each half then shows a whole picture, so the player bar, the volume bubble and the time readout stay, one set per eye. You keep your position in the file in front of you, which you do not otherwise.
+
+Four settings, depending on your glasses and on what you are watching:
+
+- **Screen field of view** (**R2 + left stick up/down**, the mouse wheel, or **Settings → Player**). This is the setting that decides whether the depth is right, and despite appearances it is not a zoom: what belongs in it is the angle your glasses **actually** present to one eye. Too large and the world looks giant and distant, with anything approaching swelling enormously while your eyes insist it is far away; too small and the scene shrinks and the relief is overdone. XR glasses sit around **45°**, which is the default. Set it once on a 180° video by finding the point where the scene looks natural, then put that value in the settings. Mind the trade: the smaller the value, the truer the depth — and the less of the scene you see at once. The two go together and there is no separating them.
+- **Stretched picture or not** (**B** key, **L2** on the pad, or the gamepad menu). **Hoard guesses it by default**, from the shape of the picture: to get 3D, glasses like the Viture Beast want an output twice as wide as usual — 3840×1080 — and on a picture that shape each half is already correctly proportioned, so nothing gets stretched. On an ordinary display each half is stretched back across the full width instead. Hoard announces what it guessed with a message as the mode comes on. If the picture still looks squashed or stretched twice over vertically, flip the setting — the effect is immediate, and your choice always wins over the guess. The shortcut cycles the three states: automatic, stretched, unstretched.
+- **Convergence** (**R2 + left stick ←/→**, the D-pad for stepping, or the gamepad menu). This is the angle the two viewpoints are spread apart or brought together, which changes the distance your brain places the scene at. Leave it at zero, where the two views are exactly as the cameras took them — correct for a properly shot file. If one particular file tires your eyes, it was shot with a camera spacing that does not suit you, or mounted badly. The stick is proportional: a nudge trims, a full push crosses the range in a couple of seconds. **The tighter the field of view, the more you will need to correct** — the picture is more magnified, and so is any misalignment. The range goes to ±8°, wide enough that your eye decides rather than the bound. **The value is remembered for that file**, not globally: the strain comes from the shoot, and a badly mounted file must not contaminate the rest.
+- **Widened view** (the **Select** menu during playback, or **Settings → Player**). The answer to the trade above, as far as there is one. Rather than compressing the whole picture to see wider, only the **edges** are compressed: the centre keeps its scale, and therefore its true depth, while the sides reach further into the scene. The value says how much further the edge reaches — **+40 %** shows 40 % more angle at the sides. The price is paid where it compresses: the relief flattens there and straight lines bend, the more so as the value rises. **0 is the default**: this is a trade, not an improvement. 20 to 40 stay discreet; beyond that, or with a wide field of view, the edges can go black because the camera never filmed that far.
+
+#### Adjusting the view from the pad
+
+Everything is set by **holding R2**, without opening anything: the picture changes as you adjust, which is the only way to judge it.
+
+| R2 held | Effect |
+|---|---|
+| **Left stick ↕** | Zoom |
+| **Left stick ↔** | Convergence (proportional) |
+| **D-pad ←/→** | Convergence, step by step |
+| **Left stick click** | Reset the zoom |
+| **Right stick click** | Recentre the view |
+| **Right stick** | Look around |
+
+While R2 is held the other buttons do nothing: the pad is driving the view and nothing else. **Release R2** and the sticks do exactly what they do on a flat screen, VR playback included: fine seeking, volume and playback speed, each wherever your stick-swap setting puts them. On the keyboard, **Shift+V** resets both view and zoom at once.
+
+#### In a VR headset (Steam Frame)
+
+In a headset, side-by-side mode gives no relief: the headset shows the page as a flat screen floating in front of you, and the two pictures reach it next to each other. The player's **XR** button does the opposite: the video **takes over the whole headset**, each eye gets its own picture, and you look around **by turning your head**.
+
+The button only appears when the browser can drive a headset, **and** when Hoard is opened over **https**. On an `http://` address (a local network IP, for instance), the browser refuses access to the headset and the button stays hidden.
+
+Click the button with the **headset controllers' pointer**: for security reasons, browsers only open the immersive view on a click. Once inside:
+
+| Headset controllers | Effect |
+|---|---|
+| **Trigger** or **A / X** | Play / pause |
+| **Stick ←/→** | Back / forward by the medium seek, 30 s by default, like the pad's D-pad (repeats when held) |
+| **Stick click** | Recentre: where you are looking becomes the middle of the film |
+| **B / Y** | Leave the immersive view |
+
+The headset's system button leaves it too. On leaving, you get the player back as it was, 180° mode included. Closing the player closes the immersive view; moving to the next file does not.
+
+The file's **convergence** applies in the headset too. The field of view, the widened view and the stretched/unstretched picture, on the other hand, do nothing there: the headset knows the angle of its own screens, so the depth is right from the start. Player messages are not shown inside the headset.
+
+#### Recognition and memory
+
+A VR file is marked with a 🥽 in the list. Hoard guesses it two ways: from the name (studios almost always put `LR`, `3dh`, `180x180`, `VR180` or `SBS` in it), and from the picture's shape — two square eyes side by side are exactly twice as wide as they are tall. The name is readable from the list; the shape only once the file is open.
+
+Recognising a file does **not** turn the mode on: the 🥽 button merely highlights. Opening a file to check something should not drop you into a headset view.
+
+The mode you do choose, however, **is remembered for that file** and reapplied when you reopen it, including from another machine — a choice made on the laptop holds on the Deck. It works the other way too: if Hoard wrongly marks a file as VR, switch the mode off and it will not come back for that one.
+
+Finally, VR mode is refused on a video played through transcoding: straightening a picture the server is already recomputing makes no sense, and the NAS could not afford it.
+
+The defaults (field of view, look speed, stretched or not, convergence) live in **Settings → Player**.
+
+> **What your machine has to manage.** These files are often very large (up to 8K) and encoded in HEVC. Hoard serves them untouched, without converting them: the device doing the watching has to decode them. If playback stutters or refuses to start, that is the limit you are hitting, not the VR mode.
+
+---
+
+## The Whole Interface Side by Side
+
+XR glasses in 3D mode cut the picture in two **all the time**, not only while a video plays. An interface drawn once therefore sits astride the split and each eye gets half of it. Taking the glasses out of 3D costs ten seconds of black screen, and sometimes your settings.
+
+This mode draws **the whole** application twice, once per eye: the PIN screen, the browser, the image and PDF viewers, video, settings and dialogs. Both eyes see **the same picture** — this is not 3D, and that is exactly what makes it readable rather than tiring.
+
+### Turning it on and off
+
+| How | Gesture |
+|---|---|
+| On the pad | **L1 + R1 + Select** — works everywhere, including on the PIN screen |
+| On the keyboard | **Y** (or **Alt+Y** when the cursor sits in a text field) |
+| From the **Select** menu | the *🥽 Side-by-side screen* line |
+| From the settings | **Settings → XR glasses** |
+
+**The same gesture turns it off.** Switching it on by mistake on an ordinary screen does not lock you into a screen you cannot read.
+
+### One setting per device
+
+Unlike everything else, this mode **does not follow you from one machine to another**: it is stored in the browser that uses it. The Deck with the glasses keeps it on; the laptop and the iPad never see it. It does survive a page reload, and it is in place before the PIN screen appears.
+
+### With a video
+
+An **ordinary video** is visible in both eyes with **one download and one decode**: the right eye gets a copy of the picture, not a second playback.
+
+A **180° video** keeps all of its depth, and it is the one thing on screen that is not identical in both eyes — as it should be: that file holds two different pictures, one per eye, and that difference *is* the relief. Put the player in **side-by-side** (**V** key, or the **Select** menu) and each half of the screen gets the eye it is owed, whole.
+
+One setting has nothing to act on in this mode: **stretched side-by-side picture or not** (**B** key). It exists to say whether your glasses stretch each half back to full width; here each eye already receives a whole picture, so there is nothing to stretch back. The line leaves the menu and the key says so.
+
+### What it costs
+
+There is twice as much interface to draw, so the machine works harder — measured on a 2 000-file folder, which is an extreme case. Moving the cursor stays instant there; changing the sort or the folder redraws the whole list and takes roughly twice as long as usual. On a folder of ordinary size it does not show.
+
 ---
 
 ## Touch Gestures
@@ -295,22 +407,104 @@ Hoard supports game controllers via the browser's **Gamepad API** (Xbox, PlaySta
 - A « 🎮 Controller connected » toast confirms detection.
 - **Steam Deck / Firefox**: Firefox only fires `gamepadconnected` after a button press. A toast « Press a button to activate the controller » appears if the device is detected but not yet active.
 
+### Steam Frame
+
+What we know after the first tests on the headset (September 2026). This
+section will be completed.
+
+- **Use Chromium, not Firefox.** On the Frame, Firefox swaps the **X** and **Y**
+  buttons: this is a known Firefox-on-Linux defect with Steam's virtual
+  controller, not a Hoard defect. In fullscreen, Firefox also shows Hoard small
+  in a corner. Chromium has neither problem.
+- **Chromium fullscreen.** Hoard grows with the screen: past a 1920×1080
+  display, the whole interface scales with the space available, so it keeps the
+  same apparent size when the browser goes fullscreen. Below that, nothing
+  changes — laptop, iPad, Steam Deck, phone.
+- **Launch the browser from Steam, in Gaming mode.** Opened from desktop mode,
+  the browser only receives the mouse and Hoard sees no controller. Add it to
+  Steam as a non-Steam game, then launch it from the library (**Non-Steam**
+  tab).
+- **Which controller.** The **Steam Controller** works, and so do the **Frame
+  controllers**: two separate controllers, one per hand, which the system
+  presents as one ordinary gamepad. The player is laid out for them — the left
+  hand sets volume, speed and jumps, the right hand the rest (see the table
+  below).
+- **HEVC (H.265) to be confirmed.** The Frame's Chromium may not play HEVC,
+  while the Steam Deck does. Open **Settings → Player → Test codecs**: the
+  "HEVC" line says whether the browser can decode it. The NAS does not
+  transcode, so a file the browser cannot decode will not play.
+- **Right click in desktop mode**: click the **right stick**.
+- **180° videos with relief**: the player's **XR** button, see
+  [In a VR headset](#in-a-vr-headset-steam-frame).
+- **Only one controller at hand?** Pick the **Steam Frame, right hand only** profile, described just below.
+
+### Controller profiles
+
+Hoard has two profiles, to pick according to what you have at hand:
+
+- **Standard (two hands)**: a full controller (Xbox, Steam Deck, both Frame controllers). This is everything the tables below describe.
+- **Steam Frame, right hand only**: the Frame's right controller alone, so **A, B, X, Y, R1, R2, the right stick and its click (R3)**. The most useful commands are gathered there.
+
+Pick the profile in **Settings → 🎮 Controller → Profile**, or with the controller through the **🎮 Profil manette** line of the context menu. It is specific to each device: switching the Frame to right hand only changes nothing on the Steam Deck.
+
+In the **right hand only** profile:
+
+| | File list | Player |
+|---|---|---|
+| **Stick ↕** | Move the cursor | Volume |
+| **Stick ↔** | — | Speed while the stick is held (as the standard profile's left stick) |
+| **A** | Open | Play / Pause |
+| **B** | Up one level | Close player |
+| **Y** | Context menu | Fullscreen |
+| **R3** (stick click) | — | Fit / Fill |
+| **R1 + stick** | — | ← back 30 s, → forward 30 s, ↑ forward 60 s, ↓ forward 15 s |
+| **R1 + X** | Move the selected entry | Move the file |
+| **R1 + B** | Delete the selected entry | Delete the file |
+| **R2 held + stick** | — | Pan the zoomed picture; in VR mode, look around |
+| **R1 + R2 + stick ↕** | — | Zoom in / out |
+| **R2 + R3** | — | Back to 1×; in VR mode, recentre the view |
+| **R1 + R2 + R3** | — | In VR mode, reset the zoom |
+
+In every window (menu, move, delete, tags, settings, button map…), the **stick** stands in for the D-pad: it chooses, **A** confirms, **B** cancels or closes. Held, it scrolls as a held D-pad does.
+
+So that setting the speed does not touch the volume, only the direction the stick is pushed furthest counts. There is no fine seek in this profile: the jumps under R1 and the speed up to 4× replace it. The context menu only opens from the list, since Y is fullscreen in the player. The button map (the menu's **🎮 Aide manette** line) shows this profile while it is active.
+
 ### Actions — Video Player
 
 | Button | Base | + L1 | + R1 | + L1+R1 |
 |--------|------|------|------|---------|
 | **A** | Play / Pause | Subtitles | Move → Folder 1 | Jump to 0% |
-| **B** | Close player | — | Move → Folder 2 | — |
-| **X** | Toggle watched | Aspect ratio | Move → Folder 3 | Jump to 50% |
-| **Y** | Fullscreen | Jump to 0% | — | Jump to 100% |
+| **B** | Close player | — | Move → Folder 2 | Delete the current file |
+| **X** | Toggle watched | Aspect ratio | Move → Folder 3 | Move the current file |
+| **Y** | Fullscreen | Mark segment IN | Confirm segment OUT | Open the Export dialog |
 | **D-pad ←/→** | Seek medium | Seek long | Seek extra-long | — |
-| **D-pad ↑/↓** | Volume ±10% | Prev/next file | Jump to 25%/75% | — |
-| **Select** | Open Settings | — | — | — |
+| **D-pad ↑** | Forward 60 s (seek long) | Previous file | Jump to 25% | — |
+| **D-pad ↓** | Forward 15 s | Next file | Jump to 75% | Jump to 100% |
+| **Select** | Open the context menu | — | — | Side-by-side screen (XR glasses) |
 | **Start** | Show button map | — | — | — |
+| **L2** | Side-by-side layout: auto / stretched / not (VR mode) | — | — | — |
+| **R2** (held) | Zoom into the picture (see below); in VR mode, zoom, convergence, recentre — see above | — | — | — |
 | **L3** (stick click) | Mute / Unmute | — | — | — |
-| **R3** (stick click) | Cycle speed (0.5× → 1× → 1.5× → 2× → …) | — | — | — |
-| **Left stick X** | Analog scrubbing | — | — | — |
-| **Right stick Y** | Analog volume | — | — | — |
+| **R3** (stick click) | — (free) | — | — | — |
+| **Left stick ↕** | Analog volume | — | — | — |
+| **Left stick ↔** | Playback speed while held: left down to 0.25×, right up to 4× (2× on a transcoded video); back to the previous speed on release | — | — | — |
+| **Right stick ↔** | Fine seek (scrubbing) | — | — | — |
+
+The left hand sets what you watch — volume, speed, jumps in the video — and the right hand drives the rest. It is designed for the Steam Frame's controllers, one per hand. **Swap sticks** trades the two sticks whole, for a left-handed grip. A fixed speed is still available from the **context menu** (Select).
+
+#### Zooming into the video
+
+On an ordinary video, **hold R2** to zoom into part of the picture, as in PadView:
+
+| R2 held | Effect |
+|---|---|
+| **Left stick ↕** | Zoom in (up) or out, up to 4× |
+| **Right stick** | Move the zoomed picture: push towards what you want to see |
+| **Left stick click** | Back to 1× |
+
+While R2 is held, a panel at the top left shows the zoom level and a small map of the picture, with the part on screen framed in it. The picture cannot be moved past its edges: there is nothing to see in the black bars.
+
+**Release R2**: the zoom stays, and the sticks go back to volume, speed and seeking. The zoom returns to 1× when you change file or close the player, and it does not apply in VR mode, which has its own zoom. It also works in fullscreen and when the whole interface is side by side, where both eyes zoom together.
 
 ### Actions — File Browser (no video open)
 
@@ -351,11 +545,13 @@ Hold **L1** or **R1** to access extra command layers. Holding both (L1+R1) activ
 
 ### Button Map Overlay
 
-Press **Start** (or the « Show button map » button in Settings) to display an overlay listing all actions per layer, dynamically updated with your configured seek durations.
+Press **Start** (or the « Show button map » button in Settings) to list every action, grouped by layer — the player, its three LB / RB / LB+RB layers, the browser and the sticks. Seek durations are the ones you configured, and quick folders appear under their real names.
+
+The list flows into as many columns as the screen is wide: one on a phone, four on a desktop screen, six on a very wide display. **D-pad ↑/↓** scrolls, **B** or **Start** closes.
 
 ### Dialogs and the Pad
 
-Every Hoard dialog (tags, rename, new folder, folder picker, download queue, PIN screen) can be driven from the pad: **D-pad** walks the fields and buttons, **A** activates the selected one, **B** closes the dialog. No screen asks you to reach back for the mouse.
+Every Hoard dialog (tags, rename, new folder, folder picker, download queue, PIN screen, login screen) can be driven from the pad: **D-pad** walks the fields and buttons, **A** activates the selected one, **B** closes the dialog. No screen asks you to reach back for the mouse.
 
 ### Controller Settings
 
@@ -364,8 +560,34 @@ In **Settings → 🎮 Controller**:
 | Setting | Description |
 |---------|-------------|
 | **Controller enabled** | Enable / disable gamepad detection entirely |
+| **Profile** | Standard (two hands) or Steam Frame, right hand only — see [Controller profiles](#controller-profiles). Specific to this device. |
 | **Haptic feedback** | Short vibration on play/pause, seek, watched toggle (Chrome only) |
 | **Dead zone** | Stick detection threshold (default 20%). Increase if sticks drift. |
+
+---
+
+## Signing In
+
+When Hoard is configured with a username and password (`HOARD_AUTH_USER` /
+`HOARD_AUTH_PASS`, see the installation guide), opening it shows a **login screen
+in Hoard's own style** — no more grey browser dialog, which was barely steerable
+with a gamepad on the Steam Deck and the Steam Frame.
+
+- **Type it once.** The session lasts **30 days**, and the countdown restarts every
+  time you use Hoard: in regular use you never retype anything. Each device has its
+  own session.
+- **On a gamepad**: **D-pad** moves between fields, **A** opens the keyboard on the
+  selected field, then **A** on "Se connecter".
+- **If the session expires** while you are browsing, the screen comes back and you
+  carry on exactly where you were — no page reload, no lost playback position.
+- **Sign every device out at once**: set the `HOARD_SECRET_KEY` variable and change
+  its value. Every session, on every device, stops being valid immediately.
+
+> **The PIN is a different thing.** It locks the screen of a session that is already
+> open, on your own device; signing in decides whether the server answers you at all.
+> The two stay independent.
+
+> **`curl` still works** with `-u user:password`, as before — handy for scripts.
 
 ---
 
@@ -388,11 +610,22 @@ Hoard can download videos from the web using **yt-dlp** and save them directly t
 2. Scroll to the **Downloads** section.
 3. **Drag** the "📥 Télécharger avec Hoard" link to your bookmarks bar.
 
+> **The link contains a personal access token.** The bookmarklet runs on someone
+> else's web page, so your browser never sends it your Hoard credentials — the
+> token is what lets it reach Hoard. It can do two things and nothing else: start
+> a download, and report that download's progress. It cannot browse, move or
+> delete your files. Do not share the link. If you ever do by mistake, use
+> **🔑 Nouveau jeton** in Settings: the old link stops working immediately, and
+> you reinstall the bookmark by dragging the new link.
+
 ### Downloading a Video
 
 **From any web page** — click the bookmarklet. It submits the download **in the background** and injects a live status dialog directly into the current page — no navigation, no opened tab. The dialog progresses through ⌛ "Analyse de l'URL…" → 📥 "Téléchargement… X%" → ✅ "Terminé !" (auto-closes after 4 s). If the queue is busy it shows ⏳ "En attente dans la file… — titre.mp4" until the slot is free. You can cancel the job from the dialog or from the Hoard download queue modal.
 
-> **Sites with a restrictive CSP**: some sites (often ad-heavy streaming sites) block outgoing requests to a third-party domain like Hoard's via their `Content-Security-Policy`. In that case the bookmarklet shows ℹ️ "Site incompatible (CSP)" and automatically opens Hoard in a new tab to finish the download there.
+> **Sites with a restrictive CSP**: some sites (often ad-heavy streaming sites) block outgoing requests to a third-party domain like Hoard's via their `Content-Security-Policy`. In that case the bookmarklet shows ℹ️ "Hoard injoignable depuis cette page" and automatically opens Hoard in a new tab to finish the download there.
+
+> **"Hoard : accès refusé"**: the bookmark was saved before the token was
+> regenerated. Open Settings and drag the link again to replace it.
 
 > **Smart video source detection**: if a `<video>` element is playing on the page, the bookmarklet captures its direct source URL instead of the page URL. This enables downloading from sites where yt-dlp has no dedicated extractor (Patreon, custom video players, BunnyCDN embeds, etc.). The modal shows a 🎬 hint when a direct source was detected. The original page URL is automatically sent as the `Referer` header so CDNs that verify the origin accept the request.
 

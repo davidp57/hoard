@@ -1,6 +1,7 @@
 """Unit tests for MediaBrowser API endpoints."""
 
 import json
+import os
 import sys
 import threading
 import time
@@ -33,6 +34,29 @@ class TestFrontendShell:
         assert resp.status_code == 200
         assert "self.addEventListener" in resp.text
         assert "CACHE_NAME" in resp.text
+
+    def test_everything_visible_lives_inside_app_root(self):
+        """BL-130 copies #app-root, and only #app-root, into the second eye.
+
+        A panel added as a direct child of <body> after it would simply never be
+        mirrored — and nothing would say so: the interface would look right on an
+        ordinary screen and lose one window in XR glasses. This is the kind of
+        hole the lot was written to avoid, so it is guarded here rather than left
+        to whoever next opens the file.
+        """
+        shell = client.get("/").text
+        tail = shell.split("</div><!-- /#app-root -->", 1)
+        assert len(tail) == 2, "the #app-root wrapper is gone or its marker was renamed"
+        # Stop at the first <script>: past that it is JavaScript, where a `<`
+        # is a comparison and not a tag.
+        after = tail[1].split("<script", 1)[0]
+        for chunk in after.split("<")[1:]:
+            tag = chunk.split(">", 1)[0].strip().lower()
+            if not tag or tag.startswith(("!--", "/")):
+                continue
+            assert tag.startswith('div id="sbs-mirror"'), (
+                f"<{tag}> sits outside #app-root and will never reach the second eye"
+            )
 
 
 # ── /api/quick-folders ──────────────────────────────────────────────────────────────────
@@ -1262,6 +1286,19 @@ class TestSettings:
         resp = client.post("/api/settings", json={"initial_sweep_seconds": 7201})
         assert resp.status_code == 422
 
+    def test_sort_persists_without_touching_other_settings(self):
+        """The sort bar posts sort_by/sort_dir alone on every click (BL-118)."""
+        before = client.get("/api/settings").json()["watched_threshold"]
+        resp = client.post("/api/settings", json={"sort_by": "watched", "sort_dir": "asc"})
+        assert resp.status_code == 200
+
+        s = client.get("/api/settings").json()
+        assert s["sort_by"] == "watched"
+        assert s["sort_dir"] == "asc"
+        assert s["watched_threshold"] == before
+
+        client.post("/api/settings", json={"sort_by": "date", "sort_dir": "desc"})
+
     def test_gestures_overlay_seen_persists(self):
         client.post("/api/settings", json={"gestures_overlay_seen": True})
         assert client.get("/api/settings").json()["gestures_overlay_seen"] == "1"
@@ -2296,7 +2333,7 @@ class TestDownload:
         from backend.main import _sniff_video_source
 
         html = '<html><body><iframe src="https://iframe.mediadelivery.net/embed/99/xyz"></iframe></body></html>'
-        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        monkeypatch.setattr("backend.main._open_public_url", self._make_urlopen(html))
         assert (
             _sniff_video_source("https://example.com/page", None)
             == "https://iframe.mediadelivery.net/embed/99/xyz"
@@ -2307,7 +2344,7 @@ class TestDownload:
         from backend.main import _sniff_video_source
 
         html = '<html><body><video src="https://cdn.example.com/video.mp4"></video></body></html>'
-        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        monkeypatch.setattr("backend.main._open_public_url", self._make_urlopen(html))
         assert (
             _sniff_video_source("https://example.com/page", None)
             == "https://cdn.example.com/video.mp4"
@@ -2321,7 +2358,7 @@ class TestDownload:
             <video src="blob:https://example.com/fake"></video>
             <meta property="og:video" content="https://cdn.example.com/video.mp4">
         </body></html>"""
-        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        monkeypatch.setattr("backend.main._open_public_url", self._make_urlopen(html))
         assert (
             _sniff_video_source("https://example.com/page", None)
             == "https://cdn.example.com/video.mp4"
@@ -2332,7 +2369,7 @@ class TestDownload:
         from backend.main import _sniff_video_source
 
         html = '<html><head><meta property="og:video" content="https://iframe.mediadelivery.net/embed/1/abc"></head></html>'
-        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        monkeypatch.setattr("backend.main._open_public_url", self._make_urlopen(html))
         assert (
             _sniff_video_source("https://example.com/page", None)
             == "https://iframe.mediadelivery.net/embed/1/abc"
@@ -2343,7 +2380,7 @@ class TestDownload:
         from backend.main import _sniff_video_source
 
         html = '<html><head><meta property="og:video:url" content="https://cdn.example.com/clip.mp4"></head></html>'
-        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        monkeypatch.setattr("backend.main._open_public_url", self._make_urlopen(html))
         assert (
             _sniff_video_source("https://example.com/page", None)
             == "https://cdn.example.com/clip.mp4"
@@ -2354,7 +2391,7 @@ class TestDownload:
         from backend.main import _sniff_video_source
 
         html = '<html><head><meta property="og:video:secure_url" content="https://cdn.example.com/secure.mp4"></head></html>'
-        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        monkeypatch.setattr("backend.main._open_public_url", self._make_urlopen(html))
         assert (
             _sniff_video_source("https://example.com/page", None)
             == "https://cdn.example.com/secure.mp4"
@@ -2365,7 +2402,7 @@ class TestDownload:
         from backend.main import _sniff_video_source
 
         html = '<html><head><script>var p={src:"https://iframe.mediadelivery.net/embed/42/vid-id"};</script></head></html>'
-        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        monkeypatch.setattr("backend.main._open_public_url", self._make_urlopen(html))
         assert (
             _sniff_video_source("https://example.com/page", None)
             == "https://iframe.mediadelivery.net/embed/42/vid-id"
@@ -2376,7 +2413,7 @@ class TestDownload:
         from backend.main import _sniff_video_source
 
         html = '<html><head><script>var src="https://cdn.example.com/video.mp4?token=abc";</script></head></html>'
-        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        monkeypatch.setattr("backend.main._open_public_url", self._make_urlopen(html))
         assert (
             _sniff_video_source("https://example.com/page", None)
             == "https://cdn.example.com/video.mp4?token=abc"
@@ -2387,7 +2424,7 @@ class TestDownload:
         from backend.main import _sniff_video_source
 
         html = '<html><head><script>var hls="https://stream.example.com/live.m3u8";</script></head></html>'
-        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        monkeypatch.setattr("backend.main._open_public_url", self._make_urlopen(html))
         assert (
             _sniff_video_source("https://example.com/page", None)
             == "https://stream.example.com/live.m3u8"
@@ -2398,7 +2435,7 @@ class TestDownload:
         from backend.main import _sniff_video_source
 
         html = '<html><body><div data-video-src="https://iframe.mediadelivery.net/embed/5/abc123"></div></body></html>'
-        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        monkeypatch.setattr("backend.main._open_public_url", self._make_urlopen(html))
         assert (
             _sniff_video_source("https://example.com/page", None)
             == "https://iframe.mediadelivery.net/embed/5/abc123"
@@ -2409,7 +2446,7 @@ class TestDownload:
         from backend.main import _sniff_video_source
 
         html = '<html><body><div data-src="https://cdn.example.com/clip.mp4"></div></body></html>'
-        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        monkeypatch.setattr("backend.main._open_public_url", self._make_urlopen(html))
         assert (
             _sniff_video_source("https://example.com/page", None)
             == "https://cdn.example.com/clip.mp4"
@@ -2423,7 +2460,7 @@ class TestDownload:
             <video src="https://cdn.example.com/video.mp4"></video>
             <iframe src="https://iframe.mediadelivery.net/embed/99/xyz"></iframe>
         </body></html>"""
-        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        monkeypatch.setattr("backend.main._open_public_url", self._make_urlopen(html))
         assert (
             _sniff_video_source("https://example.com/page", None)
             == "https://iframe.mediadelivery.net/embed/99/xyz"
@@ -2438,7 +2475,7 @@ class TestDownload:
         </head><body>
             <video src="https://cdn.example.com/direct.mp4"></video>
         </body></html>"""
-        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        monkeypatch.setattr("backend.main._open_public_url", self._make_urlopen(html))
         assert (
             _sniff_video_source("https://example.com/page", None)
             == "https://cdn.example.com/direct.mp4"
@@ -2452,7 +2489,7 @@ class TestDownload:
             <meta property="og:video" content="https://cdn.example.com/meta.mp4">
             <script>var src="https://cdn.example.com/script.mp4";</script>
         </head></html>"""
-        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        monkeypatch.setattr("backend.main._open_public_url", self._make_urlopen(html))
         assert (
             _sniff_video_source("https://example.com/page", None)
             == "https://cdn.example.com/meta.mp4"
@@ -2463,7 +2500,7 @@ class TestDownload:
         from backend.main import _sniff_video_source
 
         html = "<html><body><p>No video here, just text.</p></body></html>"
-        monkeypatch.setattr("urllib.request.urlopen", self._make_urlopen(html))
+        monkeypatch.setattr("backend.main._open_public_url", self._make_urlopen(html))
         assert _sniff_video_source("https://example.com/page", None) is None
 
     def test_returns_none_on_network_error(self, monkeypatch):
@@ -2473,7 +2510,7 @@ class TestDownload:
         def _fail(req, timeout):
             raise OSError("connection refused")
 
-        monkeypatch.setattr("urllib.request.urlopen", _fail)
+        monkeypatch.setattr("backend.main._open_public_url", _fail)
         assert _sniff_video_source("https://example.com/page", None) is None
 
 
@@ -3935,3 +3972,1383 @@ class TestRetryDownload:
             conn.commit()
         monkeypatch.setitem(sys.modules, "yt_dlp", _make_yt_dlp_mock())
         assert client.post("/api/downloads/sneaky/retry").status_code == 400
+
+
+# ── VR 180° detection and per-file mode (BL-121) ──────────────────────────────
+class TestVrDetection:
+    """The files carry no spherical metadata, so the name is all the server has.
+
+    The aspect-ratio clue lives in the player, where the <video> already knows
+    its dimensions — reading it here would mean one ffprobe per entry on every
+    folder open.
+    """
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "wankzvr-omgia-anal-3600p-180_180x180_3dh_LR.mp4",
+            "SinsVR_Snowy_Love_7k_8bit_180_180x180_3dh.mp4",
+            "MILF_VR_Backdoor_4K_4600x2300_H265_3D_SBS.mp4",
+            "Some.Title.XXX.VR180.2700p.mp4",
+            "197-casting-3d-5400x2700-60fps-oculusrift_hq_h265.mp4",
+            "clip_LR_180.mp4",
+        ],
+    )
+    def test_name_says_vr(self, name):
+        assert main_mod.guess_vr_from_name(name) == "sbs180"
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "The Matrix (1999) 1080p BluRay x264.mkv",
+            # A bare "180" used to trigger this one, and bought nothing: every VR
+            # file in the sample was already caught by another pattern.
+            "Episode 180 - The Long Goodbye.mkv",
+            "concert-1080p-stereo.mp4",
+            "180days.mp4",
+            "video 1800 seconds.mp4",
+            "clr_test.mp4",
+        ],
+    )
+    def test_ordinary_name_is_not_vr(self, name):
+        assert main_mod.guess_vr_from_name(name) is None
+
+    def test_hint_exposed_in_file_list(self):
+        (MEDIA_ROOT / "trip_180x180_3dh.mp4").write_bytes(b"x")
+        (MEDIA_ROOT / "ordinary.mp4").write_bytes(b"x")
+        entries = {e["name"]: e for e in client.get("/api/files?path=").json()["entries"]}
+        assert entries["trip_180x180_3dh.mp4"]["vr_hint"] == "sbs180"
+        assert entries["ordinary.mp4"]["vr_hint"] is None
+
+    def test_hint_exposed_in_search(self):
+        (MEDIA_ROOT / "trip_180x180_3dh.mp4").write_bytes(b"x")
+        entries = client.get("/api/search?q=trip").json()["entries"]
+        assert entries[0]["vr_hint"] == "sbs180"
+
+
+class TestVrMode:
+    def test_mode_is_remembered(self, video_file):
+        resp = client.post(f"/api/vr-mode?path={video_file}", json={"mode": "sbs"})
+        assert resp.status_code == 200
+        entries = {e["name"]: e for e in client.get("/api/files?path=").json()["entries"]}
+        assert entries["sample.mp4"]["vr_mode"] == "sbs"
+
+    def test_explicit_off_survives_the_guess(self):
+        """Saying "this is not VR" has to stick, or a wrong guess is permanent."""
+        (MEDIA_ROOT / "trip_180x180_3dh.mp4").write_bytes(b"x")
+        client.post("/api/vr-mode?path=trip_180x180_3dh.mp4", json={"mode": "off"})
+        entries = {e["name"]: e for e in client.get("/api/files?path=").json()["entries"]}
+        assert entries["trip_180x180_3dh.mp4"]["vr_mode"] == "off"
+        assert entries["trip_180x180_3dh.mp4"]["vr_hint"] == "sbs180"
+
+    def test_mode_can_be_changed(self, video_file):
+        client.post(f"/api/vr-mode?path={video_file}", json={"mode": "sbs"})
+        client.post(f"/api/vr-mode?path={video_file}", json={"mode": "flat"})
+        entries = {e["name"]: e for e in client.get("/api/files?path=").json()["entries"]}
+        assert entries["sample.mp4"]["vr_mode"] == "flat"
+
+    def test_invalid_mode_rejected(self, video_file):
+        resp = client.post(f"/api/vr-mode?path={video_file}", json={"mode": "cube"})
+        assert resp.status_code == 400
+
+    def test_unknown_file_is_404(self):
+        assert client.post("/api/vr-mode?path=nope.mp4", json={"mode": "flat"}).status_code == 404
+
+    def test_path_traversal_blocked(self):
+        resp = client.post("/api/vr-mode?path=../../etc/passwd", json={"mode": "flat"})
+        assert resp.status_code in (400, 403, 404)
+
+    def test_mode_does_not_outlive_the_file(self, video_file):
+        """Otherwise a new file dropped at the same path inherits a stranger's mode."""
+        client.post(f"/api/vr-mode?path={video_file}", json={"mode": "sbs"})
+        assert client.request("DELETE", f"/api/files?path={video_file}").status_code == 200
+        (MEDIA_ROOT / "sample.mp4").write_bytes(b"new content")
+        entries = {e["name"]: e for e in client.get("/api/files?path=").json()["entries"]}
+        assert entries["sample.mp4"]["vr_mode"] is None
+
+    def test_mode_follows_a_rename(self, video_file):
+        client.post(f"/api/vr-mode?path={video_file}", json={"mode": "sbs"})
+        resp = client.post(f"/api/files/rename?path={video_file}", json={"new_name": "renamed.mp4"})
+        assert resp.status_code == 200
+        entries = {e["name"]: e for e in client.get("/api/files?path=").json()["entries"]}
+        assert entries["renamed.mp4"]["vr_mode"] == "sbs"
+
+
+# ── Per-file convergence (BL-129) ─────────────────────────────────────────────
+class TestVrConvergencePerFile:
+    def test_written_and_read_back(self, video_file):
+        resp = client.post(
+            f"/api/vr-mode?path={video_file}", json={"mode": "sbs", "convergence": 1.5}
+        )
+        assert resp.status_code == 200
+        entries = {e["name"]: e for e in client.get("/api/files?path=").json()["entries"]}
+        assert entries["sample.mp4"]["vr_convergence"] == 1.5
+        assert entries["sample.mp4"]["vr_mode"] == "sbs"
+
+    def test_another_file_does_not_inherit_it(self, video_file):
+        """The whole point of per-file: a badly shot file must not contaminate the rest."""
+        (MEDIA_ROOT / "other.mp4").write_bytes(bytes(64))
+        client.post(f"/api/vr-mode?path={video_file}", json={"mode": "sbs", "convergence": 2.0})
+        entries = {e["name"]: e for e in client.get("/api/files?path=").json()["entries"]}
+        assert entries["sample.mp4"]["vr_convergence"] == 2.0
+        assert entries["other.mp4"]["vr_convergence"] is None
+
+    def test_convergence_alone_does_not_clobber_the_mode(self, video_file):
+        """The UPDATE branch must not read the INSERT's NOT NULL fallback.
+
+        `mode` cannot be null, so a convergence-only insert supplies 'flat'. If the
+        conflict branch coalesced against that proposed row instead of against the
+        parameters, it would quietly rewrite a mode nobody asked to change.
+        """
+        client.post(f"/api/vr-mode?path={video_file}", json={"mode": "sbs"})
+        client.post(f"/api/vr-mode?path={video_file}", json={"convergence": -1.0})
+        entries = {e["name"]: e for e in client.get("/api/files?path=").json()["entries"]}
+        assert entries["sample.mp4"]["vr_mode"] == "sbs", "the mode was overwritten"
+        assert entries["sample.mp4"]["vr_convergence"] == -1.0
+
+    def test_mode_alone_leaves_the_convergence(self, video_file):
+        client.post(f"/api/vr-mode?path={video_file}", json={"mode": "sbs", "convergence": 0.5})
+        client.post(f"/api/vr-mode?path={video_file}", json={"mode": "flat"})
+        entries = {e["name"]: e for e in client.get("/api/files?path=").json()["entries"]}
+        assert entries["sample.mp4"]["vr_convergence"] == 0.5
+        assert entries["sample.mp4"]["vr_mode"] == "flat"
+
+    def test_convergence_on_a_file_with_no_row_yet(self, video_file):
+        """It must create the row, not fail silently — the pad can reach this."""
+        resp = client.post(f"/api/vr-mode?path={video_file}", json={"convergence": 1.0})
+        assert resp.status_code == 200
+        entries = {e["name"]: e for e in client.get("/api/files?path=").json()["entries"]}
+        assert entries["sample.mp4"]["vr_convergence"] == 1.0
+        assert entries["sample.mp4"]["vr_mode"] == "flat", "'off' would kill VR on a VR file"
+
+    @pytest.mark.parametrize("value", [3.5, -3.5, 90])
+    def test_out_of_range_rejected(self, video_file, value):
+        resp = client.post(f"/api/vr-mode?path={video_file}", json={"convergence": value})
+        assert resp.status_code == 422
+
+    def test_an_empty_body_is_rejected(self, video_file):
+        assert client.post(f"/api/vr-mode?path={video_file}", json={}).status_code == 400
+
+    def test_convergence_follows_a_rename(self, video_file):
+        client.post(f"/api/vr-mode?path={video_file}", json={"mode": "sbs", "convergence": 1.5})
+        client.post(f"/api/files/rename?path={video_file}", json={"new_name": "renamed.mp4"})
+        entries = {e["name"]: e for e in client.get("/api/files?path=").json()["entries"]}
+        assert entries["renamed.mp4"]["vr_convergence"] == 1.5
+
+    def test_both_fields_follow_a_move(self, video_file, subdir_with_video, monkeypatch):
+        """The criterion BL-129 claimed was already covered for the mode. It was not:
+        renaming and deleting had tests, moving had none for either field. Both are
+        carried by the same row, so one test proves it for both.
+        """
+        import threading as _threading
+
+        class SyncThread:
+            def __init__(self, target, args, daemon=True):
+                self._target, self._args = target, args
+
+            def start(self):
+                self._target(*self._args)
+
+        monkeypatch.setattr(_threading, "Thread", SyncThread)
+
+        client.post(f"/api/vr-mode?path={video_file}", json={"mode": "sbs", "convergence": 1.5})
+        resp = client.post(
+            f"/api/files/move?path={video_file}", json={"destination": subdir_with_video}
+        )
+        assert resp.status_code == 200
+
+        entries = {
+            e["name"]: e
+            for e in client.get(f"/api/files?path={subdir_with_video}").json()["entries"]
+        }
+        assert entries["sample.mp4"]["vr_convergence"] == 1.5
+        assert entries["sample.mp4"]["vr_mode"] == "sbs"
+
+    def test_convergence_does_not_outlive_the_file(self, video_file):
+        client.post(f"/api/vr-mode?path={video_file}", json={"mode": "sbs", "convergence": 1.5})
+        client.request("DELETE", f"/api/files?path={video_file}")
+        (MEDIA_ROOT / "sample.mp4").write_bytes(b"new content")
+        entries = {e["name"]: e for e in client.get("/api/files?path=").json()["entries"]}
+        assert entries["sample.mp4"]["vr_convergence"] is None
+
+
+# ── VR settings (BL-122) ──────────────────────────────────────────────────────
+class TestVrSettings:
+    def test_defaults(self):
+        s = client.get("/api/settings").json()
+        assert s["vr_fov"] == "45"
+        assert s["vr_widen"] == "0", "off unless asked for: it trades edge depth for width"
+        assert s["vr_look_speed"] == "90"
+        assert s["vr_convergence"] == "0"
+        assert s["vr_sbs_layout"] == "auto"
+
+    def test_written_and_read_back(self):
+        resp = client.post(
+            "/api/settings",
+            json={
+                "vr_fov": 75,
+                "vr_look_speed": 120,
+                "vr_convergence": 1.5,
+                "vr_sbs_layout": "full",
+            },
+        )
+        assert resp.status_code == 200
+        s = client.get("/api/settings").json()
+        assert s["vr_fov"] == "75"
+        assert s["vr_look_speed"] == "120"
+        assert s["vr_convergence"] == "1.5"
+        assert s["vr_sbs_layout"] == "full"
+
+    def test_partial_body_leaves_the_others_alone(self):
+        """The contract the whole settings page rests on."""
+        client.post("/api/settings", json={"vr_fov": 70, "vr_sbs_layout": "full"})
+        client.post("/api/settings", json={"watched_threshold": 80})
+        s = client.get("/api/settings").json()
+        assert s["vr_fov"] == "70"
+        assert s["vr_sbs_layout"] == "full"
+        assert s["watched_threshold"] == "80"
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {"vr_fov": 10},
+            {"vr_fov": 200},
+            {"vr_look_speed": 0},
+            {"vr_look_speed": 1000},
+            {"vr_convergence": 45},
+            {"vr_convergence": -45},
+        ],
+    )
+    def test_out_of_range_rejected(self, payload):
+        assert client.post("/api/settings", json=payload).status_code == 422
+
+    def test_unknown_layout_rejected(self):
+        """An unknown value would silently make the player compute the wrong aspect."""
+        assert client.post("/api/settings", json={"vr_sbs_layout": "sideways"}).status_code == 422
+        assert client.get("/api/settings").json()["vr_sbs_layout"] == "auto"
+
+    def test_startup_drops_the_stale_half_row(self):
+        """The one-shot migration BL-125 rests on.
+
+        'half' was the old default, and the settings form posts every field at
+        once — so saving any unrelated setting wrote it into the table. Left
+        there, it would read as a deliberate choice and suppress the guess for
+        good. init_db() removes exactly that row, and nothing else.
+        """
+        import backend.main as _main
+
+        with _main.get_db() as conn:
+            _main._write_setting(conn, "vr_sbs_layout", "half")
+            _main._write_setting(conn, "vr_fov", "75")
+            conn.commit()
+
+        _main.init_db()
+
+        s = client.get("/api/settings").json()
+        assert s["vr_sbs_layout"] == "auto"
+        assert s["vr_fov"] == "75", "the migration must touch nothing else"
+
+    def test_widen_is_written_and_read_back(self):
+        assert client.post("/api/settings", json={"vr_widen": 40}).status_code == 200
+        assert client.get("/api/settings").json()["vr_widen"] == "40"
+
+    def test_widen_rejects_what_the_shader_cannot_use(self):
+        """Negative would narrow the view instead of widening it, and past 100 the
+        edges run off the far side of a 180° source into black."""
+        for bad in (-10, 101):
+            assert client.post("/api/settings", json={"vr_widen": bad}).status_code == 422
+        assert client.get("/api/settings").json()["vr_widen"] == "0"
+
+    def test_startup_drops_a_stored_90_field_of_view(self):
+        """The one-shot migration behind the 45° default.
+
+        90° was the shipped default, and the settings form posts every field at
+        once, so saving any unrelated setting wrote it into the table. Left
+        there it would keep the new default from ever being seen — and on XR
+        glasses 90° is not a preference, it is twice the angle they present,
+        which makes a 180° file look giant and distant.
+        """
+        import backend.main as _main
+
+        with _main.get_db() as conn:
+            _main._write_setting(conn, "vr_fov", "90")
+            _main._write_setting(conn, "vr_look_speed", "120")
+            conn.commit()
+
+        _main.init_db()
+
+        s = client.get("/api/settings").json()
+        assert s["vr_fov"] == "45"
+        assert s["vr_look_speed"] == "120", "the migration must touch nothing else"
+
+    def test_startup_keeps_a_field_of_view_that_is_not_the_old_default(self):
+        """Only the old default is swept; anything else was typed on purpose."""
+        import backend.main as _main
+
+        with _main.get_db() as conn:
+            _main._write_setting(conn, "vr_fov", "60")
+            conn.commit()
+
+        _main.init_db()
+
+        assert client.get("/api/settings").json()["vr_fov"] == "60"
+
+    def test_a_90_chosen_after_the_migration_survives_a_restart(self):
+        """What the marker is for. Without it, init_db() runs on every start and
+        would eat a deliberate 90 each time — and 90 has to stay reachable, since
+        the setting exists precisely to be matched to whatever display is in use.
+        """
+        import backend.main as _main
+
+        _main.init_db()  # marker laid down
+        assert client.post("/api/settings", json={"vr_fov": 90}).status_code == 200
+
+        _main.init_db()  # a later restart
+
+        assert client.get("/api/settings").json()["vr_fov"] == "90"
+
+    def test_the_field_of_view_marker_is_a_declared_setting(self):
+        """Same rule as the BL-125 marker: it leaves through GET /api/settings,
+        so it has to be declared rather than appear out of nowhere."""
+        assert client.get("/api/settings").json()["vr_fov_default_45_done"] in ("0", "1")
+
+    def test_the_migration_marker_is_a_declared_setting(self):
+        """It leaves GET /api/settings, so it has to be declared and not leak.
+
+        BL-123 made the secret exclusion explicit so that the next secret stored
+        here would be a decision and not an oversight; the same holds the other
+        way for a key that ships to the frontend.
+        """
+        assert client.get("/api/settings").json()["vr_sbs_layout_reset_done"] in ("0", "1")
+
+    def test_startup_keeps_an_explicit_full(self):
+        """Only 'half' was ever written by accident; 'full' is always a choice."""
+        import backend.main as _main
+
+        with _main.get_db() as conn:
+            _main._write_setting(conn, "vr_sbs_layout", "full")
+            conn.commit()
+
+        _main.init_db()
+
+        assert client.get("/api/settings").json()["vr_sbs_layout"] == "full"
+
+    def test_explicit_layouts_are_all_accepted(self):
+        """'auto' joins the enum (BL-125) without unseating the two explicit ones."""
+        for value in ("auto", "half", "full"):
+            assert client.post("/api/settings", json={"vr_sbs_layout": value}).status_code == 200
+            assert client.get("/api/settings").json()["vr_sbs_layout"] == value
+
+    def test_an_explicit_half_survives_a_restart(self):
+        """The migration is a one-shot, and this is what makes it one.
+
+        init_db() runs on every start. Without a marker the DELETE would fire
+        again each time and eat a deliberate 'half' at every restart — the very
+        choice the setting exists to allow. So: migrate, then choose 'half', then
+        restart, and it must still be there.
+        """
+        import backend.main as _main
+
+        with _main.get_db() as conn:
+            _main._write_setting(conn, "vr_sbs_layout", "half")
+            conn.commit()
+        _main.init_db()
+        assert client.get("/api/settings").json()["vr_sbs_layout"] == "auto"
+
+        assert client.post("/api/settings", json={"vr_sbs_layout": "half"}).status_code == 200
+        _main.init_db()
+        assert client.get("/api/settings").json()["vr_sbs_layout"] == "half"
+
+    def test_a_rejected_layout_writes_nothing_at_all(self):
+        """The enum is checked mid-write, so the rest of the body must not land."""
+        before = client.get("/api/settings").json()["watched_threshold"]
+        resp = client.post(
+            "/api/settings",
+            json={"watched_threshold": 81, "vr_sbs_layout": "sideways"},
+        )
+        assert resp.status_code == 422
+        after = client.get("/api/settings").json()
+        assert after["watched_threshold"] == before
+        assert after["vr_sbs_layout"] == "auto"
+
+
+# ── Bookmarklet download token (BL-124) ───────────────────────────────────────
+
+
+class TestDownloadToken:
+    """The bookmarklet posts from a third-party page, so it can offer neither the
+    Basic credentials nor the session cookie. It carries a narrow token instead.
+    """
+
+    @staticmethod
+    def _enable_auth(monkeypatch):
+        import backend.main as m
+
+        monkeypatch.setattr(m, "HOARD_AUTH_USER", "alice")
+        monkeypatch.setattr(m, "HOARD_AUTH_PASS", "secret")
+        monkeypatch.setattr(m, "_AUTH_ENABLED", True)
+        return m
+
+    @staticmethod
+    def _basic_header():
+        import base64
+
+        return {"Authorization": "Basic " + base64.b64encode(b"alice:secret").decode()}
+
+    def test_token_is_minted_once_and_is_stable(self):
+        first = main_mod._get_or_create_download_token()
+        assert len(first) >= 32
+        assert main_mod._get_or_create_download_token() == first
+
+    def test_regenerating_invalidates_the_previous_token(self, monkeypatch):
+        m = self._enable_auth(monkeypatch)
+        old = m._get_or_create_download_token()
+        new = m._regenerate_download_token()
+        assert new != old
+        assert m._check_download_token(old) is False
+        assert m._check_download_token(new) is True
+
+    def test_download_rejects_a_missing_or_wrong_token(self, monkeypatch):
+        m = self._enable_auth(monkeypatch)
+        m._get_or_create_download_token()
+        body = {"url": "https://example.invalid/v.mp4"}
+        assert client.post("/api/download", json=body).status_code == 401
+        assert client.post("/api/download", json={**body, "token": "nope"}).status_code == 401
+
+    def test_download_accepts_the_token(self, monkeypatch):
+        m = self._enable_auth(monkeypatch)
+        monkeypatch.setattr(m, "_queue_download", lambda *a, **k: "job-1")
+        token = m._get_or_create_download_token()
+        resp = client.post(
+            "/api/download", json={"url": "https://example.invalid/v.mp4", "token": token}
+        )
+        assert resp.status_code == 200
+        assert resp.json() == {"job_id": "job-1"}
+
+    def test_the_hoard_ui_still_works_without_a_token(self, monkeypatch):
+        """Same-origin callers authenticate the usual way; the token is only for
+        the bookmarklet, and must not become mandatory for everyone."""
+        m = self._enable_auth(monkeypatch)
+        monkeypatch.setattr(m, "_queue_download", lambda *a, **k: "job-2")
+        resp = client.post(
+            "/api/download",
+            json={"url": "https://example.invalid/v.mp4"},
+            headers=self._basic_header(),
+        )
+        assert resp.status_code == 200
+
+    def test_token_opens_nothing_but_the_two_download_routes(self, monkeypatch):
+        """It travels in a bookmark clicked on arbitrary sites. It must not be
+        able to list, move or delete anything."""
+        m = self._enable_auth(monkeypatch)
+        token = m._get_or_create_download_token()
+        payload = {"token": token}
+        assert client.get(f"/api/files?token={token}").status_code == 401
+        assert client.get(f"/api/jobs?token={token}").status_code == 401
+        assert client.get(f"/api/settings?token={token}").status_code == 401
+        assert client.post("/api/files/move", json=payload).status_code == 401
+        assert client.request("DELETE", "/api/files", json=payload).status_code == 401
+
+    def test_preflight_reaches_the_cors_layer(self, monkeypatch):
+        """The blanket middleware sits OUTSIDE CORSMiddleware, so it used to answer
+        the preflight itself with a bare 401 carrying no CORS headers. The browser
+        discarded that response and the bookmarklet only ever saw an opaque
+        "Failed to fetch" — which it reported as a CSP problem.
+        """
+        self._enable_auth(monkeypatch)
+        resp = client.options(
+            "/api/download",
+            headers={
+                "Origin": "https://some-video-site.example",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "content-type",
+            },
+        )
+        assert resp.status_code == 200
+        assert resp.headers["access-control-allow-origin"] == "*"
+
+    def test_rejection_is_readable_by_the_caller(self, monkeypatch):
+        """A 401 that carries no CORS headers is invisible to a cross-origin
+        caller. This one comes from the route, inside CORSMiddleware, so the
+        bookmarklet can actually display it."""
+        m = self._enable_auth(monkeypatch)
+        m._get_or_create_download_token()
+        resp = client.post(
+            "/api/download",
+            json={"url": "https://example.invalid/v.mp4", "token": "wrong"},
+            headers={"Origin": "https://some-video-site.example"},
+        )
+        assert resp.status_code == 401
+        assert resp.headers.get("access-control-allow-origin") == "*"
+        assert resp.json()["detail"]
+
+    def test_status_route_needs_the_token_and_returns_one_job(self, monkeypatch):
+        m = self._enable_auth(monkeypatch)
+        token = m._get_or_create_download_token()
+        monkeypatch.setitem(
+            m._jobs,
+            "job-3",
+            {"id": "job-3", "status": "running", "progress": 42, "error": None, "url": "secret"},
+        )
+        assert client.post("/api/download/status", json={"job_id": "job-3"}).status_code == 401
+        resp = client.post("/api/download/status", json={"job_id": "job-3", "token": token})
+        assert resp.status_code == 200
+        assert resp.json() == {"status": "running", "progress": 42, "error": None}
+
+    def test_status_route_hides_every_other_job(self, monkeypatch):
+        """It answers about one job id, never the whole queue: the full list would
+        hand any site the bookmark is clicked on every download's source URL."""
+        m = self._enable_auth(monkeypatch)
+        token = m._get_or_create_download_token()
+        resp = client.post("/api/download/status", json={"job_id": "no-such-job", "token": token})
+        assert resp.status_code == 404
+
+    def test_settings_expose_the_token_but_never_the_pin_hash(self, monkeypatch):
+        """The token is meant to be displayed so the bookmarklet can embed it; the
+        PIN hash is not. `settings` is a generic key/value table returned wholesale,
+        so the exclusion list is what keeps a secret parked there from shipping."""
+        resp = client.get("/api/settings")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["download_token"] == main_mod._get_or_create_download_token()
+        assert "pin_hash" not in data
+
+
+# ── Signed session cookie and login screen (BL-123) ───────────────────────────
+
+
+class TestSessionCookie:
+    @staticmethod
+    def _enable_auth(monkeypatch):
+        import backend.main as m
+
+        monkeypatch.setattr(m, "HOARD_AUTH_USER", "alice")
+        monkeypatch.setattr(m, "HOARD_AUTH_PASS", "secret")
+        monkeypatch.setattr(m, "_AUTH_ENABLED", True)
+        return m
+
+    def test_login_sets_the_cookie_and_the_session_works(self, monkeypatch):
+        m = self._enable_auth(monkeypatch)
+        # Secure off for the round trip: TestClient speaks plain http://testserver
+        # and would rightly refuse to send a Secure cookie back over it. Real
+        # browsers make an exception for localhost, httpx does not.
+        monkeypatch.setattr(m, "HOARD_COOKIE_SECURE", False)
+        with TestClient(app) as c:
+            resp = c.post("/api/login", json={"user": "alice", "password": "secret"})
+            assert resp.status_code == 200
+            assert m.SESSION_COOKIE in resp.cookies
+            # The cookie alone now opens the API — no Authorization header anywhere.
+            assert c.get("/api/settings").status_code == 200
+
+    def test_wrong_credentials_set_no_cookie(self, monkeypatch):
+        m = self._enable_auth(monkeypatch)
+        with TestClient(app) as c:
+            resp = c.post("/api/login", json={"user": "alice", "password": "wrong"})
+            assert resp.status_code == 401
+            assert m.SESSION_COOKIE not in resp.cookies
+            assert c.get("/api/settings").status_code == 401
+
+    def test_cookie_attributes(self, monkeypatch):
+        """SameSite is what stops a third-party page from driving DELETE /api/files
+        with the visitor's session — Basic could not be used that way, a cookie
+        could. HttpOnly keeps it away from any script on the page."""
+        m = self._enable_auth(monkeypatch)
+        monkeypatch.setattr(m, "HOARD_COOKIE_SECURE", True)
+        with TestClient(app) as c:
+            resp = c.post("/api/login", json={"user": "alice", "password": "secret"})
+        raw = resp.headers["set-cookie"].lower()
+        assert "httponly" in raw
+        assert "samesite=lax" in raw
+        assert "secure" in raw
+        assert "path=/" in raw
+        assert f"max-age={m.SESSION_MAX_AGE}" in raw
+
+    def test_secure_flag_follows_the_setting(self, monkeypatch):
+        """The backend is spoken to in plain HTTP behind the Synology reverse proxy,
+        so it cannot detect HTTPS — hence a setting rather than introspection."""
+        m = self._enable_auth(monkeypatch)
+        monkeypatch.setattr(m, "HOARD_COOKIE_SECURE", False)
+        with TestClient(app) as c:
+            resp = c.post("/api/login", json={"user": "alice", "password": "secret"})
+        assert "secure" not in resp.headers["set-cookie"].lower()
+
+    def test_a_forged_signature_is_rejected(self, monkeypatch):
+        m = self._enable_auth(monkeypatch)
+        good = m._make_session_cookie("alice")
+        payload, _, signature = good.partition(".")
+        # Same signature, different payload: the classic forgery attempt.
+        other_payload = m._make_session_cookie("intruder").partition(".")[0]
+        assert m._read_session_cookie(f"{other_payload}.{signature}") is None
+        assert m._read_session_cookie(f"{payload}.AAAAAAAA") is None
+        assert m._read_session_cookie("garbage") is None
+        assert m._read_session_cookie(None) is None
+        with TestClient(app) as c:
+            c.cookies.set(m.SESSION_COOKIE, f"{other_payload}.{signature}")
+            assert c.get("/api/settings").status_code == 401
+
+    def test_an_expired_cookie_is_rejected(self, monkeypatch):
+        m = self._enable_auth(monkeypatch)
+        expired = m._make_session_cookie("alice", expires_at=int(time.time()) - 1)
+        assert m._read_session_cookie(expired) is None
+        with TestClient(app) as c:
+            c.cookies.set(m.SESSION_COOKIE, expired)
+            assert c.get("/api/settings").status_code == 401
+
+    def test_changing_the_secret_key_revokes_every_session(self, monkeypatch):
+        """This is the revocation mechanism: there is no session table to clear."""
+        m = self._enable_auth(monkeypatch)
+        monkeypatch.setattr(m, "HOARD_SECRET_KEY", "first-key")
+        cookie = m._make_session_cookie("alice")
+        assert m._read_session_cookie(cookie) is not None
+        monkeypatch.setattr(m, "HOARD_SECRET_KEY", "second-key")
+        assert m._read_session_cookie(cookie) is None
+
+    def test_sliding_renewal_past_the_halfway_mark(self, monkeypatch):
+        """Without it, 30 days would mean 30 days after the FIRST login, which
+        brings back the very retyping this ticket removes."""
+        m = self._enable_auth(monkeypatch)
+        fresh = m._make_session_cookie("alice")
+        half_spent = m._make_session_cookie(
+            "alice", expires_at=int(time.time()) + m.SESSION_MAX_AGE // 4
+        )
+        with TestClient(app) as c:
+            c.cookies.set(m.SESSION_COOKIE, fresh)
+            assert "set-cookie" not in c.get("/api/settings").headers
+        with TestClient(app) as c:
+            c.cookies.set(m.SESSION_COOKIE, half_spent)
+            assert m.SESSION_COOKIE in c.get("/api/settings").headers.get("set-cookie", "")
+
+    def test_logout_clears_the_cookie(self, monkeypatch):
+        m = self._enable_auth(monkeypatch)
+        monkeypatch.setattr(m, "HOARD_COOKIE_SECURE", False)  # see the test above
+        with TestClient(app) as c:
+            c.post("/api/login", json={"user": "alice", "password": "secret"})
+            assert c.get("/api/settings").status_code == 200
+            c.post("/api/logout")
+            assert c.get("/api/settings").status_code == 401
+
+    def test_no_challenge_for_a_browser_but_one_for_curl(self, monkeypatch):
+        """While WWW-Authenticate is sent, the browser opens its own credentials
+        dialog and the in-app login screen never gets a chance to appear.
+
+        This test only ever covered a navigation (`Accept: text/html`) and curl,
+        which is why it passed while a browser *fetch* — `Accept: */*`, and so
+        indistinguishable from curl here — kept getting the challenge. See
+        test_no_challenge_on_a_browser_fetch. The claim this docstring used to
+        carry, that curl needs the challenge, is also false: Basic credentials are
+        sent preemptively (see test_curl_authenticates_without_ever_being_challenged).
+        """
+        self._enable_auth(monkeypatch)
+        browser = client.get("/api/settings", headers={"Accept": "text/html"})
+        assert browser.status_code == 401
+        assert "www-authenticate" not in browser.headers
+        # No Sec-Fetch-*, no Mozilla, no text/html: nothing says "browser".
+        curl = client.get("/api/settings", headers={"Accept": "*/*", "User-Agent": "curl/8.21.0"})
+        assert curl.status_code == 401
+        assert curl.headers["www-authenticate"].startswith("Basic")
+
+    def test_basic_auth_still_works(self, monkeypatch):
+        """Dropping Basic would break curl, a future native client and any external
+        reader. The two coexist."""
+        import base64
+
+        self._enable_auth(monkeypatch)
+        header = {"Authorization": "Basic " + base64.b64encode(b"alice:secret").decode()}
+        assert client.get("/api/settings", headers=header).status_code == 200
+
+    def test_the_shell_is_served_without_credentials(self, monkeypatch):
+        """Withholding WWW-Authenticate removes the native dialog, so if the page
+        were also behind the guard an unauthenticated browser would get a blank 401
+        with no way in at all. Only the shell is exempt — every /api/* route stays
+        guarded, so no file, setting or listing is reachable."""
+        self._enable_auth(monkeypatch)
+        assert client.get("/").status_code == 200
+        assert client.get("/service-worker.js").status_code == 200
+        assert client.get("/manifest.webmanifest").status_code == 200
+        # The manifest points at /favicon.svg, so leaving it out left the login
+        # screen without an icon and broke installing Hoard as an app.
+        assert client.get("/favicon.svg").status_code == 200
+        assert client.get("/api/files").status_code == 401
+        assert client.get("/api/settings").status_code == 401
+
+    def test_the_shell_exemption_is_an_exact_match(self, monkeypatch):
+        """Same rule as /healthz: a prefix test would let anything starting with
+        one of these paths past the guard."""
+        self._enable_auth(monkeypatch)
+        for path in ("/index.htmlx", "/favicon.svg.bak", "/service-worker.js.map"):
+            assert client.get(path).status_code == 401, path
+
+    def test_the_session_secret_never_leaves_the_server(self, monkeypatch):
+        """`settings` is returned wholesale by GET /api/settings, so a secret parked
+        there ships to the frontend unless it is excluded."""
+        import backend.main as m
+
+        monkeypatch.setattr(m, "HOARD_SECRET_KEY", "")
+        m._session_secret()  # force it into the settings table
+        data = client.get("/api/settings").json()
+        assert m.SESSION_SECRET_SETTING not in data
+        assert "pin_hash" not in data
+
+    def test_login_route_is_reachable_without_credentials(self, monkeypatch):
+        """It is the way in; guarding it would be a locked door with its key inside."""
+        self._enable_auth(monkeypatch)
+        assert client.post("/api/login", json={"user": "x", "password": "y"}).status_code == 401
+
+    def test_the_cookie_authenticated_ui_can_still_download(self, monkeypatch):
+        """Found by review, not by the suite: the guard accepted Basic and the
+        token but not the session cookie, so once BL-123 landed, a user logged in
+        through the login screen got a 401 when starting a download from Hoard
+        itself. The existing test used Basic, which is not how a browser is
+        authenticated any more.
+
+        Accepting the cookie here is safe against CSRF: it is SameSite=Lax, so a
+        third-party page's POST carries no cookie at all.
+        """
+        m = self._enable_auth(monkeypatch)
+        monkeypatch.setattr(m, "HOARD_COOKIE_SECURE", False)
+        monkeypatch.setattr(m, "_queue_download", lambda *a, **k: "job-ui")
+        monkeypatch.setitem(
+            m._jobs, "job-ui", {"id": "job-ui", "status": "running", "progress": 7, "error": None}
+        )
+        with TestClient(app) as c:
+            c.post("/api/login", json={"user": "alice", "password": "secret"})
+            started = c.post("/api/download", json={"url": "https://example.invalid/v.mp4"})
+            assert started.status_code == 200
+            status = c.post("/api/download/status", json={"job_id": "job-ui"})
+            assert status.status_code == 200
+
+    def test_changing_the_credentials_revokes_every_session(self, monkeypatch):
+        """Found by review. The signature used to depend on the secret alone, so
+        changing the password — the reflex move after a suspected leak — revoked
+        nothing: a stolen cookie stayed valid for its full 30 days, and only
+        rotating HOARD_SECRET_KEY would have helped, which nobody would think to
+        do. The credentials are now part of the HMAC key.
+        """
+        m = self._enable_auth(monkeypatch)
+        monkeypatch.setattr(m, "HOARD_SECRET_KEY", "fixed-key")
+        stolen = m._make_session_cookie("alice")
+        assert m._read_session_cookie(stolen) is not None
+
+        monkeypatch.setattr(m, "HOARD_AUTH_PASS", "a-brand-new-password")
+        assert m._read_session_cookie(stolen) is None
+
+        monkeypatch.setattr(m, "HOARD_AUTH_PASS", "secret")  # back to the original
+        assert m._read_session_cookie(stolen) is not None
+
+        monkeypatch.setattr(m, "HOARD_AUTH_USER", "bob")
+        assert m._read_session_cookie(stolen) is None
+
+    def test_the_secret_is_read_once_not_on_every_request(self, monkeypatch):
+        """Verifying a cookie signs a payload, which needs the key, and that runs
+        on every authenticated request — while get_db() opens a fresh SQLite
+        connection each time. Measured before caching: 4.97 ms against 4.05 ms on
+        GET /api/files, 23% slower, to re-read a value that cannot change while
+        the process runs.
+        """
+        import backend.main as m
+
+        monkeypatch.setattr(m, "HOARD_SECRET_KEY", "")
+        monkeypatch.setattr(m, "_session_secret_cached", None)
+        m._session_secret()  # first call populates the cache
+
+        calls = []
+        real_get_db = m.get_db
+        monkeypatch.setattr(m, "get_db", lambda: calls.append(1) or real_get_db())
+        for _ in range(20):
+            m._session_secret()
+        assert calls == [], "the session secret hit the database again"
+
+    def test_no_challenge_on_a_browser_fetch(self, monkeypatch):
+        """The case the original test missed, and the one that mattered.
+
+        A page's first act is fetch('/api/settings'), which sends `Accept: */*` —
+        indistinguishable from curl by that header alone, so it got the challenge
+        and Firefox popped its native credentials dialog on a fetch. Chrome
+        suppresses that dialog for fetch/XHR, which is why checking only Chrome
+        missed it. Reported from production on 2026-09-21.
+        """
+        self._enable_auth(monkeypatch)
+        # Headers measured from a real browser fetch, not invented.
+        resp = client.get(
+            "/api/settings",
+            headers={
+                "Accept": "*/*",
+                "Sec-Fetch-Mode": "cors",
+                "Sec-Fetch-Dest": "empty",
+                "Sec-Fetch-Site": "same-origin",
+            },
+        )
+        assert resp.status_code == 401
+        assert "www-authenticate" not in resp.headers
+
+    def test_no_challenge_for_any_browser_signal(self, monkeypatch):
+        """Three signals, any one of which is enough. Sec-Fetch-* is the reliable
+        one; the others cover a browser old enough not to send it."""
+        self._enable_auth(monkeypatch)
+        browsery = [
+            {"Accept": "*/*", "Sec-Fetch-Mode": "cors"},  # modern fetch
+            {"Accept": "text/html,application/xhtml+xml", "Sec-Fetch-Mode": "navigate"},
+            {"Accept": "text/html"},  # old browser, navigation
+            {"Accept": "*/*", "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) Gecko/20100101"},
+        ]
+        for headers in browsery:
+            resp = client.get("/api/settings", headers=headers)
+            assert resp.status_code == 401, headers
+            assert "www-authenticate" not in resp.headers, headers
+
+    def test_a_non_browser_still_gets_the_challenge(self, monkeypatch):
+        """curl does not need it — it sends Authorization on the first request,
+        which is Basic behaviour, not Digest. Kept anyway: it costs nothing and
+        leaves a client that does wait for a challenge able to authenticate."""
+        self._enable_auth(monkeypatch)
+        resp = client.get("/api/settings", headers={"Accept": "*/*", "User-Agent": "curl/8.21.0"})
+        assert resp.status_code == 401
+        assert resp.headers["www-authenticate"].startswith("Basic")
+
+    def test_curl_authenticates_without_ever_being_challenged(self, monkeypatch):
+        """The measurement that invalidated the original justification: Basic
+        credentials are sent preemptively, so the challenge is not what makes
+        curl work."""
+        import base64
+
+        self._enable_auth(monkeypatch)
+        resp = client.get(
+            "/api/settings",
+            headers={
+                "Authorization": "Basic " + base64.b64encode(b"alice:secret").decode(),
+                "User-Agent": "curl/8.21.0",
+            },
+        )
+        assert resp.status_code == 200
+
+
+# ── Hardening: cross-origin access, JS injection, SSRF, concat list, transcode ──
+
+
+class TestCrossOriginAccess:
+    """Only the bookmarklet routes answer cross-origin callers. Everything else is
+    same-origin: with a wildcard on every route, any page the user visits could
+    read and drive the API whenever authentication is off."""
+
+    EVIL = "https://evil.example"
+
+    def test_api_response_is_not_readable_from_another_origin(self):
+        resp = client.get("/api/settings", headers={"Origin": self.EVIL})
+        assert resp.status_code == 200
+        assert "access-control-allow-origin" not in resp.headers
+
+    def test_preflight_to_the_api_is_not_granted(self):
+        resp = client.options(
+            "/api/settings",
+            headers={
+                "Origin": self.EVIL,
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "content-type",
+            },
+        )
+        assert "access-control-allow-origin" not in resp.headers
+
+    def test_bookmarklet_routes_still_answer_any_origin(self):
+        for path in main_mod.DOWNLOAD_TOKEN_PATHS:
+            resp = client.options(
+                path,
+                headers={
+                    "Origin": "https://some-video-site.example",
+                    "Access-Control-Request-Method": "POST",
+                    "Access-Control-Request-Headers": "content-type",
+                },
+            )
+            assert resp.status_code == 200, path
+            assert resp.headers["access-control-allow-origin"] == "*", path
+
+
+class TestCrossSiteWrites:
+    """Withholding CORS stops reading, not sending: a POST with no body needs no
+    preflight. Without auth, Sec-Fetch-Site is what tells the UI from another site."""
+
+    def test_cross_site_post_is_refused(self):
+        resp = client.post("/api/restart", headers={"Sec-Fetch-Site": "cross-site"})
+        assert resp.status_code == 403
+
+    def test_same_site_but_other_origin_is_refused(self):
+        resp = client.post(
+            "/api/files/mkdir?path=", json={"name": "x"}, headers={"Sec-Fetch-Site": "same-site"}
+        )
+        assert resp.status_code == 403
+        assert not (MEDIA_ROOT / "x").exists()
+
+    def test_the_ui_itself_is_let_through(self):
+        resp = client.post(
+            "/api/files/mkdir?path=", json={"name": "x"}, headers={"Sec-Fetch-Site": "same-origin"}
+        )
+        assert resp.status_code == 200
+
+    def test_cross_site_read_is_not_this_guard_s_business(self):
+        resp = client.get("/api/settings", headers={"Sec-Fetch-Site": "cross-site"})
+        assert resp.status_code == 200
+
+    def test_bookmarklet_routes_stay_reachable_cross_site(self, monkeypatch):
+        monkeypatch.setitem(sys.modules, "yt_dlp", _make_yt_dlp_mock())
+        resp = client.post(
+            "/api/download",
+            json={"url": "https://example.com/video"},
+            headers={"Sec-Fetch-Site": "cross-site", "Origin": "https://some-video-site.example"},
+        )
+        assert resp.status_code == 200
+
+
+class TestInlineHandlerEscaping:
+    """A file name lands in onclick="fn(...)". The browser decodes the attribute's
+    entities before the JS parser sees it, so HTML escaping ('&#39;') protects
+    nothing there: only jsStr() — JSON, then the attribute escapes — does."""
+
+    def _shell(self):
+        return client.get("/").text
+
+    def test_no_inline_handler_quotes_an_interpolated_value_itself(self):
+        import re
+
+        for m in re.finditer(r'\bon[a-z]+="([^"]*)"', self._shell()):
+            handler = m.group(1)
+            assert "'${" not in handler, f"use jsStr(), not a quoted esc(): {handler}"
+
+    def test_js_str_escapes_ampersand_before_quotes(self):
+        """Without '&' → '&amp;' first, a name containing the text '&quot;' comes
+        out of the attribute as a real quote and closes the string."""
+        import re
+
+        body = re.search(r"function jsStr\(val\) \{(.*?)\n\}", self._shell(), re.S).group(1)
+        assert body.index("/&/g") < body.index('/"/g')
+
+
+class TestDownloadUrlGuard:
+    def _resolve_to(self, monkeypatch, *addresses):
+        monkeypatch.setattr(main_mod, "_resolve_host", lambda host: list(addresses))
+
+    def test_public_host_passes(self):
+        main_mod._check_public_url("https://example.com/video")
+
+    def test_host_name_pointing_at_the_lan_is_rejected(self, monkeypatch):
+        self._resolve_to(monkeypatch, "192.168.1.20")
+        with pytest.raises(ValueError):
+            main_mod._check_public_url("https://interne.example.com/x")
+        resp = client.post("/api/download", json={"url": "https://interne.example.com/x"})
+        assert resp.status_code == 400
+
+    def test_one_local_address_among_several_is_enough_to_reject(self, monkeypatch):
+        self._resolve_to(monkeypatch, "1.1.1.1", "10.0.0.5")
+        with pytest.raises(ValueError):
+            main_mod._check_public_url("https://mixed.example.com/x")
+
+    def test_unresolvable_host_is_rejected(self, monkeypatch):
+        def _fail(host):
+            raise OSError("no such host")
+
+        monkeypatch.setattr(main_mod, "_resolve_host", _fail)
+        with pytest.raises(ValueError):
+            main_mod._check_public_url("https://nowhere.invalid/x")
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "http://0.0.0.0:5000/",  # reaches the host itself on Linux
+            "http://[::ffff:192.168.1.1]/",  # IPv4-mapped IPv6
+            "http://100.64.1.1/",  # carrier-grade NAT
+            "http://[::1]/",
+            "http://nas.localhost/",
+        ],
+    )
+    def test_local_literal_addresses_are_rejected(self, url):
+        with pytest.raises(ValueError):
+            main_mod._check_public_url(url)
+
+    def test_redirect_to_the_lan_is_refused(self):
+        import urllib.error
+        import urllib.request
+
+        handler = main_mod._PublicOnlyRedirectHandler()
+        req = urllib.request.Request("https://example.com/page")
+        with pytest.raises(urllib.error.URLError):
+            handler.redirect_request(req, None, 302, "Found", {}, "http://192.168.1.1:5000/")
+
+    def test_sniff_does_not_fetch_a_local_page(self, monkeypatch):
+        # Recorded rather than raised: _sniff_video_source swallows every exception.
+        fetched = []
+        monkeypatch.setattr(main_mod, "_open_public_url", lambda req, timeout: fetched.append(req))
+        assert main_mod._sniff_video_source("http://192.168.1.1/page", None) is None
+        assert fetched == []
+
+    def test_sniffed_url_pointing_at_the_lan_is_not_downloaded(self, monkeypatch):
+        """The sniffed URL comes from the remote page: it goes through the same
+        check as the URL the user queued, and the job fails instead of fetching it."""
+        mock_yt_dlp = _make_yt_dlp_mock()
+        extracted = []
+
+        def _extract(url, download):
+            extracted.append(url)
+            raise mock_yt_dlp.utils.DownloadError(f"ERROR: Unsupported URL: {url}")
+
+        mock_yt_dlp.YoutubeDL.return_value.extract_info = MagicMock(side_effect=_extract)
+        monkeypatch.setitem(sys.modules, "yt_dlp", mock_yt_dlp)
+        monkeypatch.setattr(
+            main_mod, "_sniff_video_source", lambda url, cookies: "http://192.168.1.1:5000/webapi"
+        )
+        _sync_thread_patch(monkeypatch)
+        resp = client.post("/api/download", json={"url": "https://example.com/page"})
+        job = {j["id"]: j for j in client.get("/api/jobs").json()}[resp.json()["job_id"]]
+        assert job["status"] == "error"
+        assert "Local network" in job["error"]
+        assert extracted == ["https://example.com/page"]
+
+
+class TestControlCharactersInNames:
+    @pytest.mark.parametrize("name", ["a\nb.mp4", "a\rb.mp4", "a\tb.mp4", "a\x7fb.mp4"])
+    def test_rename_refuses_control_characters(self, video_file, name):
+        resp = client.post(f"/api/files/rename?path={video_file}", json={"new_name": name})
+        assert resp.status_code == 400
+        assert (MEDIA_ROOT / video_file).exists()
+
+    def test_mkdir_refuses_a_line_break(self):
+        resp = client.post("/api/files/mkdir?path=", json={"name": "a\nb"})
+        assert resp.status_code == 400
+
+
+class TestMergedExportList:
+    """The concat list is line-based and read with -safe 0: a line break in the
+    source path would add a `file` directive of the file name's own choosing."""
+
+    SEGMENTS = [{"seg_in": 0.0, "seg_out": 5.0}, {"seg_in": 10.0, "seg_out": 15.0}]
+
+    def _job(self):
+        import uuid
+
+        job_id = str(uuid.uuid4())
+        main_mod._jobs[job_id] = {"id": job_id, "status": "pending", "error": None}
+        return job_id
+
+    def test_line_break_in_source_fails_the_job_without_running_ffmpeg(self, monkeypatch):
+        def _never(*a, **k):
+            raise AssertionError("ffmpeg was started")
+
+        monkeypatch.setattr(main_mod.subprocess, "Popen", _never)
+        job_id = self._job()
+        source = MEDIA_ROOT / "film\nfile '/etc/passwd'\n#.mp4"  # never created
+        main_mod._run_export_segments(job_id, source, self.SEGMENTS, "merged", MEDIA_ROOT, True)
+        assert main_mod._jobs[job_id]["status"] == "error"
+        assert "line break" in main_mod._jobs[job_id]["error"]
+
+    def test_apostrophe_is_escaped_the_concat_way(self, monkeypatch):
+        written = {}
+
+        class _Proc:
+            returncode = 0
+            stderr = iter(())
+
+            def __init__(self, cmd, **kwargs):
+                written["list"] = Path(cmd[cmd.index("-i") + 1]).read_text(encoding="utf-8")
+
+            def wait(self):
+                return 0
+
+        monkeypatch.setattr(main_mod.subprocess, "Popen", _Proc)
+        source = MEDIA_ROOT / "it's.mp4"
+        source.write_bytes(b"\x00" * 16)
+        job_id = self._job()
+        main_mod._run_export_segments(job_id, source, self.SEGMENTS, "merged", MEDIA_ROOT, True)
+        expected = "file '" + str(source).replace("'", "'\\''") + "'"
+        assert written["list"].splitlines().count(expected) == 2
+        assert main_mod._jobs[job_id]["status"] == "done"
+
+
+class TestTranscodeConcurrency:
+    """Each transcode is a libx264 encode lasting as long as playback: capped like
+    thumbnails, so a few devices cannot saturate a low-power NAS."""
+
+    class _Proc:
+        def __init__(self, cmd, **kwargs):
+            import io
+
+            self.stdout = io.BytesIO(b"x" * 1000)
+            self.terminated = False
+
+        def terminate(self):
+            self.terminated = True
+
+        def wait(self, timeout=None):
+            return 0
+
+        def kill(self):
+            pass
+
+    @staticmethod
+    def _free_slots():
+        n = 0
+        while main_mod._transcode_slots.acquire(blocking=False):
+            n += 1
+        for _ in range(n):
+            main_mod._transcode_slots.release()
+        return n
+
+    @pytest.fixture(autouse=True)
+    def _fake_ffmpeg(self, monkeypatch):
+        monkeypatch.setattr(main_mod, "FFMPEG_BIN", "ffmpeg")
+        monkeypatch.setattr(main_mod.subprocess, "Popen", self._Proc)
+        # Fresh slots per test: one that fails mid-way must not leave the next at 503.
+        monkeypatch.setattr(
+            main_mod,
+            "_transcode_slots",
+            threading.BoundedSemaphore(main_mod.TRANSCODE_MAX_CONCURRENCY),
+        )
+
+    def test_busy_server_answers_503(self, video_file):
+        cap = main_mod.TRANSCODE_MAX_CONCURRENCY
+        for _ in range(cap):
+            assert main_mod._transcode_slots.acquire(blocking=False)
+        try:
+            resp = client.get(f"/api/transcode?path={video_file}")
+            assert resp.status_code == 503
+        finally:
+            for _ in range(cap):
+                main_mod._transcode_slots.release()
+
+    def test_slot_is_released_once_the_stream_ends(self, video_file):
+        resp = client.get(f"/api/transcode?path={video_file}")
+        assert resp.status_code == 200
+        assert resp.content == b"x" * 1000
+        assert self._free_slots() == main_mod.TRANSCODE_MAX_CONCURRENCY
+
+    def test_slot_is_released_when_the_stream_never_starts(self, video_file):
+        """A client gone before the first chunk leaves the generator unstarted, and
+        an unstarted generator never runs its finally."""
+        import gc
+
+        resp = main_mod.transcode_video(video_file, audio_only=False)
+        assert self._free_slots() == main_mod.TRANSCODE_MAX_CONCURRENCY - 1
+        del resp
+        gc.collect()
+        assert self._free_slots() == main_mod.TRANSCODE_MAX_CONCURRENCY
+
+    def test_ffmpeg_is_stopped_explicitly(self, video_file, monkeypatch):
+        procs = []
+
+        def _spawn(cmd, **kwargs):
+            procs.append(self._Proc(cmd))
+            return procs[-1]
+
+        monkeypatch.setattr(main_mod.subprocess, "Popen", _spawn)
+        client.get(f"/api/transcode?path={video_file}")
+        assert procs and procs[0].terminated
+
+
+class TestDeploymentExamples:
+    REPO = Path(__file__).resolve().parent.parent
+
+    def test_no_example_carries_a_real_looking_password(self):
+        """An example that looks like a generated password gets pasted as is, and
+        every install that followed the docs then shares it."""
+        import re
+
+        files = [*self.REPO.glob("docs/*.md"), self.REPO / "docker-compose.yml"]
+        for f in files:
+            for value in re.findall(r"HOARD_AUTH_PASS=(\S+)", f.read_text(encoding="utf-8")):
+                # The value is not printed: if this fails, it may be a real one.
+                assert not re.fullmatch(r"[A-Za-z0-9+/=]{12,}", value), f.name
+
+    def test_production_compose_does_not_run_as_root(self):
+        text = (self.REPO / "docker-compose.yml").read_text(encoding="utf-8")
+        assert "user: root" not in text
+
+
+# ── Unreadable filesystem entries ─────────────────────────────────────────────
+
+
+def _block_children_of(monkeypatch, blocked: Path):
+    """Simulate a directory the server can list but not traverse (``r--``, no ``x``):
+    its children are visible by name, but stat-ing any of them fails with EACCES —
+    the Synology ACL case that took the root listing down in production. Patching the
+    Path methods (rather than chmod) keeps the test working on Windows and as root."""
+    import pathlib
+
+    def _guard(name):
+        original = getattr(pathlib.Path, name)
+
+        def wrapper(self, *args, **kwargs):
+            if blocked in self.parents:
+                raise PermissionError(13, "Permission denied", str(self))
+            return original(self, *args, **kwargs)
+
+        monkeypatch.setattr(pathlib.Path, name, wrapper)
+
+    for name in ("stat", "lstat", "is_file", "is_dir", "is_symlink"):
+        _guard(name)
+
+
+class TestUnreadableEntries:
+    @pytest.fixture(autouse=True)
+    def _reset_warned(self):
+        main_mod._unreadable_warned.clear()
+        yield
+        main_mod._unreadable_warned.clear()
+
+    def _make_tree(self):
+        downloads = MEDIA_ROOT / "downloads"
+        bad = downloads / "[[_downloads"
+        bad.mkdir(parents=True)
+        (bad / "a.mp4").write_bytes(b"\x00")
+        (downloads / "b.mp4").write_bytes(b"\x00")
+        (MEDIA_ROOT / "ok.mp4").write_bytes(b"\x00")
+        return downloads, bad
+
+    def test_root_listing_survives_untraversable_folder(self, monkeypatch):
+        downloads, _ = self._make_tree()
+        _block_children_of(monkeypatch, downloads)
+        resp = client.get("/api/files?path=")
+        assert resp.status_code == 200
+        entries = {e["name"]: e for e in resp.json()["entries"]}
+        # The unreadable folder stays visible, with a neutral state.
+        assert entries["downloads"]["is_dir"] is True
+        assert entries["downloads"]["media_type"] == "other"
+        assert entries["downloads"]["folder_state"] == "new"
+        assert "ok.mp4" in entries
+
+    def test_listing_survives_untraversable_subfolder(self, monkeypatch):
+        downloads, bad = self._make_tree()
+        _block_children_of(monkeypatch, bad)
+        resp = client.get("/api/files?path=downloads")
+        assert resp.status_code == 200
+        entries = {e["name"]: e for e in resp.json()["entries"]}
+        assert entries["[[_downloads"]["folder_state"] == "new"
+        assert entries["[[_downloads"]["media_type"] == "other"
+        assert "b.mp4" in entries
+
+    def test_entries_that_cannot_be_stated_are_skipped(self, monkeypatch):
+        downloads, _ = self._make_tree()
+        _block_children_of(monkeypatch, downloads)
+        resp = client.get("/api/files?path=downloads")
+        assert resp.status_code == 200
+        assert resp.json()["entries"] == []
+
+    def test_unlistable_folder_returns_403(self, monkeypatch):
+        downloads, _ = self._make_tree()
+        import pathlib
+
+        original = pathlib.Path.iterdir
+
+        def iterdir(self):
+            if self == downloads:
+                raise PermissionError(13, "Permission denied", str(self))
+            return original(self)
+
+        monkeypatch.setattr(pathlib.Path, "iterdir", iterdir)
+        resp = client.get("/api/files?path=downloads")
+        assert resp.status_code == 403
+
+    def test_search_survives_untraversable_folder(self, monkeypatch):
+        downloads, _ = self._make_tree()
+        _block_children_of(monkeypatch, downloads)
+        resp = client.get("/api/search?q=.mp4")
+        assert resp.status_code == 200
+        names = [e["name"] for e in resp.json()["entries"]]
+        assert names == ["ok.mp4"]
+
+    def test_unreadable_entry_is_logged_once(self, monkeypatch, caplog):
+        downloads, _ = self._make_tree()
+        _block_children_of(monkeypatch, downloads)
+        with caplog.at_level("WARNING", logger="hoard"):
+            client.get("/api/files?path=")
+            client.get("/api/files?path=")
+        messages = [r.getMessage() for r in caplog.records if "Cannot access" in r.getMessage()]
+        # The second listing hits the same unreadable entries and logs nothing new.
+        assert messages
+        assert len(messages) == len(set(messages))
+        assert any(str(downloads) in m for m in messages)
+
+    @pytest.mark.skipif(
+        sys.platform == "win32" or os.geteuid() == 0,
+        reason="needs POSIX permissions and a non-root user",
+    )
+    @pytest.mark.parametrize("target,mode", [("downloads", 0o444), ("bad", 0o444), ("bad", 0)])
+    def test_real_permissions(self, target, mode):
+        downloads, bad = self._make_tree()
+        blocked = downloads if target == "downloads" else bad
+        with main_mod.get_db() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO settings (key, value) VALUES ('download_folder', ?)",
+                ("downloads/[[_downloads/sub",),
+            )
+            conn.execute("INSERT INTO quick_folders (path) VALUES ('downloads/[[_downloads/sub')")
+            conn.commit()
+        os.chmod(blocked, mode)
+        try:
+            for url in (
+                "/api/settings",
+                "/api/quick-folders",
+                "/api/files?path=",
+                "/api/files?path=downloads",
+                "/api/search?q=a",
+            ):
+                assert client.get(url).status_code == 200, url
+        finally:
+            os.chmod(blocked, 0o755)
+
+    # Startup routes: before this guard, /api/settings answered 500 in production
+    # (the download folder sat behind an untraversable share), so the frontend never
+    # loaded its configuration and the whole app looked dead.
+
+    def test_settings_survive_inaccessible_download_folder(self, monkeypatch):
+        downloads, _ = self._make_tree()
+        with main_mod.get_db() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO settings (key, value) VALUES ('download_folder', ?)",
+                ("downloads/[[_downloads",),
+            )
+            conn.commit()
+        _block_children_of(monkeypatch, downloads)
+        resp = client.get("/api/settings")
+        assert resp.status_code == 200
+        assert resp.json()["download_folder_exists"] is False
+
+    def test_quick_folders_skip_inaccessible_entries(self, monkeypatch):
+        downloads, _ = self._make_tree()
+        (MEDIA_ROOT / "movies").mkdir()
+        with main_mod.get_db() as conn:
+            for rel in ("downloads/[[_review", "movies"):
+                conn.execute("INSERT INTO quick_folders (path) VALUES (?)", (rel,))
+            conn.commit()
+        _block_children_of(monkeypatch, downloads)
+        resp = client.get("/api/quick-folders")
+        assert resp.status_code == 200
+        assert [q["path"] for q in resp.json()] == ["movies"]
+
+    def test_home_roots_skip_inaccessible_entries(self, monkeypatch):
+        downloads, _ = self._make_tree()
+        (MEDIA_ROOT / "movies").mkdir()
+        with main_mod.get_db() as conn:
+            for rel in ("downloads/[[_downloads", "movies"):
+                conn.execute("INSERT INTO home_roots (name, path) VALUES (?, ?)", (rel, rel))
+            conn.commit()
+        _block_children_of(monkeypatch, downloads)
+        resp = client.get("/api/home-roots")
+        assert resp.status_code == 200
+        assert [r["path"] for r in resp.json()] == ["movies"]
+
+    def test_healthz_reports_inaccessible_media_root(self, monkeypatch):
+        import pathlib
+
+        original = pathlib.Path.is_dir
+        root = main_mod.get_media_root()
+
+        def is_dir(self, *args, **kwargs):
+            if self == root:
+                raise PermissionError(13, "Permission denied", str(self))
+            return original(self, *args, **kwargs)
+
+        monkeypatch.setattr(pathlib.Path, "is_dir", is_dir)
+        assert client.get("/healthz").status_code == 503
+
+    def test_other_routes_answer_403_not_500(self, monkeypatch):
+        downloads, _ = self._make_tree()
+        _block_children_of(monkeypatch, downloads)
+        resp = client.get("/api/file?path=downloads/b.mp4")
+        assert resp.status_code == 403
+        assert resp.json() == {"detail": "Access denied"}

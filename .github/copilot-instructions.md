@@ -67,7 +67,12 @@ Documentation must be kept up to date with every code change. Update in the **sa
   - Single file — inline CSS and JS. No external dependencies beyond what the browser provides natively.
   - Global `cfg` object holds all settings loaded from `/api/settings` at startup.
   - Touch gesture constants come from `cfg`, never hardcoded.
-  - `localStorage` is only used for `volume` (device-local). Everything else is in the backend DB.
+- Sizes are written in `rem`, never `px` (BL-137): the root font size is the interface's one scale and grows with the viewport past 1920x1080. Only 1-2px hairlines and media query breakpoints stay in `px`.
+  - `localStorage` holds **device-local settings only**: today `volume`, `sbs_global`
+  (the whole-interface side-by-side toggle) and `gamepad_profile` (standard or Steam
+  Frame right hand only). Everything else is in the backend DB, so that it follows
+  the user from the laptop to the Deck. Adding another one is a decision, not a
+  convenience.
 
 - **Database** (SQLite, native `sqlite3`):
   - Schema is created on startup via `init_db()` — no migration tool.
@@ -82,7 +87,7 @@ hoard/
 │   ├── copilot-instructions.md    # This file
 │   └── workflows/
 │       ├── ci.yml                 # Lint + tests on every push/PR
-│       └── docker-build.yml       # Build Docker image on main / tags
+│       └── docker-build.yml       # Build Docker image on main / develop / tags
 ├── pyproject.toml                 # pytest + ruff config
 ├── requirements-dev.txt           # Dev dependencies (fastapi, uvicorn, pytest, httpx, ruff)
 ├── Dockerfile
@@ -167,7 +172,12 @@ When the user asks to do a release, follow these steps in order:
 
 ### Commands
 
-> **Version policy**: Never change the version number in `pyproject.toml` unless the user has confirmed it.
+> **Version policy** (clarified 2026-09-21): bump the **patch** version in
+> `pyproject.toml` autonomously, as the last step of the per-change checklist —
+> that is routine bookkeeping. **Minor and major bumps need the user's explicit
+> confirmation**: they say something about the release, and that is their call.
+> Previously this read "never change the version unless the user has confirmed
+> it", which flatly contradicted the checklist and left no workable reading.
 
 ```bash
 # Install dev dependencies
