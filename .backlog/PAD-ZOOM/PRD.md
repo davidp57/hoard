@@ -1,6 +1,6 @@
 # Lot PAD-ZOOM — Zoomer dans une vidéo à la manette, comme dans PadView
 
-Status: 🔄 in-progress
+Status: 🧑 waiting-human
 Branch: `feature/pad-zoom`
 
 ## Problem Statement
@@ -23,4 +23,4 @@ La couche R2 sur une vidéo plate, avec les mêmes gestes que PadView et que la 
 
 | # | Ticket | Status |
 |---|--------|--------|
-| 01 | [BL-140 — Zoom et déplacement sous R2 sur une vidéo plate](tickets/01-flat-zoom.md) | 🔄 |
+| 01 | [BL-140 — Zoom et déplacement sous R2 sur une vidéo plate](tickets/01-flat-zoom.md) | 🧑 |

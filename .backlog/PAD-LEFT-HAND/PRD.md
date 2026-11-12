@@ -1,6 +1,6 @@
 # Lot PAD-LEFT-HAND — La main gauche règle ce qu'on regarde
 
-Status: 🔄 in-progress
+Status: 🧑 waiting-human
 Branch: `feature/pad-left-hand`
 
 ## Problem Statement
@@ -25,5 +25,5 @@ Avec la disposition actuelle, régler le volume demande la main droite (stick dr
 
 | # | Ticket | Status |
 |---|--------|--------|
-| 01 | [BL-138 — Disposition main gauche du lecteur](tickets/01-left-hand-layout.md) | 🔄 |
-| 02 | [BL-139 — Convention manette commune avec PadView](tickets/02-pad-convention.md) | 🔄 |
+| 01 | [BL-138 — Disposition main gauche du lecteur](tickets/01-left-hand-layout.md) | 🧑 |
+| 02 | [BL-139 — Convention manette commune avec PadView](tickets/02-pad-convention.md) | 🧑 |

@@ -1,6 +1,6 @@
 # BL-139 — Convention manette commune avec PadView
 
-Status: 🔄 in-progress
+Status: 🧑 waiting-human
 
 ## Quoi
 

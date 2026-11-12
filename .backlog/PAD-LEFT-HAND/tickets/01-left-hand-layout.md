@@ -1,6 +1,6 @@
 # BL-138 — Disposition main gauche du lecteur
 
-Status: 🔄 in-progress
+Status: 🧑 waiting-human
 
 ## Quoi
 

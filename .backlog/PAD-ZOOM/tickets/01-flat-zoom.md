@@ -1,6 +1,6 @@
 # BL-140 — Zoom et déplacement sous R2 sur une vidéo plate
 
-Status: 🔄 in-progress
+Status: 🧑 waiting-human
 
 ## Quoi
 
