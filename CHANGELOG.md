@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v2.9.0] - 2026-11-12
+
 ### Added
 - **Profils de manette, dont « Steam Frame, main droite seule » (lot PAD-PROFILES, BL-141).** Demandé par David le 2026-11-05, après avoir piloté Hoard un soir avec la seule manette droite du Frame. Le profil **Standard** est le mapping existant, inchangé ; le profil **main droite** tient sur A, B, X, Y, R1, R2, le stick droit et R3 : stick ↕ curseur (liste) ou volume (lecteur), ↔ vitesse tant que tenu, Y menu (liste) ou plein écran (lecteur), R1 + stick les sauts, R1 + X / B déplacer / supprimer, R3 Fit / Fill, R2 le cadrage (zoom sous R1 + R2, R2 + R3 remet à 1×). Dans les fenêtres, le stick remplace la croix. Choix dans Paramètres → Manette ou le menu contextuel, enregistré sur l'appareil (`localStorage['gamepad_profile']`) ; le mapping personnalisé ne s'applique qu'au profil Standard. La carte des boutons affiche le profil actif, et l'action `aspect_ratio` y est nommée « Fit / Fill », ce qu'elle fait.
 - **Diagnostic de codecs dans Paramètres → Player.** Le HEVC se lit sur le Steam Deck mais pas sur le Steam Frame, et le NAS ne peut pas transcoder : il faut savoir ce que le Chromium de l'appareil décode. Le bouton « Tester les codecs » affiche le user-agent puis, pour H.264, HEVC (`hvc1`, `hev1`, Main 10), VP9 et AV1, le verdict de `canPlayType` et de `mediaCapabilities.decodingInfo` (supporté, fluide, matériel ou logiciel) — les deux questions que pose déjà `choosePlaybackSource`. Sans clavier ni console, comme le diagnostic manette.

@@ -6,6 +6,19 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ## [Non publié]
 
+## [v2.9.0] — 2026-11-12
+
+Grosse version : Hoard devient utilisable en VR et entièrement pilotable à la manette, Steam Frame compris.
+
+- Les vidéos 180° côte à côte se regardent enfin : à plat sur un écran normal, en relief dans des lunettes XR ou dans un casque VR.
+- La profondeur se règle à la manette en regardant l'image, et elle est retenue pour chaque fichier.
+- Toute l'interface peut s'afficher en côte à côte pour des lunettes XR.
+- À la manette, la main gauche règle le volume, la vitesse et les sauts. On peut zoomer dans une vidéo, et un profil permet de jouer avec la seule main droite du Steam Frame.
+- Plus besoin de retaper son mot de passe à chaque fois, et le bouton de téléchargement des favoris refonctionne.
+- Sécurité : Hoard ne tourne plus avec tous les droits sur le NAS, et il est mieux protégé contre les sites visités.
+- Un dossier que Hoard n'a pas le droit de lire ne bloque plus l'application.
+- Des diagnostics de la manette et des formats vidéo sont dans les Réglages.
+
 ### Ajouté
 
 - **Hoard se pilote avec la seule manette droite du Steam Frame.** Un nouveau profil de manette, « Steam Frame, main droite seule », regroupe les commandes utiles sur A, B, X, Y, R1, R2 et le stick droit : parcourir la liste et les fenêtres au stick, régler le volume et la vitesse, sauter dans la vidéo, déplacer ou supprimer un fichier, zoomer. Le profil se choisit dans les Réglages ou dans le menu de la manette, et il ne change que l'appareil où on le choisit.

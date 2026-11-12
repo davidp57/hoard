@@ -1,6 +1,6 @@
 # Roadmap — Hoard
 
-## Session cookie and bookmarklet token *(done, target version to be agreed)*
+## v2.9.0 — Session cookie and bookmarklet token *(done)*
 
 HTTP Basic auth went live in production on 2026-09-21. It protects correctly and
 cost two things: credentials retyped in every new browser window, through the
@@ -9,7 +9,7 @@ Frame — and a **broken bookmarklet**, since a cross-origin POST carries no Bas
 credentials. Two deliberately distinct mechanisms, because one cannot fix the
 other: a correct session cookie is `SameSite=Lax`, which is precisely what stops a
 third-party page from acting on your behalf. See lot
-[SEC-SESSION](.backlog/SEC-SESSION/PRD.md).
+[SEC-SESSION](.backlog/archive/SEC-SESSION.md).
 
 - [x] **Login screen and signed session cookie** (BL-123) — 30 days, slid on use;
       `WWW-Authenticate` withheld from browsers, kept for `curl -u`; Basic still
@@ -25,14 +25,14 @@ failure.
 Out of scope and argued in the PRD: logging out as a feature (the route exists,
 the UI does not advertise it). Tightening `allow_origins=["*"]` was done later: CORS now serves the two bookmarklet routes only.
 
-## VR 180° side-by-side in the web player *(done, target version to be agreed)*
+## v2.9.0 — VR 180° side-by-side in the web player *(done)*
 
 180° stereoscopic side-by-side files opened as ordinary video — two squashed
 pictures, unwatchable. The web player now deprojects the hemisphere onto a WebGL
 canvas laid over the `<video>`, which keeps driving playback and progress. Two
 outputs: a flat view to pan on a normal screen, and a side-by-side output for XR
 glasses in 3D mode (Steam Deck + Viture Beast). See lot
-[FEAT-VR180](.backlog/FEAT-VR180/PRD.md).
+[FEAT-VR180](.backlog/archive/FEAT-VR180.md).
 
 - [x] **Deprojection, flat view and look controls** (BL-119) — the gate ticket
 - [x] **Side-by-side output** for XR glasses (BL-120)
@@ -40,7 +40,7 @@ glasses in 3D mode (Steam Deck + Viture Beast). See lot
 - [x] **Settings**: field of view, convergence, look speed, sbs layout (BL-122)
 
 The Deck-and-glasses check was done on 2026-09-21 and found two usability
-defects, fixed by lot [FIX-XR-DISPLAY](.backlog/FIX-XR-DISPLAY/PRD.md):
+defects, fixed by lot [FIX-XR-DISPLAY](.backlog/archive/FIX-XR-DISPLAY.md):
 
 - [x] **Pad windows at the screen's scale** (BL-126) — the Select menu kept a
       fixed 380px width, and the button map was an SVG drawing that never grew,
@@ -55,7 +55,7 @@ defects, fixed by lot [FIX-XR-DISPLAY](.backlog/FIX-XR-DISPLAY/PRD.md):
 Verified on the hardware the same day: the Select menu reads `auto : non
 étirée`, so the guess picks `full` on its own and that is the right one on the
 Beast. That test in turn surfaced two gaps — about driving rather than about the
-picture — covered by lot [PAD-VR](.backlog/PAD-VR/PRD.md):
+picture — covered by lot [PAD-VR](.backlog/archive/PAD-VR.md):
 
 - [x] **Readable pad windows in side-by-side** (BL-127) — the Select menu and the
       button map were drawn once, centred, so they straddled the split and each
@@ -67,7 +67,7 @@ picture — covered by lot [PAD-VR](.backlog/PAD-VR/PRD.md):
 - [x] **Per-file convergence** (BL-129) — the strain comes from how a file was
       shot, so it is remembered per file rather than globally.
 
-## The whole UI side by side, on a toggle *(done)*
+## v2.9.0 — The whole UI side by side, on a toggle *(done)*
 
 XR glasses in 3D mode split the picture in two **all the time**, not only during
 playback, so every screen of Hoard is drawn once astride the split and each eye
@@ -77,7 +77,7 @@ things you drive a playback with; this covers the rest, which is what you spend
 the most time in: you browse far more than you adjust.
 
 A toggle, device-local, covering the whole application — PIN screen, browser,
-images, PDF, video and dialogs. See lot [PAD-SBS-UI](.backlog/PAD-SBS-UI/PRD.md).
+images, PDF, video and dialogs. See lot [PAD-SBS-UI](.backlog/archive/PAD-SBS-UI.md).
 It is not stereoscopy: both eyes are shown the same picture, which is exactly
 what makes an interface readable rather than tiring.
 
@@ -166,7 +166,7 @@ protected one. Startup now states the auth state and names what "disabled"
 means; `docker-compose.yml` and the installation docs carry the warning. A new
 public `/healthz` route fixes the container health check, which hit a protected
 route with no credentials and marked every authenticated deployment unhealthy.
-See lot [SEC-AUTH](.backlog/SEC-AUTH/PRD.md).
+See lot [SEC-AUTH](.backlog/archive/SEC-AUTH.md).
 
 - [x] **Health probe surviving auth** (BL-105)
 - [x] **Auth state announced at startup, in compose and in the docs** (BL-106)
