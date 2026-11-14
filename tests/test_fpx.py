@@ -427,12 +427,12 @@ def test_settings_defaults_are_empty():
 def test_settings_round_trip():
     r = client.post(
         "/api/settings",
-        json={"fpx_host": " frame-david.lan ", "fpx_steam_gameid": "13110206535122812928"},
+        json={"fpx_host": " steam-frame.lan ", "fpx_steam_gameid": "5302428712275279872"},
     )
     assert r.status_code == 200
     s = client.get("/api/settings").json()
-    assert s["fpx_host"] == "frame-david.lan"
-    assert s["fpx_steam_gameid"] == "13110206535122812928"
+    assert s["fpx_host"] == "steam-frame.lan"
+    assert s["fpx_steam_gameid"] == "5302428712275279872"
 
 
 @pytest.mark.parametrize(
@@ -442,7 +442,7 @@ def test_settings_reject_bad_hosts(host):
     assert client.post("/api/settings", json={"fpx_host": host}).status_code == 422
 
 
-@pytest.mark.parametrize("host", ["", "frame-david.lan", "192.168.1.30", "fe80::1", "10.0.0.5"])
+@pytest.mark.parametrize("host", ["", "steam-frame.lan", "192.168.1.30", "fe80::1", "10.0.0.5"])
 def test_settings_accept_lan_hosts(host):
     assert client.post("/api/settings", json={"fpx_host": host}).status_code == 200
 

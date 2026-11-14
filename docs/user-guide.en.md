@@ -622,10 +622,10 @@ When you close the video in FramePlayerX, Hoard hears about it, saves the positi
 
 **1. Set up the headset** (once, from any device): *Settings › 🥽 FramePlayerX*.
 
-- **Casque** (headset): the headset's name on your local network, or its IP address, for example `frame-david.lan`. Your box or router lists it among the connected devices. Hoard refuses an address that is not on the local network.
-- **Identifiant Steam de FramePlayerX** (FramePlayerX's Steam id): the number that lets Hoard bring FramePlayerX to the front. For FramePlayerX added as a non-Steam game on David's Frame: `13110206535122812928`.
+- **Casque** (headset): the headset's name on your local network, or its IP address, for example `steam-frame.lan`. Your box or router lists it among the connected devices. Hoard refuses an address that is not on the local network.
+- **Identifiant Steam de FramePlayerX** (FramePlayerX's Steam id): the number that lets Hoard bring FramePlayerX to the front. For example `5302428712275279872`.
   To find it elsewhere: in Steam (desktop mode), right-click FramePlayerX › *Manage › Add desktop shortcut*, then open the shortcut: the number comes after `steam://rungameid/` (not tried on the Frame yet).
-  Failing that, it is computed from the non-Steam shortcut's AppId: AppId × 4294967296 + 33554432 (AppId `3052457826` gives `13110206535122812928`).
+  Failing that, it is computed from the non-Steam shortcut's AppId: AppId × 4294967296 + 33554432 (AppId `1234567890` gives `5302428712275279872`).
   Without it, playback still goes to FramePlayerX, but switching to FramePlayerX is up to you.
 - **Save**.
 
