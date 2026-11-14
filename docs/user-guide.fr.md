@@ -630,10 +630,10 @@ Quand tu fermes la vidéo dans FramePlayerX, Hoard l'apprend, enregistre la posi
 
 **1. Régler le casque** (une fois, depuis n'importe quel appareil) : *Paramètres › 🥽 FramePlayerX*.
 
-- **Casque** : le nom du casque sur ton réseau local, ou son adresse IP. Par exemple `frame-david.lan`. Tu le trouves dans la liste des appareils connectés de ta box ou de ton routeur. Hoard refuse une adresse qui n'est pas sur le réseau local.
-- **Identifiant Steam de FramePlayerX** : le nombre qui permet à Hoard de mettre FramePlayerX au premier plan. Pour FramePlayerX ajouté comme jeu non-Steam sur le Frame de David : `13110206535122812928`.
+- **Casque** : le nom du casque sur ton réseau local, ou son adresse IP. Par exemple `steam-frame.lan`. Tu le trouves dans la liste des appareils connectés de ta box ou de ton routeur. Hoard refuse une adresse qui n'est pas sur le réseau local.
+- **Identifiant Steam de FramePlayerX** : le nombre qui permet à Hoard de mettre FramePlayerX au premier plan. Par exemple `5302428712275279872`.
   Pour le retrouver ailleurs : dans Steam (mode bureau), clic droit sur FramePlayerX › *Gérer › Ajouter un raccourci sur le bureau*, puis ouvre le raccourci créé : le nombre est après `steam://rungameid/` (méthode pas encore essayée sur le Frame).
-  À défaut, il se calcule depuis l'AppId du raccourci non-Steam : AppId × 4294967296 + 33554432 (pour l'AppId `3052457826`, ça donne `13110206535122812928`).
+  À défaut, il se calcule depuis l'AppId du raccourci non-Steam : AppId × 4294967296 + 33554432 (pour l'AppId `1234567890`, ça donne `5302428712275279872`).
   Sans identifiant, la lecture part quand même dans FramePlayerX, mais c'est à toi de passer dans FramePlayerX.
 - **Enregistrer**.
 
