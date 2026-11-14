@@ -5034,7 +5034,8 @@ FPX_SILENCE_TIMEOUT = 15.0
 # open failed (unreachable URL, unreadable file) and nothing is being played.
 FPX_OPEN_TIMEOUT = 60.0
 # A seek sent along with the open may land before the file is loaded; when the
-# first report is further than this from the resume point, the seek is sent again.
+# first report is still this far short of the resume point, the seek is sent again.
+# Only short of it: past it means the seek held and playback has already moved on.
 FPX_RESEEK_TOLERANCE = 5.0
 FPX_MAX_FRAME = 1 << 20
 # Long enough for a film paused overnight in the headset to still load its next
@@ -5277,7 +5278,7 @@ class _FpxSession:
                 self.state = "paused" if message.get("playerState") == 1 else "playing"
                 if not self._reseeked and self.duration > 0:
                     self._reseeked = True
-                    if self.resume > 0 and abs(self.position - self.resume) > FPX_RESEEK_TOLERANCE:
+                    if self.position < self.resume - FPX_RESEEK_TOLERANCE:
                         reseek = self.resume
                         self.position = self.resume
                 if (was_playing and self.state == "paused") or (

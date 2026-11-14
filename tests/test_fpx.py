@@ -328,6 +328,18 @@ def test_seek_resent_when_the_open_lost_it(fake):
     assert msgs[1] == {"currentTime": 200.0}
 
 
+def test_seek_not_resent_once_playback_moved_past_it(fake):
+    rel = _video()
+    _progress(rel, 200.0, 600.0)
+    _play(rel)
+    url = fake.wait_received()[0]["path"]
+    _status(fake, url, 212.0)  # the seek held; FPX has been playing for a while
+    _status(fake, url, 213.0)
+    _until(lambda: m._fpx_session.position == 213.0, "status never read")
+    time.sleep(0.2)
+    assert len(fake.received) == 1
+
+
 def test_stop_abandons_the_follow_up(fake):
     rel = _video()
     _play(rel)
