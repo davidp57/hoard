@@ -1,6 +1,6 @@
 # BL-146 — N'ouvrir le lien Steam que si FramePlayerX est fermé
 
-Status: 🧑 waiting-human
+Status: ✅ done — essai concluant sur le Frame le 2026-11-14 (PR #89, v2.9.5)
 Lot: [FEAT-FPX-HANDOFF](../PRD.md)
 
 ## Quoi
