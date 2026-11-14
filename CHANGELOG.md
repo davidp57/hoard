@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Un échec de lecture dans FramePlayerX disait enfin pourquoi (2.9.4, BL-144).** Au premier essai sur le Frame (2026-11-14), chaque `POST /api/fpx/play` répondait 502 : `fpx_host` était un nom `.lan` et le NAS résout les noms par un DNS public. Le journal n'avait que la ligne d'accès d'uvicorn, et l'écran n'en montrait rien de durable : le toast de 2,5 s partait pendant que le lien `steam://` mettait FPX au premier plan. Chaque 409/400/502 du handoff écrit maintenant un `WARNING` `fpx:` avec l'hôte, le port et la classe de l'erreur (`gaierror`, `ConnectionRefusedError`, `TimeoutError`…), sans URL signée. L'écran « Lecture dans FramePlayerX » reste affiché en cas d'échec et devient l'erreur, avec le `detail` du serveur et « ↩ Retour » (B à la manette) ; la liste est inchangée. À l'enregistrement d'un `fpx_host` qui change, le serveur résout le nom (après le commit) et `POST /api/settings` renvoie `warnings` s'il ne se résout pas ou pointe hors du réseau local ; le réglage est enregistré quand même, la page affiche l'avertissement 8 s. Guide utilisateur FR + EN : mettre l'IP du casque et la réserver dans le DHCP quand le NAS ne résout pas les noms locaux. Vérifié dans le navigateur avec un hôte introuvable et un port fermé ; pas sur le Frame.
+
 ### Changed
 - **Exemples neutres dans la documentation publiée (2.9.3).** Le guide utilisateur, le placeholder du réglage et les tests de FramePlayerX n'utilisent plus l'installation personnelle du propriétaire : hôte `steam-frame.lan`, AppId d'exemple `1234567890` (identifiant Steam `5302428712275279872`).
 

@@ -5149,10 +5149,10 @@ def _fpx_host_warning(host: str) -> str | None:
         addrs = _resolve_host(host)
     except OSError as exc:
         logger.warning("fpx: saved fpx_host %s does not resolve (%s)", host, _fpx_error(exc))
-        return f"le serveur ne résout pas {host} : mets l'adresse IP du casque"
+        return f"le serveur ne résout pas {host}, mets l'adresse IP du casque"
     if not addrs or not all(_is_lan_address(ipaddress.ip_address(a)) for a in addrs):
         logger.warning("fpx: saved fpx_host %s resolves off the local network", host)
-        return f"{host} ne pointe pas sur le réseau local : mets l'adresse IP du casque"
+        return f"{host} ne pointe pas sur le réseau local, mets l'adresse IP du casque"
     return None
 
 
