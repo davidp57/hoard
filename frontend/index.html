@@ -2152,6 +2152,7 @@
     <div id="fpx-title" style="font-size:1.6rem;font-weight:700;color:var(--text);word-break:break-word"></div>
     <div class="progress-bar-wrap" id="fpx-bar-wrap" style="height:0.6rem"><div class="progress-bar-fill" id="fpx-bar" style="width:0%"></div></div>
     <div id="fpx-time" style="font-family:'DM Mono',monospace;font-size:1.3rem;color:var(--text-mid)"></div>
+    <div id="fpx-hint" style="display:none;font-size:1.3rem;color:var(--text)">La vidéo est ouverte dans FramePlayerX, qui tournait déjà derrière. Pour y passer : bouton Steam, FramePlayerX, « Reprendre le jeu ».</div>
     <div id="fpx-error" style="display:none;font-size:1.3rem;color:var(--text);word-break:break-word"></div>
     <button class="s-btn" id="fpx-resume-btn" onclick="fpxResumeHere()" style="align-self:flex-start">↩ Reprendre ici</button>
   </div>
@@ -4896,9 +4897,10 @@ function openMedia(idx) {
 
 // ── FramePlayerX handoff (FEAT-FPX-HANDOFF, BL-144) ───────────────────────────
 // On the Steam Frame, playback goes to FramePlayerX (FPX), the native player:
-// the page brings FPX to the front through steam://, the backend tells FPX what to
-// open over its DeoVR remote and follows the playback, and this page polls that
-// follow-up until FPX closes the video, then shows the list again.
+// the page brings FPX to the front through steam:// (only when it is not running
+// yet, BL-146), the backend tells FPX what to open over its DeoVR remote and
+// follows the playback, and this page polls that follow-up until FPX closes the
+// video, then shows the list again.
 //
 // Whether a device hands off is device-local, like `sbs_global`: only the headset
 // wants it, the PC and the Deck keep playing here.
@@ -4943,6 +4945,7 @@ function _fpxSetError(message) {
   document.getElementById('fpx-error').style.display = failed ? '' : 'none';
   document.getElementById('fpx-bar-wrap').style.display = failed ? 'none' : '';
   document.getElementById('fpx-time').style.display = failed ? 'none' : '';
+  document.getElementById('fpx-hint').style.display = 'none';
   document.getElementById('fpx-resume-btn').textContent = failed ? '↩ Retour' : '↩ Reprendre ici';
 }
 
@@ -4976,6 +4979,24 @@ function _gpCursorToPath(path) {
   items[i]?.scrollIntoView({ block: 'nearest' });
 }
 
+// One /api/fpx/play call: the follow-up snapshot, or why it failed and its HTTP
+// status (0 when the Hoard server itself did not answer).
+async function _fpxPlayRequest(path, wait) {
+  try {
+    const resp = await fetch(`${API}/api/fpx/play`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path, origin: location.origin, wait }),
+    });
+    const body = await resp.json().catch(() => ({}));
+    if (resp.ok) return { snap: body, status: resp.status };
+    const failure = typeof body.detail === 'string' ? body.detail : `Erreur du serveur (HTTP ${resp.status})`;
+    return { failure, status: resp.status };
+  } catch {
+    return { failure: 'Le serveur Hoard ne répond pas', status: 0 };
+  }
+}
+
 async function playInFpx(idx) {
   const entry = entries[idx];
   if (!entry || !entry.is_video) return;
@@ -4984,34 +5005,29 @@ async function playInFpx(idx) {
   const ticket = ++fpx.opening;
   _gpCursorToPath(entry.path);
   _fpxShow(entry.name);
-  // The request goes out first, then FPX is brought to the front, both inside the
-  // click: an external-protocol link needs the user gesture, and leaving the page
-  // for FPX must not be able to cancel the request. The backend waits for FPX to
-  // listen, so the order costs nothing.
-  const req = fetch(`${API}/api/fpx/play`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ path: entry.path, origin: location.origin }),
-  });
-  if (cfg.fpx_steam_gameid) {
-    try { window.location.href = `steam://rungameid/${cfg.fpx_steam_gameid}`; } catch { /* no handler */ }
+  // First ask without waiting (BL-146): if FPX already runs, it plays and no
+  // steam:// link is opened, since SteamOS answers that one with "already
+  // running". The backend bounds this probe to about a second, so a miss still
+  // leaves the steam:// link inside the click's user activation.
+  let res = await _fpxPlayRequest(entry.path, false);
+  const alreadyRunning = !!res.snap;
+  if (res.status === 503) {  // FPX is not running: launch it, then wait for it
+    if (ticket !== fpx.opening) return;  // abandoned during the probe
+    // The request goes out first, then FPX is brought to the front: leaving the
+    // page for FPX must not be able to cancel the request. The backend waits for
+    // FPX to listen, so the order costs nothing.
+    const pending = _fpxPlayRequest(entry.path, true);
+    if (cfg.fpx_steam_gameid) {
+      try { window.location.href = `steam://rungameid/${cfg.fpx_steam_gameid}`; } catch { /* no handler */ }
+    }
+    res = await pending;
   }
-  let snap;
-  let failure = null;
-  try {
-    const resp = await req;
-    const body = await resp.json().catch(() => ({}));
-    if (resp.ok) snap = body;
-    else failure = typeof body.detail === 'string' ? body.detail : `Erreur du serveur (HTTP ${resp.status})`;
-  } catch {
-    failure = 'Le serveur Hoard ne répond pas';
-  }
-  if (failure) {
+  if (res.failure) {
     if (ticket !== fpx.opening) return;  // abandoned meanwhile: nothing left to show
     // The overlay stays, turned into the error: the steam:// link has usually put
     // FPX in front, and a toast would be long gone by the time the user is back.
     // B or the button go back to the list (fpxResumeHere), which is untouched.
-    _fpxSetError(failure);
+    _fpxSetError(res.failure);
     return;
   }
   if (ticket !== fpx.opening) {
@@ -5020,8 +5036,11 @@ async function playInFpx(idx) {
     try { await fetch(`${API}/api/fpx/stop`, { method: 'POST' }); } catch { /* already gone */ }
     return;
   }
-  fpx.sessionId = snap.id;
-  _fpxRender(snap);
+  // FPX was already running: it got the video but stays behind Chromium (no
+  // steam:// link, and a page cannot raise another app). Say how to get to it.
+  document.getElementById('fpx-hint').style.display = alreadyRunning ? '' : 'none';
+  fpx.sessionId = res.snap.id;
+  _fpxRender(res.snap);
   clearInterval(fpx.timer);
   fpx.timer = setInterval(_fpxPoll, FPX_POLL_MS);
 }

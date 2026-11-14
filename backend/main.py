@@ -5035,6 +5035,11 @@ FPX_FILE_PATH = "/api/file"
 FPX_CONNECT_WINDOW = 20.0
 FPX_CONNECT_ATTEMPT_TIMEOUT = 2.0
 FPX_CONNECT_RETRY_DELAY = 0.5
+# The page first asks without waiting (BL-146): if FPX already listens, it plays
+# and no steam:// link is opened (SteamOS would answer "already running"). The
+# whole probe stays under this budget, because the steam:// link that follows a
+# miss must still be inside the click's user activation (a few seconds).
+FPX_PROBE_TIMEOUT = 1.0
 FPX_SAVE_INTERVAL = 10.0
 FPX_READ_POLL = 0.5
 # FPX pings every second; this much silence means the headset is gone (asleep,
@@ -5183,6 +5188,40 @@ def _fpx_error(exc: BaseException) -> str:
     """The class and message of a network error, for the log: the class is what
     tells a refused port (nothing listens) from a timeout (nothing answers)."""
     return f"{type(exc).__name__}: {exc}"
+
+
+def _fpx_probe(host: str) -> socket.socket:
+    """One connection attempt, bounded by FPX_PROBE_TIMEOUT over all addresses.
+
+    A miss is the expected answer when FPX is not running, not a fault: it is
+    logged at info level and answered 503, which the page reads as "launch FPX,
+    then ask again with the retry window". Resolution and LAN errors keep their
+    own codes (502, 400), so the page never launches FPX on a bad setting.
+    """
+    addrs = _fpx_addresses(host)
+    deadline = time.monotonic() + FPX_PROBE_TIMEOUT
+    last_error: OSError | None = None
+    for addr in addrs:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        try:
+            sock = socket.create_connection((addr, FPX_PORT), timeout=remaining)
+        except OSError as exc:
+            last_error = exc
+            continue
+        # What is left of the probe budget may be milliseconds: the open command
+        # that follows gets the same timeout as after a waiting connect.
+        sock.settimeout(FPX_CONNECT_ATTEMPT_TIMEOUT)
+        return sock
+    logger.info(
+        "fpx: not running on %s:%d (probe of %s, %s)",
+        host,
+        FPX_PORT,
+        ", ".join(addrs),
+        _fpx_error(last_error) if last_error else "out of time",
+    )
+    raise HTTPException(status_code=503, detail=f"FramePlayerX ne tourne pas sur {host}:{FPX_PORT}")
 
 
 def _fpx_connect(host: str) -> socket.socket:
@@ -5413,6 +5452,9 @@ class FpxPlayRequest(BaseModel):
     # reverse proxy and cannot tell which scheme and host the headset uses to
     # reach it; the page in the headset's browser can.
     origin: str = Field(max_length=300)
+    # False: a single bounded attempt (FPX_PROBE_TIMEOUT), 503 if FPX is not
+    # listening. True: retry for FPX_CONNECT_WINDOW while FPX starts (BL-146).
+    wait: bool = True
 
 
 def _fpx_origin(origin: str) -> str:
@@ -5445,7 +5487,7 @@ def fpx_play(body: FpxPlayRequest):
     rel = to_rel(file)
     resume = _fpx_resume_position(rel)
     url, sig = _fpx_signed_url(origin, rel)
-    sock = _fpx_connect(host)
+    sock = _fpx_connect(host) if body.wait else _fpx_probe(host)
     try:
         sock.sendall(_fpx_frame({"path": url, "currentTime": resume, "playerState": 0}))
     except OSError as exc:
