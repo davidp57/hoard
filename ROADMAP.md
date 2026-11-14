@@ -137,6 +137,11 @@ shader the flat modes already have.
 - [ ] **Library, scan and scenes** (BL-142, lot [FEAT-HERESPHERE](.backlog/FEAT-HERESPHERE/PRD.md)) — `POST /heresphere`: in progress, recently watched, unwatched from the quick folders, one group per quick folder; VR format from the per-file mode, the name or the 2:1 shape; media straight from `/api/file`.
 - [ ] **Playback events into `progress`** (BL-143) — play, pause and close write the position; the watched threshold applies.
 
+## Browse in Hoard, play in FramePlayerX *(built, awaiting a test on the Frame)*
+
+- [ ] **Handoff to FramePlayerX** (BL-144, lot [FEAT-FPX-HANDOFF](.backlog/FEAT-FPX-HANDOFF/PRD.md)) — opening a video in Hoard plays it in FPX through its DeoVR remote, at the resume point; the backend follows the playback into `progress` and the page returns to the list when FPX closes it. Device-local toggle, signed `/api/file` URL.
+- [ ] **Headset helper to come back to Hoard** (BL-145) — only if the trial shows the Frame does not return to the browser by itself.
+
 ## v3.0 — Native client *(in progress)*
 
 Native Flutter client talking to the existing HTTP API, targeting Steam Deck

@@ -623,6 +623,33 @@ Dans l'autre sens, FramePlayerX garde sa propre position de reprise : il ne repr
 
 Déplacer, supprimer ou renommer reste dans l'interface web de Hoard.
 
+### Parcourir dans Hoard, lire dans FramePlayerX
+
+L'inverse est possible aussi : tu parcours tes dossiers dans Hoard, dans le navigateur du casque, et quand tu ouvres une vidéo, **elle se lit dans FramePlayerX**, à l'endroit où tu t'étais arrêté.
+Quand tu fermes la vidéo dans FramePlayerX, Hoard l'apprend, enregistre la position et revient à la liste, curseur sur la vidéo.
+
+**1. Régler le casque** (une fois, depuis n'importe quel appareil) : *Paramètres › 🥽 FramePlayerX*.
+
+- **Casque** : le nom du casque sur ton réseau local, ou son adresse IP. Par exemple `frame-david.lan`. Tu le trouves dans la liste des appareils connectés de ta box ou de ton routeur. Hoard refuse une adresse qui n'est pas sur le réseau local.
+- **Identifiant Steam de FramePlayerX** : le nombre qui permet à Hoard de mettre FramePlayerX au premier plan. Pour FramePlayerX ajouté comme jeu non-Steam sur le Frame de David : `13110206535122812928`.
+  Pour le retrouver ailleurs : dans Steam (mode bureau), clic droit sur FramePlayerX › *Gérer › Ajouter un raccourci sur le bureau*, puis ouvre le raccourci créé : le nombre est après `steam://rungameid/` (méthode pas encore essayée sur le Frame).
+  À défaut, il se calcule depuis l'AppId du raccourci non-Steam : AppId × 4294967296 + 33554432 (pour l'AppId `3052457826`, ça donne `13110206535122812928`).
+  Sans identifiant, la lecture part quand même dans FramePlayerX, mais c'est à toi de passer dans FramePlayerX.
+- **Enregistrer**.
+
+**2. Activer la bascule dans le casque**, et seulement là : *Paramètres › 🥽 FramePlayerX › Lire dans FramePlayerX*, ou à la manette, menu (**Select**) › **🥽 Lire dans FramePlayerX**.
+Ce réglage reste sur l'appareil où tu le prends : sur le PC ou le Deck, les vidéos continuent de se lire dans Hoard.
+
+**À l'usage** :
+
+- Ouvre une vidéo comme d'habitude (clic, Entrée, **A**). Hoard affiche « Lecture dans FramePlayerX » avec le titre et la position, qui avance.
+- **↩ Reprendre ici** (ou **B**) : Hoard arrête de suivre la lecture et revient à la liste, sans toucher à FramePlayerX.
+- Pour une seule vidéo, le menu (**Select**) propose l'autre façon : **▶ Lire ici** quand la bascule est active, **🥽 Lire dans FramePlayerX** quand elle ne l'est pas.
+- Hoard enregistre la position toutes les 10 secondes, à la pause et à la fermeture ; la vidéo passe « vue » au-delà du seuil des Paramètres.
+- Si le casque ne répond pas (éteint, FramePlayerX pas lancé au bout de 20 secondes), Hoard l'affiche (« FramePlayerX injoignable sur … ») et rien ne change.
+
+Le retour automatique dans le navigateur quand tu quittes FramePlayerX dépend du casque : à vérifier lors du premier essai.
+
 ---
 
 ## Dossiers rapides (épingles)

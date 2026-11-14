@@ -615,6 +615,33 @@ The other way round, FramePlayerX keeps its own resume position: it does not res
 
 Moving, deleting or renaming stays in Hoard's web interface.
 
+### Browse in Hoard, play in FramePlayerX
+
+The other way round works too: you browse your folders in Hoard, in the headset's browser, and when you open a video **it plays in FramePlayerX**, from where you stopped.
+When you close the video in FramePlayerX, Hoard hears about it, saves the position and goes back to the list, cursor on the video.
+
+**1. Set up the headset** (once, from any device): *Settings › 🥽 FramePlayerX*.
+
+- **Casque** (headset): the headset's name on your local network, or its IP address, for example `frame-david.lan`. Your box or router lists it among the connected devices. Hoard refuses an address that is not on the local network.
+- **Identifiant Steam de FramePlayerX** (FramePlayerX's Steam id): the number that lets Hoard bring FramePlayerX to the front. For FramePlayerX added as a non-Steam game on David's Frame: `13110206535122812928`.
+  To find it elsewhere: in Steam (desktop mode), right-click FramePlayerX › *Manage › Add desktop shortcut*, then open the shortcut: the number comes after `steam://rungameid/` (not tried on the Frame yet).
+  Failing that, it is computed from the non-Steam shortcut's AppId: AppId × 4294967296 + 33554432 (AppId `3052457826` gives `13110206535122812928`).
+  Without it, playback still goes to FramePlayerX, but switching to FramePlayerX is up to you.
+- **Save**.
+
+**2. Turn the handoff on in the headset**, and only there: *Settings › 🥽 FramePlayerX › Lire dans FramePlayerX*, or with the pad, menu (**Select**) › **🥽 Lire dans FramePlayerX**.
+The setting stays on the device where you set it: on the PC or the Deck, videos keep playing in Hoard.
+
+**In use**:
+
+- Open a video as usual (click, Enter, **A**). Hoard shows "Lecture dans FramePlayerX" with the title and the position, which moves on.
+- **↩ Reprendre ici** (or **B**): Hoard stops following the playback and goes back to the list, leaving FramePlayerX alone.
+- For a single video, the menu (**Select**) offers the other way: **▶ Lire ici** (play here) when the handoff is on, **🥽 Lire dans FramePlayerX** when it is off.
+- Hoard saves the position every 10 seconds, on pause and on close; the video becomes "watched" past the threshold set in Settings.
+- If the headset does not answer (switched off, FramePlayerX not listening after 20 seconds), Hoard says so ("FramePlayerX injoignable sur …") and nothing changes.
+
+Whether you land back in the browser when you leave FramePlayerX depends on the headset: to be checked on the first try.
+
 ---
 
 ## Quick Folders (Pins)
