@@ -2144,7 +2144,6 @@
   </div>
 </div>
 
-<!-- Download queue modal -->
 <!-- FramePlayerX handoff (BL-144). B = "Reprendre ici", like the button. -->
 <div id="fpx-overlay" class="gp-modal" data-gp-close="fpxResumeHere" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:550;align-items:center;justify-content:center">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:1.2rem;padding:2.4rem;width:44rem;max-width:92vw;display:flex;flex-direction:column;gap:1.2rem">
@@ -2156,6 +2155,7 @@
   </div>
 </div>
 
+<!-- Download queue modal -->
 <div id="dl-queue-overlay" class="gp-modal" data-gp-close="closeDlQueueModal" onclick="_dlQueueOverlayClick(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
   <div id="dl-queue-modal" style="background:var(--surface);border:1px solid var(--border);border-radius:1.2rem;padding:2.4rem;width:48rem;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;gap:1.4rem;overflow:hidden">
     <!-- Header row -->
@@ -4895,7 +4895,9 @@ function openMedia(idx) {
 // wants it, the PC and the Deck keep playing here.
 const FPX_KEY = 'fpx_handoff';  // localStorage: device-local, see the lot's PRD
 const FPX_POLL_MS = 1500;
-const fpx = { timer: 0, sessionId: null, path: null };
+// `opening` counts the opens: "Reprendre ici" before /api/fpx/play has answered
+// bumps it, and the answer that arrives afterwards is then abandoned.
+const fpx = { timer: 0, sessionId: null, path: null, opening: 0 };
 
 function fpxConfigured() { return !!cfg.fpx_host; }
 
@@ -4956,6 +4958,7 @@ async function playInFpx(idx) {
   if (!entry || !entry.is_video) return;
   if (!fpxConfigured()) { showToast('FramePlayerX n\'est pas configuré (Paramètres)'); return; }
   fpx.path = entry.path;
+  const ticket = ++fpx.opening;
   _gpCursorToPath(entry.path);
   _fpxShow(entry.name);
   // The request goes out first, then FPX is brought to the front, both inside the
@@ -4977,8 +4980,15 @@ async function playInFpx(idx) {
     if (!resp.ok) throw new Error(typeof body.detail === 'string' ? body.detail : `HTTP ${resp.status}`);
     snap = body;
   } catch (err) {
+    if (ticket !== fpx.opening) return;  // abandoned meanwhile: nothing left to show
     _fpxHide();
     showToast(`❌ ${err.message || 'FramePlayerX injoignable'}`);
+    return;
+  }
+  if (ticket !== fpx.opening) {
+    // "Reprendre ici" was pressed while FPX was starting: drop the follow-up the
+    // backend has just begun, rather than reviving a hidden screen.
+    try { await fetch(`${API}/api/fpx/stop`, { method: 'POST' }); } catch { /* already gone */ }
     return;
   }
   fpx.sessionId = snap.id;
@@ -5015,6 +5025,7 @@ async function _fpxEnded(snap) {
 
 async function fpxResumeHere() {
   const sessionId = fpx.sessionId;
+  fpx.opening++;  // an open still waiting for its answer is abandoned
   _fpxHide();
   if (sessionId) {
     try { await fetch(`${API}/api/fpx/stop`, { method: 'POST' }); } catch { /* already gone */ }
