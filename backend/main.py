@@ -3921,6 +3921,7 @@ def _validate_cookies_path(path: str) -> None:
 
 @app.post("/api/settings")
 def update_settings(body: SettingsPayload, request: Request):
+    fpx_host_to_check = ""
     with get_db() as conn:
         if body.media_root is not None:
             new_root = Path(body.media_root)
@@ -4003,7 +4004,12 @@ def update_settings(body: SettingsPayload, request: Request):
             _write_setting(conn, "vr_sbs_layout", body.vr_sbs_layout)
 
         if body.fpx_host is not None:
-            _write_setting(conn, "fpx_host", _validate_fpx_host_setting(body.fpx_host))
+            fpx_host = _validate_fpx_host_setting(body.fpx_host)
+            # Checked only when it changes: the page sends the field on every
+            # save, and a name that does not resolve can take seconds to fail.
+            if fpx_host != _read_all_settings(conn).get("fpx_host", ""):
+                fpx_host_to_check = fpx_host
+            _write_setting(conn, "fpx_host", fpx_host)
         if body.fpx_steam_gameid is not None:
             gameid = body.fpx_steam_gameid.strip()
             if gameid and not gameid.isdigit():
@@ -4013,7 +4019,11 @@ def update_settings(body: SettingsPayload, request: Request):
         conn.commit()
 
     logger.info("settings updated: ip=%s", _client_ip(request))
-    return {"ok": True}
+    # Saved anyway, but worth telling the user: a setting the server will not be
+    # able to use when it is needed. Resolved after the commit, so a slow DNS
+    # answer never holds the database's write lock.
+    warning = _fpx_host_warning(fpx_host_to_check)
+    return {"ok": True, "warnings": [warning] if warning else []}
 
 
 @app.post("/api/settings/check-pin")
@@ -5120,6 +5130,32 @@ def _validate_fpx_host_setting(value: str) -> str:
     return host
 
 
+def _fpx_host_warning(host: str) -> str | None:
+    """Why the server will not be able to reach *host*, checked at save time.
+
+    The setting is saved anyway: the name may resolve later, or the headset may
+    be off. But a NAS that resolves names through a public DNS never knows the
+    router's local names (.lan, .local), and the handoff then fails at every
+    play with nothing on screen to say why.
+    """
+    if not host:
+        return None
+    try:
+        ipaddress.ip_address(host)
+        return None  # a literal IP, already checked by _validate_fpx_host_setting
+    except ValueError:
+        pass
+    try:
+        addrs = _resolve_host(host)
+    except OSError as exc:
+        logger.warning("fpx: saved fpx_host %s does not resolve (%s)", host, _fpx_error(exc))
+        return f"le serveur ne résout pas {host} : mets l'adresse IP du casque"
+    if not addrs or not all(_is_lan_address(ipaddress.ip_address(a)) for a in addrs):
+        logger.warning("fpx: saved fpx_host %s resolves off the local network", host)
+        return f"{host} ne pointe pas sur le réseau local : mets l'adresse IP du casque"
+    return None
+
+
 def _fpx_addresses(host: str) -> list[str]:
     """Resolve the headset and refuse anything off the local network.
 
@@ -5129,11 +5165,13 @@ def _fpx_addresses(host: str) -> list[str]:
     """
     try:
         addrs = _resolve_host(host)
-    except OSError:
+    except OSError as exc:
+        logger.warning("fpx: %s does not resolve from the server (%s)", host, _fpx_error(exc))
         raise HTTPException(
             status_code=502, detail=f"FramePlayerX introuvable : {host} ne se résout pas"
         ) from None
     if not addrs or not all(_is_lan_address(ipaddress.ip_address(a)) for a in addrs):
+        logger.warning("fpx: %s resolves off the local network (%s)", host, ", ".join(addrs))
         raise HTTPException(
             status_code=400,
             detail=f"FramePlayerX refusé : {host} n'est pas sur le réseau local",
@@ -5141,18 +5179,34 @@ def _fpx_addresses(host: str) -> list[str]:
     return addrs
 
 
+def _fpx_error(exc: BaseException) -> str:
+    """The class and message of a network error, for the log: the class is what
+    tells a refused port (nothing listens) from a timeout (nothing answers)."""
+    return f"{type(exc).__name__}: {exc}"
+
+
 def _fpx_connect(host: str) -> socket.socket:
     addrs = _fpx_addresses(host)
     deadline = time.monotonic() + FPX_CONNECT_WINDOW
+    last_error: OSError | None = None
     while True:
         for addr in addrs:
             try:
                 return socket.create_connection(
                     (addr, FPX_PORT), timeout=FPX_CONNECT_ATTEMPT_TIMEOUT
                 )
-            except OSError:
+            except OSError as exc:
+                last_error = exc
                 continue
         if time.monotonic() >= deadline:
+            logger.warning(
+                "fpx: cannot connect to %s:%d (tried %s for %.1fs, last error %s)",
+                host,
+                FPX_PORT,
+                ", ".join(addrs),
+                FPX_CONNECT_WINDOW,
+                _fpx_error(last_error) if last_error else "none",
+            )
             raise HTTPException(
                 status_code=502, detail=f"FramePlayerX injoignable sur {host}:{FPX_PORT}"
             )
@@ -5386,6 +5440,7 @@ def fpx_play(body: FpxPlayRequest):
     with get_db() as conn:
         host = _read_all_settings(conn).get("fpx_host", "").strip()
     if not host:
+        logger.warning("fpx: play requested but fpx_host is not set")
         raise HTTPException(status_code=409, detail="FramePlayerX n'est pas configuré (fpx_host)")
     rel = to_rel(file)
     resume = _fpx_resume_position(rel)
@@ -5393,8 +5448,15 @@ def fpx_play(body: FpxPlayRequest):
     sock = _fpx_connect(host)
     try:
         sock.sendall(_fpx_frame({"path": url, "currentTime": resume, "playerState": 0}))
-    except OSError:
+    except OSError as exc:
         sock.close()
+        # The frame carries the signed URL: log the failure, never the frame.
+        logger.warning(
+            "fpx: connected to %s:%d but the open command failed (%s)",
+            host,
+            FPX_PORT,
+            _fpx_error(exc),
+        )
         raise HTTPException(
             status_code=502, detail=f"FramePlayerX injoignable sur {host}:{FPX_PORT}"
         ) from None
