@@ -1,6 +1,6 @@
 # Lot FEAT-FPX-HANDOFF — Parcourir dans Hoard, lire dans FramePlayerX
 
-Status: 🧑 waiting-human
+Status: 🔄 in-progress
 
 ## Problem Statement
 
@@ -28,6 +28,8 @@ Le backend de Hoard, sur le NAS, parle à FPX par le port 23554 : il lui fait ou
 La page Hoard met FPX au premier plan par un lien `steam://`, affiche « Lecture dans FramePlayerX » tant que la vidéo est ouverte, et revient à la liste quand FPX signale la fermeture.
 Le retour automatique vers Chromium dépend du comportement du Frame : BL-145 ne sera fait que si l'essai de BL-144 montre qu'il faut un service sur le casque.
 
+**Essai du 2026-11-14** : lecture, reprise et retour dans Hoard marchent. Quand FPX tourne déjà, le lien `steam://` provoque l'erreur Steam « déjà lancé », et sans lui FPX reste derrière Chromium. BL-145 abandonné (voir le ticket) ; BL-146 n'ouvre le lien Steam que si FPX est fermé.
+
 ## Décisions (Claude, 2026-11-14 — valent par défaut)
 
 1. **Réglages serveur** : `fpx_host` (nom ou IP du casque, vide par défaut = fonction coupée) et `fpx_steam_gameid` (identifiant 64 bits du lien `steam://rungameid/`, vide par défaut). Port fixe 23554. Le guide explique comment trouver les deux ; pour David : `frame-david.lan` et `13110206535122812928`.
@@ -47,5 +49,6 @@ Le retour automatique vers Chromium dépend du comportement du Frame : BL-145 ne
 
 | # | Ticket | Status |
 |---|--------|--------|
-| 01 | [BL-144 — Lancer la lecture dans FramePlayerX depuis Hoard](tickets/01-handoff.md) | 🧑 |
-| 02 | [BL-145 — Service sur le casque pour revenir dans Hoard (si l'essai le montre nécessaire)](tickets/02-headset-helper.md) | 🧑 |
+| 01 | [BL-144 — Lancer la lecture dans FramePlayerX depuis Hoard](tickets/01-handoff.md) | ✅ |
+| 02 | [BL-145 — Service sur le casque pour revenir dans Hoard (si l'essai le montre nécessaire)](tickets/02-headset-helper.md) | 🚫 |
+| 03 | [BL-146 — N'ouvrir le lien Steam que si FramePlayerX est fermé](tickets/03-steam-link-once.md) | ⬜ |

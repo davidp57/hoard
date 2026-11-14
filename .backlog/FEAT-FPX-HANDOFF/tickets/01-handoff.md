@@ -1,6 +1,6 @@
 # BL-144 — Lancer la lecture dans FramePlayerX depuis Hoard
 
-Status: 🧑 waiting-human — essai sur le Frame par David (livré dans la PR #86, v2.9.2)
+Status: ✅ done — essai concluant le 2026-11-14 (PR #86, v2.9.2 ; erreurs visibles PR #88, v2.9.4). Reste l'erreur Steam quand FPX tourne déjà : BL-146
 Lot: [FEAT-FPX-HANDOFF](../PRD.md)
 
 ## Quoi
