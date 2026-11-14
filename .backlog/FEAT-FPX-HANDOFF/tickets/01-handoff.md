@@ -1,6 +1,6 @@
 # BL-144 — Lancer la lecture dans FramePlayerX depuis Hoard
 
-Status: 🔄 in-progress
+Status: 🧑 waiting-human — essai sur le Frame par David (livré dans la PR #86, v2.9.2)
 Lot: [FEAT-FPX-HANDOFF](../PRD.md)
 
 ## Quoi
