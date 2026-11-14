@@ -631,6 +631,8 @@ Quand tu fermes la vidéo dans FramePlayerX, Hoard l'apprend, enregistre la posi
 **1. Régler le casque** (une fois, depuis n'importe quel appareil) : *Paramètres › 🥽 FramePlayerX*.
 
 - **Casque** : le nom du casque sur ton réseau local, ou son adresse IP. Par exemple `steam-frame.lan`. Tu le trouves dans la liste des appareils connectés de ta box ou de ton routeur. Hoard refuse une adresse qui n'est pas sur le réseau local.
+  **Si ton NAS ne connaît pas les noms du réseau local** (`.lan`, `.local`), ce qui arrive quand il interroge un DNS public : mets l'**adresse IP** du casque, par exemple `192.168.1.30`, et réserve-la dans le DHCP de ta box ou de ton routeur pour qu'elle ne change pas.
+  À l'enregistrement, Hoard essaie le nom depuis le serveur et te prévient s'il ne le trouve pas (« le serveur ne résout pas … ») ; le réglage est enregistré quand même.
 - **Identifiant Steam de FramePlayerX** : le nombre qui permet à Hoard de mettre FramePlayerX au premier plan. Par exemple `5302428712275279872`.
   Pour le retrouver ailleurs : dans Steam (mode bureau), clic droit sur FramePlayerX › *Gérer › Ajouter un raccourci sur le bureau*, puis ouvre le raccourci créé : le nombre est après `steam://rungameid/` (méthode pas encore essayée sur le Frame).
   À défaut, il se calcule depuis l'AppId du raccourci non-Steam : AppId × 4294967296 + 33554432 (pour l'AppId `1234567890`, ça donne `5302428712275279872`).
@@ -646,7 +648,7 @@ Ce réglage reste sur l'appareil où tu le prends : sur le PC ou le Deck, les vi
 - **↩ Reprendre ici** (ou **B**) : Hoard arrête de suivre la lecture et revient à la liste, sans toucher à FramePlayerX.
 - Pour une seule vidéo, le menu (**Select**) propose l'autre façon : **▶ Lire ici** quand la bascule est active, **🥽 Lire dans FramePlayerX** quand elle ne l'est pas.
 - Hoard enregistre la position toutes les 10 secondes, à la pause et à la fermeture ; la vidéo passe « vue » au-delà du seuil des Paramètres.
-- Si le casque ne répond pas (éteint, FramePlayerX pas lancé au bout de 20 secondes), Hoard l'affiche (« FramePlayerX injoignable sur … ») et rien ne change.
+- Si la lecture ne peut pas partir, l'écran « Lecture dans FramePlayerX » devient « FramePlayerX n'a pas démarré la lecture » avec la raison, et il reste affiché jusqu'à ce que tu reviennes : nom du casque introuvable depuis le serveur (« … ne se résout pas » : mets son adresse IP), casque éteint ou FramePlayerX pas lancé au bout de 20 secondes (« FramePlayerX injoignable sur … »). **↩ Retour** (ou **B**) ramène à la liste, qui n'a pas changé. La même raison est écrite dans le journal du serveur.
 
 Le retour automatique dans le navigateur quand tu quittes FramePlayerX dépend du casque : à vérifier lors du premier essai.
 

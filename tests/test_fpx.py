@@ -5,6 +5,7 @@ length, then UTF-8 JSON; length 0 is a ping.
 """
 
 import json
+import logging
 import socket
 import sqlite3
 import threading
@@ -377,12 +378,24 @@ def test_status_without_session():
 # ── Unreachable / refused hosts ───────────────────────────────────────────────
 
 
-def test_unreachable_host_gives_a_clear_error_and_writes_nothing(fake, monkeypatch):
+def _fpx_warnings(caplog) -> list[str]:
+    return [
+        r.getMessage()
+        for r in caplog.records
+        if r.name == "hoard" and r.levelno == logging.WARNING and r.getMessage().startswith("fpx:")
+    ]
+
+
+def _closed_port() -> int:
     closed = socket.socket()
     closed.bind(("127.0.0.1", 0))
     port = closed.getsockname()[1]
     closed.close()  # nothing listens there any more
-    monkeypatch.setattr(m, "FPX_PORT", port)
+    return port
+
+
+def test_unreachable_host_gives_a_clear_error_and_writes_nothing(fake, monkeypatch):
+    monkeypatch.setattr(m, "FPX_PORT", _closed_port())
     rel = _video()
     r = _play(rel)
     assert r.status_code == 502
@@ -390,6 +403,57 @@ def test_unreachable_host_gives_a_clear_error_and_writes_nothing(fake, monkeypat
     assert "frame.lan" in r.json()["detail"]
     assert _row(rel) is None
     assert m._fpx_session is None
+
+
+def test_refused_port_is_logged_with_host_port_and_cause(fake, monkeypatch, caplog):
+    # Faked: on Windows a closed loopback port answers with a timeout, not a refusal.
+    def refused(*args, **kwargs):
+        raise ConnectionRefusedError(111, "Connection refused")
+
+    port = fake.port
+    monkeypatch.setattr(m.socket, "create_connection", refused)
+    with caplog.at_level(logging.WARNING, logger="hoard"):
+        assert _play(_video()).status_code == 502
+    [line] = _fpx_warnings(caplog)
+    assert f"frame.lan:{port}" in line
+    assert "127.0.0.1" in line
+    assert "ConnectionRefusedError" in line
+
+
+def test_connect_timeout_is_logged_as_a_timeout(fake, monkeypatch, caplog):
+    def silent(*args, **kwargs):
+        raise TimeoutError("timed out")
+
+    monkeypatch.setattr(m.socket, "create_connection", silent)
+    with caplog.at_level(logging.WARNING, logger="hoard"):
+        assert _play(_video()).status_code == 502
+    [line] = _fpx_warnings(caplog)
+    assert "TimeoutError" in line
+
+
+def test_failed_open_command_is_logged_without_the_signed_url(fake, monkeypatch, caplog):
+    class BrokenSocket:
+        def sendall(self, data):
+            raise BrokenPipeError("connection reset")
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(m, "_fpx_connect", lambda host: BrokenSocket())
+    with caplog.at_level(logging.WARNING, logger="hoard"):
+        r = _play(_video())
+    assert r.status_code == 502
+    [line] = _fpx_warnings(caplog)
+    assert "BrokenPipeError" in line
+    assert "frame.lan" in line
+    assert "sig=" not in line and "/api/file" not in line
+
+
+def test_missing_host_is_logged(monkeypatch, caplog):
+    _set_host("")
+    with caplog.at_level(logging.WARNING, logger="hoard"):
+        assert _play(_video()).status_code == 409
+    assert any("fpx_host is not set" in line for line in _fpx_warnings(caplog))
 
 
 def test_public_host_is_refused(fake, monkeypatch):
@@ -405,14 +469,19 @@ def test_host_resolving_partly_public_is_refused(fake, monkeypatch):
     assert _play(_video()).status_code == 400
 
 
-def test_unresolvable_host_is_refused(fake, monkeypatch):
-    def fail(host):
-        raise OSError("no such host")
+def _no_dns(host):
+    raise socket.gaierror(-2, "Name or service not known")
 
-    monkeypatch.setattr(m, "_resolve_host", fail)
-    r = _play(_video())
+
+def test_unresolvable_host_is_refused(fake, monkeypatch, caplog):
+    monkeypatch.setattr(m, "_resolve_host", _no_dns)
+    with caplog.at_level(logging.WARNING, logger="hoard"):
+        r = _play(_video())
     assert r.status_code == 502
     assert "ne se résout pas" in r.json()["detail"]
+    [line] = _fpx_warnings(caplog)
+    assert "frame.lan" in line
+    assert "gaierror" in line
 
 
 # ── Settings ──────────────────────────────────────────────────────────────────
@@ -424,12 +493,20 @@ def test_settings_defaults_are_empty():
     assert s["fpx_steam_gameid"] == ""
 
 
-def test_settings_round_trip():
+@pytest.fixture()
+def lan_dns(monkeypatch):
+    """Settings tests never ask the real DNS: every name is a LAN address."""
+    monkeypatch.setattr(m, "_resolve_host", lambda host: ["192.168.1.30"])
+    client.post("/api/settings", json={"fpx_host": ""})
+
+
+def test_settings_round_trip(lan_dns):
     r = client.post(
         "/api/settings",
         json={"fpx_host": " steam-frame.lan ", "fpx_steam_gameid": "5302428712275279872"},
     )
     assert r.status_code == 200
+    assert r.json()["warnings"] == []
     s = client.get("/api/settings").json()
     assert s["fpx_host"] == "steam-frame.lan"
     assert s["fpx_steam_gameid"] == "5302428712275279872"
@@ -443,8 +520,44 @@ def test_settings_reject_bad_hosts(host):
 
 
 @pytest.mark.parametrize("host", ["", "steam-frame.lan", "192.168.1.30", "fe80::1", "10.0.0.5"])
-def test_settings_accept_lan_hosts(host):
+def test_settings_accept_lan_hosts(host, lan_dns):
     assert client.post("/api/settings", json={"fpx_host": host}).status_code == 200
+
+
+def test_settings_warn_when_the_name_does_not_resolve(lan_dns, monkeypatch, caplog):
+    monkeypatch.setattr(m, "_resolve_host", _no_dns)
+    with caplog.at_level(logging.WARNING, logger="hoard"):
+        r = client.post("/api/settings", json={"fpx_host": "frame.lan"})
+    assert r.status_code == 200
+    [warning] = r.json()["warnings"]
+    assert "ne résout pas frame.lan" in warning
+    assert "adresse IP" in warning
+    # Saved anyway: the name may resolve later.
+    assert client.get("/api/settings").json()["fpx_host"] == "frame.lan"
+    assert any("frame.lan" in line for line in _fpx_warnings(caplog))
+
+
+def test_settings_warn_when_the_name_resolves_off_the_lan(lan_dns, monkeypatch):
+    monkeypatch.setattr(m, "_resolve_host", lambda host: ["8.8.8.8"])
+    r = client.post("/api/settings", json={"fpx_host": "frame.example"})
+    assert r.status_code == 200
+    assert "réseau local" in r.json()["warnings"][0]
+
+
+def test_settings_resolve_the_host_only_when_it_changes(lan_dns, monkeypatch):
+    client.post("/api/settings", json={"fpx_host": "frame.lan"})
+    calls = []
+    monkeypatch.setattr(m, "_resolve_host", lambda host: calls.append(host) or _no_dns(host))
+    r = client.post("/api/settings", json={"fpx_host": "frame.lan", "seek_short": 10})
+    assert r.status_code == 200
+    assert r.json()["warnings"] == []
+    assert calls == []
+
+
+def test_settings_do_not_resolve_a_literal_ip(lan_dns, monkeypatch):
+    monkeypatch.setattr(m, "_resolve_host", _no_dns)
+    r = client.post("/api/settings", json={"fpx_host": "192.168.1.30"})
+    assert r.json()["warnings"] == []
 
 
 def test_settings_reject_non_numeric_gameid():

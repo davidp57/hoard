@@ -623,6 +623,8 @@ When you close the video in FramePlayerX, Hoard hears about it, saves the positi
 **1. Set up the headset** (once, from any device): *Settings › 🥽 FramePlayerX*.
 
 - **Casque** (headset): the headset's name on your local network, or its IP address, for example `steam-frame.lan`. Your box or router lists it among the connected devices. Hoard refuses an address that is not on the local network.
+  **If your NAS does not know local network names** (`.lan`, `.local`), which happens when it asks a public DNS: enter the headset's **IP address**, for example `192.168.1.30`, and reserve it in your box's or router's DHCP so it does not change.
+  On save, Hoard tries the name from the server and warns you if it cannot find it ("le serveur ne résout pas …"); the setting is saved anyway.
 - **Identifiant Steam de FramePlayerX** (FramePlayerX's Steam id): the number that lets Hoard bring FramePlayerX to the front. For example `5302428712275279872`.
   To find it elsewhere: in Steam (desktop mode), right-click FramePlayerX › *Manage › Add desktop shortcut*, then open the shortcut: the number comes after `steam://rungameid/` (not tried on the Frame yet).
   Failing that, it is computed from the non-Steam shortcut's AppId: AppId × 4294967296 + 33554432 (AppId `1234567890` gives `5302428712275279872`).
@@ -638,7 +640,7 @@ The setting stays on the device where you set it: on the PC or the Deck, videos 
 - **↩ Reprendre ici** (or **B**): Hoard stops following the playback and goes back to the list, leaving FramePlayerX alone.
 - For a single video, the menu (**Select**) offers the other way: **▶ Lire ici** (play here) when the handoff is on, **🥽 Lire dans FramePlayerX** when it is off.
 - Hoard saves the position every 10 seconds, on pause and on close; the video becomes "watched" past the threshold set in Settings.
-- If the headset does not answer (switched off, FramePlayerX not listening after 20 seconds), Hoard says so ("FramePlayerX injoignable sur …") and nothing changes.
+- If playback cannot start, the "Lecture dans FramePlayerX" screen turns into "FramePlayerX n'a pas démarré la lecture" with the reason, and stays until you come back: headset name not found from the server ("… ne se résout pas": enter its IP address), headset off or FramePlayerX not listening after 20 seconds ("FramePlayerX injoignable sur …"). **↩ Retour** (or **B**) goes back to the list, unchanged. The same reason is written to the server log.
 
 Whether you land back in the browser when you leave FramePlayerX depends on the headset: to be checked on the first try.
 

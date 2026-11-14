@@ -6,6 +6,10 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ## [Non publié]
 
+### Corrigé
+
+- **Quand la lecture dans FramePlayerX échoue, Hoard dit pourquoi, et le message reste à l'écran** jusqu'à ce que tu reviennes du casque, avec « ↩ Retour » (ou B) pour revenir à la liste. Et si le serveur ne trouve pas le nom du casque que tu enregistres, Hoard te prévient tout de suite : mets plutôt son adresse IP (le guide explique comment la garder fixe).
+
 ### Ajouté
 
 - **Parcourir dans Hoard, regarder dans FramePlayerX.** Dans le casque, une vidéo ouverte dans Hoard se lit dans FramePlayerX, là où tu t'étais arrêté, et Hoard revient à la liste quand tu la fermes, avec ta progression à jour. À régler une fois dans Paramètres › FramePlayerX (nom du casque et identifiant Steam), puis à activer dans le casque seulement. Le mode d'emploi est dans le guide, section « Parcourir dans Hoard, lire dans FramePlayerX ».

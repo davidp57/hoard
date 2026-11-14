@@ -19,4 +19,5 @@ Décisions 1 à 7 du PRD : réglages, bascule propre à l'appareil, URL signée,
 - [x] FPX injoignable, ou `fpx_host` non privé : erreur claire, rien n'est écrit.
 - [x] Tests pytest avec un faux FPX (serveur TCP local qui parle le format du PRD) : message d'ouverture, suivi, `{}` qui termine, coupure, injoignable ; URL signée.
 - [x] Doc : guide utilisateur FR + EN (régler `fpx_host` et l'identifiant Steam, comment le trouver, activer la bascule dans le casque) ; doc développeur (routes, protocole, quatrième clé `localStorage`).
+- [x] Échec explicite (ajouté après le premier essai du 2026-11-14, 502 sur un nom `.lan` que le NAS ne résout pas, rien dans le journal) : `WARNING fpx:` avec hôte, port et cause à chaque échec ; l'écran reste et montre l'erreur avec « Retour » ; avertissement à l'enregistrement d'un nom qui ne se résout pas depuis le serveur ; guide : IP du casque réservée dans le DHCP. v2.9.4.
 - [ ] **Essai sur le Frame (David)** : depuis Hoard dans Chromium, lancer une vidéo, vérifier qu'elle s'ouvre dans FPX à la bonne position, la fermer et noter ce que fait le Frame (retour dans Chromium ou non). La réponse décide de BL-145.
