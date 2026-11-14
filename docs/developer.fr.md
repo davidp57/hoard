@@ -158,6 +158,10 @@ l'accès à toutes les instances en réseau local au prochain redémarrage.
 | POST | `/api/settings` | Sauvegarde les paramètres |
 | GET | `/api/media-info?path=` | Lit à la demande les métadonnées de lecture via ffprobe |
 | GET | `/api/file?path=` | Sert n'importe quel fichier média (vidéo/image/audio/PDF) avec support `Range` (seeking natif) |
+| POST | `/heresphere` | Bibliothèque HereSphere pour FramePlayerX (groupes de scènes) — voir la doc développeur anglaise, section *HereSphere API* |
+| POST | `/heresphere/scan` | Détail de toutes les scènes listées |
+| POST | `/heresphere/scene/{id}` | Une scène : titre, durée (ms), format VR, source média sur `/api/file` ; **404** hors de `MEDIA_ROOT` ou si ce n'est pas une vidéo |
+| POST | `/heresphere/events` | Événement de lecture `{id, event, time}` (0 ouverture · 1 lecture · 2 pause · 3 fermeture, temps en ms) → écrit `progress` |
 | GET | `/api/transcode?path=` | Stream transcodé via ffmpeg |
 | GET | `/api/gallery/list?path=` | Séquence ordonnée d'une galerie (niveau courant) : `{count, items:[{path, type}]}` |
 | GET | `/api/thumbnail?path=` | Vignette JPEG downscalée d'une image, à la volée (ffmpeg, sans cache) |

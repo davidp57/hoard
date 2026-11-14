@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **API HereSphere pour FramePlayerX (lot FEAT-HERESPHERE, BL-142 / BL-143).** FramePlayerX lit les vidéos VR en natif sur le Steam Frame et parle déjà l'API HereSphere ; Hoard l'expose, sans rien changer au lecteur (voie retenue par David le 2026-11-14). `POST /heresphere` rend les groupes « En cours », « Récemment vus », « Non vus » (vidéos des dossiers rapides sans progression), puis un groupe par dossier rapide ; `POST /heresphere/scan` le détail de toutes les scènes en une requête ; `POST /heresphere/scene/<id>` le titre, la durée, le format VR (mode réglé dans `vr_modes`, sinon le nom, sinon la forme 2:1, comme le lecteur web) et une source média sur `/api/file`, sans transcodage. L'identifiant de scène est le chemin relatif en base64url, décodé par `safe_path()` : hors de `MEDIA_ROOT`, illisible ou pas une vidéo → 404. `POST /heresphere/events` écrit la position des événements lecture, pause et fermeture dans `progress`, avec la règle « vu » de `watched_threshold` ; l'ouverture n'écrit rien. L'événement ne porte pas de durée : elle vient de `progress`, sinon d'un ffprobe mis en cache. Les URLs sont relatives à la racine, que FramePlayerX résout contre l'URL saisie : derrière le reverse proxy, le backend ne voit ni le schéma ni l'hôte du client. L'authentification passe par le Basic que FramePlayerX envoie sur chaque requête, sans exception dans le middleware ; le refus des écritures cross-site d'un navigateur est inchangé. Vérifié en HTTP réel avec authentification activée sur les quatre routes ; pas encore essayé sur le Frame.
+
 ## [v2.9.0] - 2026-11-12
 
 ### Added

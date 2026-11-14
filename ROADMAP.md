@@ -132,6 +132,11 @@ shader the flat modes already have.
 
 - [ ] **Steam Frame, right hand only** (BL-141, lot [PAD-PROFILES](.backlog/PAD-PROFILES/PRD.md)) — a device-local profile choice; the standard profile is unchanged, the right-hand one fits list, windows and player on A/B/X/Y, R1, R2, the right stick and R3.
 
+## Play Hoard's videos in FramePlayerX, through the HereSphere API *(built, awaiting a test on the Frame)*
+
+- [ ] **Library, scan and scenes** (BL-142, lot [FEAT-HERESPHERE](.backlog/FEAT-HERESPHERE/PRD.md)) — `POST /heresphere`: in progress, recently watched, unwatched from the quick folders, one group per quick folder; VR format from the per-file mode, the name or the 2:1 shape; media straight from `/api/file`.
+- [ ] **Playback events into `progress`** (BL-143) — play, pause and close write the position; the watched threshold applies.
+
 ## v3.0 — Native client *(in progress)*
 
 Native Flutter client talking to the existing HTTP API, targeting Steam Deck

@@ -26,7 +26,7 @@ import weakref
 import zipfile
 from contextlib import contextmanager
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import quote, unquote, urlparse
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -4550,6 +4550,430 @@ def restart_app(request: Request, body: RestartRequest | None = None):
     )
     threading.Thread(target=_delayed_terminate, daemon=True, name="restart").start()
     return {"ok": True, "supervised": _is_supervised()}
+
+
+# ── HereSphere API (FEAT-HERESPHERE, BL-142 / BL-143) ─────────────────────────
+# FramePlayerX on the Steam Frame plays VR video natively and already speaks the
+# HereSphere JSON API. Exposing that API lets it browse Hoard's groups and report
+# playback back into `progress`, with nothing to change on the player's side.
+#
+# The contract, as read in FramePlayerX's sources (v0.18):
+#   - every request is a POST with a JSON body; credentials ride in the body AND as
+#     HTTP Basic on every request to the source's origin, so require_basic_auth
+#     needs no exception. No Sec-Fetch-* is sent, so reject_cross_site_writes lets
+#     it through like curl.
+#   - URLs in the documents are resolved against the URL the user typed. They are
+#     emitted root-relative on purpose: behind the Synology reverse proxy the
+#     backend is spoken to in plain HTTP and cannot tell which scheme and host the
+#     client used, so an absolute URL built here could point the headset at the
+#     wrong one.
+#   - playback events carry the position in milliseconds and no duration.
+HERESPHERE_PREFIX = "/heresphere"
+HERESPHERE_SCENE_PREFIX = f"{HERESPHERE_PREFIX}/scene/"
+HERESPHERE_EVENTS_PATH = f"{HERESPHERE_PREFIX}/events"
+
+# Event codes, as FramePlayerX sends them.
+HERESPHERE_EVENT_OPEN = 0
+HERESPHERE_EVENT_PLAY = 1
+HERESPHERE_EVENT_PAUSE = 2
+HERESPHERE_EVENT_CLOSE = 3
+
+# Bounds on what one library request may cost the NAS. The quick folders are
+# walked on every library and scan request; a folder deep enough to hit the cap
+# still lists, just not exhaustively.
+HERESPHERE_GROUP_LIMIT = 200
+HERESPHERE_RECENT_LIMIT = 50
+HERESPHERE_FOLDER_SCAN_LIMIT = 1000
+
+
+class HereSphereRequest(BaseModel):
+    # FramePlayerX sends username/password in the body as well as in Basic auth.
+    # Basic is what Hoard checks; the body fields are accepted and ignored.
+    username: str | None = None
+    password: str | None = None
+    needsMediaSource: bool | None = None  # HereSphere field names are camelCase
+    isFavorite: bool | None = None
+
+
+class HereSphereEvent(BaseModel):
+    id: str
+    event: int
+    time: float = 0.0  # milliseconds
+    title: str | None = None
+    username: str | None = None
+    speed: float | None = None
+    utc: float | None = None
+    connectionKey: str | None = None
+
+
+def _heresphere_id(rel: str) -> str:
+    """Scene id: the relative path, base64url-encoded without padding.
+
+    Stable and table-free, like `progress`, which is keyed by path: a file that is
+    renamed or moved changes id, exactly as it changes progress row.
+    """
+    return base64.urlsafe_b64encode(rel.encode("utf-8")).decode("ascii").rstrip("=")
+
+
+def _heresphere_file(scene_id: str) -> Path:
+    """Resolve a scene id to a video under MEDIA_ROOT, or raise 404.
+
+    Out-of-root, undecodable and non-video ids all give the same 404: to a
+    HereSphere client they are one case, "no such scene".
+    """
+    try:
+        rel = base64.urlsafe_b64decode(scene_id + "=" * (-len(scene_id) % 4)).decode("utf-8")
+    except (ValueError, UnicodeDecodeError):
+        raise HTTPException(status_code=404) from None
+    if not rel or "\x00" in rel:
+        raise HTTPException(status_code=404)
+    try:
+        file = safe_path(rel)
+    except HTTPException:
+        raise HTTPException(status_code=404) from None
+    if not is_video(file) or not file.is_file():
+        raise HTTPException(status_code=404)
+    return file
+
+
+def _heresphere_scene_url(rel: str) -> str:
+    return f"{HERESPHERE_SCENE_PREFIX}{_heresphere_id(rel)}"
+
+
+# ffprobe results, keyed by path and invalidated by size + mtime. A scene document
+# needs the duration, and sometimes the dimensions, of a file nobody has played
+# yet; probing it again every time the headset reopens the scene would cost one
+# subprocess per request on a deliberately weak NAS.
+_HERESPHERE_PROBE_MAX = 2048
+_heresphere_probe_cache: dict[str, tuple[tuple[int, int], dict]] = {}
+_heresphere_probe_lock = threading.Lock()
+
+
+def _heresphere_probe(file: Path) -> dict:
+    """Duration and dimensions of a video, or an empty dict when unreadable."""
+    try:
+        st = file.stat()
+    except OSError:
+        return {}
+    key = to_rel(file)
+    stamp = (st.st_size, st.st_mtime_ns)
+    with _heresphere_probe_lock:
+        cached = _heresphere_probe_cache.get(key)
+    if cached and cached[0] == stamp:
+        return cached[1]
+    try:
+        info = _read_media_info(file)
+    except (HTTPException, OSError, ValueError) as exc:
+        logger.info("heresphere: could not probe %s: %s", key, exc)
+        info = {}
+    video = info.get("video") or {}
+    result = {
+        "duration": info.get("duration"),
+        "width": video.get("width"),
+        "height": video.get("height"),
+    }
+    with _heresphere_probe_lock:
+        if len(_heresphere_probe_cache) >= _HERESPHERE_PROBE_MAX:
+            _heresphere_probe_cache.clear()
+        _heresphere_probe_cache[key] = (stamp, result)
+    return result
+
+
+def _ratio_says_sbs180(width, height) -> bool:
+    """Same rule as the web player's _vrRatioSaysSbs180: two square eyes side by
+    side give exactly 2:1, at a width no flat video reaches."""
+    if not width or not height:
+        return False
+    return abs(width / height - 2) < 0.02 and width >= 2048
+
+
+def _heresphere_format(mode: str | None, name: str, probe) -> dict:
+    """HereSphere projection fields for a file.
+
+    The mode set for the file wins ('off' = not VR, 'flat' = 180° mono, 'sbs' =
+    180° side-by-side), then the name, then the 2:1 shape — the same three clues,
+    in the same order, as the web player. `probe` is called only when the first
+    two say nothing, since it may cost an ffprobe.
+    """
+    if mode is None:
+        if guess_vr_from_name(name):
+            mode = "sbs"
+        else:
+            info = probe()
+            mode = "sbs" if _ratio_says_sbs180(info.get("width"), info.get("height")) else "off"
+    if mode == "sbs":
+        return {"projection": "equirectangular", "stereo": "sbs", "fov": 180.0, "lens": "Linear"}
+    if mode == "flat":
+        return {"projection": "equirectangular", "stereo": "mono", "fov": 180.0, "lens": "Linear"}
+    return {"projection": "perspective", "stereo": "mono"}
+
+
+def _heresphere_threshold(conn) -> float:
+    try:
+        return float(_read_all_settings(conn).get("watched_threshold", "90"))
+    except ValueError:
+        return 90.0
+
+
+def _walk_videos(folder: Path, limit: int) -> list[Path]:
+    """Videos under `folder`, recursively, at most `limit` of them.
+
+    Unreadable directories are skipped rather than failing the whole library:
+    one locked folder must not empty the headset's view.
+    """
+    found: list[Path] = []
+
+    def _onerror(exc: OSError) -> None:
+        _warn_unreadable(Path(getattr(exc, "filename", "") or folder), exc)
+
+    for dirpath, dirnames, filenames in os.walk(folder, onerror=_onerror):
+        dirnames[:] = [d for d in dirnames if not d.startswith(".")]
+        for name in filenames:
+            if name.startswith("."):
+                continue
+            p = Path(dirpath) / name
+            if is_video(p):
+                found.append(p)
+                if len(found) >= limit:
+                    return found
+    return found
+
+
+def _heresphere_groups() -> list[tuple[str, list[str]]]:
+    """The library as (group name, [relative paths]), empty groups dropped.
+
+    Groups (PRD decision 3): in progress, recently watched, unwatched from the
+    quick folders, then one group per quick folder. No "whole NAS" group: walking
+    all of MEDIA_ROOT on every open would cost the NAS too much.
+    """
+    root = get_media_root()
+    with get_db() as conn:
+        threshold = _heresphere_threshold(conn)
+        rows = conn.execute(
+            "SELECT path, position, duration, watched FROM progress ORDER BY updated_at DESC"
+        ).fetchall()
+        folder_rows = conn.execute("SELECT path FROM quick_folders ORDER BY created_at").fetchall()
+
+    def _exists(rel: str) -> bool:
+        p = root / rel
+        try:
+            return is_video(p) and p.is_file()
+        except OSError:
+            return False
+
+    progress_by_path = {row["path"]: row for row in rows}
+    in_progress: list[str] = []
+    recent: list[str] = []
+    for row in rows:
+        rel = row["path"]
+        if not _exists(rel):
+            continue
+        pct = _watch_percent(row)
+        # A row at 0 that is not watched is a file someone unmarked, not watched.
+        if len(recent) < HERESPHERE_RECENT_LIMIT and (row["position"] > 0 or row["watched"]):
+            recent.append(rel)
+        if row["position"] > 0 and pct < threshold and len(in_progress) < HERESPHERE_GROUP_LIMIT:
+            in_progress.append(rel)
+
+    folder_groups: list[tuple[str, list[str]]] = []
+    unwatched: list[tuple[float, str]] = []
+    seen_unwatched: set[str] = set()
+    for frow in folder_rows:
+        folder = root / frow["path"]
+        if not _is_dir(folder):
+            continue
+        rels = []
+        for p in _walk_videos(folder, HERESPHERE_FOLDER_SCAN_LIMIT):
+            try:
+                rel = str(p.relative_to(root)).replace("\\", "/")
+            except ValueError:
+                continue
+            rels.append(rel)
+            row = progress_by_path.get(rel)
+            if rel not in seen_unwatched and (
+                row is None or (not row["watched"] and row["position"] <= 0)
+            ):
+                seen_unwatched.add(rel)
+                try:
+                    mtime = p.stat().st_mtime
+                except OSError:
+                    mtime = 0.0
+                unwatched.append((mtime, rel))
+        rels.sort(key=_natural_key)
+        if rels:
+            folder_groups.append((folder.name or frow["path"], rels))
+
+    unwatched.sort(key=lambda t: t[0], reverse=True)
+    groups = [
+        ("En cours", in_progress),
+        ("Récemment vus", recent),
+        ("Non vus", [rel for _, rel in unwatched[:HERESPHERE_GROUP_LIMIT]]),
+        *folder_groups,
+    ]
+    return [(name, rels) for name, rels in groups if rels]
+
+
+@app.post(HERESPHERE_PREFIX)
+def heresphere_library(body: HereSphereRequest | None = None):
+    """HereSphere library: the URL the user enters in FramePlayerX."""
+    return {
+        "access": 1,
+        "library": [
+            {"name": name, "list": [_heresphere_scene_url(rel) for rel in rels]}
+            for name, rels in _heresphere_groups()
+        ],
+    }
+
+
+@app.post(f"{HERESPHERE_PREFIX}/scan")
+def heresphere_scan(body: HereSphereRequest | None = None):
+    """Details of every listed scene in one request, so the player does not have
+    to open each scene document to draw its cards.
+
+    No ffprobe here: the duration is given only when `progress` already knows it.
+    """
+    root = get_media_root()
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for _, rels in _heresphere_groups():
+        for rel in rels:
+            if rel not in seen:
+                seen.add(rel)
+                ordered.append(rel)
+    with get_db() as conn:
+        durations = {
+            row["path"]: row["duration"]
+            for row in conn.execute("SELECT path, duration FROM progress WHERE duration > 0")
+        }
+    scan = []
+    for rel in ordered:
+        p = root / rel
+        entry = {
+            "link": _heresphere_scene_url(rel),
+            "title": p.stem,
+            "isFavorite": False,
+            "tags": [],
+        }
+        if durations.get(rel):
+            entry["duration"] = durations[rel]  # seconds; FPX reads < 86400 as seconds
+        try:
+            entry["dateAdded"] = int(p.stat().st_mtime)
+        except OSError:
+            pass
+        scan.append(entry)
+    return {"scanData": scan}
+
+
+@app.post(f"{HERESPHERE_SCENE_PREFIX}{{scene_id}}")
+def heresphere_scene(scene_id: str, body: HereSphereRequest | None = None):
+    """One scene: title, duration, VR format and the media source.
+
+    The media is the original file through /api/file, which already handles Range
+    requests: FramePlayerX decodes HEVC and H.264 itself, so nothing is transcoded.
+    """
+    file = _heresphere_file(scene_id)
+    rel = to_rel(file)
+    with get_db() as conn:
+        prow = conn.execute("SELECT duration FROM progress WHERE path = ?", (rel,)).fetchone()
+        vrow = conn.execute("SELECT mode FROM vr_modes WHERE path = ?", (rel,)).fetchone()
+
+    probed: dict | None = None
+
+    def probe() -> dict:
+        nonlocal probed
+        if probed is None:
+            probed = _heresphere_probe(file)
+        return probed
+
+    duration = prow["duration"] if prow and prow["duration"] else None
+    if not duration:
+        duration = probe().get("duration")
+    fmt = _heresphere_format(vrow["mode"] if vrow else None, file.name, probe)
+
+    try:
+        st = file.stat()
+        size, added = st.st_size, int(st.st_mtime)
+    except OSError:
+        size, added = None, None
+    source: dict = {"url": f"/api/file?path={quote(rel, safe='')}"}
+    if size:
+        source["size"] = size
+    if probed and probed.get("height"):
+        source["height"] = source["resolution"] = probed["height"]
+        if probed.get("width"):
+            source["width"] = probed["width"]
+
+    scene = {
+        "access": 1,
+        "title": file.stem,
+        "media": [{"name": "Original", "sources": [source]}],
+        "tags": [],
+        "isFavorite": False,
+        "eventServer": HERESPHERE_EVENTS_PATH,
+        **fmt,
+    }
+    if duration:
+        scene["duration"] = duration * 1000.0
+    if added:
+        scene["dateAdded"] = added
+    return scene
+
+
+def _heresphere_event_rel(scene_url: str) -> Path:
+    """The file an event's `id` (the scene URL, absolute as the player resolved
+    it) designates, or 404."""
+    path = unquote(urlparse(scene_url).path or "")
+    marker = path.find(HERESPHERE_SCENE_PREFIX)
+    if marker < 0:
+        raise HTTPException(status_code=404)
+    scene_id = path[marker + len(HERESPHERE_SCENE_PREFIX) :].strip("/")
+    return _heresphere_file(scene_id)
+
+
+@app.post(HERESPHERE_EVENTS_PATH)
+def heresphere_event(body: HereSphereEvent):
+    """Playback report: play, pause and close write the position to `progress`.
+
+    The player sends no periodic tick, so the position arrives on pause, resume,
+    seek and close. Open (0) carries nothing worth keeping. The "watched" rule is
+    the web player's: past `watched_threshold` percent of the duration. The event
+    has no duration, so it comes from `progress`, else from ffprobe.
+    """
+    file = _heresphere_event_rel(body.id)
+    if body.event not in (
+        HERESPHERE_EVENT_OPEN,
+        HERESPHERE_EVENT_PLAY,
+        HERESPHERE_EVENT_PAUSE,
+        HERESPHERE_EVENT_CLOSE,
+    ):
+        raise HTTPException(status_code=400, detail="Unknown event")
+    if body.event == HERESPHERE_EVENT_OPEN:
+        return {"ok": True}
+    rel = to_rel(file)
+    position = max(0.0, body.time / 1000.0)
+    with get_db() as conn:
+        row = conn.execute("SELECT duration FROM progress WHERE path = ?", (rel,)).fetchone()
+        duration = row["duration"] if row and row["duration"] else None
+        if not duration:
+            duration = _heresphere_probe(file).get("duration") or 0.0
+        if duration:
+            position = min(position, duration)
+        threshold = _heresphere_threshold(conn)
+        watched = 1 if duration and position / duration * 100 >= threshold else 0
+        conn.execute(
+            """
+            INSERT INTO progress (path, position, duration, watched, updated_at)
+            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(path) DO UPDATE SET
+                position=excluded.position,
+                duration=excluded.duration,
+                watched=excluded.watched,
+                updated_at=CURRENT_TIMESTAMP
+            """,
+            (rel, position, duration, watched),
+        )
+        conn.commit()
+    return {"ok": True}
 
 
 # Serve frontend

@@ -591,6 +591,32 @@ with a gamepad on the Steam Deck and the Steam Frame.
 
 ---
 
+## FramePlayerX / HereSphere
+
+On the **Steam Frame**, [FramePlayerX](https://github.com/remotesojourner/frameplayerx) plays VR videos natively, far more smoothly than the browser.
+Hoard speaks its language (the HereSphere API): in the headset you find what Hoard knows about your videos, and what you watch in FramePlayerX comes back to Hoard.
+
+**Adding Hoard to FramePlayerX**: *Sources › Add source › HereSphere*, then:
+
+- **URL**: Hoard's address followed by `/heresphere`, for example `https://hoard.mydomain.com/heresphere`.
+- **Username and password**: the same account as Hoard's login screen (`HOARD_AUTH_USER` / `HOARD_AUTH_PASS`). Without authentication configured, leave them empty.
+
+**What you see in the headset**:
+
+- **En cours** (in progress): videos started and not yet watched.
+- **Récemment vus** (recently watched): the last 50 videos watched, most recent first.
+- **Non vus** (unwatched): never-opened videos from your quick folders, newest first.
+- Then **one group per quick folder**. Pin in Hoard the folders you want in the headset: FramePlayerX does not browse the whole NAS.
+
+**The VR format** follows what Hoard knows: the mode you set for the file in the web player (off, 180° flat, 180° side by side), otherwise the file name, otherwise its shape (a picture twice as wide as it is high = 180° side by side).
+
+**Your progress**: when you pause, seek or close the video, FramePlayerX sends the position to Hoard. The video shows as "in progress" in Hoard, and becomes "watched" past the threshold set in Settings (90 % by default).
+The other way round, FramePlayerX keeps its own resume position: it does not resume where you stopped on another device.
+
+Moving, deleting or renaming stays in Hoard's web interface.
+
+---
+
 ## Quick Folders (Pins)
 
 **Quick folders** let you move a file to a frequently used folder in two taps.

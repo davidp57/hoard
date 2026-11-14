@@ -599,6 +599,32 @@ navigateur, qui se pilotait mal à la manette sur le Steam Deck et le Steam Fram
 
 ---
 
+## FramePlayerX / HereSphere
+
+Sur le **Steam Frame**, [FramePlayerX](https://github.com/remotesojourner/frameplayerx) lit les vidéos VR en natif, bien plus fluide que le navigateur.
+Hoard parle sa langue (l'API HereSphere) : dans le casque, tu retrouves ce que Hoard sait de tes vidéos, et ce que tu regardes dans FramePlayerX remonte dans Hoard.
+
+**Ajouter Hoard dans FramePlayerX** : *Sources › Add source › HereSphere*, puis :
+
+- **URL** : l'adresse de Hoard suivie de `/heresphere`, par exemple `https://hoard.mondomaine.fr/heresphere`.
+- **Identifiant et mot de passe** : le même compte que l'écran de connexion de Hoard (`HOARD_AUTH_USER` / `HOARD_AUTH_PASS`). Sans authentification configurée, laisse-les vides.
+
+**Ce que tu vois dans le casque** :
+
+- **En cours** : les vidéos commencées et pas encore vues.
+- **Récemment vus** : les 50 dernières vidéos regardées, la plus récente en premier.
+- **Non vus** : les vidéos jamais ouvertes de tes dossiers rapides, les plus récentes en premier.
+- Puis **un groupe par dossier rapide**. Épingle dans Hoard les dossiers que tu veux voir dans le casque : FramePlayerX ne parcourt pas tout le NAS.
+
+**Le format VR** suit ce que Hoard sait : le mode que tu as réglé pour le fichier dans le lecteur web (désactivé, 180° plat, 180° côte à côte), sinon le nom du fichier, sinon sa forme (une image deux fois plus large que haute = 180° côte à côte).
+
+**Ta progression** : quand tu mets en pause, sautes dans la vidéo ou la fermes, FramePlayerX envoie la position à Hoard. La vidéo apparaît « en cours » dans Hoard, et passe « vue » au-delà du seuil réglé dans les Paramètres (90 % par défaut).
+Dans l'autre sens, FramePlayerX garde sa propre position de reprise : il ne reprend pas là où tu t'es arrêté sur un autre appareil.
+
+Déplacer, supprimer ou renommer reste dans l'interface web de Hoard.
+
+---
+
 ## Dossiers rapides (épingles)
 
 Les **dossiers rapides** permettent de déplacer un fichier vers un dossier fréquemment utilisé en deux taps.

@@ -1,6 +1,6 @@
 # Lot FEAT-HERESPHERE — Lire les vidéos de Hoard dans FramePlayerX, par l'API HereSphere
 
-Status: ⬜ ready
+Status: 🧑 waiting-human
 
 ## Problem Statement
 
@@ -53,5 +53,5 @@ Source : `crates/fp-sources/src/feed/heresphere.rs`, `feed/mod.rs`, `watch.rs` e
 
 | # | Ticket | Status |
 |---|--------|--------|
-| 01 | [BL-142 — Bibliothèque, scan et scènes HereSphere](tickets/01-library.md) | ⬜ |
-| 02 | [BL-143 — Événements de lecture vers `progress`](tickets/02-events.md) | ⬜ |
+| 01 | [BL-142 — Bibliothèque, scan et scènes HereSphere](tickets/01-library.md) | 🧑 |
+| 02 | [BL-143 — Événements de lecture vers `progress`](tickets/02-events.md) | 🧑 |
