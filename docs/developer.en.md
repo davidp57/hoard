@@ -199,6 +199,9 @@ wins, including `"off"` on a file the guess got wrong.
 | POST | `/heresphere/scan` | HereSphere scan: `{scanData: [{link, title, duration?, dateAdded, isFavorite, tags}]}` for every listed scene |
 | POST | `/heresphere/scene/{id}` | HereSphere scene: title, duration (ms), projection/stereo/fov, one media source on `/api/file`, `eventServer`. **404** for an id outside `MEDIA_ROOT`, undecodable, or not a video |
 | POST | `/heresphere/events` | Playback event `{id, event, time}` (event 0 open · 1 play · 2 pause · 3 close, time in ms) → writes `progress` |
+| POST | `/api/fpx/play` | Open a video in FramePlayerX `{path, origin}` → session snapshot. **409** without `fpx_host`, **400** host off the LAN, **502** unreachable — see [FramePlayerX handoff](#frameplayerx-handoff-feat-fpx-handoff) |
+| GET | `/api/fpx/status` | Current handoff session `{active, id, path, name, state, reason, position, duration}` |
+| POST | `/api/fpx/stop` | Abandon the follow-up ("Reprendre ici"): save the position, close the connection |
 
 ### HereSphere API (FEAT-HERESPHERE)
 
@@ -213,6 +216,19 @@ The contract was read from FramePlayerX's sources (v0.18): see `.backlog/FEAT-HE
 - **ffprobe** is used only by the scene document and by events, when `progress` has no duration or the format needs the shape. Results are cached in memory by path, size and mtime (`_heresphere_probe`). The scan never probes: it gives the duration only when `progress` knows it.
 - **Events**: 1, 2 and 3 write `time / 1000` as the position, with `updated_at`; 0 writes nothing. The event has no duration, so it is taken from `progress`, else from ffprobe. The file is marked watched past `watched_threshold`, as in the web player. FramePlayerX sends no periodic tick and reads no resume position from the server: it keeps its own on the headset.
 - **Not done yet**: favourites (`writeFavorite` absent) and thumbnails (`thumbnailImage` absent — FramePlayerX makes its own).
+
+### FramePlayerX handoff (FEAT-FPX-HANDOFF)
+
+The reverse of the HereSphere API: browse in Hoard, play in FramePlayerX (FPX). The backend drives FPX's **DeoVR remote** on TCP **23554** (open to the LAN, no pairing), read in FPX's sources (`crates/fp-remote/src/deovr.rs`) — see `.backlog/FEAT-FPX-HANDOFF/PRD.md`.
+
+- **Framing**: 4-byte little-endian length, then UTF-8 JSON; length 0 is a ping (FPX sends one about every second). FPX reports `{path, duration, currentTime, playbackSpeed, playerState}` (`playerState` 0 playing, 1 paused) on every change and at least every second while playing, and `{}` when nothing is open. A client message whose `path` differs from the open one opens it, then speed, seek (`currentTime`) and play/pause apply in that order.
+- **Settings** (server-wide, in `settings`): `fpx_host` (bare name or IP; a literal IP must be on the LAN at save time; `''` = off) and `fpx_steam_gameid` (digits; the 64-bit id of `steam://rungameid/`, `(AppId << 32) | 0x02000000` for a non-Steam shortcut). The port is fixed (`FPX_PORT`).
+- **Host check** (`_fpx_addresses`): the name is resolved and **every** address must be on the LAN (`_is_lan_address`: RFC 1918, loopback, link-local, CGN, IPv6 ULA); the connection then goes to those addresses, not to the name.
+- **Open** (`POST /api/fpx/play {path, origin}`): `origin` is the page's `location.origin`, since behind the reverse proxy the backend cannot tell which scheme and host the headset uses. Connection attempts are retried for `FPX_CONNECT_WINDOW` (20 s) while FPX starts. One message is sent: `{"path": <signed URL>, "currentTime": <resume>, "playerState": 0}`. The resume position is the web player's: the saved position unless the file is past `watched_threshold`.
+- **Signed URL**: `/api/file?path=<rel>&exp=<unix>&sig=<HMAC>` with a 12 h lifetime (`FPX_URL_TTL`). The key derives from the session secret and the current credentials (`_fpx_file_key`), so rotating `HOARD_SECRET_KEY` or changing the password revokes it. `require_basic_auth` accepts it **only** on `/api/file`, each of `path`/`exp`/`sig` present exactly once; every other route ignores it.
+- **Follow-up** (`_FpxSession`, one daemon thread per playback, one session at a time): until FPX reports our URL (matched on the signature), `{}` and other paths are FPX's state from before the open and are ignored (`FPX_OPEN_TIMEOUT`, 60 s, ends the session as `not_opened`). Then the position is written to `progress` every `FPX_SAVE_INTERVAL` (10 s), on pause and at the end, through `_store_position` (shared with HereSphere events, same watched rule). The session ends on `{}` (`closed`), another path (`replaced`), a dropped connection or 15 s without any frame (`disconnected`), `POST /api/fpx/stop` (`stopped`) or a new play (`replaced`). If the first report is more than 5 s short of the resume point, the seek is sent again once, without `path`.
+- **Frontend**: `openMedia` hands a video to `playInFpx` when the device toggle is on and `fpx_host` is set. The request goes out, then `steam://rungameid/<id>` is opened, both inside the user gesture. The overlay `#fpx-overlay` (a `gp-modal`, B = "Reprendre ici") polls `/api/fpx/status` every 1.5 s and once more when the page becomes visible; at the end it refreshes the folder and puts the pad cursor back on the video (`_gpCursorToPath`).
+- **Device-local toggle**: `localStorage['fpx_handoff']`, the fourth `localStorage` key after `volume`, `sbs_global` and `gamepad_profile`. Only the headset hands off: the PC and the Deck keep playing in Hoard. Set in *Settings → 🥽 FramePlayerX* or from the pad menu, where a video also gets the other way to play it (*Lire ici* / *Lire dans FramePlayerX*).
 
 ### Galleries
 

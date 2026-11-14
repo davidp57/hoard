@@ -100,7 +100,9 @@ Documentation must be kept up to date with every code change. Update in the **sa
   - `localStorage` holds **device-local settings only**, and nothing else: today
     `volume`, `sbs_global` (the whole-interface side-by-side toggle, PAD-SBS-UI)
     and `gamepad_profile` (standard or Steam Frame right hand only, PAD-PROFILES:
-    picking it on the Frame must not change the Deck's pad — David, 2026-11-05).
+    picking it on the Frame must not change the Deck's pad — David, 2026-11-05)
+    and `fpx_handoff` (play in FramePlayerX, FEAT-FPX-HANDOFF: only the headset
+    hands off).
     Everything else is in the backend DB, because every other setting is meant to
     follow the user from the laptop to the Deck. A setting belongs here when
     following would be wrong — the Deck with XR glasses wants side-by-side, the

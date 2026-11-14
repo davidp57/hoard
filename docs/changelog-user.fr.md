@@ -8,6 +8,7 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ### Ajouté
 
+- **Parcourir dans Hoard, regarder dans FramePlayerX.** Dans le casque, une vidéo ouverte dans Hoard se lit dans FramePlayerX, là où tu t'étais arrêté, et Hoard revient à la liste quand tu la fermes, avec ta progression à jour. À régler une fois dans Paramètres › FramePlayerX (nom du casque et identifiant Steam), puis à activer dans le casque seulement. Le mode d'emploi est dans le guide, section « Parcourir dans Hoard, lire dans FramePlayerX ».
 - **Hoard s'ouvre dans FramePlayerX, sur le Steam Frame.** Ajoute Hoard comme source « HereSphere » dans FramePlayerX : tu y retrouves tes vidéos en cours, celles vues récemment, celles pas encore vues et tes dossiers rapides, chacune dans le bon format VR. Ce que tu regardes dans le casque remonte dans Hoard, « en cours » ou « vu ». Le mode d'emploi est dans le guide, section « FramePlayerX / HereSphere ».
 
 ## [v2.9.0] — 2026-11-12

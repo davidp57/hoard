@@ -1808,6 +1808,23 @@
       </div>
     </div>
 
+    <!-- FramePlayerX handoff (BL-144) -->
+    <div>
+      <div class="s-section-title">🥽 FramePlayerX</div>
+      <div class="s-row">
+        <div><div class="s-label">Lire dans FramePlayerX</div><div class="s-desc">Une vidéo ouverte dans la liste se lit dans FramePlayerX, et Hoard reprend la main quand vous la fermez. Se règle <b>appareil par appareil</b> : à activer dans le casque seulement. À la manette : menu (Select) → « Lire dans FramePlayerX ».</div></div>
+        <div class="s-right"><label class="toggle"><input type="checkbox" id="s-fpx-handoff" onchange="setFpxHandoff(this.checked)"><div class="toggle-track"></div></label></div>
+      </div>
+      <div class="s-row">
+        <div><div class="s-label">Casque</div><div class="s-desc">Nom ou adresse IP du casque sur le réseau local (ex. <code>frame-david.lan</code>). Vide = fonction coupée</div></div>
+        <div class="s-right"><input type="text" class="s-num" id="s-fpx-host" style="width:18rem" placeholder="frame.lan" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+      </div>
+      <div class="s-row">
+        <div><div class="s-label">Identifiant Steam de FramePlayerX</div><div class="s-desc">Pour mettre FramePlayerX au premier plan (lien <code>steam://rungameid/…</code>). Voir le guide pour le trouver</div></div>
+        <div class="s-right"><input type="text" class="s-num" id="s-fpx-gameid" style="width:18rem" inputmode="numeric" placeholder="13110206535122812928" autocomplete="off"></div>
+      </div>
+    </div>
+
     <!-- Touch gestures -->
     <div>
       <div class="s-section-title">👆 Gestes tactiles</div>
@@ -2124,6 +2141,17 @@
       </div>
     </div>
 
+  </div>
+</div>
+
+<!-- FramePlayerX handoff (BL-144). B = "Reprendre ici", like the button. -->
+<div id="fpx-overlay" class="gp-modal" data-gp-close="fpxResumeHere" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:550;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:1.2rem;padding:2.4rem;width:44rem;max-width:92vw;display:flex;flex-direction:column;gap:1.2rem">
+    <div id="fpx-heading" style="font-size:1.3rem;color:var(--accent);font-weight:700">🥽 Lecture dans FramePlayerX</div>
+    <div id="fpx-title" style="font-size:1.6rem;font-weight:700;color:var(--text);word-break:break-word"></div>
+    <div class="progress-bar-wrap" style="height:0.6rem"><div class="progress-bar-fill" id="fpx-bar" style="width:0%"></div></div>
+    <div id="fpx-time" style="font-family:'DM Mono',monospace;font-size:1.3rem;color:var(--text-mid)"></div>
+    <button class="s-btn" id="fpx-resume-btn" onclick="fpxResumeHere()" style="align-self:flex-start">↩ Reprendre ici</button>
   </div>
 </div>
 
@@ -2580,6 +2608,8 @@ function applyCfg(s) {
   cfg.vr_widen = parseInt(s.vr_widen ?? 0, 10);
   cfg.vr_look_speed  = parseInt(s.vr_look_speed ?? 90, 10);
   cfg.vr_sbs_layout  = ['auto', 'half', 'full'].includes(s.vr_sbs_layout) ? s.vr_sbs_layout : 'auto';
+  cfg.fpx_host         = (s.fpx_host || '').trim();
+  cfg.fpx_steam_gameid = (s.fpx_steam_gameid || '').trim();
   // propagate navigation prefs
   homeFolder = cfg.home_folder;
   sortBy     = cfg.sort_by;
@@ -3600,6 +3630,9 @@ function openSettings() {
   // Device-local, so it comes from localStorage and never rides in the payload.
   document.getElementById('s-sbs-global').checked = sbsIsOn();
   document.getElementById('s-gamepad-profile').value = gpProfile;  // device-local too
+  document.getElementById('s-fpx-handoff').checked = fpxHandoffOn();  // device-local too
+  document.getElementById('s-fpx-host').value   = cfg.fpx_host;
+  document.getElementById('s-fpx-gameid').value = cfg.fpx_steam_gameid;
   document.getElementById('s-gamepad-enabled').checked  = cfg.gamepad_enabled;
   document.getElementById('s-gamepad-haptic').checked   = cfg.gamepad_haptic;
   document.getElementById('s-gamepad-swap-sticks').checked = cfg.gamepad_swap_sticks;
@@ -3661,13 +3694,22 @@ async function saveSettings() {
     gamepad_haptic:            document.getElementById('s-gamepad-haptic').checked,
     gamepad_swap_sticks:       document.getElementById('s-gamepad-swap-sticks').checked,
     gamepad_deadzone:          parseInt(document.getElementById('s-gamepad-deadzone').value, 10) / 100,
+    fpx_host:                  document.getElementById('s-fpx-host').value.trim(),
+    fpx_steam_gameid:          document.getElementById('s-fpx-gameid').value.trim(),
   };
   const resp = await fetch(`${API}/api/settings`, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(payload),
   });
-  if (!resp.ok) { showToast('Erreur lors de la sauvegarde'); return; }
+  if (!resp.ok) {
+    // The FramePlayerX fields are the free-text ones the server can refuse.
+    const detail = (await resp.json().catch(() => ({}))).detail;
+    showToast(typeof detail === 'string' && detail.startsWith('fpx_')
+      ? '❌ FramePlayerX : nom du casque ou identifiant Steam invalide'
+      : 'Erreur lors de la sauvegarde');
+    return;
+  }
   applyCfg({ ...cfg, ...payload });
   updateSortUI();
   _gpScanConnected(); // restart polling if gamepad was just re-enabled
@@ -4833,11 +4875,162 @@ function openMedia(idx) {
   const entry = entries[idx];
   if (!entry || entry.is_dir) return;
   const mt = entry.media_type || 'other';
-  if (mt === 'video') { playVideo(idx); return; }
+  if (mt === 'video') {
+    if (fpxHandoffOn() && fpxConfigured()) playInFpx(idx); else playVideo(idx);
+    return;
+  }
   if (mt === 'image') { openImage(idx); return; }
   if (mt === 'archive') { openArchive(idx); return; }
   if (mt === 'audio') { playAudio(idx); return; }
   if (mt === 'pdf') { openPdf(idx); return; }
+}
+
+// ── FramePlayerX handoff (FEAT-FPX-HANDOFF, BL-144) ───────────────────────────
+// On the Steam Frame, playback goes to FramePlayerX (FPX), the native player:
+// the page brings FPX to the front through steam://, the backend tells FPX what to
+// open over its DeoVR remote and follows the playback, and this page polls that
+// follow-up until FPX closes the video, then shows the list again.
+//
+// Whether a device hands off is device-local, like `sbs_global`: only the headset
+// wants it, the PC and the Deck keep playing here.
+const FPX_KEY = 'fpx_handoff';  // localStorage: device-local, see the lot's PRD
+const FPX_POLL_MS = 1500;
+// `opening` counts the opens: "Reprendre ici" before /api/fpx/play has answered
+// bumps it, and the answer that arrives afterwards is then abandoned.
+const fpx = { timer: 0, sessionId: null, path: null, opening: 0 };
+
+function fpxConfigured() { return !!cfg.fpx_host; }
+
+function fpxHandoffOn() {
+  try { return localStorage.getItem(FPX_KEY) === '1'; } catch { return false; }
+}
+
+function setFpxHandoff(on) {
+  try { localStorage.setItem(FPX_KEY, on ? '1' : '0'); } catch { /* storage blocked */ }
+  const chk = document.getElementById('s-fpx-handoff');
+  if (chk) chk.checked = on;
+  showToast(on ? '🥽 Lecture dans FramePlayerX activée' : '▶ Lecture dans Hoard');
+}
+
+function toggleFpxHandoff() { setFpxHandoff(!fpxHandoffOn()); }
+
+function _fpxRender(snap) {
+  const dur = snap.duration || 0;
+  const pos = Math.min(snap.position || 0, dur || Infinity);
+  document.getElementById('fpx-title').textContent = snap.name || '';
+  document.getElementById('fpx-bar').style.width = dur ? `${(pos / dur * 100).toFixed(1)}%` : '0%';
+  const what = snap.state === 'opening' ? 'Ouverture dans FramePlayerX…'
+    : `${snap.state === 'paused' ? '⏸' : '▶'} ${formatTime(pos)} / ${formatTime(dur)}`;
+  document.getElementById('fpx-time').textContent = what;
+}
+
+function _fpxShow(name) {
+  _fpxRender({ name, state: 'opening', position: 0, duration: 0 });
+  const ov = document.getElementById('fpx-overlay');
+  ov.style.display = 'flex';
+  // The one control is pre-selected, so A answers without a D-pad press first.
+  ov._gpIdx = 0;
+  document.getElementById('fpx-resume-btn').classList.add('gp-cursor');
+}
+
+function _fpxHide() {
+  const ov = document.getElementById('fpx-overlay');
+  ov.style.display = 'none';
+  ov._gpIdx = undefined;
+  document.getElementById('fpx-resume-btn').classList.remove('gp-cursor');
+  clearInterval(fpx.timer);
+  fpx.timer = 0;
+  fpx.sessionId = null;
+}
+
+// Put the pad cursor back on the video, wherever the refreshed sort placed it.
+function _gpCursorToPath(path) {
+  const i = _gpRenderedList.findIndex(e => e.path === path);
+  if (i < 0) return;
+  _gpCursorIdx = i;
+  const items = document.querySelectorAll('#filelist .entry');
+  items.forEach((el, k) => el.classList.toggle('gp-cursor', k === i));
+  items[i]?.scrollIntoView({ block: 'nearest' });
+}
+
+async function playInFpx(idx) {
+  const entry = entries[idx];
+  if (!entry || !entry.is_video) return;
+  if (!fpxConfigured()) { showToast('FramePlayerX n\'est pas configuré (Paramètres)'); return; }
+  fpx.path = entry.path;
+  const ticket = ++fpx.opening;
+  _gpCursorToPath(entry.path);
+  _fpxShow(entry.name);
+  // The request goes out first, then FPX is brought to the front, both inside the
+  // click: an external-protocol link needs the user gesture, and leaving the page
+  // for FPX must not be able to cancel the request. The backend waits for FPX to
+  // listen, so the order costs nothing.
+  const req = fetch(`${API}/api/fpx/play`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: entry.path, origin: location.origin }),
+  });
+  if (cfg.fpx_steam_gameid) {
+    try { window.location.href = `steam://rungameid/${cfg.fpx_steam_gameid}`; } catch { /* no handler */ }
+  }
+  let snap;
+  try {
+    const resp = await req;
+    const body = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(typeof body.detail === 'string' ? body.detail : `HTTP ${resp.status}`);
+    snap = body;
+  } catch (err) {
+    if (ticket !== fpx.opening) return;  // abandoned meanwhile: nothing left to show
+    _fpxHide();
+    showToast(`❌ ${err.message || 'FramePlayerX injoignable'}`);
+    return;
+  }
+  if (ticket !== fpx.opening) {
+    // "Reprendre ici" was pressed while FPX was starting: drop the follow-up the
+    // backend has just begun, rather than reviving a hidden screen.
+    try { await fetch(`${API}/api/fpx/stop`, { method: 'POST' }); } catch { /* already gone */ }
+    return;
+  }
+  fpx.sessionId = snap.id;
+  _fpxRender(snap);
+  clearInterval(fpx.timer);
+  fpx.timer = setInterval(_fpxPoll, FPX_POLL_MS);
+}
+
+async function _fpxPoll() {
+  let snap;
+  try {
+    const resp = await fetch(`${API}/api/fpx/status`);
+    if (!resp.ok) return;
+    snap = await resp.json();
+  } catch { return; }  // a missed poll is retried on the next tick
+  if (!fpx.sessionId) return;
+  if (snap.id !== fpx.sessionId) { _fpxEnded(null); return; }  // replaced from elsewhere
+  if (snap.active) _fpxRender(snap); else _fpxEnded(snap);
+}
+
+// Chromium sits in the background while FPX plays and throttles its timers; poll
+// at once when it comes back rather than up to a throttled minute later.
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && fpx.sessionId) _fpxPoll();
+});
+
+async function _fpxEnded(snap) {
+  const path = fpx.path;
+  _fpxHide();
+  if (snap?.reason === 'not_opened') showToast('❌ FramePlayerX n\'a pas ouvert la vidéo');
+  await refreshCurrentFolder();
+  if (path) _gpCursorToPath(path);
+}
+
+async function fpxResumeHere() {
+  const sessionId = fpx.sessionId;
+  fpx.opening++;  // an open still waiting for its answer is abandoned
+  _fpxHide();
+  if (sessionId) {
+    try { await fetch(`${API}/api/fpx/stop`, { method: 'POST' }); } catch { /* already gone */ }
+  }
+  await _fpxEnded(null);
 }
 
 // ── Image viewer ──────────────────────────────────────────────────────────────
@@ -8467,6 +8660,13 @@ function _gpMenuBuildPlayer() {
     value: sbsIsOn() ? 'activé' : 'désactivé',
     run: () => toggleSbsGlobal(),
   });
+  if (fpxConfigured()) {
+    items.push({
+      label: '🥽 Lire dans FramePlayerX',
+      value: fpxHandoffOn() ? 'activé' : 'désactivé',
+      run: () => toggleFpxHandoff(),
+    });
+  }
   items.push({ label: '🎮 Profil manette', value: GP_PROFILES[gpProfile], run: () => cycleGpProfile() });
   items.push({ label: '🎮 Aide manette', run: () => openGpOverlay() });
   return items;
@@ -8480,6 +8680,13 @@ function _gpMenuBuild() {
   if (entry) {
     const name = entry.name.length > 28 ? entry.name.slice(0, 27) + '…' : entry.name;
     items.push({ section: name, label: '▶ Ouvrir', run: () => _gpActivateCursor() });
+    // BL-144: the other way to play this one video, whichever the device default is.
+    if (entry.is_video && fpxConfigured()) {
+      const idx = entries.indexOf(entry);
+      items.push(fpxHandoffOn()
+        ? { label: '▶ Lire ici', run: () => playVideo(idx) }
+        : { label: '🥽 Lire dans FramePlayerX', run: () => playInFpx(idx) });
+    }
     if (_canMarkWatched(entry)) {
       const seen = _entryIsSeen(entry);
       items.push({
@@ -8538,6 +8745,13 @@ function _gpMenuBuild() {
     value: sbsIsOn() ? 'activé' : 'désactivé',
     run: () => toggleSbsGlobal(),
   });
+  if (fpxConfigured()) {
+    items.push({
+      label: '🥽 Lire dans FramePlayerX',
+      value: fpxHandoffOn() ? 'activé' : 'désactivé',
+      run: () => toggleFpxHandoff(),
+    });
+  }
   items.push({ label: '⚙️ Paramètres', run: () => openSettings() });
   items.push({ label: '🎮 Profil manette', value: GP_PROFILES[gpProfile], run: () => cycleGpProfile() });
   items.push({ label: '🎮 Aide manette', run: () => openGpOverlay() });

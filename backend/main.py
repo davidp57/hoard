@@ -516,6 +516,11 @@ async def require_basic_auth(request: Request, call_next):
         return await call_next(request)
     if not _AUTH_ENABLED:
         return await call_next(request)
+    # FramePlayerX fetches the video it was told to open with no cookie and no
+    # Basic credentials: the signed URL is its whole authorisation (BL-144), and
+    # it opens this one route, for the one path it was signed for.
+    if request.url.path == FPX_FILE_PATH and _check_fpx_file_signature(request.query_params):
+        return await call_next(request)
 
     # Cookie first: it spares a base64 decode on every request, and it is what the
     # browser sends on the overwhelming majority of them.
@@ -3698,6 +3703,8 @@ _SETTINGS_KEYS = {
     "gamepad_mapping",  # JSON string, default '{}' (use built-in defaults)
     "fs_progress_zoom",  # int 5-50, zoom window % for fullscreen progress bar, default 20
     "gestures_overlay_seen",  # '1' | '0', one-shot touch-gesture discovery overlay flag
+    "fpx_host",  # FramePlayerX headset host name or IP, '' = handoff off (BL-144)
+    "fpx_steam_gameid",  # 64-bit Steam shortcut id for steam://rungameid/, '' = none
 }
 
 _SETTINGS_DEFAULTS: dict[str, str] = {
@@ -3748,6 +3755,8 @@ _SETTINGS_DEFAULTS: dict[str, str] = {
     "vr_widen": "0",
     "vr_look_speed": "90",
     "vr_sbs_layout": "auto",
+    "fpx_host": "",
+    "fpx_steam_gameid": "",
 }
 
 
@@ -3806,6 +3815,8 @@ class SettingsPayload(BaseModel):
     vr_convergence: float | None = Field(default=None, ge=-3.0, le=3.0)
     vr_look_speed: int | None = Field(default=None, ge=10, le=360)
     vr_sbs_layout: str | None = None
+    fpx_host: str | None = Field(default=None, max_length=253)
+    fpx_steam_gameid: str | None = Field(default=None, max_length=20)
 
 
 # Settings rows that must never leave the server. `settings` is a generic key/value
@@ -3990,6 +4001,14 @@ def update_settings(body: SettingsPayload, request: Request):
             if body.vr_sbs_layout not in ("auto", "half", "full"):
                 raise HTTPException(status_code=422, detail="Invalid vr_sbs_layout")
             _write_setting(conn, "vr_sbs_layout", body.vr_sbs_layout)
+
+        if body.fpx_host is not None:
+            _write_setting(conn, "fpx_host", _validate_fpx_host_setting(body.fpx_host))
+        if body.fpx_steam_gameid is not None:
+            gameid = body.fpx_steam_gameid.strip()
+            if gameid and not gameid.isdigit():
+                raise HTTPException(status_code=422, detail="fpx_steam_gameid must be digits")
+            _write_setting(conn, "fpx_steam_gameid", gameid)
 
         conn.commit()
 
@@ -4958,22 +4977,459 @@ def heresphere_event(body: HereSphereEvent):
             duration = _heresphere_probe(file).get("duration") or 0.0
         if duration:
             position = min(position, duration)
-        threshold = _heresphere_threshold(conn)
-        watched = 1 if duration and position / duration * 100 >= threshold else 0
-        conn.execute(
-            """
-            INSERT INTO progress (path, position, duration, watched, updated_at)
-            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-            ON CONFLICT(path) DO UPDATE SET
-                position=excluded.position,
-                duration=excluded.duration,
-                watched=excluded.watched,
-                updated_at=CURRENT_TIMESTAMP
-            """,
-            (rel, position, duration, watched),
-        )
+        _store_position(conn, rel, position, duration)
         conn.commit()
     return {"ok": True}
+
+
+def _store_position(conn, rel: str, position: float, duration: float) -> None:
+    """Write a position reported by an external player into `progress`.
+
+    Shared by HereSphere events and the FramePlayerX handoff. The "watched" rule is
+    the web player's: past `watched_threshold` percent of the duration.
+    """
+    threshold = _heresphere_threshold(conn)
+    watched = 1 if duration and position / duration * 100 >= threshold else 0
+    conn.execute(
+        """
+        INSERT INTO progress (path, position, duration, watched, updated_at)
+        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(path) DO UPDATE SET
+            position=excluded.position,
+            duration=excluded.duration,
+            watched=excluded.watched,
+            updated_at=CURRENT_TIMESTAMP
+        """,
+        (rel, position, duration, watched),
+    )
+
+
+# ── FramePlayerX handoff (FEAT-FPX-HANDOFF, BL-144) ──────────────────────────
+# Browse in Hoard, play in FramePlayerX (FPX), the native player on the Steam
+# Frame. FPX exposes a DeoVR remote on TCP 23554, open to the LAN, no pairing:
+#   - each message is a 4-byte little-endian length then UTF-8 JSON; length 0 is
+#     a keep-alive ping, which FPX sends about every second;
+#   - FPX sends {"path", "duration", "currentTime", "playbackSpeed",
+#     "playerState"} (0 = playing, 1 = paused) on every change and at least every
+#     second while playing, and {} when nothing is open;
+#   - a client message with a `path` different from the open one opens it, then
+#     the speed, the seek (`currentTime`) and play/pause are applied, in that
+#     order — so one message opens a video at its resume point and plays it.
+# Read in FPX's sources (crates/fp-remote/src/deovr.rs) and measured against the
+# headset on 2026-11-14. The backend holds the connection, not the page: the page
+# is in Chromium, which FPX has just pushed to the background.
+FPX_PORT = 23554
+FPX_FILE_PATH = "/api/file"
+# FPX may not be running yet: the page launches it through steam:// right before
+# asking for the open, and it takes a few seconds to listen.
+FPX_CONNECT_WINDOW = 20.0
+FPX_CONNECT_ATTEMPT_TIMEOUT = 2.0
+FPX_CONNECT_RETRY_DELAY = 0.5
+FPX_SAVE_INTERVAL = 10.0
+FPX_READ_POLL = 0.5
+# FPX pings every second; this much silence means the headset is gone (asleep,
+# off the network) without the connection having been closed.
+FPX_SILENCE_TIMEOUT = 15.0
+# How long FPX may take to report the video it was asked to open. Past this, the
+# open failed (unreachable URL, unreadable file) and nothing is being played.
+FPX_OPEN_TIMEOUT = 60.0
+# A seek sent along with the open may land before the file is loaded; when the
+# first report is still this far short of the resume point, the seek is sent again.
+# Only short of it: past it means the seek held and playback has already moved on.
+FPX_RESEEK_TOLERANCE = 5.0
+FPX_MAX_FRAME = 1 << 20
+# Long enough for a film paused overnight in the headset to still load its next
+# range in the morning, short enough that a URL lifted from a log soon dies.
+FPX_URL_TTL = 12 * 3600
+
+
+def _fpx_file_key() -> bytes:
+    """Key for the signed /api/file URLs, distinct from the session cookie's.
+
+    Derived from the same secret and the same credentials, so rotating
+    HOARD_SECRET_KEY or changing the password kills every URL handed to FPX too.
+    """
+    material = json.dumps(["fpx-file", HOARD_AUTH_USER, HOARD_AUTH_PASS], separators=(",", ":"))
+    return hmac.new(_session_secret().encode("utf-8"), material.encode(), hashlib.sha256).digest()
+
+
+def _fpx_file_signature(rel: str, exp: int) -> str:
+    payload = json.dumps([rel, exp], separators=(",", ":")).encode("utf-8")
+    digest = hmac.new(_fpx_file_key(), payload, hashlib.sha256).digest()
+    return base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
+
+
+def _check_fpx_file_signature(params) -> bool:
+    """Whether the query carries a valid, unexpired signature for its `path`.
+
+    Each parameter must appear exactly once: with two `path` values, the one
+    checked here and the one the route serves could differ.
+    """
+    values = {}
+    for name in ("path", "exp", "sig"):
+        got = params.getlist(name)
+        if len(got) != 1:
+            return False
+        values[name] = got[0]
+    try:
+        exp = int(values["exp"])
+    except ValueError:
+        return False
+    if exp <= int(time.time()):
+        return False
+    return hmac.compare_digest(values["sig"], _fpx_file_signature(values["path"], exp))
+
+
+def _fpx_signed_url(origin: str, rel: str) -> tuple[str, str]:
+    """Absolute URL FPX can fetch the file from without credentials, and its sig."""
+    exp = int(time.time()) + FPX_URL_TTL
+    sig = _fpx_file_signature(rel, exp)
+    query = f"path={quote(rel, safe='')}&exp={exp}&sig={sig}"
+    return f"{origin}{FPX_FILE_PATH}?{query}", sig
+
+
+_FPX_HOST_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9.\-]*[A-Za-z0-9])?$|^[0-9A-Fa-f:]+$")
+
+
+def _is_lan_address(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    """RFC 1918, link-local, loopback, CGN, IPv6 ULA — never a public address."""
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
+        ip = ip.ipv4_mapped
+    if ip.is_multicast or ip.is_unspecified:
+        return False
+    return ip.is_loopback or ip.is_link_local or any(ip in net for net in _PRIVATE_NETWORKS)
+
+
+def _validate_fpx_host_setting(value: str) -> str:
+    """A bare host name or IP — no scheme, no port, no path. '' turns the handoff off.
+
+    A literal IP is checked for privacy here; a name can only be checked once
+    resolved, which _fpx_addresses does at every play.
+    """
+    host = value.strip()
+    if not host:
+        return ""
+    if not _FPX_HOST_RE.match(host):
+        raise HTTPException(status_code=422, detail="fpx_host must be a bare host name or IP")
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return host
+    if not _is_lan_address(ip):
+        raise HTTPException(status_code=422, detail="fpx_host must be on the local network")
+    return host
+
+
+def _fpx_addresses(host: str) -> list[str]:
+    """Resolve the headset and refuse anything off the local network.
+
+    Every resolved address must be local, and the connection then goes to those
+    addresses, not to the name: resolving again at connect time would let a
+    name that changed in between point the NAS somewhere else.
+    """
+    try:
+        addrs = _resolve_host(host)
+    except OSError:
+        raise HTTPException(
+            status_code=502, detail=f"FramePlayerX introuvable : {host} ne se résout pas"
+        ) from None
+    if not addrs or not all(_is_lan_address(ipaddress.ip_address(a)) for a in addrs):
+        raise HTTPException(
+            status_code=400,
+            detail=f"FramePlayerX refusé : {host} n'est pas sur le réseau local",
+        )
+    return addrs
+
+
+def _fpx_connect(host: str) -> socket.socket:
+    addrs = _fpx_addresses(host)
+    deadline = time.monotonic() + FPX_CONNECT_WINDOW
+    while True:
+        for addr in addrs:
+            try:
+                return socket.create_connection(
+                    (addr, FPX_PORT), timeout=FPX_CONNECT_ATTEMPT_TIMEOUT
+                )
+            except OSError:
+                continue
+        if time.monotonic() >= deadline:
+            raise HTTPException(
+                status_code=502, detail=f"FramePlayerX injoignable sur {host}:{FPX_PORT}"
+            )
+        time.sleep(FPX_CONNECT_RETRY_DELAY)
+
+
+def _fpx_frame(message: dict) -> bytes:
+    payload = json.dumps(message, separators=(",", ":")).encode("utf-8")
+    return len(payload).to_bytes(4, "little") + payload
+
+
+def _fpx_resume_position(rel: str) -> float:
+    """Where the web player would resume: the saved position, unless watched."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT position, duration, watched FROM progress WHERE path = ?", (rel,)
+        ).fetchone()
+        if not row:
+            return 0.0
+        if _watch_percent(row) >= _heresphere_threshold(conn):
+            return 0.0
+    return max(0.0, float(row["position"] or 0.0))
+
+
+class _FpxSession:
+    """One playback handed to FPX: the connection, and what FPX reports on it.
+
+    A reader thread follows FPX's reports and writes the position to `progress`
+    every FPX_SAVE_INTERVAL seconds, on pause, and when the session ends. It ends
+    when FPX reports nothing open ({}), another video, or drops the connection;
+    when the page abandons it ("Reprendre ici"); or when a new play replaces it.
+    """
+
+    def __init__(self, rel: str, url: str, sig: str, resume: float, sock: socket.socket):
+        self.id = uuid.uuid4().hex[:12]
+        self.rel = rel
+        self.url = url
+        self.sig = sig
+        self.resume = resume
+        self.sock = sock
+        self.lock = threading.Lock()
+        self.state = "opening"  # opening | playing | paused | ended
+        self.reason: str | None = None
+        self.position = resume
+        self.duration = 0.0
+        self.opened = False
+        self._reseeked = False
+        now = time.monotonic()
+        self._last_save = now
+        self._started = now
+        self._last_frame = now
+        self.thread = threading.Thread(target=self._run, name=f"fpx-{self.id}", daemon=True)
+
+    def start(self) -> None:
+        self.thread.start()
+
+    def snapshot(self) -> dict:
+        with self.lock:
+            return {
+                "active": self.state != "ended",
+                "id": self.id,
+                "path": self.rel,
+                "name": Path(self.rel).name,
+                "state": self.state,
+                "reason": self.reason,
+                "position": round(self.position, 1),
+                "duration": round(self.duration, 1),
+            }
+
+    def stop(self, reason: str) -> None:
+        self._finish(reason)
+
+    def _save(self) -> None:
+        """Write the last reported position. Caller holds self.lock."""
+        self._last_save = time.monotonic()
+        if not self.opened or self.duration <= 0:
+            return
+        position = min(max(0.0, self.position), self.duration)
+        try:
+            with get_db() as conn:
+                _store_position(conn, self.rel, position, self.duration)
+                conn.commit()
+        except sqlite3.Error:
+            logger.exception("fpx: could not save the position of %s", self.rel)
+
+    def _finish(self, reason: str) -> None:
+        with self.lock:
+            if self.state == "ended":
+                return
+            self._save()
+            self.state = "ended"
+            self.reason = reason
+        logger.info("fpx: session %s for %s ended (%s)", self.id, self.rel, reason)
+        try:
+            self.sock.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
+        self.sock.close()
+
+    def _on_message(self, message: dict) -> None:
+        path = message.get("path")
+        ours = isinstance(path, str) and self.sig in path
+        reseek = None
+        with self.lock:
+            if self.state == "ended":
+                return
+            if not ours:
+                # Until FPX reports our video, {} or another path is its state from
+                # before the open, not an answer to it.
+                if not self.opened:
+                    return
+                end_reason = "replaced" if path else "closed"
+            else:
+                end_reason = None
+                self.opened = True
+                duration = _safe_float(message.get("duration"))
+                if duration and duration > 0:
+                    self.duration = duration
+                current = _safe_float(message.get("currentTime"))
+                if current is not None and current >= 0:
+                    self.position = current
+                was_playing = self.state == "playing"
+                self.state = "paused" if message.get("playerState") == 1 else "playing"
+                if not self._reseeked and self.duration > 0:
+                    self._reseeked = True
+                    if self.position < self.resume - FPX_RESEEK_TOLERANCE:
+                        reseek = self.resume
+                        self.position = self.resume
+                if (was_playing and self.state == "paused") or (
+                    time.monotonic() - self._last_save >= FPX_SAVE_INTERVAL
+                ):
+                    self._save()
+        if end_reason:
+            self._finish(end_reason)
+        elif reseek is not None:
+            # No `path`: a path FPX normalised differently would reopen the file.
+            try:
+                self.sock.sendall(_fpx_frame({"currentTime": reseek}))
+            except OSError:
+                self._finish("disconnected")
+
+    def _read_frames(self, buf: bytes) -> tuple[bytes, bool]:
+        """Handle every complete frame in buf; return the rest and False on a bad frame."""
+        while len(buf) >= 4:
+            size = int.from_bytes(buf[:4], "little")
+            if size > FPX_MAX_FRAME:
+                return b"", False
+            if len(buf) < 4 + size:
+                break
+            payload, buf = buf[4 : 4 + size], buf[4 + size :]
+            if not payload:
+                continue  # keep-alive ping
+            try:
+                message = json.loads(payload)
+            except (ValueError, UnicodeDecodeError):
+                continue
+            if isinstance(message, dict):
+                self._on_message(message)
+        return buf, True
+
+    def _run(self) -> None:
+        buf = b""
+        self.sock.settimeout(FPX_READ_POLL)
+        while self.state != "ended":
+            try:
+                chunk = self.sock.recv(65536)
+            except TimeoutError:
+                chunk = None
+            except OSError:
+                self._finish("disconnected")
+                return
+            now = time.monotonic()
+            if chunk == b"":
+                self._finish("disconnected")
+                return
+            if chunk:
+                self._last_frame = now
+                buf, ok = self._read_frames(buf + chunk)
+                if not ok:
+                    self._finish("disconnected")
+                    return
+            if now - self._last_frame > FPX_SILENCE_TIMEOUT:
+                self._finish("disconnected")
+                return
+            if not self.opened and now - self._started > FPX_OPEN_TIMEOUT:
+                self._finish("not_opened")
+                return
+            with self.lock:
+                if (
+                    self.state != "ended"
+                    and self.opened
+                    and now - self._last_save >= FPX_SAVE_INTERVAL
+                ):
+                    self._save()
+
+
+_fpx_lock = threading.Lock()
+_fpx_session: _FpxSession | None = None
+
+
+class FpxPlayRequest(BaseModel):
+    path: str
+    # The page's own origin. The backend is spoken to in plain HTTP behind the
+    # reverse proxy and cannot tell which scheme and host the headset uses to
+    # reach it; the page in the headset's browser can.
+    origin: str = Field(max_length=300)
+
+
+def _fpx_origin(origin: str) -> str:
+    parsed = urlparse(origin)
+    if (
+        parsed.scheme not in ("http", "https")
+        or not parsed.netloc
+        or "@" in parsed.netloc
+        or parsed.path not in ("", "/")
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise HTTPException(status_code=422, detail="origin must be http(s)://host[:port]")
+    return f"{parsed.scheme}://{parsed.netloc}"
+
+
+@app.post("/api/fpx/play")
+def fpx_play(body: FpxPlayRequest):
+    """Open a video in FramePlayerX at its resume point and follow the playback."""
+    global _fpx_session
+    file = safe_path(body.path)
+    if not is_video(file) or not file.is_file():
+        raise HTTPException(status_code=404)
+    origin = _fpx_origin(body.origin)
+    with get_db() as conn:
+        host = _read_all_settings(conn).get("fpx_host", "").strip()
+    if not host:
+        raise HTTPException(status_code=409, detail="FramePlayerX n'est pas configuré (fpx_host)")
+    rel = to_rel(file)
+    resume = _fpx_resume_position(rel)
+    url, sig = _fpx_signed_url(origin, rel)
+    sock = _fpx_connect(host)
+    try:
+        sock.sendall(_fpx_frame({"path": url, "currentTime": resume, "playerState": 0}))
+    except OSError:
+        sock.close()
+        raise HTTPException(
+            status_code=502, detail=f"FramePlayerX injoignable sur {host}:{FPX_PORT}"
+        ) from None
+    session = _FpxSession(rel, url, sig, resume, sock)
+    with _fpx_lock:
+        previous, _fpx_session = _fpx_session, session
+    if previous is not None:
+        previous.stop("replaced")
+    session.start()
+    logger.info("fpx: opening %s on %s at %.1fs (session %s)", rel, host, resume, session.id)
+    return session.snapshot()
+
+
+@app.get("/api/fpx/status")
+def fpx_status():
+    with _fpx_lock:
+        session = _fpx_session
+    if session is None:
+        return {"active": False, "id": None, "state": None}
+    return session.snapshot()
+
+
+@app.post("/api/fpx/stop")
+def fpx_stop():
+    """Abandon the follow-up ("Reprendre ici"): save the position, drop the link.
+
+    FPX is left as it is: the page has come back to the front, and what the
+    headset shows behind it is not the page's to decide.
+    """
+    with _fpx_lock:
+        session = _fpx_session
+    if session is None:
+        return {"active": False, "id": None, "state": None}
+    session.stop("stopped")
+    return session.snapshot()
 
 
 # Serve frontend
