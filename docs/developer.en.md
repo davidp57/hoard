@@ -195,6 +195,24 @@ wins, including `"off"` on a file the guess got wrong.
 | POST | `/api/downloads/{id}/retry` | Queue the same URL again from a history entry → `{job_id}` |
 | GET | `/api/logs` | Tail of the log file `?lines=&level=` → `{enabled, path, retention_days, lines}` |
 | POST | `/api/restart` | Terminate the process so the supervisor restarts it `{force?}` → `{ok, supervised}` |
+| POST | `/heresphere` | HereSphere library for FramePlayerX: `{access: 1, library: [{name, list: [scene URLs]}]}` — see [HereSphere API](#heresphere-api-feat-heresphere) |
+| POST | `/heresphere/scan` | HereSphere scan: `{scanData: [{link, title, duration?, dateAdded, isFavorite, tags}]}` for every listed scene |
+| POST | `/heresphere/scene/{id}` | HereSphere scene: title, duration (ms), projection/stereo/fov, one media source on `/api/file`, `eventServer`. **404** for an id outside `MEDIA_ROOT`, undecodable, or not a video |
+| POST | `/heresphere/events` | Playback event `{id, event, time}` (event 0 open · 1 play · 2 pause · 3 close, time in ms) → writes `progress` |
+
+### HereSphere API (FEAT-HERESPHERE)
+
+FramePlayerX, the native VR player on the Steam Frame, speaks the HereSphere JSON API; Hoard exposes it under `/heresphere` so the headset can browse Hoard's groups and report playback into `progress`.
+The contract was read from FramePlayerX's sources (v0.18): see `.backlog/FEAT-HERESPHERE/PRD.md`.
+
+- **Every route is a `POST` with a JSON body.** FramePlayerX puts `username`/`password` in the body *and* sends them as HTTP Basic to the source's origin. Hoard checks Basic only, through `require_basic_auth`, like any other route; the body fields are ignored. It sends no `Sec-Fetch-*`, so `reject_cross_site_writes` lets it through, while a cross-site browser request is still refused.
+- **Scene id** = the relative path, base64url without padding (`_heresphere_id`). Decoding goes through `safe_path()`; out-of-root, undecodable and non-video ids all answer 404 (`_heresphere_file`). Like `progress`, a renamed or moved file changes id.
+- **URLs are root-relative** (`/heresphere/scene/<id>`, `/api/file?path=…`, `/heresphere/events`). FramePlayerX resolves them against the URL the user typed. Behind the Synology reverse proxy the backend sees plain HTTP and cannot know the client's scheme and host, so an absolute URL built server-side could be wrong.
+- **Groups** (`_heresphere_groups`): *En cours* (position > 0, below `watched_threshold`), *Récemment vus* (by `progress.updated_at`, 50 at most), *Non vus* (videos of the quick folders with no progress, newest first), then one group per quick folder (walked recursively, 1000 videos at most). Empty groups are dropped. No whole-NAS group: walking `MEDIA_ROOT` on every open would cost the NAS too much.
+- **Format**, in the web player's order: the file's `vr_modes` row (`off` → `perspective`/`mono`, `flat` → `equirectangular`/`mono`/180°, `sbs` → `equirectangular`/`sbs`/180°), then `guess_vr_from_name`, then the 2:1 shape (`_ratio_says_sbs180`, same rule as `_vrRatioSaysSbs180`).
+- **ffprobe** is used only by the scene document and by events, when `progress` has no duration or the format needs the shape. Results are cached in memory by path, size and mtime (`_heresphere_probe`). The scan never probes: it gives the duration only when `progress` knows it.
+- **Events**: 1, 2 and 3 write `time / 1000` as the position, with `updated_at`; 0 writes nothing. The event has no duration, so it is taken from `progress`, else from ffprobe. The file is marked watched past `watched_threshold`, as in the web player. FramePlayerX sends no periodic tick and reads no resume position from the server: it keeps its own on the headset.
+- **Not done yet**: favourites (`writeFavorite` absent) and thumbnails (`thumbnailImage` absent — FramePlayerX makes its own).
 
 ### Galleries
 

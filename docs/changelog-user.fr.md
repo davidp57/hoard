@@ -6,6 +6,10 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ## [Non publié]
 
+### Ajouté
+
+- **Hoard s'ouvre dans FramePlayerX, sur le Steam Frame.** Ajoute Hoard comme source « HereSphere » dans FramePlayerX : tu y retrouves tes vidéos en cours, celles vues récemment, celles pas encore vues et tes dossiers rapides, chacune dans le bon format VR. Ce que tu regardes dans le casque remonte dans Hoard, « en cours » ou « vu ». Le mode d'emploi est dans le guide, section « FramePlayerX / HereSphere ».
+
 ## [v2.9.0] — 2026-11-12
 
 Grosse version : Hoard devient utilisable en VR et entièrement pilotable à la manette, Steam Frame compris.
