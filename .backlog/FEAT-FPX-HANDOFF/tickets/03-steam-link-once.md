@@ -1,6 +1,6 @@
 # BL-146 — N'ouvrir le lien Steam que si FramePlayerX est fermé
 
-Status: ⬜ ready
+Status: 🧑 waiting-human
 Lot: [FEAT-FPX-HANDOFF](../PRD.md)
 
 ## Quoi
@@ -18,11 +18,17 @@ Forme suggérée : une première tentative de `/api/fpx/play` sans relance, qui 
 
 Comme FPX reste derrière Chromium dans ce cas, l'écran « Lecture dans FramePlayerX » le dit : la vidéo est ouverte dans FPX, passer dessus par le menu Steam.
 
+## Réalisation (2026-11-14, 2.9.5)
+
+`POST /api/fpx/play` prend `wait` (vrai par défaut). Avec `wait: false`, `_fpx_probe` fait une seule tentative par adresse, toutes dans `FPX_PROBE_TIMEOUT` (1 s), et renvoie **503** si FPX n'écoute pas — un code que rien d'autre n'utilise sur cette route (409 = pas configuré, 400 = hors réseau local, 502 = nom introuvable ou injoignable après 20 s).
+La page sonde d'abord ; sur 503 seulement, elle ouvre le lien `steam://` et relance avec `wait: true`. Une erreur de nom ou d'hôte s'affiche sans lancer FPX.
+Vérifié par pytest et dans le navigateur avec des réponses simulées (FPX lancé, fermé, nom introuvable). Reste l'essai sur le Frame.
+
 ## Critères d'acceptation
 
-- [ ] FPX joignable : aucun lien `steam://` ouvert, vidéo envoyée, suivi de lecture inchangé.
-- [ ] FPX injoignable : lien `steam://` ouvert dans le geste de l'utilisateur, puis relances comme aujourd'hui.
-- [ ] Sonde bornée (casque éteint ou hors réseau : pas plus d'environ une seconde avant le lien Steam).
-- [ ] Tests backend du mode sans relance (joignable, refusé, délai dépassé).
-- [ ] Guide FR/EN : quand FPX tourne déjà, il faut passer dessus soi-même.
+- [x] FPX joignable : aucun lien `steam://` ouvert, vidéo envoyée, suivi de lecture inchangé.
+- [x] FPX injoignable : lien `steam://` ouvert dans le geste de l'utilisateur, puis relances comme aujourd'hui.
+- [x] Sonde bornée (casque éteint ou hors réseau : pas plus d'environ une seconde avant le lien Steam).
+- [x] Tests backend du mode sans relance (joignable, refusé, délai dépassé).
+- [x] Guide FR/EN : quand FPX tourne déjà, il faut passer dessus soi-même.
 - [ ] **Essai sur le Frame (David)** : FPX déjà lancé, une vidéo depuis Hoard, plus de message d'erreur Steam.

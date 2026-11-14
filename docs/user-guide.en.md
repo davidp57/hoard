@@ -637,10 +637,11 @@ The setting stays on the device where you set it: on the PC or the Deck, videos 
 **In use**:
 
 - Open a video as usual (click, Enter, **A**). Hoard shows "Lecture dans FramePlayerX" with the title and the position, which moves on.
+- **If FramePlayerX is already running**, Hoard sends it the video without launching it again (Steam would refuse: "already running"), but FramePlayerX stays behind the browser. The screen reminds you: switch to it yourself, Steam button › FramePlayerX › "Resume game". If it is not running, Hoard launches it and brings it to the front.
 - **↩ Reprendre ici** (or **B**): Hoard stops following the playback and goes back to the list, leaving FramePlayerX alone.
 - For a single video, the menu (**Select**) offers the other way: **▶ Lire ici** (play here) when the handoff is on, **🥽 Lire dans FramePlayerX** when it is off.
 - Hoard saves the position every 10 seconds, on pause and on close; the video becomes "watched" past the threshold set in Settings.
-- If playback cannot start, the "Lecture dans FramePlayerX" screen turns into "FramePlayerX n'a pas démarré la lecture" with the reason, and stays until you come back: headset name not found from the server ("… ne se résout pas": enter its IP address), headset off or FramePlayerX not listening after 20 seconds ("FramePlayerX injoignable sur …"). **↩ Retour** (or **B**) goes back to the list, unchanged. The same reason is written to the server log.
+- If playback cannot start, the "Lecture dans FramePlayerX" screen turns into "FramePlayerX n'a pas démarré la lecture" with the reason, and stays until you come back: headset name not found from the server ("… ne se résout pas": enter its IP address), headset off or FramePlayerX still not ready 20 seconds after its launch ("FramePlayerX injoignable sur …"). **↩ Retour** (or **B**) goes back to the list, unchanged. The same reason is written to the server log.
 
 Whether you land back in the browser when you leave FramePlayerX depends on the headset: to be checked on the first try.
 

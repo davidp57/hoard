@@ -645,10 +645,11 @@ Ce réglage reste sur l'appareil où tu le prends : sur le PC ou le Deck, les vi
 **À l'usage** :
 
 - Ouvre une vidéo comme d'habitude (clic, Entrée, **A**). Hoard affiche « Lecture dans FramePlayerX » avec le titre et la position, qui avance.
+- **Si FramePlayerX tourne déjà**, Hoard lui envoie la vidéo sans le relancer (Steam refuserait : « déjà lancé »), mais FramePlayerX reste derrière le navigateur. L'écran le rappelle : passe dessus toi-même, bouton Steam › FramePlayerX › « Reprendre le jeu ». S'il ne tourne pas, Hoard le lance et le met au premier plan.
 - **↩ Reprendre ici** (ou **B**) : Hoard arrête de suivre la lecture et revient à la liste, sans toucher à FramePlayerX.
 - Pour une seule vidéo, le menu (**Select**) propose l'autre façon : **▶ Lire ici** quand la bascule est active, **🥽 Lire dans FramePlayerX** quand elle ne l'est pas.
 - Hoard enregistre la position toutes les 10 secondes, à la pause et à la fermeture ; la vidéo passe « vue » au-delà du seuil des Paramètres.
-- Si la lecture ne peut pas partir, l'écran « Lecture dans FramePlayerX » devient « FramePlayerX n'a pas démarré la lecture » avec la raison, et il reste affiché jusqu'à ce que tu reviennes : nom du casque introuvable depuis le serveur (« … ne se résout pas » : mets son adresse IP), casque éteint ou FramePlayerX pas lancé au bout de 20 secondes (« FramePlayerX injoignable sur … »). **↩ Retour** (ou **B**) ramène à la liste, qui n'a pas changé. La même raison est écrite dans le journal du serveur.
+- Si la lecture ne peut pas partir, l'écran « Lecture dans FramePlayerX » devient « FramePlayerX n'a pas démarré la lecture » avec la raison, et il reste affiché jusqu'à ce que tu reviennes : nom du casque introuvable depuis le serveur (« … ne se résout pas » : mets son adresse IP), casque éteint ou FramePlayerX toujours pas prêt 20 secondes après son lancement (« FramePlayerX injoignable sur … »). **↩ Retour** (ou **B**) ramène à la liste, qui n'a pas changé. La même raison est écrite dans le journal du serveur.
 
 Le retour automatique dans le navigateur quand tu quittes FramePlayerX dépend du casque : à vérifier lors du premier essai.
 

@@ -5221,9 +5221,7 @@ def _fpx_probe(host: str) -> socket.socket:
         ", ".join(addrs),
         _fpx_error(last_error) if last_error else "out of time",
     )
-    raise HTTPException(
-        status_code=503, detail=f"FramePlayerX ne tourne pas sur {host}:{FPX_PORT}"
-    )
+    raise HTTPException(status_code=503, detail=f"FramePlayerX ne tourne pas sur {host}:{FPX_PORT}")
 
 
 def _fpx_connect(host: str) -> socket.socket:

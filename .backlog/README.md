@@ -22,7 +22,7 @@ Convention détaillée : [`docs/agents/issue-tracker.md`](../docs/agents/issue-t
 | [PAD-LEFT-HAND](PAD-LEFT-HAND/PRD.md) — La main gauche règle ce qu'on regarde (volume et vitesse au stick gauche, sauts à la croix BL-138 ; convention manette commune avec PadView BL-139 ; reste l'essai sur le Frame) | 🧑 |
 | [FIX-UI-SCALE](FIX-UI-SCALE/PRD.md) — Une taille apparente constante en plein écran (interface en `rem`, échelle à la racine BL-137 ; reste l'essai sur le Frame) | 🧑 |
 | [VR-IMMERSIVE](VR-IMMERSIVE/PRD.md) — Le relief dans le casque par WebXR (session immersive BL-136 mergée ; en pause : pas de WebXR dans le navigateur du Frame) | 🧑 |
-| [FEAT-FPX-HANDOFF](FEAT-FPX-HANDOFF/PRD.md) — Parcourir dans Hoard, lire dans FramePlayerX : la lecture bascule dans FPX par sa télécommande DeoVR (BL-144), retour dans Hoard sans aide ; BL-145 abandonné, reste BL-146 (pas de lien Steam quand FPX tourne déjà) | 🔄 |
+| [FEAT-FPX-HANDOFF](FEAT-FPX-HANDOFF/PRD.md) — Parcourir dans Hoard, lire dans FramePlayerX : la lecture bascule dans FPX par sa télécommande DeoVR (BL-144), retour dans Hoard sans aide ; BL-145 abandonné, BL-146 (pas de lien Steam quand FPX tourne déjà) livré en 2.9.5, essai sur le Frame à faire | 🔄 |
 | [FEAT-HERESPHERE](FEAT-HERESPHERE/PRD.md) — Lire les vidéos de Hoard dans FramePlayerX sur le Steam Frame, par l'API HereSphere (bibliothèque BL-142, événements de lecture BL-143 ; reste l'essai sur le Frame) | 🧑 |
 | [CLIENT-NATIVE](CLIENT-NATIVE/PRD.md) — Client natif Flutter pour Steam Deck, Steam Frame et Windows (faisabilité BL-104 ✅, puis BL-107..117) | 🔄 |
 | [FEAT-ADVANCED](FEAT-ADVANCED/PRD.md) — Fonctionnalités avancées (thème clair BL-013, multi-utilisateur BL-015) | ⬜ |

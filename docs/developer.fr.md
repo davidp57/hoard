@@ -162,7 +162,7 @@ l'accès à toutes les instances en réseau local au prochain redémarrage.
 | POST | `/heresphere/scan` | Détail de toutes les scènes listées |
 | POST | `/heresphere/scene/{id}` | Une scène : titre, durée (ms), format VR, source média sur `/api/file` ; **404** hors de `MEDIA_ROOT` ou si ce n'est pas une vidéo |
 | POST | `/heresphere/events` | Événement de lecture `{id, event, time}` (0 ouverture · 1 lecture · 2 pause · 3 fermeture, temps en ms) → écrit `progress` |
-| POST | `/api/fpx/play` | Ouvre une vidéo dans FramePlayerX `{path, origin}` — voir la doc développeur anglaise, section *FramePlayerX handoff* |
+| POST | `/api/fpx/play` | Ouvre une vidéo dans FramePlayerX `{path, origin, wait}` (`wait: false` : une seule tentative d'1 s, 503 si FPX ne tourne pas) — voir la doc développeur anglaise, section *FramePlayerX handoff* |
 | GET | `/api/fpx/status` | Session de lecture dans FramePlayerX en cours |
 | POST | `/api/fpx/stop` | Abandonne le suivi (« Reprendre ici ») |
 | GET | `/api/transcode?path=` | Stream transcodé via ffmpeg |

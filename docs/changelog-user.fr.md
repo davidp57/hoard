@@ -8,6 +8,7 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ### Corrigé
 
+- **Plus de message Steam « déjà lancé » quand FramePlayerX tourne déjà.** Hoard lui envoie la vidéo sans le relancer. FramePlayerX reste alors derrière le navigateur : l'écran de Hoard te rappelle d'y passer par le bouton Steam › FramePlayerX › « Reprendre le jeu ».
 - **Quand la lecture dans FramePlayerX échoue, Hoard dit pourquoi, et le message reste à l'écran** jusqu'à ce que tu reviennes du casque, avec « ↩ Retour » (ou B) pour revenir à la liste. Et si le serveur ne trouve pas le nom du casque que tu enregistres, Hoard te prévient tout de suite : mets plutôt son adresse IP (le guide explique comment la garder fixe).
 
 ### Ajouté
