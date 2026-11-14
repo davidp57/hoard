@@ -449,6 +449,76 @@ def test_failed_open_command_is_logged_without_the_signed_url(fake, monkeypatch,
     assert "sig=" not in line and "/api/file" not in line
 
 
+# ── Probe without retry (BL-146) ──────────────────────────────────────────────
+
+
+def _probe(rel: str):
+    return client.post("/api/fpx/play", json={"path": rel, "origin": ORIGIN, "wait": False})
+
+
+def test_probe_plays_when_fpx_listens(fake):
+    rel = _video()
+    _progress(rel, 42.0, 600.0)
+    r = _probe(rel)
+    assert r.status_code == 200, r.text
+    assert r.json()["state"] == "opening"
+    msg = fake.wait_received()[0]
+    assert msg["currentTime"] == 42.0
+    assert msg["playerState"] == 0
+    assert m._fpx_session is not None
+
+
+def test_probe_refused_answers_503_at_once(fake, monkeypatch, caplog):
+    calls = []
+
+    def refused(*args, **kwargs):
+        calls.append(kwargs.get("timeout"))
+        raise ConnectionRefusedError(111, "Connection refused")
+
+    monkeypatch.setattr(m.socket, "create_connection", refused)
+    # A long retry window proves the probe does not use it.
+    monkeypatch.setattr(m, "FPX_CONNECT_WINDOW", 30.0)
+    rel = _video()
+    start = time.monotonic()
+    with caplog.at_level(logging.INFO, logger="hoard"):
+        r = _probe(rel)
+    assert time.monotonic() - start < 1.0
+    assert r.status_code == 503
+    assert r.json()["detail"] == f"FramePlayerX ne tourne pas sur frame.lan:{fake.port}"
+    assert len(calls) == 1
+    assert 0 < calls[0] <= m.FPX_PROBE_TIMEOUT
+    assert m._fpx_session is None
+    assert _row(rel) is None
+    # Expected when FPX is closed: info, not a warning.
+    assert _fpx_warnings(caplog) == []
+    assert any("not running" in r.getMessage() for r in caplog.records)
+
+
+def test_probe_timeout_answers_503_within_the_budget(fake, monkeypatch):
+    def silent(address, timeout=None):
+        time.sleep(timeout)
+        raise TimeoutError("timed out")
+
+    monkeypatch.setattr(m.socket, "create_connection", silent)
+    monkeypatch.setattr(m, "FPX_CONNECT_WINDOW", 30.0)
+    monkeypatch.setattr(m, "FPX_PROBE_TIMEOUT", 0.3)
+    # Several addresses share one budget: the probe never takes 0.3 s per address.
+    monkeypatch.setattr(m, "_resolve_host", lambda host: ["127.0.0.1", "127.0.0.2"])
+    start = time.monotonic()
+    r = _probe(_video())
+    elapsed = time.monotonic() - start
+    assert r.status_code == 503
+    assert elapsed < 0.6
+    assert m._fpx_session is None
+
+
+def test_probe_keeps_the_other_errors(fake, monkeypatch):
+    monkeypatch.setattr(m, "_resolve_host", _no_dns)
+    assert _probe(_video()).status_code == 502
+    monkeypatch.setattr(m, "_resolve_host", lambda host: ["8.8.8.8"])
+    assert _probe(_video()).status_code == 400
+
+
 def test_missing_host_is_logged(monkeypatch, caplog):
     _set_host("")
     with caplog.at_level(logging.WARNING, logger="hoard"):
