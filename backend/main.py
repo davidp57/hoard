@@ -6700,17 +6700,19 @@ def _stash_after_move(
     plan: str, old_rel: str, new_path: Path, old_videos: list[str], edit: bool = False
 ) -> None:
     """Queue what Stash must hear after a disk move has succeeded."""
-    if plan == "within" and edit:
-        cfg = _stash_config()
-        if cfg is not None:
-            _stash_submit(
-                _stash_tag_videos, _videos_under(new_path), [cfg["tag_identify"], cfg["tag_edit"]]
-            )
     if plan in ("arrive", "within"):
         new_rel = to_rel(new_path)
         _stash_submit(_stash_declare, [(new_rel, _videos_under(new_path))], plan == "arrive", edit)
     elif plan == "leave":
         _stash_submit(_stash_forget, old_videos)
+    if plan == "within" and edit:
+        # After the rescan, queued above on the same worker: until it has run,
+        # Stash still knows these videos at their old paths.
+        cfg = _stash_config()
+        if cfg is not None:
+            _stash_submit(
+                _stash_tag_videos, _videos_under(new_path), [cfg["tag_identify"], cfg["tag_edit"]]
+            )
 
 
 def _stash_check_source_move(source: Path, dest_dir: Path) -> None:

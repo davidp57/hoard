@@ -1237,6 +1237,21 @@ class TestKeepToEdit:
         _keep_to_edit(rel, FOLDER + "/sub")
         assert _names(stash.scenes[sid]) == ["Edit", "Identify"]
 
+    def test_keep_to_edit_a_folder_within(self, stash):
+        # The folder is moved on disk and rescanned: the tags must come after the
+        # rescan, once Stash knows the videos at their new paths.
+        rels = [_video("[[_keep/pack/a.mp4"), _video("[[_keep/pack/b.mp4")]
+        sids = []
+        for rel in rels:
+            sid = stash.add_scene(rel)
+            stash.contents[f"f{sid}"] = (MEDIA_DIR / rel).read_bytes()
+            sids.append(sid)
+        (MEDIA_DIR / FOLDER / "sub").mkdir()
+        _keep_to_edit("[[_keep/pack", FOLDER + "/sub")
+        for sid in sids:
+            assert stash.scenes[sid]["files"][0]["path"].startswith(PREFIX + "/sub/pack/")
+            assert _names(stash.scenes[sid]) == ["Edit", "Identify"]
+
     def test_keep_to_edit_elsewhere_is_refused(self, stash):
         rel = _video("dl/e.mp4")
         resp = _keep_to_edit(rel, "[[_edit")
