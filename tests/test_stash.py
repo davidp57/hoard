@@ -44,6 +44,7 @@ class FakeStash:
         self.stash_boxes: list[str] = []
         self.fragment_scrapers: list[str] = []
         self.refuse: set[str] = set()  # operations answered with a GraphQL error
+        self.tags: dict[str, dict] = {}  # tag id -> {id, name}
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), self._handler())
         self.url = f"http://127.0.0.1:{self.server.server_address[1]}"
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
@@ -106,6 +107,9 @@ class FakeStash:
             "sceneDestroy",
             "deleteFiles",
             "configuration",
+            "findTags",
+            "tagCreate",
+            "sceneUpdate",
         ]
         op = next(o for o in ops if o in query)
         self.calls.append((op, variables))
@@ -169,6 +173,38 @@ class FakeStash:
             ]
             + [{"id": "url-only", "scene": {"supported_scrapes": ["URL"]}}],
         }
+
+    def add_tag(self, name: str) -> dict:
+        tag = {"id": f"t{len(self.tags) + 1}", "name": name}
+        self.tags[tag["id"]] = tag
+        return tag
+
+    def op_findTags(self, v):
+        tags = [
+            {
+                **t,
+                "scene_count": sum(
+                    any(st["id"] == t["id"] for st in s["tags"]) for s in self.scenes.values()
+                ),
+            }
+            for t in self.tags.values()
+        ]
+        return {"findTags": {"tags": tags}}
+
+    def op_tagCreate(self, v):
+        name = v["in"]["name"]
+        # Stash refuses a second tag of the same name, whatever its case.
+        if any(t["name"].lower() == name.lower() for t in self.tags.values()):
+            raise AssertionError(f"duplicate tag {name}")
+        return {"tagCreate": self.add_tag(name)}
+
+    def op_sceneUpdate(self, v):
+        scene = self.scenes[v["in"]["id"]]
+        if "tag_ids" in v["in"]:
+            scene["tags"] = [dict(self.tags[i]) for i in v["in"]["tag_ids"]]
+        if "rating100" in v["in"]:
+            scene["rating100"] = v["in"]["rating100"]
+        return {"sceneUpdate": {"id": scene["id"]}}
 
     def op_moveFiles(self, v):
         inp = v["in"]
@@ -976,3 +1012,124 @@ class TestReviewFixes:
         assert m._stash_media_url("7", "screenshot") == m._stash_media_url("7", "screenshot")
         exp = int(m._stash_media_url("7", "screenshot").split("exp=")[1].split("&")[0])
         assert exp - time.time() >= m.FPX_URL_TTL
+
+
+# ── BL-152: Stash's tags and rating, written from Hoard ──────────────────────
+def _file_tags(rel: str) -> list[str]:
+    with _db() as conn:
+        return [r["tag"] for r in conn.execute("SELECT tag FROM file_tags WHERE path = ?", (rel,))]
+
+
+class TestTagsAndRating:
+    def test_reads_the_scene_tags(self, stash):
+        rel = _video("[[_keep/a.mp4")
+        outdoor = stash.add_tag("Outdoor")
+        stash.add_scene(rel, tags=[dict(outdoor)])
+        assert client.get(f"/api/stash/scene-tags?path={rel}").json() == {"tags": ["Outdoor"]}
+
+    def test_suggestions_most_used_first_case_kept(self, stash):
+        rare, common = stash.add_tag("Rare"), stash.add_tag("POV")
+        stash.add_tag("Unused")
+        stash.add_scene(_video("[[_keep/a.mp4"), tags=[dict(common), dict(rare)])
+        stash.add_scene(_video("[[_keep/b.mp4"), tags=[dict(common)])
+        assert client.get("/api/stash/tags").json() == {"tags": ["POV", "Rare", "Unused"]}
+
+    def test_add_an_existing_tag_whatever_its_case(self, stash):
+        rel = _video("[[_keep/a.mp4")
+        stash.add_tag("Outdoor")
+        sid = stash.add_scene(rel)
+        resp = client.post(f"/api/stash/scene-tags?path={rel}", json={"tag": "outdoor"})
+        assert resp.status_code == 200, resp.text
+        assert resp.json() == {"tags": ["Outdoor"]}
+        assert stash.ops("tagCreate") == []
+        assert [t["name"] for t in stash.scenes[sid]["tags"]] == ["Outdoor"]
+        assert _file_tags(rel) == []
+
+    def test_add_a_new_tag_creates_it_once(self, stash):
+        rel, other = _video("[[_keep/a.mp4"), _video("[[_keep/b.mp4")
+        stash.add_scene(rel)
+        sid_b = stash.add_scene(other)
+        resp = client.post(f"/api/stash/scene-tags?path={rel}", json={"tag": "  Night  Shot "})
+        assert resp.json() == {"tags": ["Night Shot"]}
+        client.post(f"/api/stash/scene-tags?path={other}", json={"tag": "night shot"})
+        assert [v["in"]["name"] for v in stash.ops("tagCreate")] == ["Night Shot"]
+        assert [t["name"] for t in stash.scenes[sid_b]["tags"]] == ["Night Shot"]
+        # Adding a tag the scene already has writes nothing.
+        before = len(stash.ops("sceneUpdate"))
+        client.post(f"/api/stash/scene-tags?path={rel}", json={"tag": "NIGHT SHOT"})
+        assert len(stash.ops("sceneUpdate")) == before
+
+    def test_remove_a_tag(self, stash):
+        rel = _video("[[_keep/a.mp4")
+        a, b = stash.add_tag("A"), stash.add_tag("B")
+        sid = stash.add_scene(rel, tags=[dict(a), dict(b)])
+        resp = client.delete(f"/api/stash/scene-tags?path={rel}&tag=A")
+        assert resp.json() == {"tags": ["B"]}
+        assert [t["name"] for t in stash.scenes[sid]["tags"]] == ["B"]
+        assert "t1" in stash.tags  # the tag itself stays in Stash
+
+    def test_the_list_sees_the_write_at_once(self, stash):
+        rel = _video("[[_keep/a.mp4")
+        stash.add_scene(rel)
+        assert client.get("/api/stash/folder?path=[[_keep").json()["scenes"][rel]["tags"] == []
+        client.post(f"/api/stash/scene-tags?path={rel}", json={"tag": "New"})
+        client.post(f"/api/stash/rating?path={rel}", json={"rating": 4})
+        scene = client.get("/api/stash/folder?path=[[_keep").json()["scenes"][rel]
+        assert scene["tags"] == ["New"] and scene["rating"] == 80
+
+    def test_rating_and_clearing_it(self, stash):
+        rel = _video("[[_keep/a.mp4")
+        sid = stash.add_scene(rel)
+        assert client.post(f"/api/stash/rating?path={rel}", json={"rating": 3}).json() == {
+            "rating": 60
+        }
+        assert stash.scenes[sid]["rating100"] == 60
+        client.post(f"/api/stash/rating?path={rel}", json={"rating": None})
+        assert stash.scenes[sid]["rating100"] is None
+        assert client.post(f"/api/stash/rating?path={rel}", json={"rating": 6}).status_code == 422
+
+    def test_video_not_scanned_yet(self, stash):
+        rel = _video("[[_keep/new.mp4")
+        for resp in (
+            client.get(f"/api/stash/scene-tags?path={rel}"),
+            client.post(f"/api/stash/scene-tags?path={rel}", json={"tag": "x"}),
+            client.post(f"/api/stash/rating?path={rel}", json={"rating": 2}),
+        ):
+            assert resp.status_code == 404
+            assert resp.json()["detail"]["code"] == "stash_no_scene"
+        assert stash.ops("tagCreate") == [] and stash.ops("sceneUpdate") == []
+        assert _file_tags(rel) == []
+
+    def test_unreachable_writes_nothing(self, stash):
+        rel = _video("[[_keep/a.mp4")
+        client.post("/api/settings", json={"stash_url": "http://127.0.0.1:1"})
+        resp = client.post(f"/api/stash/scene-tags?path={rel}", json={"tag": "x"})
+        assert resp.status_code == 502
+        assert resp.json()["detail"]["code"] == "stash_unavailable"
+        assert client.post(f"/api/stash/rating?path={rel}", json={"rating": 2}).status_code == 502
+        assert client.get("/api/stash/tags").status_code == 502
+        assert _file_tags(rel) == []
+
+    def test_refused_write_is_reported(self, stash):
+        rel = _video("[[_keep/a.mp4")
+        stash.add_scene(rel)
+        stash.refuse.add("sceneUpdate")
+        resp = client.post(f"/api/stash/scene-tags?path={rel}", json={"tag": "x"})
+        assert resp.status_code == 502
+        assert resp.json()["detail"]["code"] == "stash_refused"
+
+    def test_outside_the_folder_is_refused(self, stash):
+        rel = _video("[[_edit/a.mp4")
+        resp = client.post(f"/api/stash/scene-tags?path={rel}", json={"tag": "x"})
+        assert resp.status_code == 409
+        assert resp.json()["detail"]["code"] == "stash_not_here"
+        assert stash.calls == []
+        # Hoard's own tags are untouched there.
+        assert client.post(f"/api/tags?path={rel}", json={"tag": "mine"}).status_code == 200
+        assert _file_tags(rel) == ["mine"]
+
+    def test_without_stash(self):
+        assert client.get("/api/stash/tags").json() == {"tags": []}
+        rel = _video("[[_keep/a.mp4")
+        resp = client.get(f"/api/stash/scene-tags?path={rel}")
+        assert resp.status_code == 409
