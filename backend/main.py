@@ -4175,7 +4175,13 @@ def update_settings(body: SettingsPayload, request: Request):
 
         stash_changed = False
         if body.stash_url is not None:
-            _write_setting(conn, "stash_url", _validate_stash_url(body.stash_url))
+            new_url = _validate_stash_url(body.stash_url)
+            old_url = (_read_all_settings(conn).get("stash_url") or "").strip().rstrip("/")
+            # The key goes to stash_url and nowhere else: a new address without a
+            # key typed with it would carry the stored key to it. Clear it instead.
+            if new_url != old_url and body.stash_api_key is None:
+                _write_setting(conn, "stash_api_key", "")
+            _write_setting(conn, "stash_url", new_url)
             stash_changed = True
         if body.stash_api_key is not None:
             _write_setting(conn, "stash_api_key", body.stash_api_key.strip())
