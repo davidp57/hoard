@@ -211,7 +211,8 @@ Cette règle ne s'applique qu'aux vidéos neuves. Dès qu'un fichier a une progr
 
 ### Marqueurs IN/OUT (découpe)
 
-Des boutons `[IN` et `OUT]` permettent de définir une zone de lecture restreinte (sans modifier le fichier). Le bouton ✂ lance une découpe physique du fichier via ffmpeg.
+Des boutons `[IN` et `OUT]` permettent de définir une zone de lecture restreinte (sans modifier le fichier).
+Pour couper vraiment le fichier, marque des segments (I puis O) et lance **« Exporter les segments »** (bouton ✂ *n* de la barre du lecteur, touche E) : ffmpeg écrit la ou les coupes, sans réencoder.
 
 ### Rafraîchissement automatique de la liste
 
@@ -660,28 +661,57 @@ Le retour automatique dans le navigateur quand tu quittes FramePlayerX dépend d
 [Stash](https://stashapp.cc) décrit une collection de vidéos : vignettes, performers, studio, tags, note, markers.
 Hoard reste l'endroit où tu tries et où tu regardes ; Stash garde et décrit les vidéos que tu as décidé de garder.
 
-### Le circuit : garder, éditer, revoir
+### Le circuit : garder, garder pour éditer, identifier, éditer
 
 Tu tries tes téléchargements dans Hoard avec tes dossiers rapides, comme avant :
 
 | Décision | Geste dans Hoard | Destination |
 |---|---|---|
 | Pas bien | 🗑 Supprimer | — |
-| Bien, on garde | Dossier rapide | `[[_keep` (le dossier de Stash) |
-| Bien, mais à éditer | Dossier rapide | `[[_edit` |
+| Bien, on garde | Dossier rapide | `[[_keep` (le dossier de Stash), tag « Identify » |
+| Bien, mais à éditer | **✂ Garder pour éditer** (dans la liste des dossiers rapides) | `[[_keep`, tags « Identify » et « Edit » |
 | Pas sûr | Dossier rapide | `[[_review` |
-| Édition faite | ✂ ou « Exporter les segments » | `[[_keep` |
+| Édition faite | « Exporter les segments » | `[[_keep` (proposé par défaut) |
 
-Il n'y a pas de bouton « Envoyer à Stash » : **tout ce qui arrive dans le dossier de Stash par Hoard est déclaré à Stash**, quel que soit le geste (dossier rapide, ↗ Déplacer, renommage, ✂, export des segments).
+Il n'y a pas de bouton « Envoyer à Stash » : **tout ce qui arrive dans le dossier de Stash par Hoard est déclaré à Stash**, quel que soit le geste (dossier rapide, ↗ Déplacer, renommage, export des segments).
 Un dossier entier déplacé dans `[[_keep` déclare chaque vidéo qu'il contient.
-`[[_edit`, `[[_review` et le reste ne concernent pas Stash.
+`[[_review` et le reste ne concernent pas Stash.
+
+La vidéo **entière** entre dans Stash, même quand tu veux l'éditer : c'est elle que Stash sait identifier (une coupe n'a plus son empreinte).
+Deux tags disent où elle en est :
+
+| Tags dans Stash | Sens |
+|---|---|
+| Identify | Gardée, fiche pas encore vérifiée |
+| Identify + Edit | À éditer, fiche pas encore vérifiée |
+| Edit | Fiche vérifiée, prête à éditer |
+| aucun | Gardée, vérifiée, terminée |
+
+- **« Identify » n'est jamais retiré par Hoard**, même quand l'identification automatique a trouvé : une identification peut se tromper. Tu le retires toi-même dans Stash après avoir vérifié la fiche ; la liste « Identify » de Stash est ta file de vérification.
+- **« ✂ À éditer »**, dans la barre de filtrage de `[[_keep`, ne montre que les vidéos taguées « Edit ». La case **« Masquer les non identifiées »** (cochée par défaut) cache celles qui ont encore « Identify » : tu édites ce que tu as déjà vérifié. À la manette, ces deux lignes sont dans le menu, section « À éditer ».
+- Les noms des deux tags se règlent dans *Paramètres › Stash* ; Hoard les crée dans Stash s'ils n'existent pas.
+
+`[[_edit` ne sert plus à ce circuit : ses vidéos passent par « Garder pour éditer » au fil de l'eau.
+
+### Éditer : exporter les segments vers Stash
+
+Quand Stash est réglé, « Exporter les segments » propose le dossier de Stash comme destination (tu peux en choisir un autre).
+
+- **La coupe hérite de la fiche de sa source** : titre, date, studio, performers, tags, URL, détails et note. Sans « Edit » (elle est éditée) ; avec « Identify » seulement si la source l'avait encore. En export individuel, chaque segment hérite de la même façon. Une source sans fiche Stash donne une arrivée normale (« Identify » seul).
+- **L'original part dans `[[_edited`** (le dossier `[[_edited` à côté de `[[_keep`, réglable dans *Paramètres › Stash*). Hoard crée le dossier s'il manque. S'il était dans `[[_keep`, Stash oublie sa fiche sans toucher au fichier : la coupe a déjà repris ce qu'elle disait. Rien n'est supprimé : vider `[[_edited` reste à toi.
+- **« Garder l'original à sa place »** (décochée par défaut) : cochée, l'original ne bouge pas.
+- Si un fichier du même nom est déjà dans `[[_edited`, rien n'est écrasé : l'original reste où il est, et la carte du travail le dit.
+- Si Stash ne répond pas, l'export est refusé avant de commencer : rien n'est écrit, rien ne bouge.
+
+Sans Stash réglé, l'export garde son comportement d'avant : l'original suit la coupe dans le dossier de destination, sauf si tu coches la case.
 
 ### Ce que fait Hoard quand une vidéo arrive dans le dossier de Stash
 
 1. Le déplacement se termine comme d'habitude : ton geste n'attend pas Stash.
 2. Ensuite, en arrière-plan, Hoard demande à Stash de scanner la vidéo (vignette, aperçu, vignettes de la barre de lecture).
 3. Il recopie ta position de lecture dans Stash, et ajoute une lecture si la vidéo est vue.
-4. Si tu l'as activé, il lance l'identification de Stash sur la vidéo ; quand elle est finie, la liste affiche ce qu'elle a trouvé (titre, studio, performers).
+4. Il pose le tag « Identify » (et « Edit » pour « Garder pour éditer »).
+5. Si tu l'as activé, il lance l'identification de Stash sur la vidéo ; quand elle est finie, la liste affiche ce qu'elle a trouvé (titre, studio, performers).
 
 Si Stash ne répond pas, la vidéo reste dans `[[_keep` et Hoard l'écrit dans son journal (lignes `stash:`) ; le prochain scan de Stash la prendra.
 Une vidéo posée dans `[[_keep` par un autre logiciel n'est pas vue par Hoard : c'est le scan normal de Stash qui la prend.

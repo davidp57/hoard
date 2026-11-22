@@ -80,6 +80,9 @@ class FakeStash:
             "performers": [],
             "tags": [],
             "scene_markers": [],
+            "date": None,
+            "details": None,
+            "urls": [],
             **fields,
         }
         return sid
@@ -160,7 +163,12 @@ class FakeStash:
         return {"sceneAddPlay": {"count": 1}}
 
     def op_metadataIdentify(self, v):
+        for sid in v["in"]["sceneIDs"]:
+            self.on_identify(self.scenes[sid])
         return {"metadataIdentify": "43"}
+
+    def on_identify(self, scene):
+        pass
 
     def op_configuration(self, v):
         return {
@@ -204,6 +212,14 @@ class FakeStash:
             scene["tags"] = [dict(self.tags[i]) for i in v["in"]["tag_ids"]]
         if "rating100" in v["in"]:
             scene["rating100"] = v["in"]["rating100"]
+        for key in ("title", "date", "details", "urls"):
+            if key in v["in"]:
+                scene[key] = v["in"][key]
+        if "studio_id" in v["in"]:
+            sid = v["in"]["studio_id"]
+            scene["studio"] = {"id": sid, "name": f"studio {sid}"} if sid else None
+        if "performer_ids" in v["in"]:
+            scene["performers"] = [{"id": i, "name": f"perf {i}"} for i in v["in"]["performer_ids"]]
         return {"sceneUpdate": {"id": scene["id"]}}
 
     def op_moveFiles(self, v):
@@ -585,7 +601,7 @@ class TestArrival:
         )
         m._stash_wait_idle()
         assert m._jobs["j"]["status"] == "done"
-        paths = stash.ops("metadataScan")[0]["in"]["paths"]
+        paths = [p for op in stash.ops("metadataScan") for p in op["in"]["paths"]]
         assert PREFIX + "/long [1 segment].mp4" in paths
         assert PREFIX + "/long.mp4" in paths  # the original followed it
 
@@ -1157,3 +1173,207 @@ class TestTagsAndRating:
         rel = _video("[[_keep/a.mp4")
         resp = client.get(f"/api/stash/scene-tags?path={rel}")
         assert resp.status_code == 409
+
+
+# ── BL-153: keep / keep to edit, Identify and Edit, cuts inherit their source ──
+def _names(scene) -> list[str]:
+    return sorted(t["name"] for t in scene["tags"])
+
+
+class _FakeFfmpeg:
+    returncode = 0
+
+    def __init__(self, cmd, **kwargs):
+        Path(cmd[-1]).write_bytes(b"cut " + cmd[-1].encode())
+        self.stderr = iter(())
+
+    def wait(self):
+        return 0
+
+
+def _export(rel: str, destination: str, mode="merged", keep=False, segments=1):
+    for i in range(segments):
+        client.post(f"/api/segments?path={rel}", json={"seg_in": i * 10, "seg_out": i * 10 + 5})
+    resp = client.post(
+        f"/api/files/export-segments?path={rel}",
+        json={"mode": mode, "destination": destination, "keep_original": keep},
+    )
+    if resp.status_code != 200:
+        return resp
+    job = _wait_job(resp.json()["job_id"])
+    m._stash_wait_idle()
+    return job
+
+
+def _keep_to_edit(rel: str, destination: str = FOLDER):
+    resp = client.post(
+        f"/api/files/move?path={rel}", json={"destination": destination, "stash_edit": True}
+    )
+    if resp.status_code == 200:
+        _wait_job(resp.json()["job_id"])
+        m._stash_wait_idle()
+    return resp
+
+
+class TestKeepToEdit:
+    def test_arrival_is_tagged_identify(self, stash):
+        stash.add_tag("identify")  # an existing tag is reused whatever its case
+        _move(_video("dl/a.mp4"), FOLDER)
+        assert _names(stash.scene_of("[[_keep/a.mp4")) == ["identify"]
+        assert stash.ops("tagCreate") == []
+
+    def test_keep_to_edit(self, stash):
+        _move(_video("dl/b.mp4"), FOLDER)
+        _keep_to_edit(_video("dl/c.mp4"))
+        assert _names(stash.scene_of("[[_keep/b.mp4")) == ["Identify"]
+        assert _names(stash.scene_of("[[_keep/c.mp4")) == ["Edit", "Identify"]
+        # Each tag is created once, then reused.
+        assert sorted(v["in"]["name"] for v in stash.ops("tagCreate")) == ["Edit", "Identify"]
+
+    def test_keep_to_edit_within_the_folder(self, stash):
+        rel = _video("[[_keep/d.mp4")
+        sid = stash.add_scene(rel)
+        (MEDIA_DIR / FOLDER / "sub").mkdir()
+        _keep_to_edit(rel, FOLDER + "/sub")
+        assert _names(stash.scenes[sid]) == ["Edit", "Identify"]
+
+    def test_keep_to_edit_a_folder_within(self, stash):
+        # The folder is moved on disk and rescanned: the tags must come after the
+        # rescan, once Stash knows the videos at their new paths.
+        rels = [_video("[[_keep/pack/a.mp4"), _video("[[_keep/pack/b.mp4")]
+        sids = []
+        for rel in rels:
+            sid = stash.add_scene(rel)
+            stash.contents[f"f{sid}"] = (MEDIA_DIR / rel).read_bytes()
+            sids.append(sid)
+        (MEDIA_DIR / FOLDER / "sub").mkdir()
+        _keep_to_edit("[[_keep/pack", FOLDER + "/sub")
+        for sid in sids:
+            assert stash.scenes[sid]["files"][0]["path"].startswith(PREFIX + "/sub/pack/")
+            assert _names(stash.scenes[sid]) == ["Edit", "Identify"]
+
+    def test_keep_to_edit_elsewhere_is_refused(self, stash):
+        rel = _video("dl/e.mp4")
+        resp = _keep_to_edit(rel, "[[_edit")
+        assert resp.status_code == 409
+        assert (MEDIA_DIR / rel).exists()
+
+    def test_identification_never_removes_identify(self, stash):
+        stash.stash_boxes = ["https://stashdb.org/graphql"]
+        client.post("/api/settings", json={"stash_identify": True})
+        stash.on_identify = lambda scene: scene.update(tags=[], title="Found")
+        _keep_to_edit(_video("dl/f.mp4"))
+        scene = stash.scene_of("[[_keep/f.mp4")
+        assert scene["title"] == "Found"
+        assert _names(scene) == ["Edit", "Identify"]
+
+    def test_custom_tag_names(self, stash):
+        client.post("/api/settings", json={"stash_tag_identify": "À vérifier"})
+        _move(_video("dl/g.mp4"), FOLDER)
+        assert _names(stash.scene_of("[[_keep/g.mp4")) == ["À vérifier"]
+
+
+class TestExportToStash:
+    @pytest.fixture(autouse=True)
+    def _ffmpeg(self, monkeypatch):
+        monkeypatch.setattr(m.subprocess, "Popen", _FakeFfmpeg)
+
+    def _source(self, stash, rel="[[_keep/src.mp4", tags=("Identify", "Edit", "POV")):
+        _video(rel)
+        tags = [dict(stash.add_tag(n)) for n in tags]
+        sid = stash.add_scene(
+            rel,
+            title="Source",
+            date="2026-01-02",
+            details="About it",
+            urls=["https://example.org/x"],
+            rating100=80,
+            studio={"id": "s9", "name": "S"},
+            performers=[{"id": "p1", "name": "Jane"}],
+            tags=tags,
+            stash_ids=[{"endpoint": "box", "stash_id": "abc"}],
+        )
+        return rel, sid
+
+    def test_merged_cut_inherits_and_original_goes_to_edited(self, stash):
+        rel, sid = self._source(stash)
+        job = _export(rel, FOLDER)
+        assert job["status"] == "done" and not job.get("move_error")
+        cut = stash.scene_of("[[_keep/src [1 segment].mp4")
+        assert cut["title"] == "Source" and cut["date"] == "2026-01-02"
+        assert cut["details"] == "About it" and cut["urls"] == ["https://example.org/x"]
+        assert cut["rating100"] == 80 and cut["studio"]["id"] == "s9"
+        assert [p["id"] for p in cut["performers"]] == ["p1"]
+        assert _names(cut) == ["Identify", "POV"]  # no Edit
+        assert all("stash_ids" not in v["in"] for v in stash.ops("sceneUpdate"))
+        assert stash.ops("metadataIdentify") == []
+        # The original: in [[_edited, its scene forgotten, the file untouched.
+        assert (MEDIA_DIR / "[[_edited" / "src.mp4").exists()
+        assert not (MEDIA_DIR / rel).exists()
+        (destroy,) = stash.ops("sceneDestroy")
+        assert destroy["in"] == {"id": sid, "delete_file": False, "delete_generated": True}
+        scanned = [p for op in stash.ops("metadataScan") for p in op["in"]["paths"]]
+        assert scanned == [PREFIX + "/src [1 segment].mp4"]
+
+    def test_individual_segments_each_inherit(self, stash):
+        rel, _ = self._source(stash, tags=("POV",))
+        _export(rel, FOLDER, mode="individual", segments=2)
+        for i in (1, 2):
+            cut = stash.scene_of(f"[[_keep/src [seg{i}].mp4")
+            assert cut["title"] == "Source" and _names(cut) == ["POV"]  # Identify not had
+
+    def test_source_without_scene_is_a_plain_arrival(self, stash):
+        rel = _video("[[_edit/raw.mp4")
+        _export(rel, FOLDER)
+        cut = stash.scene_of("[[_keep/raw [1 segment].mp4")
+        assert _names(cut) == ["Identify"] and cut["title"] == ""
+        assert (MEDIA_DIR / "[[_edited" / "raw.mp4").exists()
+
+    def test_keep_original_in_place(self, stash):
+        rel, _ = self._source(stash)
+        _export(rel, FOLDER, keep=True)
+        assert (MEDIA_DIR / rel).exists()
+        assert stash.ops("sceneDestroy") == []
+
+    def test_collision_in_edited_moves_nothing(self, stash):
+        rel, _ = self._source(stash)
+        _video("[[_edited/src.mp4", b"older")
+        job = _export(rel, FOLDER)
+        assert "existe déjà" in job["move_error"]
+        assert (MEDIA_DIR / rel).exists()
+        assert (MEDIA_DIR / "[[_edited" / "src.mp4").read_bytes() == b"older"
+        assert stash.ops("sceneDestroy") == []
+
+    def test_custom_edited_folder(self, stash):
+        client.post("/api/settings", json={"edited_folder": "trash/edited"})
+        rel = _video("[[_edit/h.mp4")
+        _export(rel, FOLDER)
+        assert (MEDIA_DIR / "trash" / "edited" / "h.mp4").exists()
+
+    def test_edited_folder_inside_the_stash_folder_is_refused(self, stash):
+        client.post("/api/settings", json={"edited_folder": FOLDER + "/old"})
+        rel = _video("[[_edit/i.mp4")
+        resp = _export(rel, FOLDER)
+        assert resp.status_code == 409 and (MEDIA_DIR / rel).exists()
+
+    def test_unreachable_writes_nothing(self, stash):
+        rel, _ = self._source(stash)
+        client.post("/api/settings", json={"stash_url": "http://127.0.0.1:1"})
+        resp = _export(rel, FOLDER)
+        assert resp.status_code == 503
+        assert (MEDIA_DIR / rel).exists()
+        assert not (MEDIA_DIR / FOLDER / "src [1 segment].mp4").exists()
+
+    def test_default_edited_folder_sits_beside_the_stash_folder(self):
+        assert m._edited_folder({"stash_folder": "downloads/[[_keep"}) == "downloads/[[_edited"
+        assert m._edited_folder({"stash_folder": "[[_keep"}) == "[[_edited"
+        assert m._edited_folder({"edited_folder": "x/y"}) == "x/y"
+
+
+def test_export_without_stash_keeps_its_behaviour(monkeypatch):
+    monkeypatch.setattr(m.subprocess, "Popen", _FakeFfmpeg)
+    rel = _video("in/v.mp4")
+    (MEDIA_DIR / "out").mkdir()
+    job = _export(rel, "out")
+    assert job["status"] == "done"
+    assert (MEDIA_DIR / "out" / "v.mp4").exists()  # the original follows the cut

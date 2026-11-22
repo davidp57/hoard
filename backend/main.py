@@ -910,6 +910,8 @@ class WatchedUpdate(BaseModel):
 class MoveRequest(BaseModel):
     destination: str  # relative path from MEDIA_ROOT
     overwrite: bool = False  # replace a same-named file at the destination
+    # BL-153 "Garder pour éditer": into the Stash folder, tagged Identify + Edit.
+    stash_edit: bool = False
 
 
 class QuickFolderRequest(BaseModel):
@@ -1143,7 +1145,10 @@ def _run_export_segments(
     mode: str,
     dest_dir: Path,
     keep_original: bool,
+    original_dir: Path | None = None,
 ) -> None:
+    """`original_dir` is where the original goes when it is not kept in place:
+    dest_dir without Stash, the edited folder with Stash (BL-153)."""
     job = _jobs[job_id]
     job["status"] = "running"
     outputs: list[Path] = []
@@ -1249,16 +1254,21 @@ def _run_export_segments(
                 job["error"] = f"FFmpeg concat exited with code {proc.returncode}"
                 return
 
-        # Post-export: move original to dest_dir (unless keep_original or same dir)
-        rel_path = to_rel(source)
+        # Post-export: move the original away (unless keep_original or same dir)
+        rel_path = source_rel = to_rel(source)
         moved_source = None
-        if not keep_original and dest_dir.resolve() != source.parent.resolve():
-            dest_source = dest_dir / source.name
+        target_dir = original_dir or dest_dir
+        if not keep_original and target_dir.resolve() != source.parent.resolve():
+            dest_source = target_dir / source.name
             if dest_source.exists():
                 # Never clobber a same-named file as a side effect of an export.
-                job["move_error"] = "Destination already exists"
+                job["move_error"] = (
+                    f"« {source.name} » existe déjà dans {to_rel(target_dir) or '/'} :"
+                    " l'original n'a pas bougé"
+                )
             else:
                 try:
+                    target_dir.mkdir(parents=True, exist_ok=True)
                     shutil.move(str(source), str(dest_source))
                     new_rel = to_rel(dest_source)
                     with get_db() as conn:
@@ -1274,7 +1284,7 @@ def _run_export_segments(
         with get_db() as conn:
             conn.execute("DELETE FROM segments WHERE path = ?", (rel_path,))
             conn.commit()
-        _stash_after_export(outputs, moved_source)
+        _stash_after_export(outputs, moved_source, source_rel)
 
         job["status"] = "done"
         job["progress"] = 100
@@ -1313,6 +1323,7 @@ def _run_move(
     overwrite: bool = False,
     stash_plan: str = "none",
     old_videos: list[str] | None = None,
+    stash_edit: bool = False,
 ) -> None:
     job = _jobs[job_id]
     job["status"] = "running"
@@ -1320,6 +1331,14 @@ def _run_move(
         final_dest = move_target(source, destination)
         if stash_plan == "within" and source.is_file() and is_video(source):
             if _run_stash_move(job, source, final_dest):
+                if stash_edit:
+                    cfg = _stash_config()
+                    if cfg is not None:
+                        _stash_submit(
+                            _stash_tag_videos,
+                            [to_rel(final_dest)],
+                            [cfg["tag_identify"], cfg["tag_edit"]],
+                        )
                 return
         # Replacing is only ever a file-for-file swap: moving a folder onto an existing
         # one would nest it inside instead of replacing it, which is not what "overwrite"
@@ -1379,7 +1398,7 @@ def _run_move(
                     logger.warning("could not remove the replaced copy %s", replaced)
         # Stash hears about it afterwards, in the background: the move is done and
         # David's gesture does not wait for Stash (FEAT-STASH).
-        _stash_after_move(stash_plan, old_rel, final_dest, old_videos or [])
+        _stash_after_move(stash_plan, old_rel, final_dest, old_videos or [], stash_edit)
         job["status"] = "done"
         job["progress"] = 100
     except Exception as e:
@@ -2853,6 +2872,14 @@ def move_file(path: str, body: MoveRequest, request: Request):
     # (Stash unreachable, the folder itself) reaches David before anything moves.
     stash_cfg = _stash_config()
     plan = _stash_plan(stash_cfg, to_rel(source), to_rel(final_dest))
+    if body.stash_edit and plan not in ("arrive", "within"):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "stash_not_here",
+                "message": "Garder pour éditer : la destination doit être le dossier de Stash",
+            },
+        )
     old_videos: list[str] = []
     if plan in ("leave", "within"):
         if plan == "within" and body.overwrite and final_dest.exists():
@@ -2886,7 +2913,7 @@ def move_file(path: str, body: MoveRequest, request: Request):
     }
     threading.Thread(
         target=_run_move,
-        args=(job_id, source, destination, body.overwrite, plan, old_videos),
+        args=(job_id, source, destination, body.overwrite, plan, old_videos, body.stash_edit),
         daemon=True,
     ).start()
     return {"job_id": job_id}
@@ -3188,7 +3215,32 @@ def export_segments(path: str, body: ExportSegmentsRequest):
     segments = [{"seg_in": r["seg_in"], "seg_out": r["seg_out"]} for r in rows]
     if not segments:
         raise HTTPException(status_code=400, detail="No segments defined for this file")
-    if not body.keep_original:
+    # BL-153: with Stash set, the original goes to the edited folder, never into
+    # the Stash folder (it would be declared as a kept video). Stash must answer
+    # when the cut lands in its folder or the original leaves it: refused before
+    # anything is written rather than half done.
+    original_dir = dest_dir
+    cfg = _stash_config()
+    if cfg is not None:
+        original_dir = safe_path(cfg["edited"])
+        if _stash_in_folder(cfg["edited"], cfg["folder"]) or _stash_contains_folder(
+            cfg["edited"], cfg["folder"]
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "stash_folder",
+                    "message": (
+                        "Le dossier des originaux édités ne peut pas être dans le dossier de Stash"
+                    ),
+                },
+            )
+        src_rel = to_rel(source)
+        lands = _stash_in_folder(to_rel(dest_dir), cfg["folder"])
+        leaves = not body.keep_original and _stash_in_folder(src_rel, cfg["folder"])
+        if lands or leaves:
+            _stash_require(cfg)
+    elif not body.keep_original:
         _stash_check_source_move(source, dest_dir)
     n = len(segments)
     label = f"{n} segment{'s' if n > 1 else ''}" if body.mode == "merged" else f"seg1…{n}"
@@ -3203,7 +3255,7 @@ def export_segments(path: str, body: ExportSegmentsRequest):
     }
     threading.Thread(
         target=_run_export_segments,
-        args=(job_id, source, segments, body.mode, dest_dir, body.keep_original),
+        args=(job_id, source, segments, body.mode, dest_dir, body.keep_original, original_dir),
         daemon=True,
     ).start()
     return {"job_id": job_id}
@@ -3849,6 +3901,9 @@ _SETTINGS_KEYS = {
     "stash_folder",  # folder Stash manages, relative to MEDIA_ROOT, default '[[_keep'
     "stash_path_prefix",  # that same folder as Stash sees it (path in Stash's container)
     "stash_identify",  # '1' | '0', identify videos on arrival in Stash, default '0'
+    "stash_tag_identify",  # tag put on every arrival until David validates it (BL-153)
+    "stash_tag_edit",  # tag of the videos kept to be edited (BL-153)
+    "edited_folder",  # where an exported original goes, '' = `[[_edited` beside the Stash folder
 }
 
 _SETTINGS_DEFAULTS: dict[str, str] = {
@@ -3906,6 +3961,9 @@ _SETTINGS_DEFAULTS: dict[str, str] = {
     "stash_folder": "[[_keep",  # STASH_DEFAULT_FOLDER, defined with the Stash code
     "stash_path_prefix": "",
     "stash_identify": "0",
+    "stash_tag_identify": "Identify",
+    "stash_tag_edit": "Edit",
+    "edited_folder": "",
 }
 
 
@@ -3972,6 +4030,9 @@ class SettingsPayload(BaseModel):
     stash_folder: str | None = Field(default=None, max_length=1024)
     stash_path_prefix: str | None = Field(default=None, max_length=2048)
     stash_identify: bool | None = None
+    stash_tag_identify: str | None = Field(default=None, max_length=200)
+    stash_tag_edit: str | None = Field(default=None, max_length=200)
+    edited_folder: str | None = Field(default=None, max_length=1024)
 
 
 # Settings rows that must never leave the server. `settings` is a generic key/value
@@ -4197,6 +4258,15 @@ def update_settings(body: SettingsPayload, request: Request):
             stash_changed = True
         if body.stash_identify is not None:
             _write_setting(conn, "stash_identify", "1" if body.stash_identify else "0")
+        for key, default in (("stash_tag_identify", "Identify"), ("stash_tag_edit", "Edit")):
+            value = getattr(body, key)
+            if value is not None:
+                _write_setting(conn, key, " ".join(value.split()) or default)
+        if body.edited_folder is not None:
+            edited = _stash_norm_folder(body.edited_folder) if body.edited_folder.strip() else ""
+            if edited and any(part in ("", ".", "..") for part in edited.split("/")):
+                raise HTTPException(status_code=422, detail="edited_folder must be a relative path")
+            _write_setting(conn, "edited_folder", edited)
 
         conn.commit()
     if stash_changed:
@@ -5821,7 +5891,21 @@ def _stash_config() -> dict | None:
         "folder": _stash_norm_folder(s.get("stash_folder")),
         "prefix": prefix,
         "identify": s.get("stash_identify") == "1",
+        "tag_identify": (s.get("stash_tag_identify") or "").strip() or "Identify",
+        "tag_edit": (s.get("stash_tag_edit") or "").strip() or "Edit",
+        "edited": _edited_folder(s),
     }
+
+
+def _edited_folder(s: dict) -> str:
+    """Where an exported original goes (BL-153): the `edited_folder` setting, or
+    `[[_edited` beside the Stash folder (`downloads/[[_edited` for `downloads/[[_keep`)."""
+    edited = (s.get("edited_folder") or "").strip().strip("/")
+    if edited:
+        return edited
+    folder = _stash_norm_folder(s.get("stash_folder"))
+    parent = folder.rsplit("/", 1)[0] if "/" in folder else ""
+    return f"{parent}/[[_edited" if parent else "[[_edited"
 
 
 def _stash_in_folder(rel: str, folder: str) -> bool:
@@ -6274,7 +6358,120 @@ def _stash_identify_sources(cfg: dict) -> list[dict]:
     return sources
 
 
-def _stash_declare(entries: list[tuple[str, list[str]]], arrival: bool = True) -> None:
+# ── The keep / keep-to-edit flow (BL-153) ────────────────────────────────────
+# Every arrival gets the "Identify" tag, and "Edit" too when David kept it to be
+# edited. Hoard never removes "Identify": David does, in Stash, once he has
+# checked the scene — an automatic identification can be wrong, and Stash's
+# "Identify" list is his review queue. A cut written from a video that has a
+# scene inherits that scene (title, date, studio, performers, tags, URLs,
+# details, rating), without "Edit" and without the stash_ids.
+_STASH_INHERIT_FIELDS = """
+  id title date details urls rating100
+  files { id path }
+  studio { id }
+  performers { id }
+  tags { id name }
+"""
+
+
+def _stash_get_tag(cfg: dict, name: str, known: list[dict]) -> dict:
+    """The tag of that name, matched case-insensitively, created when Stash has
+    none. `known` is Stash's tag list, kept up to date. Raises StashError."""
+    for tag in known:
+        if (tag.get("name") or "").casefold() == name.casefold():
+            return tag
+    data = _stash_gql(
+        cfg,
+        "mutation($in: TagCreateInput!) { tagCreate(input: $in) { id name } }",
+        {"in": {"name": name}},
+    )
+    tag = data.get("tagCreate") or {}
+    if not tag.get("id"):
+        raise StashError(f"Stash did not create the tag {name!r}")
+    known.append(tag)
+    logger.info("stash: tag %r created", name)
+    return tag
+
+
+def _stash_add_tags(cfg: dict, rel: str, names: list[str], known: list[dict]) -> None:
+    """Add tags to the scene of one file, read fresh: what an identification just
+    wrote is kept, and nothing is ever taken away. Raises StashError."""
+    scene = _stash_scene_by_rel(cfg, rel)
+    if scene is None:
+        return
+    current = [t for t in scene.get("tags") or [] if t.get("id")]
+    have = {(t.get("name") or "").casefold() for t in current}
+    missing = [n for n in names if n.casefold() not in have]
+    if not missing:
+        return
+    added = [_stash_get_tag(cfg, n, known) for n in missing]
+    _stash_gql(
+        cfg,
+        "mutation($in: SceneUpdateInput!) { sceneUpdate(input: $in) { id } }",
+        {"in": {"id": str(scene["id"]), "tag_ids": [str(t["id"]) for t in current + added]}},
+    )
+    logger.info("stash: %s tagged %s", rel, ", ".join(missing))
+
+
+def _stash_source_scene(cfg: dict, rel: str) -> dict | None:
+    """The scene of a cut's source, with the fields a cut inherits. Raises StashError."""
+    spath = _stash_path_for(rel, cfg)
+    if spath is None:
+        return None
+    query = (
+        "query($f: SceneFilterType, $p: FindFilterType) {"
+        " findScenes(scene_filter: $f, filter: $p) { scenes {" + _STASH_INHERIT_FIELDS + "} } }"
+    )
+    data = _stash_gql(
+        cfg,
+        query,
+        {
+            "f": {
+                "path": {
+                    "value": "^" + _stash_regex_escape(spath) + "$",
+                    "modifier": "MATCHES_REGEX",
+                }
+            },
+            "p": {"per_page": -1},
+        },
+    )
+    for scene in ((data.get("findScenes") or {}).get("scenes")) or []:
+        if any(_hoard_rel_for(f.get("path") or "", cfg) == rel for f in scene.get("files") or []):
+            return scene
+    return None
+
+
+def _stash_inherit(cfg: dict, rel: str, scene_id: str, source: dict, known: list[dict]) -> None:
+    """Give a cut's new scene what its source's scene says (BL-153, decisions 5-6)."""
+    edit = cfg["tag_edit"].casefold()
+    tags = [
+        t
+        for t in source.get("tags") or []
+        if t.get("id") and (t.get("name") or "").casefold() != edit
+    ]
+    update: dict = {
+        "id": scene_id,
+        "tag_ids": [str(t["id"]) for t in tags],
+        "performer_ids": [str(p["id"]) for p in source.get("performers") or [] if p.get("id")],
+        "studio_id": str((source.get("studio") or {}).get("id")) if source.get("studio") else None,
+        "urls": list(source.get("urls") or []),
+        "rating100": source.get("rating100"),
+    }
+    for key in ("title", "date", "details"):
+        if source.get(key):
+            update[key] = source[key]
+    _stash_gql(
+        cfg, "mutation($in: SceneUpdateInput!) { sceneUpdate(input: $in) { id } }", {"in": update}
+    )
+    logger.info("stash: %s inherits scene %s", rel, source.get("id"))
+
+
+def _stash_declare(
+    entries: list[tuple[str, list[str]]],
+    arrival: bool = True,
+    edit: bool = False,
+    source: dict | None = None,
+) -> None:
     """Declare what Hoard just put in the Stash folder (BL-148). Background only.
 
     `entries` holds (moved path, [videos under it]): the moved path is what Stash
@@ -6291,6 +6488,10 @@ def _stash_declare(entries: list[tuple[str, list[str]]], arrival: bool = True) -
     videos = [rel for _, rels in entries for rel in rels]
     if not videos:
         return
+    # BL-153: what every arrival is tagged with; a cut inherits its source instead.
+    arrival_tags = [cfg["tag_identify"]] + ([cfg["tag_edit"]] if edit else [])
+    known: list[dict] | None = None
+    tagged: list[str] = []
     if not cfg["prefix"]:
         logger.warning(
             "stash: %d video(s) arrived in %s but stash_path_prefix is empty: not declared",
@@ -6330,8 +6531,18 @@ def _stash_declare(entries: list[tuple[str, list[str]]], arrival: bool = True) -
             row = _progress_row(rel)
             seen = row is not None and _watch_percent(row) >= _watched_threshold()
             _stash_push_progress(cfg, str(scene["id"]), rel, add_play=seen and arrival)
-            scene_ids.append(str(scene["id"]))
             logger.info("stash: %s declared (scene %s)", rel, scene["id"])
+            if not arrival:
+                continue
+            if known is None:
+                known = _stash_all_tags(cfg)
+            if source is not None:
+                # Already described by its source: not identified again either.
+                _stash_inherit(cfg, rel, str(scene["id"]), source, known)
+            else:
+                _stash_add_tags(cfg, rel, arrival_tags, known)
+                tagged.append(rel)
+                scene_ids.append(str(scene["id"]))
         except StashError as exc:
             _stash_warn(cfg, f"declaring {rel}", exc)
     if arrival and cfg["identify"] and scene_ids:
@@ -6349,6 +6560,11 @@ def _stash_declare(entries: list[tuple[str, list[str]]], arrival: bool = True) -
             # would keep them without title, studio or performers for minutes:
             # wait for the identification, then make it read them again (BL-152).
             _stash_wait_job(cfg, str(data.get("metadataIdentify")))
+            # Whatever the identification did with the tags, "Identify" (and "Edit")
+            # stay: Hoard never takes them away (BL-153, decision 3).
+            known = _stash_all_tags(cfg)
+            for rel in tagged:
+                _stash_add_tags(cfg, rel, arrival_tags, known)
         except StashError as exc:
             _stash_warn(cfg, f"identifying {len(scene_ids)} scene(s)", exc)
         finally:
@@ -6465,13 +6681,38 @@ def _stash_plan(cfg: dict | None, src_rel: str, dst_rel: str | None) -> str:
     return "none"
 
 
-def _stash_after_move(plan: str, old_rel: str, new_path: Path, old_videos: list[str]) -> None:
+def _stash_tag_videos(rels: list[str], names: list[str]) -> None:
+    """Background: add tags to the scenes of these videos (keep-to-edit within)."""
+    cfg = _stash_config()
+    if cfg is None or not cfg["prefix"]:
+        return
+    try:
+        known = _stash_all_tags(cfg)
+        for rel in rels:
+            _stash_add_tags(cfg, rel, names, known)
+    except StashError as exc:
+        _stash_warn(cfg, f"tagging {len(rels)} video(s)", exc)
+    finally:
+        _stash_invalidate()
+
+
+def _stash_after_move(
+    plan: str, old_rel: str, new_path: Path, old_videos: list[str], edit: bool = False
+) -> None:
     """Queue what Stash must hear after a disk move has succeeded."""
     if plan in ("arrive", "within"):
         new_rel = to_rel(new_path)
-        _stash_submit(_stash_declare, [(new_rel, _videos_under(new_path))], plan == "arrive")
+        _stash_submit(_stash_declare, [(new_rel, _videos_under(new_path))], plan == "arrive", edit)
     elif plan == "leave":
         _stash_submit(_stash_forget, old_videos)
+    if plan == "within" and edit:
+        # After the rescan, queued above on the same worker: until it has run,
+        # Stash still knows these videos at their old paths.
+        cfg = _stash_config()
+        if cfg is not None:
+            _stash_submit(
+                _stash_tag_videos, _videos_under(new_path), [cfg["tag_identify"], cfg["tag_edit"]]
+            )
 
 
 def _stash_check_source_move(source: Path, dest_dir: Path) -> None:
@@ -6484,33 +6725,49 @@ def _stash_check_source_move(source: Path, dest_dir: Path) -> None:
         _stash_require(cfg)
 
 
-def _stash_after_export(outputs: list[Path], moved_source: tuple[str, Path] | None) -> None:
-    """After a cut (✂) or a segment export: declare what landed in the Stash folder
-    (the new files, and the original if it followed them there), forget the
-    original if it left. Never raises: the export itself has succeeded."""
+def _stash_after_export(
+    outputs: list[Path], moved_source: tuple[str, Path] | None, source_rel: str | None = None
+) -> None:
+    """After a cut (✂) or a segment export: queue, as one ordered task, what Stash
+    must hear. Never raises: the export itself has succeeded."""
     try:
-        cfg = _stash_config()
-        if cfg is None:
+        if _stash_config() is None:
             return
-        declare = []
-        for out in outputs:
-            rel = to_rel(out)
-            if out.is_file() and _stash_in_folder(rel, cfg["folder"]):
-                declare.append((rel, [rel]))
-        if moved_source is not None:
-            old_rel, new_path = moved_source
-            new_rel = to_rel(new_path)
-            plan = _stash_plan(cfg, old_rel, new_rel)
-            if plan == "arrive":
-                declare.append((new_rel, [new_rel]))
-            elif plan == "within":
-                _stash_submit(_stash_declare, [(new_rel, [new_rel])], False)
-            elif plan == "leave":
-                _stash_submit(_stash_forget, [old_rel])
-        if declare:
-            _stash_submit(_stash_declare, declare)
+        out_rels = [to_rel(out) for out in outputs if out.is_file()]
+        moved = (moved_source[0], to_rel(moved_source[1])) if moved_source else None
+        _stash_submit(_stash_export_followup, out_rels, moved, source_rel)
     except Exception:
         logger.exception("stash: could not queue the declaration of an export")
+
+
+def _stash_export_followup(
+    out_rels: list[str], moved: tuple[str, str] | None, source_rel: str | None
+) -> None:
+    """Background, in this order (BL-153): read the source's scene, declare the cuts
+    that landed in the Stash folder (inheriting that scene when there is one), then
+    tell Stash where the original went — forgetting its scene last, once the cuts
+    have taken what they needed from it."""
+    cfg = _stash_config()
+    if cfg is None:
+        return
+    source = None
+    if source_rel and cfg["prefix"] and _stash_in_folder(source_rel, cfg["folder"]):
+        try:
+            source = _stash_source_scene(cfg, source_rel)
+        except StashError as exc:
+            _stash_warn(cfg, f"reading the scene of {source_rel}", exc)
+    declare = [(rel, [rel]) for rel in out_rels if _stash_in_folder(rel, cfg["folder"])]
+    if declare:
+        _stash_declare(declare, True, False, source)
+    if moved is not None:
+        old_rel, new_rel = moved
+        plan = _stash_plan(cfg, old_rel, new_rel)
+        if plan == "arrive":
+            _stash_declare([(new_rel, [new_rel])])
+        elif plan == "within":
+            _stash_declare([(new_rel, [new_rel])], False)
+        elif plan == "leave":
+            _stash_forget([old_rel])
 
 
 def _stash_move_file(cfg: dict, source: Path, final_dest: Path) -> bool:

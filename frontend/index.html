@@ -706,6 +706,7 @@
   #tag-modal-stash { margin-top: 1rem; display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
   .stash-star { font-size: 1.4rem; min-width: 2.6rem; }
   .stash-star.on { color: var(--accent); }
+  .tag-filter-check { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.85rem; color: var(--text-dim); margin-right: 0.6rem; cursor: pointer; }
   #stash-markers { position: absolute; inset: 0; pointer-events: none; }
   .stash-marker {
     position: absolute; top: -0.2rem; bottom: -0.2rem; width: 2px;
@@ -1871,6 +1872,18 @@
         <div><div class="s-label">Ce dossier vu par Stash</div><div class="s-desc">Son chemin dans le conteneur Stash (ex. <code>/data/[[_keep</code>)</div></div>
         <div class="s-right"><input type="text" class="s-num" id="s-stash-prefix" style="width:18rem" placeholder="/data/[[_keep" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
       </div>
+      <div class="s-row">
+        <div><div class="s-label">Tag « à vérifier »</div><div class="s-desc">Posé sur chaque vidéo gardée ; Hoard ne le retire jamais, retire-le dans Stash quand la fiche est bonne</div></div>
+        <div class="s-right"><input type="text" class="s-num" id="s-stash-tag-identify" style="width:12rem" placeholder="Identify" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+      </div>
+      <div class="s-row">
+        <div><div class="s-label">Tag « à éditer »</div><div class="s-desc">Posé par « Garder pour éditer »</div></div>
+        <div class="s-right"><input type="text" class="s-num" id="s-stash-tag-edit" style="width:12rem" placeholder="Edit" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+      </div>
+      <div class="s-row">
+        <div><div class="s-label">Dossier des originaux édités</div><div class="s-desc">Où part l'original après un export des segments. Vide = <code>[[_edited</code> à côté du dossier de Stash. Hoard ne le vide jamais</div></div>
+        <div class="s-right"><input type="text" class="s-num" id="s-edited-folder" style="width:18rem" placeholder="[[_edited" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+      </div>
       <div class="s-row" id="s-stash-identify-row" style="display:none">
         <div><div class="s-label">Identifier les vidéos à leur arrivée dans Stash</div><div class="s-desc">Lance l'identification de Stash (stash-box, scrapers) sur chaque vidéo gardée</div></div>
         <div class="s-right"><label class="toggle"><input type="checkbox" id="s-stash-identify"><div class="toggle-track"></div></label></div>
@@ -2347,7 +2360,7 @@
     <!-- Keep original -->
     <label style="display:flex;align-items:center;gap:0.8rem;font-size:1.2rem;cursor:pointer">
       <input type="checkbox" id="export-keep-original">
-      <span>Conserver le fichier d&#8217;origine en place</span>
+      <span id="export-keep-label">Conserver le fichier d&#8217;origine en place</span>
     </label>
     <div style="display:flex;gap:0.8rem;margin-top:0.4rem">
       <button id="export-confirm-btn" onclick="confirmExport()" style="flex:1;background:var(--accent);color:#000;border:none;padding:1rem;border-radius:0.8rem;font-weight:700;cursor:pointer;font-family:inherit">&#x2702; Exporter</button>
@@ -2545,6 +2558,12 @@ let activeTagFilter = null;  // tag string or null = no filter
 let allKnownTags = [];       // populated from /api/all-tags
 let _tagModalPath = null;    // path of file being tagged
 let _tagModalStash = false;  // BL-152: that file's tags (and rating) live in Stash
+let pendingMoveStashEdit = false;  // BL-153: the move is "Garder pour éditer"
+// BL-153: the "✂ À éditer" filter of the Stash folder, and its companion
+// "Masquer les non identifiées" (on by default: the to-edit list starts with
+// the videos David has already checked).
+let stashEditFilter = false;
+let stashHideUnidentified = true;
 let sortBy = 'date';
 let sortDir = 'desc';
 let currentFile = null;
@@ -2624,6 +2643,9 @@ let cfg = {
   stash_folder: '[[_keep',
   stash_path_prefix: '',
   stash_identify: false,
+  stash_tag_identify: 'Identify',
+  stash_tag_edit: 'Edit',
+  edited_folder: '',
 };
 
 function applyCfg(s) {
@@ -2684,6 +2706,9 @@ function applyCfg(s) {
   cfg.stash_folder      = (s.stash_folder || '[[_keep').replace(/^\/+|\/+$/g, '') || '[[_keep';
   cfg.stash_path_prefix = (s.stash_path_prefix || '').trim();
   cfg.stash_identify    = s.stash_identify === '1' || s.stash_identify === true;
+  cfg.stash_tag_identify = (s.stash_tag_identify || '').trim() || 'Identify';
+  cfg.stash_tag_edit     = (s.stash_tag_edit || '').trim() || 'Edit';
+  cfg.edited_folder      = (s.edited_folder || '').replace(/^\/+|\/+$/g, '');
   // propagate navigation prefs
   homeFolder = cfg.home_folder;
   sortBy     = cfg.sort_by;
@@ -3776,6 +3801,9 @@ async function saveSettings() {
     stash_folder:              document.getElementById('s-stash-folder').value.trim() || '[[_keep',
     stash_path_prefix:         document.getElementById('s-stash-prefix').value.trim(),
     stash_identify:            document.getElementById('s-stash-identify').checked,
+    stash_tag_identify:        document.getElementById('s-stash-tag-identify').value.trim() || 'Identify',
+    stash_tag_edit:            document.getElementById('s-stash-tag-edit').value.trim() || 'Edit',
+    edited_folder:             document.getElementById('s-edited-folder').value.trim(),
   };
   // Write-only key: sent only when typed (or cleared with ✕), never read back.
   const stashKey = document.getElementById('s-stash-key').value.trim();
@@ -3835,6 +3863,9 @@ function _openStashSettings() {
   document.getElementById('s-stash-folder').value = cfg.stash_folder;
   document.getElementById('s-stash-prefix').value = cfg.stash_path_prefix;
   document.getElementById('s-stash-identify').checked = cfg.stash_identify;
+  document.getElementById('s-stash-tag-identify').value = cfg.stash_tag_identify;
+  document.getElementById('s-stash-tag-edit').value = cfg.stash_tag_edit;
+  document.getElementById('s-edited-folder').value = cfg.edited_folder;
   document.getElementById('s-stash-test-result').textContent = "Avec l'adresse et la clé saisies ci-dessus";
   // Offered only when Stash can identify, or when it is already on.
   document.getElementById('s-stash-identify-row').style.display = cfg.stash_identify ? '' : 'none';
@@ -4928,9 +4959,47 @@ function _renderTagFilterBar() {
   const allTags = _sortTags(entries.flatMap(entryTags));
   const bar = document.getElementById('tag-filter-bar');
   if (!bar) return;
-  bar.innerHTML = allTags.map(t =>
+  const edit = stashInFolder(currentPath)
+    ? `<span class="tag-filter-chip ${stashEditFilter ? 'active' : ''}" onclick="toggleStashEditFilter()">✂ À éditer</span>`
+      + (stashEditFilter
+        ? `<label class="tag-filter-check"><input type="checkbox" ${stashHideUnidentified ? 'checked' : ''} onchange="toggleStashHideUnidentified()"> Masquer les non identifiées</label>`
+        : '')
+    : '';
+  bar.innerHTML = edit + allTags.map(t =>
     `<span class="tag-filter-chip ${activeTagFilter === t ? 'active' : ''}" onclick="toggleTagFilter(${jsStr(t)})">${esc(t)}</span>`
   ).join('');
+}
+
+// Where an exported original goes: the setting, or `[[_edited` beside the Stash
+// folder — the same rule as the server's _edited_folder().
+function editedFolder() {
+  if (cfg.edited_folder) return cfg.edited_folder;
+  const f = cfg.stash_folder;
+  return f.includes('/') ? f.slice(0, f.lastIndexOf('/')) + '/[[_edited' : '[[_edited';
+}
+
+function _hasTag(e, name) {
+  const n = name.toLowerCase();
+  return entryTags(e).some(t => t.toLowerCase() === n);
+}
+
+// The "✂ À éditer" list: tagged Edit, and unless asked otherwise, already checked
+// (Identify gone).
+function _stashEditFilterKeeps(e) {
+  if (!_isStashVideo(e) || !_hasTag(e, cfg.stash_tag_edit)) return false;
+  return !(stashHideUnidentified && _hasTag(e, cfg.stash_tag_identify));
+}
+
+function toggleStashEditFilter() {
+  stashEditFilter = !stashEditFilter;
+  _renderTagFilterBar();
+  renderFiles(entries);
+}
+
+function toggleStashHideUnidentified() {
+  stashHideUnidentified = !stashHideUnidentified;
+  _renderTagFilterBar();
+  renderFiles(entries);
 }
 
 function toggleTagFilter(tag) {
@@ -4953,6 +5022,7 @@ async function navigate(path) {
   showingHomeScreen = false;
   searchQuery = '';
   activeTagFilter = null;
+  if (path !== currentPath) stashEditFilter = false;
   const si = document.getElementById('search-input');
   if (si) si.value = '';
   const bar = document.getElementById('tag-filter-bar');
@@ -5112,9 +5182,12 @@ function renderEntry(e, i) {
 
 function renderFiles(list) {
   const el = document.getElementById('filelist');
-  const filtered = activeTagFilter ? list.filter(e => entryTags(e).includes(activeTagFilter)) : list;
+  const editOn = stashEditFilter && stashInFolder(currentPath);
+  const filtered = list.filter(e =>
+    (!activeTagFilter || entryTags(e).includes(activeTagFilter)) && (!editOn || _stashEditFilterKeeps(e)));
   if (!filtered.length) {
-    el.innerHTML = `<div style="color:var(--text-dim);font-size:1.3rem;padding:2rem;text-align:center">${activeTagFilter ? 'Aucun fichier avec ce tag' : 'Dossier vide'}</div>`;
+    const why = editOn ? 'Aucune vidéo à éditer' : (activeTagFilter ? 'Aucun fichier avec ce tag' : 'Dossier vide');
+    el.innerHTML = `<div style="color:var(--text-dim);font-size:1.3rem;padding:2rem;text-align:center">${why}</div>`;
     _gpRenderedList = []; _gpCursorIdx = -1; _gpPendingRestoreIdx = -1;
     return;
   }
@@ -7673,12 +7746,18 @@ function openMoveModal(path, name) {
   pendingMovePath = path;
   pendingMoveSelectedDest = null;
   pendingMoveSelectedDestName = null;
+  pendingMoveStashEdit = false;
   document.getElementById('modal-filename').textContent = name;
   const container = document.getElementById('modal-folders');
-  if (quickFolders.length) {
+  // BL-153: with Stash, keeping a video to edit it is one more quick folder: the
+  // Stash folder, with the "Edit" tag on top of "Identify".
+  const keepToEdit = cfg.stash_url && !stashInFolder(path)
+    ? `<button class="modal-folder-btn" onclick="selectMoveDest(${jsStr(cfg.stash_folder)}, 'Garder pour éditer', this, true)">&#x2702; Garder pour éditer</button>`
+    : '';
+  if (quickFolders.length || keepToEdit) {
     container.innerHTML = quickFolders.map(qf => `
       <button class="modal-folder-btn" onclick="selectMoveDest(${jsStr(qf.path)}, ${jsStr(qf.name)}, this)">&#128193; ${esc(qf.name)}</button>
-    `).join('');
+    `).join('') + keepToEdit;
   } else {
     container.innerHTML = `<div style="color:var(--text-dim);font-size:1.2rem;padding:0.8rem 0;line-height:1.5">Aucun dossier rapide.<br>Clique sur 📌 dans la liste pour en épingler un.</div>`;
   }
@@ -7706,12 +7785,14 @@ function closeModal() {
   pendingMovePath = null;
   pendingMoveSelectedDest = null;
   pendingMoveSelectedDestName = null;
+  pendingMoveStashEdit = false;
   _galleryMoveIndex = null;  // reset gallery-image move intent on cancel
 }
 
-function selectMoveDest(destPath, destName, btnEl) {
+function selectMoveDest(destPath, destName, btnEl, stashEdit = false) {
   pendingMoveSelectedDest = destPath;
   pendingMoveSelectedDestName = destName;
+  pendingMoveStashEdit = stashEdit;
   // Highlight selected button
   document.querySelectorAll('#modal-folders .modal-folder-btn').forEach(b => b.classList.remove('selected'));
   if (btnEl) btnEl.classList.add('selected');
@@ -7721,7 +7802,7 @@ function selectMoveDest(destPath, destName, btnEl) {
 
 function confirmMoveModal() {
   if (!pendingMoveSelectedDest) return;
-  moveToFolder(pendingMoveSelectedDest, pendingMoveSelectedDestName);
+  moveToFolder(pendingMoveSelectedDest, pendingMoveSelectedDestName, pendingMoveStashEdit);
 }
 
 function releaseVideoIfCurrent(path) {
@@ -7859,8 +7940,13 @@ function openExportModal() {
   const total = _segments.reduce((s, seg) => s + (seg.seg_out - seg.seg_in), 0);
   document.getElementById('export-seg-summary').textContent =
     `${_segments.length} segment${_segments.length > 1 ? 's' : ''} — durée totale : ${formatTime(total)}`;
-  document.getElementById('export-dest-input').value = currentPath;
+  // BL-153: with Stash, a cut is meant to be kept, and the original goes to the
+  // edited folder unless it is kept where it is.
+  document.getElementById('export-dest-input').value = cfg.stash_url ? cfg.stash_folder : currentPath;
   document.getElementById('export-keep-original').checked = false;
+  document.getElementById('export-keep-label').textContent = cfg.stash_url
+    ? 'Garder l\u2019original à sa place (sinon il part dans ' + editedFolder() + ')'
+    : 'Conserver le fichier d\u2019origine en place';
   selectExportMode('merged');
   const container = document.getElementById('export-folders');
   if (quickFolders.length) {
@@ -7945,14 +8031,14 @@ async function pollJob(jobId, refreshPath) {
     statusEl.textContent = job.progress > 0 ? `${job.progress}%` : 'En cours…';
     statusEl.className = 'job-status running';
   } else if (job.status === 'done') {
-    statusEl.textContent = '✓ Terminé — ' + job.output_name;
+    statusEl.textContent = '✓ Terminé — ' + job.output_name + (job.move_error ? ' — ⚠ ' + job.move_error : '');
     statusEl.className = 'job-status done';
     clearInterval(tracked.intervalId);
     if (refreshPath !== null) {
       dirCache.clear();
       if (currentPath === refreshPath) navigate(refreshPath);
     }
-    setTimeout(() => tracked.card.remove(), 8000);
+    setTimeout(() => tracked.card.remove(), job.move_error ? 15000 : 8000);
   } else if (job.status === 'error') {
     statusEl.textContent = '✗ ' + (job.error || 'Erreur inconnue');
     statusEl.className = 'job-status error';
@@ -8000,11 +8086,11 @@ function askOverwrite(name) {
 // POST a move, and when the destination is already taken ask what to do before
 // retrying. Returns the server response, or null when nothing was moved (cancelled,
 // or an error already reported to the user).
-async function requestMove(sourcePath, destPath) {
+async function requestMove(sourcePath, destPath, stashEdit = false) {
   const post = overwrite => apiFetch(`${API}/api/files/move?path=${encodeURIComponent(sourcePath)}`, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ destination: destPath, overwrite })
+    body: JSON.stringify({ destination: destPath, overwrite, stash_edit: stashEdit })
   });
   let resp = await post(false);
   if (resp.status === 409) {
@@ -8038,7 +8124,7 @@ async function requestMove(sourcePath, destPath) {
   return resp;
 }
 
-async function moveToFolder(destPath, destName) {
+async function moveToFolder(destPath, destName, stashEdit = false) {
   if (!pendingMovePath) return;
   const sourcePath = pendingMovePath;
   const fromPath = currentPath;
@@ -8049,7 +8135,7 @@ async function moveToFolder(destPath, destName) {
     _fsReenterFullscreen = true; _fsReenterFullscreenPath = fromPath;
   }
   closeModal();
-  const resp = await requestMove(sourcePath, destPath);
+  const resp = await requestMove(sourcePath, destPath, stashEdit);
   if (!resp) { _fsReenterFullscreen = false; return; }  // nothing moved: disarm the re-entry
   // Released only once the move is actually under way: the answer can be a question
   // (a same-named file at the destination), and cancelling must leave the player,
@@ -9267,6 +9353,21 @@ function _gpMenuBuild() {
 
   // Tag filtering has no modal of its own: the tags present in this folder are listed
   // directly, so no sub-menu is needed to reach them.
+  if (stashInFolder(currentPath)) {
+    items.push({
+      section: 'À éditer',
+      label: '✂ À éditer',
+      value: stashEditFilter ? '●' : '',
+      run: () => toggleStashEditFilter(),
+    });
+    if (stashEditFilter) {
+      items.push({
+        label: 'Masquer les non identifiées',
+        value: stashHideUnidentified ? 'oui' : 'non',
+        run: () => toggleStashHideUnidentified(),
+      });
+    }
+  }
   const tags = _sortTags(entries.flatMap(entryTags));
   if (tags.length) {
     tags.forEach((t, i) => items.push({
