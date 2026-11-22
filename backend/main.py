@@ -6098,8 +6098,13 @@ def _stash_media_signature(scene_id: str, kind: str, exp: int) -> str:
 
 
 def _stash_media_url(scene_id: str, kind: str) -> str:
-    """Relative, signed URL of one Stash medium, for HereSphere and FPX."""
-    exp = int(time.time()) + FPX_URL_TTL
+    """Relative, signed URL of one Stash medium, for HereSphere and FPX.
+
+    The expiry is rounded up to the next 6 h boundary, so the URL stays the same
+    across scans for hours and the headset's image cache keeps working; it
+    still lives at least FPX_URL_TTL."""
+    window = 6 * 3600
+    exp = (int(time.time()) // window + 1) * window + FPX_URL_TTL
     sig = _stash_media_signature(scene_id, kind, exp)
     return f"{STASH_MEDIA_PREFIX}{scene_id}/{kind}?exp={exp}&sig={sig}"
 
@@ -6174,18 +6179,20 @@ def stash_media(scene_id: str, kind: str, request: Request):
 
 
 # ── Background work: arrivals and progress copies ────────────────────────────
-# One worker, so what is sent to Stash keeps the order it happened in, and the
-# NAS never runs more than one Stash conversation for Hoard at a time.
-_stash_executor: ThreadPoolExecutor | None = None
+# Two single-thread workers, each keeping its own order: "files" for arrivals and
+# departures, whose scan can run for minutes while Stash generates previews and
+# sprites, and "progress" for the position copies, which must not wait behind a
+# scan — a pause is copied at once even while ten videos are being declared.
+_stash_executors: dict[str, ThreadPoolExecutor] = {}
 _stash_executor_lock = threading.Lock()
 
 
-def _stash_submit(fn, *args) -> None:
-    global _stash_executor
+def _stash_submit(fn, *args, worker: str = "files") -> None:
     with _stash_executor_lock:
-        if _stash_executor is None:
-            _stash_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="stash")
-        executor = _stash_executor
+        executor = _stash_executors.get(worker)
+        if executor is None:
+            executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix=f"stash-{worker}")
+            _stash_executors[worker] = executor
 
     def run():
         try:
@@ -6200,8 +6207,8 @@ def _stash_submit(fn, *args) -> None:
 def _stash_wait_idle(timeout: float = 10.0) -> None:
     """Wait until the queued background work is done (tests, shutdown)."""
     with _stash_executor_lock:
-        executor = _stash_executor
-    if executor is not None:
+        executors = list(_stash_executors.values())
+    for executor in executors:
         executor.submit(lambda: None).result(timeout=timeout)
 
 
@@ -6225,6 +6232,9 @@ def _stash_push_progress(cfg: dict, scene_id: str, rel: str, add_play: bool) -> 
 
 
 def _stash_wait_job(cfg: dict, job_id: str) -> None:
+    """Wait for a scan job. Past STASH_SCAN_TIMEOUT it stops waiting without failing:
+    the job also generates previews and sprites, which can outlast the deadline on
+    a weak NAS long after the scenes themselves exist."""
     deadline = time.monotonic() + STASH_SCAN_TIMEOUT
     while True:
         data = _stash_gql(
@@ -6237,7 +6247,12 @@ def _stash_wait_job(cfg: dict, job_id: str) -> None:
         if job.get("status") in ("FAILED", "CANCELLED"):
             raise StashError(f"scan job {job_id} {job['status'].lower()}: {job.get('error') or ''}")
         if time.monotonic() > deadline:
-            raise StashError(f"scan job {job_id} still running after {STASH_SCAN_TIMEOUT:.0f} s")
+            logger.warning(
+                "stash: scan job %s still running after %.0f s, looking the scenes up anyway",
+                job_id,
+                STASH_SCAN_TIMEOUT,
+            )
+            return
         time.sleep(STASH_JOB_POLL)
 
 
@@ -6259,14 +6274,16 @@ def _stash_identify_sources(cfg: dict) -> list[dict]:
     return sources
 
 
-def _stash_declare(entries: list[tuple[str, list[str]]]) -> None:
+def _stash_declare(entries: list[tuple[str, list[str]]], arrival: bool = True) -> None:
     """Declare what Hoard just put in the Stash folder (BL-148). Background only.
 
     `entries` holds (moved path, [videos under it]): the moved path is what Stash
     scans — a file, or a whole folder in one go — and each video is then found,
     gets its progress, and is identified when asked. A file moved inside the
     folder is declared the same way: Stash's scan recognises a known file at a
-    new path by its fingerprint and keeps its metadata.
+    new path by its fingerprint and keeps its metadata. That is not an arrival
+    (`arrival=False`): no play is added and nothing is identified again, or every
+    rename of a sub-folder would count its videos watched once more.
     """
     cfg = _stash_config()
     if cfg is None:
@@ -6312,12 +6329,12 @@ def _stash_declare(entries: list[tuple[str, list[str]]]) -> None:
                 continue
             row = _progress_row(rel)
             seen = row is not None and _watch_percent(row) >= _watched_threshold()
-            _stash_push_progress(cfg, str(scene["id"]), rel, add_play=seen)
+            _stash_push_progress(cfg, str(scene["id"]), rel, add_play=seen and arrival)
             scene_ids.append(str(scene["id"]))
             logger.info("stash: %s declared (scene %s)", rel, scene["id"])
         except StashError as exc:
             _stash_warn(cfg, f"declaring {rel}", exc)
-    if cfg["identify"] and scene_ids:
+    if arrival and cfg["identify"] and scene_ids:
         try:
             sources = _stash_identify_sources(cfg)
             if not sources:
@@ -6400,7 +6417,7 @@ def _stash_progress_written(rel: str, *, became_seen: bool, final: bool) -> None
             if not (final or became_seen) and last is not None and now - last < STASH_SYNC_INTERVAL:
                 return
             _stash_last_sync[rel] = now
-        _stash_submit(_stash_sync_progress, rel, became_seen)
+        _stash_submit(_stash_sync_progress, rel, became_seen, worker="progress")
     except Exception:
         logger.exception("stash: could not queue the progress of %s", rel)
 
@@ -6446,7 +6463,7 @@ def _stash_after_move(plan: str, old_rel: str, new_path: Path, old_videos: list[
     """Queue what Stash must hear after a disk move has succeeded."""
     if plan in ("arrive", "within"):
         new_rel = to_rel(new_path)
-        _stash_submit(_stash_declare, [(new_rel, _videos_under(new_path))])
+        _stash_submit(_stash_declare, [(new_rel, _videos_under(new_path))], plan == "arrive")
     elif plan == "leave":
         _stash_submit(_stash_forget, old_videos)
 
@@ -6478,8 +6495,10 @@ def _stash_after_export(outputs: list[Path], moved_source: tuple[str, Path] | No
             old_rel, new_path = moved_source
             new_rel = to_rel(new_path)
             plan = _stash_plan(cfg, old_rel, new_rel)
-            if plan in ("arrive", "within"):
+            if plan == "arrive":
                 declare.append((new_rel, [new_rel]))
+            elif plan == "within":
+                _stash_submit(_stash_declare, [(new_rel, [new_rel])], False)
             elif plan == "leave":
                 _stash_submit(_stash_forget, [old_rel])
         if declare:
@@ -6543,6 +6562,11 @@ def _stash_delete_videos(cfg: dict, rels: list[str]) -> None:
                     "mutation($in: SceneDestroyInput!) { sceneDestroy(input: $in) }",
                     {"in": {"id": str(scene["id"]), "delete_file": True, "delete_generated": True}},
                 )
+            # Gone now, whatever happens to the next one: its rows go with it, so a
+            # refusal further down the folder leaves no row for a deleted file.
+            with get_db() as conn:
+                _purge_paths(conn, rel)
+                conn.commit()
             logger.info("stash: %s deleted through Stash (scene %s)", rel, scene["id"])
         except StashError as exc:
             _stash_warn(cfg, f"deleting {rel}", exc)

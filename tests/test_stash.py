@@ -901,3 +901,78 @@ class TestFileOps:
         rel = _video("[[_keep/a.mp4")
         assert client.delete(f"/api/files?path={rel}").status_code == 200
         assert not (MEDIA_DIR / rel).exists()
+
+
+# ── Review fixes (PR #90) ────────────────────────────────────────────────────
+class TestReviewFixes:
+    def test_folder_renamed_within_adds_no_play_and_no_identify(self, stash):
+        stash.stash_boxes = ["https://stashdb.org/graphql"]
+        client.post("/api/settings", json={"stash_identify": True})
+        rel = _video("[[_keep/pack/a.mp4", b"bytes-a")
+        sid = stash.add_scene(rel)
+        stash.contents[f"f{sid}"] = b"bytes-a"
+        _progress(rel, 0.0, 0.0, watched=1)
+        resp = client.post("/api/files/rename?path=[[_keep/pack", json={"new_name": "renamed"})
+        assert resp.status_code == 200
+        m._stash_wait_idle()
+        assert stash.scene_of("[[_keep/renamed/a.mp4")["id"] == sid
+        assert stash.ops("sceneAddPlay") == []
+        assert stash.ops("metadataIdentify") == []
+
+    def test_scan_past_the_deadline_still_declares(self, stash, monkeypatch, caplog):
+        monkeypatch.setattr(m, "STASH_SCAN_TIMEOUT", 0.2)
+        monkeypatch.setattr(m, "STASH_JOB_POLL", 0.05)
+        stash.job_status = "RUNNING"
+        rel = _video("dl/slow.mp4")
+        _progress(rel, 12.0, 100.0)
+        with caplog.at_level("WARNING", logger="hoard"):
+            _move(rel, FOLDER)
+        scene = stash.scene_of("[[_keep/slow.mp4")
+        assert stash.ops("sceneSaveActivity") == [{"id": scene["id"], "t": 12.0}]
+        assert any("still running" in r.getMessage() for r in caplog.records)
+
+    def test_a_long_scan_does_not_hold_a_progress_copy_back(self, stash):
+        rel = _video("[[_keep/p.mp4")
+        stash.add_scene(rel)
+        gate = threading.Event()
+        m._stash_submit(gate.wait, 10)  # the files worker is busy
+        try:
+            client.post(
+                f"/api/progress?path={rel}", json={"position": 9, "duration": 100, "final": True}
+            )
+            deadline = time.monotonic() + 5
+            while not stash.ops("sceneSaveActivity") and time.monotonic() < deadline:
+                time.sleep(0.02)
+            assert stash.ops("sceneSaveActivity")
+        finally:
+            gate.set()
+
+    def test_partial_delete_purges_what_stash_deleted(self, stash):
+        a = _video("[[_keep/pack/a.mp4")
+        b = _video("[[_keep/pack/b.mp4")
+        stash.add_scene(a)
+        stash.add_scene(b)
+        _progress(a, 5.0, 100.0)
+        _progress(b, 6.0, 100.0)
+        real = stash.op_sceneDestroy
+        calls = []
+
+        def second_fails(v):
+            calls.append(v)
+            if len(calls) == 2:
+                raise RuntimeError("refused")
+            return real(v)
+
+        stash.op_sceneDestroy = second_fails
+        resp = client.delete("/api/files?path=[[_keep/pack")
+        assert resp.status_code == 502
+        gone = [r for r in (a, b) if not (MEDIA_DIR / r).exists()]
+        kept = [r for r in (a, b) if (MEDIA_DIR / r).exists()]
+        assert len(gone) == 1 and len(kept) == 1
+        assert _row(gone[0]) is None
+        assert _row(kept[0]) is not None
+
+    def test_signed_urls_are_stable_for_hours(self):
+        assert m._stash_media_url("7", "screenshot") == m._stash_media_url("7", "screenshot")
+        exp = int(m._stash_media_url("7", "screenshot").split("exp=")[1].split("&")[0])
+        assert exp - time.time() >= m.FPX_URL_TTL
