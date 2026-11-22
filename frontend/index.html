@@ -4877,6 +4877,7 @@ function _renderStashSpecialSwitches(tags) {
     const on = has.has(_stashSpecialTagName(key).toLowerCase());
     return `<button class="action-btn stash-special-btn ${on ? 'on' : ''}" aria-pressed="${on}" onclick="toggleStashSpecialTag(${jsStr(key)}, ${!on})">${label}${on ? ' ✓' : ''}</button>`;
   }).join('');
+  _gpReapplyModalCursor(document.getElementById('tag-modal'));
 }
 
 async function toggleStashSpecialTag(key, on) {
@@ -4898,6 +4899,7 @@ function _renderStashStars(rating100) {
       `<button class="action-btn stash-star ${i <= n ? 'on' : ''}" onclick="setStashRating(${jsStr(path)}, ${i})" aria-label="${i} étoile${i > 1 ? 's' : ''}">${i <= n ? '★' : '☆'}</button>`
     ).join('')
     + (n ? `<button class="action-btn" onclick="setStashRating(${jsStr(path)}, null)" title="Effacer la note">✕</button>` : '');
+  _gpReapplyModalCursor(document.getElementById('tag-modal'));
 }
 
 // A video Stash cannot take tags for (not scanned yet, Stash down): say why, and
@@ -10426,6 +10428,16 @@ function _gpHandleDialog(dlg, btnIdx, gp) {
   // BL-088: every other modal gets a generic roving focus, so no screen is a dead end
   // for a pad user. Specialised handlers above keep their own behaviour untouched.
   _gpHandleGenericModal(dlg, btnIdx, gp);
+}
+
+// A modal that redraws its buttons (the Tags window's switches and stars) loses
+// the pad cursor's class with them: put it back on the control at the same index.
+function _gpReapplyModalCursor(dlg) {
+  if (!dlg || dlg._gpIdx == null || dlg._gpIdx < 0) return;
+  const ctrls = _gpModalControls(dlg);
+  const idx = Math.min(dlg._gpIdx, ctrls.length - 1);
+  dlg._gpIdx = idx;
+  ctrls.forEach((el, i) => el.classList.toggle('gp-cursor', i === idx));
 }
 
 // Focusable controls of a modal, in document order, skipping what cannot be used.
