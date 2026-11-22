@@ -142,6 +142,14 @@ shader the flat modes already have.
 - [ ] **Handoff to FramePlayerX** (BL-144, lot [FEAT-FPX-HANDOFF](.backlog/FEAT-FPX-HANDOFF/PRD.md)) — opening a video in Hoard plays it in FPX through its DeoVR remote, at the resume point; the backend follows the playback into `progress` and the page returns to the list when FPX closes it. Device-local toggle, signed `/api/file` URL.
 - [ ] **Headset helper to come back to Hoard** (BL-145) — only if the trial shows the Frame does not return to the browser by itself.
 
+## Hoard sorts and plays, Stash keeps and describes *(built, awaiting David's setup and trial)*
+
+- [x] **Connection** (BL-147, lot [FEAT-STASH](.backlog/FEAT-STASH/PRD.md)) — Stash settings with a write-only key, connection test, server-side GraphQL client, media proxy.
+- [x] **Declare what arrives in `[[_keep`** (BL-148) — every Hoard gesture that writes a video there scans it in Stash, copies its progress and identifies it when asked.
+- [x] **Stash's information in Hoard, progress in Stash** (BL-149) — thumbnails and details in the list, markers and seek-bar thumbnails in the player and in HereSphere; progress copied from the one place `progress` is written.
+- [x] **Move and delete through Stash in its folder** (BL-150).
+- [ ] **Setup and trial on the NAS** (BL-151, David).
+
 ## v3.0 — Native client *(in progress)*
 
 Native Flutter client talking to the existing HTTP API, targeting Steam Deck

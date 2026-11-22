@@ -655,6 +655,74 @@ Le retour automatique dans le navigateur quand tu quittes FramePlayerX dépend d
 
 ---
 
+## Stash
+
+[Stash](https://stashapp.cc) décrit une collection de vidéos : vignettes, performers, studio, tags, note, markers.
+Hoard reste l'endroit où tu tries et où tu regardes ; Stash garde et décrit les vidéos que tu as décidé de garder.
+
+### Le circuit : garder, éditer, revoir
+
+Tu tries tes téléchargements dans Hoard avec tes dossiers rapides, comme avant :
+
+| Décision | Geste dans Hoard | Destination |
+|---|---|---|
+| Pas bien | 🗑 Supprimer | — |
+| Bien, on garde | Dossier rapide | `[[_keep` (le dossier de Stash) |
+| Bien, mais à éditer | Dossier rapide | `[[_edit` |
+| Pas sûr | Dossier rapide | `[[_review` |
+| Édition faite | ✂ ou « Exporter les segments » | `[[_keep` |
+
+Il n'y a pas de bouton « Envoyer à Stash » : **tout ce qui arrive dans le dossier de Stash par Hoard est déclaré à Stash**, quel que soit le geste (dossier rapide, ↗ Déplacer, renommage, ✂, export des segments).
+Un dossier entier déplacé dans `[[_keep` déclare chaque vidéo qu'il contient.
+`[[_edit`, `[[_review` et le reste ne concernent pas Stash.
+
+### Ce que fait Hoard quand une vidéo arrive dans le dossier de Stash
+
+1. Le déplacement se termine comme d'habitude : ton geste n'attend pas Stash.
+2. Ensuite, en arrière-plan, Hoard demande à Stash de scanner la vidéo (vignette, aperçu, vignettes de la barre de lecture).
+3. Il recopie ta position de lecture dans Stash, et ajoute une lecture si la vidéo est vue.
+4. Si tu l'as activé, il lance l'identification de Stash sur la vidéo.
+
+Si Stash ne répond pas, la vidéo reste dans `[[_keep` et Hoard l'écrit dans son journal (lignes `stash:`) ; le prochain scan de Stash la prendra.
+Une vidéo posée dans `[[_keep` par un autre logiciel n'est pas vue par Hoard : c'est le scan normal de Stash qui la prend.
+
+### Ce que tu vois dans Hoard
+
+Pour les vidéos du dossier de Stash seulement :
+
+- **Dans la liste** : la vignette de Stash, et une ligne avec la note (★ sur 5), le studio et les performers.
+- **Dans le lecteur** : au survol de la barre de lecture, une vignette de l'instant visé ; les markers de Stash sont des traits sur la barre (leur nom s'affiche au survol).
+- **Dans FramePlayerX** (HereSphere) : la vignette et l'aperçu de Stash, les performers, le studio et les tags, les markers comme chapitres, la note, et le script (funscript) quand la vidéo en a un.
+
+Ta progression reste dans Hoard, qui la recopie dans Stash : au plus toutes les 30 secondes pendant la lecture, et tout de suite à la pause et à la fermeture, que tu regardes dans Hoard, dans FramePlayerX ou par la bascule FramePlayerX.
+Quand la vidéo passe « vue », Hoard ajoute une lecture dans Stash.
+
+### Déplacer et supprimer dans le dossier de Stash
+
+Dans `[[_keep`, Hoard passe par Stash, pour que Stash ne perde rien de ce qu'il sait :
+
+- **Déplacer ou renommer une vidéo** sans sortir du dossier : Stash déplace le fichier et garde sa fiche. Un sous-dossier déplacé est rescanné, et Stash reconnaît ses vidéos.
+- **Supprimer** : Stash supprime la vidéo, sa fiche et ce qu'il avait généré.
+- **Sortir une vidéo** du dossier (la renvoyer vers `[[_edit`, par exemple) : le fichier part comme d'habitude, et Hoard demande à Stash d'oublier la fiche, sans toucher au fichier.
+
+Si Stash ne répond pas, Hoard refuse avec un message clair et rien ne bouge.
+Le dossier de Stash lui-même ne peut être ni supprimé, ni renommé, ni déplacé depuis Hoard.
+
+### Régler Stash
+
+1. Dans Stash, *Settings › Security*, crée une clé d'API.
+2. Dans Stash, *Settings › Library*, n'indexe **que** le dossier `[[_keep` : si Stash indexe tout `downloads`, il décrit aussi les vidéos pas encore triées.
+3. Note le chemin sous lequel le conteneur Stash voit ce dossier (par exemple `/data/[[_keep`).
+4. Dans Hoard, *Paramètres › Stash*, remplis :
+   - **Adresse de Stash** : vue depuis le serveur Hoard, par exemple `http://192.168.1.10:9999`. Vide = fonction coupée, Hoard marche comme sans Stash.
+   - **Clé d'API** : colle la clé. Le serveur la garde et ne la réaffiche jamais ; ✕ l'efface. Si tu changes l'adresse, retape la clé : Hoard ne l'envoie jamais à une autre adresse que celle avec laquelle tu l'as saisie.
+   - **Dossier de Stash** : dans Hoard, `[[_keep` par défaut.
+   - **Ce dossier vu par Stash** : le chemin noté à l'étape 3.
+5. Clique **Tester** : Hoard affiche la version de Stash, ou l'erreur exacte (injoignable, clé refusée, adresse qui n'est pas Stash).
+6. Enregistre.
+
+**Identifier les vidéos à leur arrivée dans Stash** n'apparaît que quand Stash a une source d'identification (une stash-box, ou un scraper capable d'identifier une scène). Active-le pour que chaque vidéo gardée soit identifiée automatiquement.
+
 ## Dossiers rapides (épingles)
 
 Les **dossiers rapides** permettent de déplacer un fichier vers un dossier fréquemment utilisé en deux taps.

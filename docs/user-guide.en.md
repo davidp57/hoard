@@ -647,6 +647,74 @@ Whether you land back in the browser when you leave FramePlayerX depends on the 
 
 ---
 
+## Stash
+
+[Stash](https://stashapp.cc) describes a video collection: thumbnails, performers, studio, tags, rating, markers.
+Hoard stays where you sort and watch; Stash keeps and describes the videos you decided to keep.
+
+### The flow: keep, edit, review
+
+You sort your downloads in Hoard with your quick folders, as before:
+
+| Decision | Gesture in Hoard | Destination |
+|---|---|---|
+| Not good | 🗑 Delete | — |
+| Good, keep it | Quick folder | `[[_keep` (the Stash folder) |
+| Good, needs editing | Quick folder | `[[_edit` |
+| Not sure | Quick folder | `[[_review` |
+| Editing done | ✂ or "Export segments" | `[[_keep` |
+
+There is no "Send to Stash" button: **everything Hoard puts into the Stash folder is declared to Stash**, whatever the gesture (quick folder, ↗ Move, rename, ✂, segment export).
+A whole folder moved into `[[_keep` declares every video it holds.
+`[[_edit`, `[[_review` and everything else do not concern Stash.
+
+### What Hoard does when a video arrives in the Stash folder
+
+1. The move finishes as usual: your gesture does not wait for Stash.
+2. Then, in the background, Hoard asks Stash to scan the video (thumbnail, preview, seek-bar thumbnails).
+3. It copies your playback position to Stash, and adds a play if the video is watched.
+4. If you turned it on, it runs Stash's identification on the video.
+
+If Stash does not answer, the video stays in `[[_keep` and Hoard writes it to its log (`stash:` lines); Stash's next scan will pick it up.
+A video put into `[[_keep` by another program is not seen by Hoard: Stash's regular scan picks it up.
+
+### What you see in Hoard
+
+For videos of the Stash folder only:
+
+- **In the list**: Stash's thumbnail, and a line with the rating (★ out of 5), the studio and the performers.
+- **In the player**: hovering the seek bar shows a thumbnail of that moment; Stash's markers are ticks on the bar (their name shows on hover).
+- **In FramePlayerX** (HereSphere): Stash's thumbnail and preview, performers, studio and tags, markers as chapters, the rating, and the script (funscript) when the video has one.
+
+Your progress stays in Hoard, which copies it to Stash: at most every 30 seconds while playing, and at once on pause and close, whether you watch in Hoard, in FramePlayerX or through the FramePlayerX handoff.
+When the video becomes watched, Hoard adds a play in Stash.
+
+### Moving and deleting in the Stash folder
+
+Inside `[[_keep`, Hoard goes through Stash so Stash loses nothing it knows:
+
+- **Moving or renaming a video** without leaving the folder: Stash moves the file and keeps its scene. A moved sub-folder is rescanned, and Stash recognises its videos.
+- **Deleting**: Stash deletes the video, its scene and what it generated.
+- **Taking a video out** of the folder (back to `[[_edit`, say): the file moves as usual, and Hoard asks Stash to forget the scene, without touching the file.
+
+If Stash does not answer, Hoard refuses with a clear message and nothing moves.
+The Stash folder itself cannot be deleted, renamed or moved from Hoard.
+
+### Setting Stash up
+
+1. In Stash, *Settings › Security*, create an API key.
+2. In Stash, *Settings › Library*, index **only** the `[[_keep` folder: if Stash indexes all of `downloads`, it also describes the videos not sorted yet.
+3. Note the path under which the Stash container sees that folder (for example `/data/[[_keep`).
+4. In Hoard, *Settings › Stash*, fill in:
+   - **Stash address**: as seen from the Hoard server, for example `http://192.168.1.10:9999`. Empty = feature off, Hoard works as without Stash.
+   - **API key**: paste the key. The server keeps it and never shows it again; ✕ clears it. If you change the address, type the key again: Hoard never sends it to an address other than the one it was entered with.
+   - **Stash folder**: in Hoard, `[[_keep` by default.
+   - **This folder as Stash sees it**: the path noted in step 3.
+5. Click **Test**: Hoard shows Stash's version, or the exact error (unreachable, key refused, address that is not Stash).
+6. Save.
+
+**Identify videos on arrival in Stash** only shows when Stash has an identification source (a stash-box, or a scraper able to identify a scene). Turn it on to have every kept video identified automatically.
+
 ## Quick Folders (Pins)
 
 **Quick folders** let you move a file to a frequently used folder in two taps.
