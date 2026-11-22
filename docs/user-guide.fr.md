@@ -697,6 +697,21 @@ Pour les vidéos du dossier de Stash seulement :
 Ta progression reste dans Hoard, qui la recopie dans Stash : au plus toutes les 30 secondes pendant la lecture, et tout de suite à la pause et à la fermeture, que tu regardes dans Hoard, dans FramePlayerX ou par la bascule FramePlayerX.
 Quand la vidéo passe « vue », Hoard ajoute une lecture dans Stash.
 
+### Tags et note dans Stash
+
+Pour les vidéos du dossier de Stash, **les tags et la note sont ceux de Stash** : tu les gères depuis Hoard, ils sont écrits dans Stash.
+
+- **🏷 Tags** (bouton de la ligne, ou menu de la manette dans la liste et dans le lecteur) ouvre « Tags dans Stash » : les tags de la vidéo dans Stash, à ajouter ou retirer.
+- Les **suggestions** sont les tags qui existent déjà dans Stash, les plus utilisés d'abord, filtrés par ce que tu tapes.
+- Un tag que Stash n'a pas encore est **créé** dans Stash. Hoard garde la casse (`POV` reste `POV`) et ne crée jamais un doublon : taper `pov` ajoute le `POV` existant.
+- La **barre de filtrage par tag** de la liste porte, dans ce dossier, les tags de Stash.
+- **La note** : des étoiles de 1 à 5, en bas de la fenêtre Tags, ou **★ Note** dans le menu de la manette. ✕ (ou « Effacer la note ») l'efface. La note de la liste se met à jour tout de suite.
+
+Les performers et le studio se gèrent dans Stash.
+Une vidéo que Stash n'a pas encore scannée n'a pas de fiche : la fenêtre le dit, et rien n'est écrit.
+Si Stash ne répond pas, Hoard affiche l'erreur et n'écrit rien nulle part.
+Ailleurs que dans le dossier de Stash, les tags restent ceux de Hoard, comme avant.
+
 ### Déplacer et supprimer dans le dossier de Stash
 
 Dans `[[_keep`, Hoard passe par Stash, pour que Stash ne perde rien de ce qu'il sait :

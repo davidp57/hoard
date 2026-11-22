@@ -689,6 +689,21 @@ For videos of the Stash folder only:
 Your progress stays in Hoard, which copies it to Stash: at most every 30 seconds while playing, and at once on pause and close, whether you watch in Hoard, in FramePlayerX or through the FramePlayerX handoff.
 When the video becomes watched, Hoard adds a play in Stash.
 
+### Tags and rating in Stash
+
+For videos of the Stash folder, **tags and rating are Stash's**: you manage them from Hoard, and they are written to Stash.
+
+- **🏷 Tags** (the row button, or the gamepad menu in the list and in the player) opens "Tags dans Stash": the video's tags in Stash, to add or remove.
+- **Suggestions** are the tags Stash already has, most used first, filtered by what you type.
+- A tag Stash does not have yet is **created** in Stash. Hoard keeps its case (`POV` stays `POV`) and never creates a duplicate: typing `pov` adds the existing `POV`.
+- In that folder, the list's **tag filter bar** carries Stash's tags.
+- **The rating**: 1 to 5 stars, at the bottom of the Tags window, or **★ Note** in the gamepad menu. ✕ (or "Effacer la note") clears it. The rating in the list updates at once.
+
+Performers and studio are managed in Stash.
+A video Stash has not scanned yet has no scene: the window says so, and nothing is written.
+If Stash does not answer, Hoard shows the error and writes nothing anywhere.
+Outside the Stash folder, tags remain Hoard's own, as before.
+
 ### Moving and deleting in the Stash folder
 
 Inside `[[_keep`, Hoard goes through Stash so Stash loses nothing it knows:

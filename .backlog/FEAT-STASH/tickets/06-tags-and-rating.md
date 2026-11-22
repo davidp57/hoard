@@ -1,6 +1,6 @@
 # BL-152 — Tags et note de Stash gérés depuis Hoard
 
-Status: ⬜ ready
+Status: ✅ done
 Lot: [FEAT-STASH](../PRD.md)
 
 ## Pourquoi
@@ -21,12 +21,12 @@ Pour les seules vidéos de `stash_folder` ; ailleurs, rien ne change.
 
 ## Critères d'acceptation
 
-- [ ] Fenêtre Tags sur une vidéo de `stash_folder` : affiche les tags Stash de la scène ; ajouter et retirer écrivent dans Stash ; la liste et la barre de filtre se mettent à jour sans attendre la fin du cache de BL-149.
-- [ ] Suggestions triées par usage, filtrées par la saisie, casse de Stash conservée ; un tag nouveau est créé une seule fois (pas de doublon si un tag de même nom existe, comparaison insensible à la casse).
-- [ ] Barre de filtre : dans `stash_folder`, filtre sur les tags de Stash ; ailleurs, comportement actuel.
-- [ ] Note en étoiles dans le menu contextuel et le menu du lecteur, atteignable à la manette ; effacer possible ; liste rafraîchie.
-- [ ] Vidéo de `stash_folder` sans scène Stash (pas encore scannée) : la fenêtre le dit clairement, rien n'est écrit dans `file_tags`.
-- [ ] Stash injoignable : erreur claire, rien n'est écrit nulle part.
-- [ ] Hors de `stash_folder`, ou sans Stash réglé : tags Hoard et barre de filtre inchangés.
-- [ ] Tests pytest avec le faux Stash : lecture, ajout, retrait, création de tag (et pas de doublon), note, scène absente, Stash injoignable.
-- [ ] Doc : guide utilisateur FR + EN (section Stash) ; doc développeur ; changelogs.
+- [x] Fenêtre Tags sur une vidéo de `stash_folder` : affiche les tags Stash de la scène ; ajouter et retirer écrivent dans Stash ; la liste et la barre de filtre se mettent à jour sans attendre la fin du cache de BL-149.
+- [x] Suggestions triées par usage, filtrées par la saisie, casse de Stash conservée ; un tag nouveau est créé une seule fois (pas de doublon si un tag de même nom existe, comparaison insensible à la casse).
+- [x] Barre de filtre : dans `stash_folder`, filtre sur les tags de Stash ; ailleurs, comportement actuel.
+- [x] Note en étoiles dans le menu contextuel et le menu du lecteur, atteignable à la manette ; effacer possible ; liste rafraîchie.
+- [x] Vidéo de `stash_folder` sans scène Stash (pas encore scannée) : la fenêtre le dit clairement, rien n'est écrit dans `file_tags`.
+- [x] Stash injoignable : erreur claire, rien n'est écrit nulle part.
+- [x] Hors de `stash_folder`, ou sans Stash réglé : tags Hoard et barre de filtre inchangés.
+- [x] Tests pytest avec le faux Stash : lecture, ajout, retrait, création de tag (et pas de doublon), note, scène absente, Stash injoignable.
+- [x] Doc : guide utilisateur FR + EN (section Stash) ; doc développeur ; changelogs.
