@@ -148,6 +148,7 @@ shader the flat modes already have.
 - [x] **Declare what arrives in `[[_keep`** (BL-148) — every Hoard gesture that writes a video there scans it in Stash, copies its progress and identifies it when asked.
 - [x] **Stash's information in Hoard, progress in Stash** (BL-149) — thumbnails and details in the list, markers and seek-bar thumbnails in the player and in HereSphere; progress copied from the one place `progress` is written.
 - [x] **Move and delete through Stash in its folder** (BL-150).
+- [x] **Stash tags and rating managed from Hoard** (BL-152, 2.9.7) — the Tags window, the tag filter bar and a star rating read and write Stash for the videos of its folder.
 - [ ] **Setup and trial on the NAS** (BL-151, David).
 
 ## v3.0 — Native client *(in progress)*

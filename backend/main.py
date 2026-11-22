@@ -5780,7 +5780,7 @@ _STASH_SCENE_FIELDS = """
   files { id path duration }
   studio { name }
   performers { name }
-  tags { name }
+  tags { id name }
   scene_markers { id title seconds primary_tag { name } }
 """
 
@@ -6340,13 +6340,19 @@ def _stash_declare(entries: list[tuple[str, list[str]]], arrival: bool = True) -
             if not sources:
                 logger.info("stash: identify skipped, Stash has no identification source")
                 return
-            _stash_gql(
+            data = _stash_gql(
                 cfg,
                 "mutation($in: IdentifyMetadataInput!) { metadataIdentify(input: $in) }",
                 {"in": {"sources": sources, "sceneIDs": scene_ids}},
             )
+            # The list may have read these scenes between the scan and now, and
+            # would keep them without title, studio or performers for minutes:
+            # wait for the identification, then make it read them again (BL-152).
+            _stash_wait_job(cfg, str(data.get("metadataIdentify")))
         except StashError as exc:
             _stash_warn(cfg, f"identifying {len(scene_ids)} scene(s)", exc)
+        finally:
+            _stash_invalidate()
 
 
 def _stash_forget(rels: list[str]) -> None:
@@ -6671,6 +6677,189 @@ def stash_scene(path: str):
         return {"scene": None}
     scene = _stash_scene_for_display(cfg, rel)
     return {"scene": _stash_summary(scene) if scene else None}
+
+
+# ── Tags and rating written from Hoard (BL-152) ──────────────────────────────
+# For the videos of the Stash folder, the Tags window and the tag filter bar
+# work on Stash's tags, not on Hoard's `file_tags`: David tags in Hoard, and the
+# tags live in Stash with the rest of what Stash knows. Tag names keep Stash's
+# case; a name is matched case-insensitively so a tag is never created twice.
+class StashTagRequest(BaseModel):
+    tag: str = Field(min_length=1, max_length=200)
+
+
+class StashRatingRequest(BaseModel):
+    rating: int | None = Field(default=None, ge=1, le=5)  # stars; None clears it
+
+
+def _stash_edit_target(path: str) -> tuple[dict, str, dict]:
+    """(cfg, rel, scene) for a write to the scene of one video of the Stash folder.
+
+    Read fresh, not from the folder cache: a write starts from what Stash holds
+    now. Refusals carry a code the page shows as it is."""
+    file = safe_path(path)
+    rel = to_rel(file)
+    cfg = _stash_config()
+    if cfg is None or not _stash_in_folder(rel, cfg["folder"]) or not is_video(file):
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "stash_not_here", "message": "Cette vidéo n'est pas gérée par Stash"},
+        )
+    if not cfg["prefix"]:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "code": "stash_unavailable",
+                "message": "Stash : le chemin du dossier vu par Stash n'est pas réglé",
+            },
+        )
+    try:
+        scene = _stash_scene_by_rel(cfg, rel)
+    except StashError as exc:
+        _stash_warn(cfg, f"reading the scene of {rel}", exc)
+        raise HTTPException(
+            status_code=502,
+            detail={"code": "stash_unavailable", "message": f"Stash injoignable : {exc}"},
+        ) from None
+    if scene is None:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "code": "stash_no_scene",
+                "message": "Stash ne connaît pas encore cette vidéo : son scan n'est pas passé",
+            },
+        )
+    return cfg, rel, scene
+
+
+def _stash_write(cfg: dict, what: str, query: str, variables: dict) -> dict:
+    """One write to Stash for the page; a refusal becomes a 502 the page shows."""
+    try:
+        return _stash_gql(cfg, query, variables)
+    except StashError as exc:
+        _stash_warn(cfg, what, exc)
+        raise HTTPException(
+            status_code=502,
+            detail={"code": "stash_refused", "message": f"Stash a refusé : {exc}"},
+        ) from None
+    finally:
+        # Even a refused write may have half-landed: the list reads Stash again.
+        _stash_invalidate()
+
+
+def _stash_all_tags(cfg: dict) -> list[dict]:
+    """Every tag of Stash with its scene count. Raises StashError."""
+    data = _stash_gql(
+        cfg,
+        "query($p: FindFilterType) { findTags(filter: $p) { tags { id name scene_count } } }",
+        {"p": {"per_page": -1}},
+    )
+    return ((data.get("findTags") or {}).get("tags")) or []
+
+
+def _scene_tags(scene: dict) -> list[dict]:
+    return [t for t in scene.get("tags") or [] if t.get("id") and t.get("name")]
+
+
+def _stash_set_scene_tags(cfg: dict, rel: str, scene: dict, tags: list[dict]) -> list[str]:
+    _stash_write(
+        cfg,
+        f"tagging {rel}",
+        "mutation($in: SceneUpdateInput!) { sceneUpdate(input: $in) { id } }",
+        {"in": {"id": str(scene["id"]), "tag_ids": [str(t["id"]) for t in tags]}},
+    )
+    return [t["name"] for t in tags]
+
+
+@app.get("/api/stash/tags")
+def stash_tags():
+    """Stash's tags for the suggestions, the most used first."""
+    cfg = _stash_config()
+    if cfg is None:
+        return {"tags": []}
+    try:
+        tags = _stash_all_tags(cfg)
+    except StashError as exc:
+        _stash_warn(cfg, "listing the tags", exc)
+        raise HTTPException(
+            status_code=502,
+            detail={"code": "stash_unavailable", "message": f"Stash injoignable : {exc}"},
+        ) from None
+    tags.sort(key=lambda t: (-(t.get("scene_count") or 0), (t.get("name") or "").casefold()))
+    return {"tags": [t["name"] for t in tags if t.get("name")]}
+
+
+@app.get("/api/stash/scene-tags")
+def stash_scene_tags(path: str):
+    """The Stash tags and rating (rating100) of one video of the Stash folder."""
+    _, _, scene = _stash_edit_target(path)
+    return {"tags": [t["name"] for t in _scene_tags(scene)], "rating": scene.get("rating100")}
+
+
+@app.post("/api/stash/scene-tags")
+def stash_add_scene_tag(path: str, body: StashTagRequest):
+    """Add a tag to the scene; a tag Stash does not have yet is created, once."""
+    cfg, rel, scene = _stash_edit_target(path)
+    name = " ".join(body.tag.split())
+    if not name:
+        raise HTTPException(status_code=422, detail="empty tag")
+    current = _scene_tags(scene)
+    if any(t["name"].casefold() == name.casefold() for t in current):
+        return {"tags": [t["name"] for t in current]}
+    try:
+        known = _stash_all_tags(cfg)
+    except StashError as exc:
+        _stash_warn(cfg, "listing the tags", exc)
+        raise HTTPException(
+            status_code=502,
+            detail={"code": "stash_unavailable", "message": f"Stash injoignable : {exc}"},
+        ) from None
+    tag = next((t for t in known if (t.get("name") or "").casefold() == name.casefold()), None)
+    if tag is None:
+        data = _stash_write(
+            cfg,
+            f"creating the tag {name!r}",
+            "mutation($in: TagCreateInput!) { tagCreate(input: $in) { id name } }",
+            {"in": {"name": name}},
+        )
+        tag = data.get("tagCreate") or {}
+        if not tag.get("id"):
+            raise HTTPException(
+                status_code=502,
+                detail={"code": "stash_refused", "message": "Stash n'a pas créé le tag"},
+            )
+        logger.info("stash: tag %r created", name)
+    tags = _stash_set_scene_tags(cfg, rel, scene, [*current, tag])
+    logger.info("stash: %s tagged %r", rel, tag["name"])
+    return {"tags": tags}
+
+
+@app.delete("/api/stash/scene-tags")
+def stash_remove_scene_tag(path: str, tag: str):
+    """Remove a tag from the scene. The tag itself stays in Stash."""
+    cfg, rel, scene = _stash_edit_target(path)
+    current = _scene_tags(scene)
+    kept = [t for t in current if t["name"].casefold() != tag.strip().casefold()]
+    if len(kept) == len(current):
+        return {"tags": [t["name"] for t in current]}
+    tags = _stash_set_scene_tags(cfg, rel, scene, kept)
+    logger.info("stash: tag %r removed from %s", tag, rel)
+    return {"tags": tags}
+
+
+@app.post("/api/stash/rating")
+def stash_set_rating(path: str, body: StashRatingRequest):
+    """Rate the scene in stars (1 star = 20 in Stash's rating100), or clear it."""
+    cfg, rel, scene = _stash_edit_target(path)
+    rating100 = body.rating * 20 if body.rating is not None else None
+    _stash_write(
+        cfg,
+        f"rating {rel}",
+        "mutation($in: SceneUpdateInput!) { sceneUpdate(input: $in) { id } }",
+        {"in": {"id": str(scene["id"]), "rating100": rating100}},
+    )
+    logger.info("stash: %s rated %s", rel, rating100)
+    return {"rating": rating100}
 
 
 def _stash_heresphere_extras(rel: str) -> dict:
