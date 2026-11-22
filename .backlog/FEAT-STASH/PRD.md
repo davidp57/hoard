@@ -85,5 +85,6 @@ Dans `[[_keep`, déplacer et supprimer passent par Stash, pour que Stash ne perd
 | 03 | [BL-149 — Les infos de Stash dans Hoard, la progression dans Stash](tickets/03-show-and-sync.md) | ✅ |
 | 04 | [BL-150 — Déplacer et supprimer dans le dossier de Stash](tickets/04-file-ops.md) | ✅ |
 | 05 | [BL-151 — Préparer Stash et essayer (David)](tickets/05-setup-and-trial.md) | 🧑 |
+| 06 | [BL-152 — Tags et note de Stash gérés depuis Hoard](tickets/06-tags-and-rating.md) | ⬜ |
 
-Une seule branche et une seule PR pour BL-147 à BL-150.
+Une seule branche et une seule PR pour BL-147 à BL-150 (PR #90, v2.9.6). BL-152, demandé pendant l'essai, a sa propre PR.
