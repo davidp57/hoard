@@ -7720,7 +7720,7 @@ async function confirmExport() {
   });
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
-    showToast(`Erreur : ${err.detail || resp.status}`);
+    showToast(`Erreur : ${apiErrorText(err, resp.status)}`);
     return;
   }
   const { job_id } = await resp.json();
@@ -7830,6 +7830,10 @@ async function requestMove(sourcePath, destPath) {
       showToast('Ce fichier est déjà dans ce dossier');
       return null;
     }
+    if (d.code === 'stash_folder') {
+      showToast(`⚠ ${d.message}`, 6000);
+      return null;
+    }
     if (d.code === 'destination_exists') {
       if (!d.overwritable) {
         showToast(`« ${d.name} » existe déjà à destination et ne peut pas être remplacé`);
@@ -7844,7 +7848,7 @@ async function requestMove(sourcePath, destPath) {
   }
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
-    const detail = typeof err.detail === 'string' ? err.detail : resp.status;
+    const detail = apiErrorText(err, resp.status);
     showToast(`Erreur : impossible de déplacer (${detail})`);
     return null;
   }
@@ -7910,7 +7914,8 @@ async function confirmDelete(path, name) {
       const doDelete = () => apiFetch(`${API}/api/files?path=${encodeURIComponent(path)}`, { method: 'DELETE' });
       const resp = await retryOn423(doDelete);
       if (!resp.ok) {
-        const msg = resp.status === 423 ? 'Le fichier est encore verrouillé, réessayez dans un instant' : `Erreur : impossible de supprimer (${resp.status})`;
+        const err = await resp.json().catch(() => ({}));
+        const msg = resp.status === 423 ? 'Le fichier est encore verrouillé, réessayez dans un instant' : `Erreur : impossible de supprimer (${apiErrorText(err, resp.status)})`;
         showToast(msg);
       } else {
         showToast('Supprimé');
@@ -7923,6 +7928,15 @@ async function confirmDelete(path, name) {
       resolve();
     };
   });
+}
+
+// Text of an API error: a plain `detail`, or the `message` of a structured one
+// (the Stash refusals: stash_unavailable, stash_folder, stash_refused).
+function apiErrorText(err, fallback) {
+  const d = err && err.detail;
+  if (typeof d === 'string') return d;
+  if (d && typeof d.message === 'string') return d.message;
+  return fallback;
 }
 
 // Retry a fetch fn up to maxAttempts times when the server returns 423
@@ -7960,7 +7974,7 @@ async function confirmMkdir() {
   });
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
-    showToast(`Erreur : ${err.detail || resp.status}`);
+    showToast(`Erreur : ${apiErrorText(err, resp.status)}`);
   } else {
     showToast(`Dossier "${name}" créé`);
     dirCache.clear();  // a folder's gallery-ness/state depends on contents → drop all
@@ -7999,7 +8013,7 @@ async function confirmRename() {
   if (!resp) return;  // network error: apiFetch already showed a toast
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
-    showToast(`Erreur : ${err.detail || resp.status}`);
+    showToast(`Erreur : ${apiErrorText(err, resp.status)}`);
     return;
   }
   // If the renamed item is the one currently playing, keep currentFile in sync.
