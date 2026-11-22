@@ -1,19 +1,19 @@
-# BL-148 — Envoyer une vidéo à Stash
+# BL-148 — Déclarer à Stash ce qui arrive dans `[[_keep`
 
 Status: ⬜ ready
 Lot: [FEAT-STASH](../PRD.md)
 
 ## Quoi
 
-Décision 4 du PRD : l'action « Envoyer à Stash ».
+Décision 4 du PRD : tout fichier vidéo que Hoard écrit dans `stash_folder` est déclaré à Stash. Pas d'action dédiée : David trie avec ses dossiers rapides.
 
 ## Critères d'acceptation
 
-- [ ] « Envoyer à Stash » dans le menu contextuel d'une vidéo et pour une sélection multiple ; absent si Stash n'est pas réglé, ou pour un fichier déjà dans `stash_folder` ; atteignable à la manette.
-- [ ] Déplacement par le mécanisme existant (job, collision « remplacer / annuler », migration de `progress`).
-- [ ] `metadataScan` sur le seul chemin déplacé, attente du job par `findJob`, scène retrouvée par son chemin.
+- [ ] Déclenché à la fin de chaque job qui écrit une vidéo dans `stash_folder` : déplacement (dossier rapide ou « Déplacer »), renommage, découpe ✂, export des segments. Un dossier déplacé dans `stash_folder` déclare chaque vidéo qu'il contient.
+- [ ] Le geste ne ralentit pas : le déplacement se termine comme aujourd'hui, la déclaration tourne ensuite en tâche de fond.
+- [ ] `metadataScan` sur les seuls chemins arrivés, attente du job par `findJob`, scène retrouvée par son chemin (préfixe traduit, `[` échappé dans tout filtre de chemin).
 - [ ] Position recopiée (`sceneSaveActivity`) ; une lecture ajoutée (`sceneAddPlay`) si la vidéo est vue.
-- [ ] Option « Identifier automatiquement » (`metadataIdentify` sur la scène) proposée seulement si Stash a une source d'identification configurée.
-- [ ] Avancement et erreurs visibles dans la file des jobs ; Stash injoignable après le déplacement : le fichier reste dans le dossier et l'erreur le dit.
-- [ ] Tests pytest avec le faux Stash : envoi complet, scan qui échoue, scène introuvable, Stash injoignable, identification avec et sans source.
-- [ ] Doc : guide utilisateur FR + EN ; doc développeur.
+- [ ] Réglage « Identifier les vidéos à leur arrivée dans Stash » (`stash_identify`), visible seulement si Stash a une source d'identification ; actif : `metadataIdentify` sur les scènes arrivées.
+- [ ] Stash injoignable, scan en échec ou scène introuvable : le fichier reste dans `stash_folder`, `WARNING stash:` dans le journal avec chemin et cause, aucune erreur bloquante pour David.
+- [ ] Tests pytest avec le faux Stash : arrivée par déplacement, par renommage, par export ; dossier entier ; nom de dossier avec `[[` ; scan qui échoue ; scène introuvable ; Stash injoignable ; identification avec et sans source.
+- [ ] Doc : guide utilisateur FR + EN (le circuit garder / éditer / revoir, ce que fait Hoard à l'arrivée dans le dossier de Stash) ; doc développeur.

@@ -17,7 +17,7 @@ Convention détaillée : [`docs/agents/issue-tracker.md`](../docs/agents/issue-t
 
 | Lot | Statut |
 |-----|--------|
-| [FEAT-STASH](FEAT-STASH/PRD.md) — Hoard trie et lit, Stash garde et décrit : connexion (BL-147), « Envoyer à Stash » (BL-148), infos de Stash et progression recopiée (BL-149), déplacer et supprimer dans le dossier de Stash (BL-150), préparation et essai par David (BL-151) | ⬜ |
+| [FEAT-STASH](FEAT-STASH/PRD.md) — Hoard trie et lit, Stash garde et décrit : connexion (BL-147), tout ce qui arrive dans `[[_keep` est déclaré à Stash (BL-148), infos de Stash et progression recopiée (BL-149), déplacer et supprimer dans le dossier de Stash (BL-150), préparation et essai par David (BL-151) | ⬜ |
 | [PAD-PROFILES](PAD-PROFILES/PRD.md) — Des profils de manette, dont un pour la seule main droite du Steam Frame (BL-141 ; reste l'essai sur le Frame) | 🧑 |
 | [PAD-ZOOM](PAD-ZOOM/PRD.md) — Zoomer dans une vidéo à la manette, comme dans PadView (couche R2 sur vidéo plate BL-140 ; reste l'essai sur le Frame) | 🧑 |
 | [PAD-LEFT-HAND](PAD-LEFT-HAND/PRD.md) — La main gauche règle ce qu'on regarde (volume et vitesse au stick gauche, sauts à la croix BL-138 ; convention manette commune avec PadView BL-139 ; reste l'essai sur le Frame) | 🧑 |
