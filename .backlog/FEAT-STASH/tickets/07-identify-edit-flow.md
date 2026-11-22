@@ -1,6 +1,6 @@
 # BL-153 — Garder pour éditer : tags « Identify » et « Edit », coupe qui hérite de sa source, original dans `[[_edited`
 
-Status: ⬜ ready
+Status: ✅ done
 Lot: [FEAT-STASH](../PRD.md)
 Dépend de : BL-152 (tags de Stash et barre de filtre dans Hoard)
 
@@ -48,17 +48,17 @@ Sans Stash réglé, l'export garde son comportement actuel.
 
 ## Critères d'acceptation
 
-- [ ] Arrivée dans `stash_folder` : tag « Identify » posé sur la scène, une fois le scan fini.
-- [ ] « Garder pour éditer » dans la liste des dossiers rapides (menu, manette, sélection multiple) : déplace et pose « Identify » + « Edit ».
-- [ ] Aucun chemin de code ne retire « Identify » (identification automatique comprise).
-- [ ] Filtre « ✂ À éditer » dans `stash_folder`, case « Masquer les non identifiées » cochée par défaut ; absent ailleurs.
-- [ ] Coupe ✂ et export des segments (fusionné et individuel) vers `stash_folder` depuis une vidéo qui a une scène : la nouvelle scène hérite des champs de la décision 5, sans « Edit », avec « Identify » si la source l'avait, sans `stash_ids`.
-- [ ] Source sans scène Stash : la coupe est déclarée comme une arrivée normale (« Identify » seul).
-- [ ] Export avec Stash réglé : destination proposée `stash_folder` ; case « Garder l'original à sa place » décochée par défaut.
-- [ ] Original non gardé : déplacé dans `edited_folder` (créé s'il manque) ; s'il était dans `stash_folder`, sa scène est oubliée par Stash sans toucher au fichier ; il n'est jamais déclaré comme arrivée. Collision : rien n'est écrasé, erreur claire.
-- [ ] Case cochée : l'original ne bouge pas. Sans Stash réglé : comportement actuel inchangé.
-- [ ] Stash injoignable : la coupe et l'original restent où ils sont, erreur claire dans le job.
-- [ ] Guide : la mention du bouton ✂ de découpe unique retirée ou corrigée.
-- [ ] Réglages des deux noms de tags ; tags créés s'ils manquent, sans doublon (comparaison insensible à la casse).
-- [ ] Tests pytest avec le faux Stash pour chaque cas ci-dessus.
-- [ ] Doc : guide FR + EN (le circuit garder / garder pour éditer / identifier / éditer, le tableau des tags) ; doc développeur ; changelogs.
+- [x] Arrivée dans `stash_folder` : tag « Identify » posé sur la scène, une fois le scan fini.
+- [x] « Garder pour éditer » dans la liste des dossiers rapides (menu, manette, sélection multiple) : déplace et pose « Identify » + « Edit ».
+- [x] Aucun chemin de code ne retire « Identify » (identification automatique comprise).
+- [x] Filtre « ✂ À éditer » dans `stash_folder`, case « Masquer les non identifiées » cochée par défaut ; absent ailleurs.
+- [x] Coupe ✂ et export des segments (fusionné et individuel) vers `stash_folder` depuis une vidéo qui a une scène : la nouvelle scène hérite des champs de la décision 5, sans « Edit », avec « Identify » si la source l'avait, sans `stash_ids`.
+- [x] Source sans scène Stash : la coupe est déclarée comme une arrivée normale (« Identify » seul).
+- [x] Export avec Stash réglé : destination proposée `stash_folder` ; case « Garder l'original à sa place » décochée par défaut.
+- [x] Original non gardé : déplacé dans `edited_folder` (créé s'il manque) ; s'il était dans `stash_folder`, sa scène est oubliée par Stash sans toucher au fichier ; il n'est jamais déclaré comme arrivée. Collision : rien n'est écrasé, erreur claire.
+- [x] Case cochée : l'original ne bouge pas. Sans Stash réglé : comportement actuel inchangé.
+- [x] Stash injoignable : la coupe et l'original restent où ils sont, erreur claire dans le job.
+- [x] Guide : la mention du bouton ✂ de découpe unique retirée ou corrigée.
+- [x] Réglages des deux noms de tags ; tags créés s'ils manquent, sans doublon (comparaison insensible à la casse).
+- [x] Tests pytest avec le faux Stash pour chaque cas ci-dessus.
+- [x] Doc : guide FR + EN (le circuit garder / garder pour éditer / identifier / éditer, le tableau des tags) ; doc développeur ; changelogs.

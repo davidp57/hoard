@@ -206,7 +206,8 @@ This rule only applies to brand-new videos. Once a file has saved progress, Hoar
 
 ### IN/OUT Markers (trim)
 
-The `[IN` and `OUT]` buttons define a restricted playback zone (without modifying the file). The ✂ button triggers a physical file cut via ffmpeg.
+The `[IN` and `OUT]` buttons define a restricted playback zone (without modifying the file).
+To actually cut the file, mark segments (I then O) and run **"Export segments"** (the ✂ *n* button of the player bar, E key): ffmpeg writes the cut or cuts, without re-encoding.
 
 ### Auto-refresh File List
 
@@ -652,28 +653,57 @@ Whether you land back in the browser when you leave FramePlayerX depends on the 
 [Stash](https://stashapp.cc) describes a video collection: thumbnails, performers, studio, tags, rating, markers.
 Hoard stays where you sort and watch; Stash keeps and describes the videos you decided to keep.
 
-### The flow: keep, edit, review
+### The flow: keep, keep to edit, identify, edit
 
 You sort your downloads in Hoard with your quick folders, as before:
 
 | Decision | Gesture in Hoard | Destination |
 |---|---|---|
 | Not good | 🗑 Delete | — |
-| Good, keep it | Quick folder | `[[_keep` (the Stash folder) |
-| Good, needs editing | Quick folder | `[[_edit` |
+| Good, keep it | Quick folder | `[[_keep` (the Stash folder), tag "Identify" |
+| Good, needs editing | **✂ Garder pour éditer** (keep to edit, in the quick folder list) | `[[_keep`, tags "Identify" and "Edit" |
 | Not sure | Quick folder | `[[_review` |
-| Editing done | ✂ or "Export segments" | `[[_keep` |
+| Editing done | "Export segments" | `[[_keep` (offered by default) |
 
-There is no "Send to Stash" button: **everything Hoard puts into the Stash folder is declared to Stash**, whatever the gesture (quick folder, ↗ Move, rename, ✂, segment export).
+There is no "Send to Stash" button: **everything Hoard puts into the Stash folder is declared to Stash**, whatever the gesture (quick folder, ↗ Move, rename, segment export).
 A whole folder moved into `[[_keep` declares every video it holds.
-`[[_edit`, `[[_review` and everything else do not concern Stash.
+`[[_review` and everything else do not concern Stash.
+
+The **whole** video goes into Stash, even when you mean to edit it: that is what Stash can identify (a cut no longer has its fingerprint).
+Two tags say where it stands:
+
+| Tags in Stash | Meaning |
+|---|---|
+| Identify | Kept, scene not checked yet |
+| Identify + Edit | To edit, scene not checked yet |
+| Edit | Scene checked, ready to edit |
+| none | Kept, checked, done |
+
+- **Hoard never removes "Identify"**, even when the automatic identification found something: an identification can be wrong. You remove it yourself in Stash once you have checked the scene; Stash's "Identify" list is your review queue.
+- **"✂ À éditer"** (to edit), in the tag filter bar of `[[_keep`, shows only the videos tagged "Edit". The **"Masquer les non identifiées"** box (hide unidentified, ticked by default) hides those that still have "Identify": you edit what you have already checked. On the gamepad, both lines are in the menu, section "À éditer".
+- Both tag names are set in *Settings › Stash*; Hoard creates them in Stash when they are missing.
+
+`[[_edit` no longer serves this flow: its videos go through "Garder pour éditer" as you get to them.
+
+### Editing: exporting segments to Stash
+
+When Stash is set up, "Export segments" offers the Stash folder as the destination (you can pick another one).
+
+- **The cut inherits its source's scene**: title, date, studio, performers, tags, URLs, details and rating. Without "Edit" (it is edited); with "Identify" only if the source still had it. In individual mode, each segment inherits the same way. A source without a Stash scene gives a plain arrival ("Identify" only).
+- **The original goes to `[[_edited`** (the `[[_edited` folder beside `[[_keep`, settable in *Settings › Stash*). Hoard creates the folder when missing. If it was in `[[_keep`, Stash forgets its scene without touching the file: the cut has already taken what it said. Nothing is deleted: emptying `[[_edited` is up to you.
+- **"Garder l'original à sa place"** (keep the original where it is, unticked by default): ticked, the original does not move.
+- If a file of the same name is already in `[[_edited`, nothing is overwritten: the original stays where it is, and the job card says so.
+- If Stash does not answer, the export is refused before it starts: nothing is written, nothing moves.
+
+Without Stash, the export behaves as before: the original follows the cut into the destination folder, unless you tick the box.
 
 ### What Hoard does when a video arrives in the Stash folder
 
 1. The move finishes as usual: your gesture does not wait for Stash.
 2. Then, in the background, Hoard asks Stash to scan the video (thumbnail, preview, seek-bar thumbnails).
 3. It copies your playback position to Stash, and adds a play if the video is watched.
-4. If you turned it on, it runs Stash's identification on the video; once it is done, the list shows what it found (title, studio, performers).
+4. It adds the "Identify" tag (and "Edit" for "Garder pour éditer").
+5. If you turned it on, it runs Stash's identification on the video; once it is done, the list shows what it found (title, studio, performers).
 
 If Stash does not answer, the video stays in `[[_keep` and Hoard writes it to its log (`stash:` lines); Stash's next scan will pick it up.
 A video put into `[[_keep` by another program is not seen by Hoard: Stash's regular scan picks it up.
