@@ -698,6 +698,26 @@
   }
   #modal-cancel:hover { border-color: var(--text-dim); color: var(--text); }
 
+  /* ── Stash (FEAT-STASH): thumbnails in the list, markers and sprite on the seekbar ── */
+  .entry-icon.stash-thumb { width: 6.4rem; height: 3.6rem; font-size: 0; }
+  .entry-icon.stash-thumb img { width: 100%; height: 100%; object-fit: cover; border-radius: 0.3rem; }
+  .stash-meta { font-size: 0.8rem; color: var(--text-dim); margin: 0.1rem 0 0.2rem; }
+  #stash-markers { position: absolute; inset: 0; pointer-events: none; }
+  .stash-marker {
+    position: absolute; top: -0.2rem; bottom: -0.2rem; width: 2px;
+    background: var(--text); opacity: 0.8; transform: translateX(-1px);
+  }
+  #stash-hover {
+    display: none; position: absolute; bottom: 1.6rem; transform: translateX(-50%);
+    background-repeat: no-repeat; border: 1px solid var(--border); border-radius: 0.3rem;
+    pointer-events: none; z-index: 3; box-shadow: 0 0.2rem 0.8rem rgba(0,0,0,0.5);
+  }
+  #stash-hover::after {
+    content: attr(data-label); position: absolute; left: 50%; bottom: 0.2rem;
+    transform: translateX(-50%); white-space: nowrap; font-size: 0.75rem;
+    background: rgba(0,0,0,0.75); color: #fff; padding: 0 0.3rem; border-radius: 0.2rem;
+  }
+
   /* ── Segment fills on seekbar ── */
   .seg-fill {
     position: absolute;
@@ -1825,6 +1845,38 @@
       </div>
     </div>
 
+    <!-- Stash (FEAT-STASH) -->
+    <div>
+      <div class="s-section-title">🗄 Stash</div>
+      <div class="s-row">
+        <div><div class="s-label">Adresse de Stash</div><div class="s-desc">Vue depuis le serveur Hoard (ex. <code>http://192.168.1.10:9999</code>). Vide = fonction coupée : Hoard marche comme sans Stash</div></div>
+        <div class="s-right"><input type="text" class="s-num" id="s-stash-url" style="width:18rem" placeholder="http://nas:9999" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+      </div>
+      <div class="s-row">
+        <div><div class="s-label">Clé d'API</div><div class="s-desc" id="s-stash-key-desc">Se crée dans Stash, <i>Settings → Security</i>. Gardée par le serveur, jamais réaffichée</div></div>
+        <div class="s-right" style="gap:0.5rem">
+          <input type="password" class="s-num" id="s-stash-key" style="width:12rem" autocomplete="new-password" placeholder="—">
+          <button class="s-btn" id="s-stash-key-clear" onclick="clearStashKey()" title="Effacer la clé enregistrée">✕</button>
+        </div>
+      </div>
+      <div class="s-row">
+        <div><div class="s-label">Dossier de Stash</div><div class="s-desc">Dans Hoard, relatif à la racine. Tout ce qui y arrive par Hoard est déclaré à Stash</div></div>
+        <div class="s-right"><input type="text" class="s-num" id="s-stash-folder" style="width:18rem" placeholder="[[_keep" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+      </div>
+      <div class="s-row">
+        <div><div class="s-label">Ce dossier vu par Stash</div><div class="s-desc">Son chemin dans le conteneur Stash (ex. <code>/data/[[_keep</code>)</div></div>
+        <div class="s-right"><input type="text" class="s-num" id="s-stash-prefix" style="width:18rem" placeholder="/data/[[_keep" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+      </div>
+      <div class="s-row" id="s-stash-identify-row" style="display:none">
+        <div><div class="s-label">Identifier les vidéos à leur arrivée dans Stash</div><div class="s-desc">Lance l'identification de Stash (stash-box, scrapers) sur chaque vidéo gardée</div></div>
+        <div class="s-right"><label class="toggle"><input type="checkbox" id="s-stash-identify"><div class="toggle-track"></div></label></div>
+      </div>
+      <div class="s-row">
+        <div><div class="s-label">Tester la connexion</div><div class="s-desc" id="s-stash-test-result">Avec l'adresse et la clé saisies ci-dessus</div></div>
+        <div class="s-right"><button class="s-btn" onclick="testStashConnection()">Tester</button></div>
+      </div>
+    </div>
+
     <!-- Touch gestures -->
     <div>
       <div class="s-section-title">👆 Gestes tactiles</div>
@@ -2057,6 +2109,8 @@
           <div id="seekbar-fill"></div>
           <div id="segment-fills"></div>
           <div id="pending-in-fill"></div>
+          <div id="stash-markers"></div>
+          <div id="stash-hover"></div>
           <div id="seekbar-thumb"></div>
         </div>
         <div id="segments-list" style="display:none"></div>
@@ -2559,6 +2613,11 @@ let cfg = {
   vr_widen: 0,
   vr_look_speed: 90,
   vr_sbs_layout: 'auto',
+  stash_url: '',
+  stash_api_key_set: false,
+  stash_folder: '[[_keep',
+  stash_path_prefix: '',
+  stash_identify: false,
 };
 
 function applyCfg(s) {
@@ -2613,6 +2672,12 @@ function applyCfg(s) {
   cfg.vr_sbs_layout  = ['auto', 'half', 'full'].includes(s.vr_sbs_layout) ? s.vr_sbs_layout : 'auto';
   cfg.fpx_host         = (s.fpx_host || '').trim();
   cfg.fpx_steam_gameid = (s.fpx_steam_gameid || '').trim();
+  // FEAT-STASH. The key itself never reaches the page: only whether one is stored.
+  cfg.stash_url         = (s.stash_url || '').trim();
+  cfg.stash_api_key_set = !!s.stash_api_key_set;
+  cfg.stash_folder      = (s.stash_folder || '[[_keep').replace(/^\/+|\/+$/g, '') || '[[_keep';
+  cfg.stash_path_prefix = (s.stash_path_prefix || '').trim();
+  cfg.stash_identify    = s.stash_identify === '1' || s.stash_identify === true;
   // propagate navigation prefs
   homeFolder = cfg.home_folder;
   sortBy     = cfg.sort_by;
@@ -2833,6 +2898,7 @@ async function saveCurrentPositionAsInitialSweep() {
 let hiddenAt = null;
 
 function privacyClose() {
+  saveProgress(undefined, undefined, undefined, true);  // before the src goes
   video.pause();
   video.src = '';
   if (saveInterval) { clearInterval(saveInterval); saveInterval = null; }
@@ -3636,6 +3702,7 @@ function openSettings() {
   document.getElementById('s-fpx-handoff').checked = fpxHandoffOn();  // device-local too
   document.getElementById('s-fpx-host').value   = cfg.fpx_host;
   document.getElementById('s-fpx-gameid').value = cfg.fpx_steam_gameid;
+  _openStashSettings();
   document.getElementById('s-gamepad-enabled').checked  = cfg.gamepad_enabled;
   document.getElementById('s-gamepad-haptic').checked   = cfg.gamepad_haptic;
   document.getElementById('s-gamepad-swap-sticks').checked = cfg.gamepad_swap_sticks;
@@ -3699,7 +3766,15 @@ async function saveSettings() {
     gamepad_deadzone:          parseInt(document.getElementById('s-gamepad-deadzone').value, 10) / 100,
     fpx_host:                  document.getElementById('s-fpx-host').value.trim(),
     fpx_steam_gameid:          document.getElementById('s-fpx-gameid').value.trim(),
+    stash_url:                 document.getElementById('s-stash-url').value.trim(),
+    stash_folder:              document.getElementById('s-stash-folder').value.trim() || '[[_keep',
+    stash_path_prefix:         document.getElementById('s-stash-prefix').value.trim(),
+    stash_identify:            document.getElementById('s-stash-identify').checked,
   };
+  // Write-only key: sent only when typed (or cleared with ✕), never read back.
+  const stashKey = document.getElementById('s-stash-key').value.trim();
+  if (stashKey) payload.stash_api_key = stashKey;
+  else if (_stashKeyCleared) payload.stash_api_key = '';
   const resp = await fetch(`${API}/api/settings`, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -3710,13 +3785,21 @@ async function saveSettings() {
     const detail = (await resp.json().catch(() => ({}))).detail;
     showToast(typeof detail === 'string' && detail.startsWith('fpx_')
       ? '❌ FramePlayerX : nom du casque ou identifiant Steam invalide'
-      : 'Erreur lors de la sauvegarde');
+      : (typeof detail === 'string' && detail.startsWith('stash_')
+        ? '❌ Stash : adresse ou dossier invalide'
+        : 'Erreur lors de la sauvegarde'));
     return;
   }
   // Saved, but the server may say it will not be able to use something (an
   // fpx_host the NAS does not resolve): shown long enough to be read.
   const warnings = (await resp.json().catch(() => ({}))).warnings;
-  applyCfg({ ...cfg, ...payload });
+  // The server clears the stored key when the address changes without one.
+  const keySet = 'stash_api_key' in payload
+    ? !!payload.stash_api_key
+    : (payload.stash_url === cfg.stash_url && cfg.stash_api_key_set);
+  delete payload.stash_api_key;
+  applyCfg({ ...cfg, ...payload, stash_api_key_set: keySet });
+  _stashFolderCache.clear();
   updateSortUI();
   _gpScanConnected(); // restart polling if gamepad was just re-enabled
   closeSettings();
@@ -3725,6 +3808,209 @@ async function saveSettings() {
   } else {
     showToast('\u2713 Param\u00e8tres enregistr\u00e9s');
   }
+}
+
+// ── Stash settings (FEAT-STASH) ──────────────────────────────────────────────
+let _stashKeyCleared = false;
+
+function _refreshStashKeyDesc() {
+  const desc = document.getElementById('s-stash-key-desc');
+  const stored = cfg.stash_api_key_set && !_stashKeyCleared;
+  desc.innerHTML = (stored ? '✓ Clé enregistrée. ' : 'Aucune clé enregistrée. ')
+    + 'Se crée dans Stash, <i>Settings → Security</i>. Gardée par le serveur, jamais réaffichée';
+  document.getElementById('s-stash-key').placeholder = stored ? '••••••' : '—';
+  document.getElementById('s-stash-key-clear').style.display = stored ? '' : 'none';
+}
+
+function _openStashSettings() {
+  _stashKeyCleared = false;
+  document.getElementById('s-stash-url').value = cfg.stash_url;
+  document.getElementById('s-stash-key').value = '';
+  document.getElementById('s-stash-folder').value = cfg.stash_folder;
+  document.getElementById('s-stash-prefix').value = cfg.stash_path_prefix;
+  document.getElementById('s-stash-identify').checked = cfg.stash_identify;
+  document.getElementById('s-stash-test-result').textContent = "Avec l'adresse et la clé saisies ci-dessus";
+  // Offered only when Stash can identify, or when it is already on.
+  document.getElementById('s-stash-identify-row').style.display = cfg.stash_identify ? '' : 'none';
+  _refreshStashKeyDesc();
+  if (cfg.stash_url) {
+    fetch(`${API}/api/stash/status`).then(r => r.json()).then(st => {
+      if (st.ok && st.identify_sources > 0) {
+        document.getElementById('s-stash-identify-row').style.display = '';
+      }
+    }).catch(() => {});
+  }
+}
+
+function clearStashKey() {
+  _stashKeyCleared = true;
+  document.getElementById('s-stash-key').value = '';
+  _refreshStashKeyDesc();
+}
+
+async function testStashConnection() {
+  const out = document.getElementById('s-stash-test-result');
+  out.textContent = 'Test en cours…';
+  const body = { url: document.getElementById('s-stash-url').value.trim() };
+  const key = document.getElementById('s-stash-key').value.trim();
+  if (key) body.api_key = key;
+  try {
+    const resp = await fetch(`${API}/api/stash/test`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    });
+    const r = await resp.json().catch(() => ({}));
+    if (resp.ok && r.ok) {
+      out.textContent = `✓ Stash ${r.version}` + (r.identify_sources
+        ? ` · ${r.identify_sources} source(s) d'identification` : " · aucune source d'identification");
+      if (r.identify_sources > 0) document.getElementById('s-stash-identify-row').style.display = '';
+    } else {
+      out.textContent = '❌ ' + (r.error || (typeof r.detail === 'string' ? r.detail : `HTTP ${resp.status}`));
+    }
+  } catch (e) {
+    out.textContent = '❌ ' + e;
+  }
+}
+
+// ── Stash in the list and the player (FEAT-STASH) ────────────────────────────
+// The list is drawn first; what Stash knows arrives after, so a slow Stash never
+// delays it. Only folders inside the Stash folder are asked about.
+const _stashFolderCache = new Map();  // folder path -> {ts, scenes}
+const STASH_PAGE_CACHE_MS = 60000;
+
+function stashInFolder(path) {
+  if (!cfg.stash_url || !path) return false;
+  const f = cfg.stash_folder;
+  return path === f || path.startsWith(f + '/');
+}
+
+async function _stashFolderScenes(path) {
+  const hit = _stashFolderCache.get(path);
+  if (hit && Date.now() - hit.ts < STASH_PAGE_CACHE_MS) return hit.scenes;
+  try {
+    const r = await fetch(`${API}/api/stash/folder?path=${encodeURIComponent(path)}`);
+    if (!r.ok) return {};
+    const scenes = (await r.json()).scenes || {};
+    _stashFolderCache.set(path, { ts: Date.now(), scenes });
+    return scenes;
+  } catch { return {}; }
+}
+
+function _stashMetaLine(sc) {
+  const parts = [];
+  if (sc.rating != null) parts.push('★' + (Math.round(sc.rating / 2) / 10));
+  if (sc.studio) parts.push(esc(sc.studio));
+  if (sc.performers && sc.performers.length) parts.push(sc.performers.map(esc).join(', '));
+  return parts.join(' · ');
+}
+
+// Re-applied after every renderFiles(): the list is redrawn from `entries` often
+// (progress saves, filters), and the decorations live in the DOM only.
+async function decorateStashEntries(path) {
+  if (!stashInFolder(path)) return;
+  const scenes = await _stashFolderScenes(path);
+  if (currentPath !== path) return;
+  for (const [rel, sc] of Object.entries(scenes)) {
+    const el = document.querySelector(`.entry[data-path="${CSS.escape(rel)}"]`);
+    if (!el || el.dataset.stash === sc.id) continue;
+    el.dataset.stash = sc.id;
+    const icon = el.querySelector('.entry-icon');
+    if (icon) {
+      icon.classList.add('stash-thumb');
+      icon.innerHTML = `<img src="${API}/api/stash/scene/${encodeURIComponent(sc.id)}/screenshot" alt="" loading="lazy" onerror="this.remove()">`;
+    }
+    const meta = _stashMetaLine(sc);
+    const info = el.querySelector('.entry-info');
+    if (meta && info) {
+      const line = document.createElement('div');
+      line.className = 'stash-meta';
+      line.innerHTML = meta;
+      info.insertBefore(line, info.querySelector('.entry-meta'));
+    }
+  }
+}
+
+// Player: markers as chapters on the seek bar, Stash's sprite under the pointer.
+let _stashPlayerScene = null;
+let _stashThumbCues = [];  // [{start, end, x, y, w, h}]
+
+function _parseVttTime(t) {
+  const p = t.trim().split(':').map(parseFloat);
+  return p.length === 3 ? p[0] * 3600 + p[1] * 60 + p[2] : p[0] * 60 + p[1];
+}
+
+function _parseThumbsVtt(text) {
+  const cues = [];
+  for (const block of text.replace(/\r/g, '').split('\n\n')) {
+    const lines = block.split('\n').filter(Boolean);
+    const ti = lines.findIndex(l => l.includes('-->'));
+    if (ti < 0 || !lines[ti + 1]) continue;
+    const [a, z] = lines[ti].split('-->');
+    const m = /#xywh=(\d+),(\d+),(\d+),(\d+)/.exec(lines[ti + 1]);
+    if (!m) continue;
+    cues.push({ start: _parseVttTime(a), end: _parseVttTime(z.trim().split(/\s+/)[0]),
+      x: +m[1], y: +m[2], w: +m[3], h: +m[4] });
+  }
+  return cues;
+}
+
+function clearStashPlayer() {
+  _stashPlayerScene = null;
+  _stashThumbCues = [];
+  document.getElementById('stash-markers').innerHTML = '';
+  document.getElementById('stash-hover').style.display = 'none';
+}
+
+async function loadStashPlayer(path) {
+  clearStashPlayer();
+  if (!stashInFolder(path)) return;
+  let sc = null;
+  try {
+    const r = await fetch(`${API}/api/stash/scene?path=${encodeURIComponent(path)}`);
+    if (r.ok) sc = (await r.json()).scene;
+  } catch { /* Stash is optional */ }
+  if (!sc || !currentFile || currentFile.path !== path) return;
+  _stashPlayerScene = sc;
+  _renderStashMarkers();
+  try {
+    const r = await fetch(`${API}/api/stash/scene/${encodeURIComponent(sc.id)}/vtt/thumbs`);
+    if (r.ok && _stashPlayerScene === sc) _stashThumbCues = _parseThumbsVtt(await r.text());
+  } catch { /* no sprite: no hover thumbnails */ }
+}
+
+function _renderStashMarkers() {
+  const box = document.getElementById('stash-markers');
+  const sc = _stashPlayerScene;
+  const dur = video.duration;
+  if (!sc || !dur) { box.innerHTML = ''; return; }
+  box.innerHTML = sc.markers.map(mk => {
+    const left = Math.min(100, mk.seconds / dur * 100).toFixed(3);
+    const title = esc(`${formatTime(mk.seconds)} · ${mk.title || mk.tag}`);
+    return `<div class="stash-marker" style="left:${left}%" title="${title}"></div>`;
+  }).join('');
+}
+
+function _stashHover(e) {
+  const tip = document.getElementById('stash-hover');
+  const dur = video.duration;
+  if (!_stashPlayerScene || !_stashThumbCues.length || !dur || e.pointerType === 'touch') {
+    tip.style.display = 'none';
+    return;
+  }
+  const rect = seekbarWrap.getBoundingClientRect();
+  const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  const t = pct * dur;
+  const cue = _stashThumbCues.find(c => t >= c.start && t < c.end) || _stashThumbCues[_stashThumbCues.length - 1];
+  const sprite = `${API}/api/stash/scene/${encodeURIComponent(_stashPlayerScene.id)}/vtt/sprite`;
+  tip.style.width = cue.w + 'px';
+  tip.style.height = cue.h + 'px';
+  tip.style.backgroundImage = `url("${sprite}")`;
+  tip.style.backgroundPosition = `-${cue.x}px -${cue.y}px`;
+  tip.style.left = (pct * 100) + '%';
+  const marker = (_stashPlayerScene.markers || []).filter(mk => mk.seconds <= t).pop();
+  tip.dataset.label = formatTime(t) + (marker ? ' · ' + (marker.title || marker.tag) : '');
+  tip.style.display = 'block';
 }
 
 // ── Download queue ────────────────────────────────────────────────────────────
@@ -4490,6 +4776,7 @@ async function navigate(path) {
   if (bar) bar.innerHTML = '';
   // Stop any active media when changing folder
   if (currentFile) {
+    saveProgress(undefined, undefined, undefined, true);  // before the src goes
     video.pause();
     video.src = '';
     clearSubtitles();
@@ -4676,6 +4963,7 @@ function renderFiles(list) {
     items.forEach((item, i) => item.classList.toggle('gp-cursor', i === _gpCursorIdx));
     items[_gpCursorIdx]?.scrollIntoView({ block: 'nearest' });
   }
+  decorateStashEntries(currentPath);
 }
 
 function getVideoIcon(p) {
@@ -5742,6 +6030,7 @@ async function playVideo(idx) {
   };
   video.onloadedmetadata = () => {
     updateSegmentUI();
+    _renderStashMarkers();
     vrArmForEntry(entry, (video.currentSrc || '').includes('/api/transcode'));
     const safeDuration = Math.max(0, video.duration - 1);
     const initialSweep = Math.min(initialSweepState.effective_seconds || 0, safeDuration);
@@ -5763,6 +6052,7 @@ async function playVideo(idx) {
   video.src = playbackChoice.src;
   resetSpeed();
   loadSubtitles(entry.path);
+  loadStashPlayer(entry.path);
   updateMediaMeta(mediaInfo);
 
   // Auto-save every 5s
@@ -5815,7 +6105,9 @@ function toggleMute() {
   video.muted = !video.muted;
 }
 
-async function saveProgress(pathOverride, posOverride, durOverride) {
+// `final` marks a pause or a close: the server copies it to Stash at once
+// instead of waiting for its 30 s window (FEAT-STASH).
+async function saveProgress(pathOverride, posOverride, durOverride, final = false) {
   // Called with explicit args from image/pdf/archive viewers; otherwise uses video state
   let file, pos, dur;
   if (pathOverride !== undefined) {
@@ -5833,7 +6125,7 @@ async function saveProgress(pathOverride, posOverride, durOverride) {
   await apiFetch(`${API}/api/progress?path=${encodeURIComponent(filePath)}`, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ position: pos, duration: dur })
+    body: JSON.stringify({ position: pos, duration: dur, final: !!final })
   });
   // Refresh entry progress in list
   const idx = entries.findIndex(e => e.path === filePath);
@@ -5867,6 +6159,10 @@ seekbarWrap.addEventListener('pointerdown', e => {
   seekbarWrap.setPointerCapture(e.pointerId);
   const pct = clampSeekPct(getSeekPercent(e));
   video.currentTime = pct * (video.duration || 0);
+});
+seekbarWrap.addEventListener('pointermove', _stashHover);
+seekbarWrap.addEventListener('pointerleave', () => {
+  document.getElementById('stash-hover').style.display = 'none';
 });
 seekbarWrap.addEventListener('pointermove', e => {
   if (!isSeeking) return;
@@ -5917,8 +6213,9 @@ video.addEventListener('play', () => {
 video.addEventListener('pause', () => {
   document.getElementById('playpause-btn').textContent = '▶';
   if (currentViewerMode === 'audio') updateAudioUI();
+  if (!video.ended) saveProgress(undefined, undefined, undefined, true);
 });
-video.addEventListener('ended', () => saveProgress());
+video.addEventListener('ended', () => saveProgress(undefined, undefined, undefined, true));
 
 // Touch gestures on video
 let touchStartX = 0, touchStartY = 0, touchStartTime = 0, touchStartVol = 0;
