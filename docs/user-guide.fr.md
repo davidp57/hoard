@@ -52,6 +52,7 @@ Un champ **🔍** est disponible dans la barre de tri. La recherche est insensib
 ### Tags et filtrage par tag
 
 Chaque fichier ou dossier peut porter des **tags texte libres** (ex : `excellent`, `à finir`). Les tags sont stockés en SQLite et affichés comme badges colorés dans la liste.
+Pendant qu'une vidéo se lit à côté de la liste, les badges de chaque ligne disparaissent pour garder des lignes compactes ; la barre de filtrage et la fenêtre 🏷 restent.
 
 | Action | Comment |
 |--------|---------|

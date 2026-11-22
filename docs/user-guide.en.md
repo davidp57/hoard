@@ -52,6 +52,7 @@ A **🔍** field is available in the sort bar. The search is case-insensitive an
 ### Tags and Tag Filtering
 
 Any file or folder can carry **free-form text tags** (e.g. `excellent`, `to-finish`). Tags are stored in SQLite and displayed as coloured badges in the list.
+While a video plays beside the list, each row's badges are hidden to keep the rows compact; the tag filter bar and the 🏷 window stay.
 
 | Action | How |
 |--------|-----|

@@ -1080,6 +1080,9 @@
     /* No media active: file list takes full width */
     #main:not(.media-active) #filelist-panel { width: 100%; border-right: none; }
     #main:not(.media-active) #player-panel { display: none; }
+    /* BL-154: a video playing beside the list, no per-row tag badges (the filter
+       bar and the Tags window stay). */
+    #main.video-active .entry-tags { display: none; }
   }
 
   /* ── Quick folders ── */
@@ -5240,7 +5243,7 @@ function renderEntry(e, i) {
         <div class="entry-meta">
           <span>${meta}</span>${vrBadge}
           ${progressHtml}
-          <div style="margin-top:0.3rem">${tagsHtml}</div>
+          <div class="entry-tags" style="margin-top:0.3rem">${tagsHtml}</div>
         </div>
       </div>
       ${actionsHtml}
@@ -5343,8 +5346,12 @@ async function _autoPlayNextFullscreen(navigatePath) {
 
 // ── Media panel helpers ───────────────────────────────────────────────────────
 
-function _setMediaActive(active) {
-  document.getElementById('main').classList.toggle('media-active', active);
+// `video` marks a video playing beside the list (BL-154): the list then drops
+// each row's tag badges, which made the rows much taller next to the picture.
+function _setMediaActive(active, video = false) {
+  const main = document.getElementById('main');
+  main.classList.toggle('media-active', active);
+  main.classList.toggle('video-active', active && video);
 }
 
 function toggleViewerFullscreen(id) {
@@ -6295,7 +6302,7 @@ async function playVideo(idx) {
   if (!entry || !entry.is_video) return;
 
   currentFile = entry;
-  _setMediaActive(true);
+  _setMediaActive(true, true);
 
   // Reset segment state for new video
   _pendingIn = null;
