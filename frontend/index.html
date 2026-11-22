@@ -3895,9 +3895,10 @@ async function _stashFolderScenes(path) {
   if (hit && Date.now() - hit.ts < STASH_PAGE_CACHE_MS) return hit.scenes;
   try {
     const r = await fetch(`${API}/api/stash/folder?path=${encodeURIComponent(path)}`);
-    if (!r.ok) return null;
-    const body = await r.json();
-    if (body.error) return null;  // Stash down: keep what the entries already show
+    // Stash down: keep what the entries already show, and do not ask again at
+    // every redraw of the list (progress saves redraw it often).
+    const body = r.ok ? await r.json() : { error: true };
+    if (body.error) { _stashFolderCache.set(path, { ts: Date.now() - STASH_PAGE_CACHE_MS + 15000, scenes: null }); return null; }
     const scenes = body.scenes || {};
     _stashFolderCache.set(path, { ts: Date.now(), scenes });
     return scenes;
