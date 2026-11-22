@@ -52,6 +52,7 @@ A **🔍** field is available in the sort bar. The search is case-insensitive an
 ### Tags and Tag Filtering
 
 Any file or folder can carry **free-form text tags** (e.g. `excellent`, `to-finish`). Tags are stored in SQLite and displayed as coloured badges in the list.
+While a video plays beside the list, each row's badges are hidden to keep the rows compact; the tag filter bar and the 🏷 window stay.
 
 | Action | How |
 |--------|-----|
@@ -680,7 +681,12 @@ Two tags say where it stands:
 | none | Kept, checked, done |
 
 - **Hoard never removes "Identify"**, even when the automatic identification found something: an identification can be wrong. You remove it yourself in Stash once you have checked the scene; Stash's "Identify" list is your review queue.
-- **"✂ À éditer"** (to edit), in the tag filter bar of `[[_keep`, shows only the videos tagged "Edit". The **"Masquer les non identifiées"** box (hide unidentified, ticked by default) hides those that still have "Identify": you edit what you have already checked. On the gamepad, both lines are in the menu, section "À éditer".
+- **Hoard manages these two tags itself**: they never show up as ordinary tags (filter bar, list rows, Tags window, suggestions). They remain real tags in Stash.
+- In the tag filter bar of `[[_keep`, two **special filters** come first, with a dashed border: **"✂ À éditer"** (to edit) and **"🔍 À identifier"** (to identify). Stash's real tags follow.
+- **"✂ À éditer"** shows only the videos tagged "Edit". The **"Masquer les non identifiées"** box (hide unidentified, ticked by default) hides those that still have "Identify": you edit what you have already checked.
+- **"🔍 À identifier"** shows the videos tagged "Identify": your review queue, without leaving Hoard.
+- One special filter at a time; each one combines with an ordinary tag filter. On the gamepad, these lines are in the menu, section "À éditer".
+- In the **🏷 Tags** window, two switches at the top, **"🔍 À identifier"** and **"✂ À éditer"**, set or remove these tags in Stash (✓ = on). On the gamepad, they are reached like the window's other buttons.
 - Both tag names are set in *Settings › Stash*; Hoard creates them in Stash when they are missing.
 
 `[[_edit` no longer serves this flow: its videos go through "Garder pour éditer" as you get to them.
@@ -726,7 +732,8 @@ For videos of the Stash folder, **tags and rating are Stash's**: you manage them
 - **🏷 Tags** (the row button, or the gamepad menu in the list and in the player) opens "Tags dans Stash": the video's tags in Stash, to add or remove.
 - **Suggestions** are the tags Stash already has, most used first, filtered by what you type.
 - A tag Stash does not have yet is **created** in Stash. Hoard keeps its case (`POV` stays `POV`) and never creates a duplicate: typing `pov` adds the existing `POV`.
-- In that folder, the list's **tag filter bar** carries Stash's tags.
+- In that folder, the list's **tag filter bar** carries Stash's tags, after the two special filters "✂ À éditer" and "🔍 À identifier".
+- The "Identify" and "Edit" tags are not listed among the ordinary tags nor suggested: the window's two switches handle them (see above).
 - **The rating**: 1 to 5 stars, at the bottom of the Tags window, or **★ Note** in the gamepad menu. ✕ (or "Effacer la note") clears it. The rating in the list updates at once.
 
 Performers and studio are managed in Stash.

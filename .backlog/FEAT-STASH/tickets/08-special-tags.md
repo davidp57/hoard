@@ -1,6 +1,6 @@
 # BL-154 — « À éditer » et « À identifier » : deux tags spéciaux gérés par Hoard
 
-Status: ⬜ ready
+Status: ✅ done
 Lot: [FEAT-STASH](../PRD.md)
 
 ## Pourquoi
@@ -18,10 +18,11 @@ Sa décision : « Garde le tag à éditer et enlève le tag Edit. Les deux tags 
 
 ## Critères d'acceptation
 
-- [ ] Barre de filtre : « ✂ À éditer » et « 🔍 À identifier » en premier, style distinct ; « Edit » et « Identify » absents des tags ordinaires ; les autres tags de Stash ensuite.
-- [ ] « ✂ À éditer » + case « Masquer les non identifiées » : comportement de BL-153 inchangé. « 🔍 À identifier » : vidéos taguées « Identify ».
-- [ ] Fenêtre 🏷 : deux interrupteurs qui écrivent les tags techniques dans Stash ; tags techniques absents des tags ordinaires et des suggestions ; atteignable à la manette.
-- [ ] Les noms réglés (`stash_tag_edit`, `stash_tag_identify`) sont respectés, comparaison insensible à la casse.
-- [ ] Menu manette (section « À éditer ») : « 🔍 À identifier » ajouté.
-- [ ] Tests (faux Stash) pour le filtrage des tags techniques côté backend s'il y en a ; vérification dans le navigateur.
-- [ ] Doc : guide FR + EN (section Stash, tableau des tags) ; changelogs.
+- [x] Barre de filtre : « ✂ À éditer » et « 🔍 À identifier » en premier, style distinct ; « Edit » et « Identify » absents des tags ordinaires ; les autres tags de Stash ensuite.
+- [x] « ✂ À éditer » + case « Masquer les non identifiées » : comportement de BL-153 inchangé. « 🔍 À identifier » : vidéos taguées « Identify ».
+- [x] Fenêtre 🏷 : deux interrupteurs qui écrivent les tags techniques dans Stash ; tags techniques absents des tags ordinaires et des suggestions ; atteignable à la manette.
+- [x] Les noms réglés (`stash_tag_edit`, `stash_tag_identify`) sont respectés, comparaison insensible à la casse.
+- [x] Menu manette (section « À éditer ») : « 🔍 À identifier » ajouté.
+- [x] Tests (faux Stash) pour le filtrage des tags techniques côté backend s'il y en a ; vérification dans le navigateur. (Filtrage dans la page seule, aucun changement backend : vérifié dans le navigateur avec des données Stash simulées.)
+- [x] Doc : guide FR + EN (section Stash, tableau des tags) ; changelogs.
+- [x] Ajout de David (2026-11-22) : « Uniquement quand on a une vidéo en cours et qu'on voit l'image de la vidéo ». Pendant qu'une vidéo se lit à côté de la liste, la liste n'affiche plus les tags de chaque ligne (tags de Stash et tags de Hoard) ; la barre de filtre et la fenêtre 🏷 restent. Sans vidéo en cours (rien d'ouvert, ou image, audio, PDF), la liste garde ses tags.

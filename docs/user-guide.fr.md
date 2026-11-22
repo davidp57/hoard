@@ -52,6 +52,7 @@ Un champ **🔍** est disponible dans la barre de tri. La recherche est insensib
 ### Tags et filtrage par tag
 
 Chaque fichier ou dossier peut porter des **tags texte libres** (ex : `excellent`, `à finir`). Les tags sont stockés en SQLite et affichés comme badges colorés dans la liste.
+Pendant qu'une vidéo se lit à côté de la liste, les badges de chaque ligne disparaissent pour garder des lignes compactes ; la barre de filtrage et la fenêtre 🏷 restent.
 
 | Action | Comment |
 |--------|---------|
@@ -688,7 +689,12 @@ Deux tags disent où elle en est :
 | aucun | Gardée, vérifiée, terminée |
 
 - **« Identify » n'est jamais retiré par Hoard**, même quand l'identification automatique a trouvé : une identification peut se tromper. Tu le retires toi-même dans Stash après avoir vérifié la fiche ; la liste « Identify » de Stash est ta file de vérification.
-- **« ✂ À éditer »**, dans la barre de filtrage de `[[_keep`, ne montre que les vidéos taguées « Edit ». La case **« Masquer les non identifiées »** (cochée par défaut) cache celles qui ont encore « Identify » : tu édites ce que tu as déjà vérifié. À la manette, ces deux lignes sont dans le menu, section « À éditer ».
+- **Hoard gère ces deux tags lui-même** : ils n'apparaissent jamais comme des tags ordinaires (barre de filtrage, lignes de la liste, fenêtre Tags, suggestions). Ils restent de vrais tags dans Stash.
+- Dans la barre de filtrage de `[[_keep`, deux **filtres spéciaux** viennent en premier, avec un bord en pointillés : **« ✂ À éditer »** et **« 🔍 À identifier »**. Les vrais tags de Stash suivent.
+- **« ✂ À éditer »** ne montre que les vidéos taguées « Edit ». La case **« Masquer les non identifiées »** (cochée par défaut) cache celles qui ont encore « Identify » : tu édites ce que tu as déjà vérifié.
+- **« 🔍 À identifier »** montre les vidéos taguées « Identify » : ta file de vérification, sans quitter Hoard.
+- Un seul filtre spécial à la fois ; chacun se combine avec un filtre de tag ordinaire. À la manette, ces lignes sont dans le menu, section « À éditer ».
+- Dans la fenêtre **🏷 Tags**, deux interrupteurs en tête, **« 🔍 À identifier »** et **« ✂ À éditer »**, posent ou retirent ces tags dans Stash (✓ = posé). À la manette, on les atteint comme les autres boutons de la fenêtre.
 - Les noms des deux tags se règlent dans *Paramètres › Stash* ; Hoard les crée dans Stash s'ils n'existent pas.
 
 `[[_edit` ne sert plus à ce circuit : ses vidéos passent par « Garder pour éditer » au fil de l'eau.
@@ -734,7 +740,8 @@ Pour les vidéos du dossier de Stash, **les tags et la note sont ceux de Stash**
 - **🏷 Tags** (bouton de la ligne, ou menu de la manette dans la liste et dans le lecteur) ouvre « Tags dans Stash » : les tags de la vidéo dans Stash, à ajouter ou retirer.
 - Les **suggestions** sont les tags qui existent déjà dans Stash, les plus utilisés d'abord, filtrés par ce que tu tapes.
 - Un tag que Stash n'a pas encore est **créé** dans Stash. Hoard garde la casse (`POV` reste `POV`) et ne crée jamais un doublon : taper `pov` ajoute le `POV` existant.
-- La **barre de filtrage par tag** de la liste porte, dans ce dossier, les tags de Stash.
+- La **barre de filtrage par tag** de la liste porte, dans ce dossier, les tags de Stash, après les deux filtres spéciaux « ✂ À éditer » et « 🔍 À identifier ».
+- Les tags « Identify » et « Edit » ne sont ni listés parmi les tags ordinaires ni suggérés : les deux interrupteurs de la fenêtre s'en chargent (voir plus haut).
 - **La note** : des étoiles de 1 à 5, en bas de la fenêtre Tags, ou **★ Note** dans le menu de la manette. ✕ (ou « Effacer la note ») l'efface. La note de la liste se met à jour tout de suite.
 
 Les performers et le studio se gèrent dans Stash.
