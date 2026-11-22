@@ -703,6 +703,9 @@
   .entry-icon.stash-thumb img { width: 100%; height: 100%; object-fit: cover; border-radius: 0.3rem; }
   .stash-meta { font-size: 0.8rem; color: var(--text-dim); margin: 0.1rem 0 0.2rem; }
   .stash-filename { font-size: 0.8rem; color: var(--text-dim); font-family: 'DM Mono', monospace; word-break: break-all; }
+  #tag-modal-special { margin-top: 1rem; display: flex; gap: 0.6rem; flex-wrap: wrap; }
+  .stash-special-btn { border-style: dashed; }
+  .stash-special-btn.on { border-style: solid; border-color: var(--accent); color: var(--accent); background: rgba(232,255,71,0.08); }
   #tag-modal-stash { margin-top: 1rem; display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
   .stash-star { font-size: 1.4rem; min-width: 2.6rem; }
   .stash-star.on { color: var(--accent); }
@@ -1124,6 +1127,9 @@
     cursor: pointer;
     color: var(--text-mid);
   }
+  /* BL-154: the special filters are Hoard's, not Stash tags: dashed, and first. */
+  .tag-filter-chip.special { border-style: dashed; color: var(--text); }
+  .tag-filter-chip.special.active { border-style: solid; }
   .tag-filter-chip.active { border-color: var(--accent); color: var(--accent); background: rgba(232,255,71,0.08); }
   #tag-modal { display:none; position:fixed; inset:0; z-index:3100; background:rgba(0,0,0,0.55); align-items:center; justify-content:center; }
   #tag-modal.open { display:flex; }
@@ -2326,6 +2332,7 @@
   <div class="modal-box" onclick="event.stopPropagation()">
     <div id="tag-modal-title" style="font-size:1.5rem;font-weight:700;color:var(--accent);margin-bottom:0.4rem">🏷 Tags</div>
     <div id="tag-modal-filename" style="font-family:'DM Mono',monospace;font-size:1.1rem;color:var(--text-dim);word-break:break-all;margin-bottom:0.4rem"></div>
+    <div id="tag-modal-special" style="display:none"></div>
     <div class="tag-list" id="tag-list"></div>
     <div id="tag-input-row">
       <input id="tag-input" type="text" placeholder="Nouveau tag…" onkeydown="if(event.key==='Enter')addTag()">
@@ -2559,10 +2566,11 @@ let allKnownTags = [];       // populated from /api/all-tags
 let _tagModalPath = null;    // path of file being tagged
 let _tagModalStash = false;  // BL-152: that file's tags (and rating) live in Stash
 let pendingMoveStashEdit = false;  // BL-153: the move is "Garder pour éditer"
-// BL-153: the "✂ À éditer" filter of the Stash folder, and its companion
-// "Masquer les non identifiées" (on by default: the to-edit list starts with
-// the videos David has already checked).
-let stashEditFilter = false;
+// BL-153/BL-154: the special filters of the Stash folder -- null, 'edit'
+// ("✂ À éditer") or 'identify' ("🔍 À identifier"), one at a time -- and the
+// to-edit list's companion "Masquer les non identifiées" (on by default: the
+// to-edit list starts with the videos David has already checked).
+let stashSpecialFilter = null;
 let stashHideUnidentified = true;
 let sortBy = 'date';
 let sortDir = 'desc';
@@ -3953,8 +3961,17 @@ function displayName(e) {
   return (_isStashVideo(e) && e.stashTitle) || e.name;
 }
 
+// BL-154: the technical tags (Identify, Edit -- names from the settings) are
+// Hoard's own state, shown as the two special filters and switches, never as
+// ordinary tags. They stay real tags in Stash.
+function _isStashTechTag(t) {
+  const n = String(t).toLowerCase();
+  return n === cfg.stash_tag_identify.toLowerCase() || n === cfg.stash_tag_edit.toLowerCase();
+}
+
+// The ordinary tags of an entry: a Stash video's tags without the technical ones.
 function entryTags(e) {
-  return _isStashVideo(e) ? (e.stashTags || []) : (e.tags || []);
+  return _isStashVideo(e) ? (e.stashTags || []).filter(t => !_isStashTechTag(t)) : (e.tags || []);
 }
 
 function _sortTags(tags) {
@@ -4816,6 +4833,7 @@ async function openTagModal(filePath, fileName) {
   document.getElementById('tag-modal-title').textContent = _tagModalStash ? '🏷 Tags dans Stash' : '🏷 Tags';
   document.getElementById('tag-input-row').style.display = '';
   document.getElementById('tag-modal-stash').style.display = 'none';
+  document.getElementById('tag-modal-special').style.display = 'none';
   await _refreshTagModal();
   await loadAllTags();
   _renderTagSuggestions();
@@ -4830,10 +4848,44 @@ function closeTagModal(e) {
   _tagModalPath = null;
 }
 
+// A Stash video's tags: the two switches carry the technical ones, the list the rest.
 function _renderTagList(tags) {
+  if (_tagModalStash) {
+    _renderStashSpecialSwitches(tags);
+    tags = tags.filter(t => !_isStashTechTag(t));
+  }
   document.getElementById('tag-list').innerHTML = tags.length
     ? tags.map(t => `<span class="tag-item">${esc(t)}<span class="tag-remove" onclick="removeTag(${jsStr(t)})">✕</span></span>`).join('')
     : `<span style="color:var(--text-dim);font-size:1.2rem">Aucun tag</span>`;
+}
+
+// BL-154: "À identifier" and "À éditer" set or remove the technical tags in Stash.
+const STASH_SPECIAL_SWITCHES = [
+  { key: 'identify', label: '🔍 À identifier' },
+  { key: 'edit', label: '✂ À éditer' },
+];
+
+function _stashSpecialTagName(key) {
+  return key === 'edit' ? cfg.stash_tag_edit : cfg.stash_tag_identify;
+}
+
+function _renderStashSpecialSwitches(tags) {
+  const box = document.getElementById('tag-modal-special');
+  box.style.display = '';
+  const has = new Set(tags.map(t => t.toLowerCase()));
+  box.innerHTML = STASH_SPECIAL_SWITCHES.map(({ key, label }) => {
+    const on = has.has(_stashSpecialTagName(key).toLowerCase());
+    return `<button class="action-btn stash-special-btn ${on ? 'on' : ''}" aria-pressed="${on}" onclick="toggleStashSpecialTag(${jsStr(key)}, ${!on})">${label}${on ? ' ✓' : ''}</button>`;
+  }).join('');
+}
+
+async function toggleStashSpecialTag(key, on) {
+  const path = _tagModalPath;
+  if (!path || !_tagModalStash) return;
+  const tag = _stashSpecialTagName(key);
+  const url = `${API}/api/stash/scene-tags?path=${encodeURIComponent(path)}`;
+  if (on) await _stashTagWrite(path, 'POST', url, { tag });
+  else await _stashTagWrite(path, 'DELETE', `${url}&tag=${encodeURIComponent(tag)}`);
 }
 
 function _renderStashStars(rating100) {
@@ -4854,6 +4906,7 @@ function _tagModalStashError(message) {
   document.getElementById('tag-list').innerHTML = `<span style="color:var(--text-dim);font-size:1.2rem">${esc(message)}</span>`;
   document.getElementById('tag-input-row').style.display = 'none';
   document.getElementById('tag-modal-stash').style.display = 'none';
+  document.getElementById('tag-modal-special').style.display = 'none';
   document.getElementById('tag-suggestions').innerHTML = '';
 }
 
@@ -4890,7 +4943,8 @@ async function _refreshTagModal() {
 function _renderTagSuggestions() {
   const input = document.getElementById('tag-input').value.trim().toLowerCase();
   const existing = new Set(Array.from(document.querySelectorAll('#tag-list .tag-item')).map(s => s.childNodes[0].textContent.toLowerCase()));
-  const suggs = allKnownTags.filter(t => !existing.has(t.toLowerCase()) && (!input || t.toLowerCase().includes(input)));
+  const suggs = allKnownTags.filter(t => !existing.has(t.toLowerCase()) && (!input || t.toLowerCase().includes(input))
+    && !(_tagModalStash && _isStashTechTag(t)));
   document.getElementById('tag-suggestions').innerHTML = suggs.slice(0, 12)
     .map(t => `<span class="tag-sugg" onclick="applyTagSugg(${jsStr(t)})">${esc(t)}</span>`).join('');
 }
@@ -4959,13 +5013,16 @@ function _renderTagFilterBar() {
   const allTags = _sortTags(entries.flatMap(entryTags));
   const bar = document.getElementById('tag-filter-bar');
   if (!bar) return;
-  const edit = stashInFolder(currentPath)
-    ? `<span class="tag-filter-chip ${stashEditFilter ? 'active' : ''}" onclick="toggleStashEditFilter()">✂ À éditer</span>`
-      + (stashEditFilter
+  // BL-154: the two special filters first, then Stash's real tags.
+  const special = stashInFolder(currentPath)
+    ? STASH_SPECIAL_FILTERS.map(({ key, label }) =>
+      `<span class="tag-filter-chip special ${stashSpecialFilter === key ? 'active' : ''}" onclick="toggleStashSpecialFilter(${jsStr(key)})">${label}</span>`
+    ).join('')
+      + (stashSpecialFilter === 'edit'
         ? `<label class="tag-filter-check"><input type="checkbox" ${stashHideUnidentified ? 'checked' : ''} onchange="toggleStashHideUnidentified()"> Masquer les non identifiées</label>`
         : '')
     : '';
-  bar.innerHTML = edit + allTags.map(t =>
+  bar.innerHTML = special + allTags.map(t =>
     `<span class="tag-filter-chip ${activeTagFilter === t ? 'active' : ''}" onclick="toggleTagFilter(${jsStr(t)})">${esc(t)}</span>`
   ).join('');
 }
@@ -4978,20 +5035,29 @@ function editedFolder() {
   return f.includes('/') ? f.slice(0, f.lastIndexOf('/')) + '/[[_edited' : '[[_edited';
 }
 
-function _hasTag(e, name) {
+// On the raw Stash tags: the technical ones are not in entryTags().
+function _hasStashTag(e, name) {
   const n = name.toLowerCase();
-  return entryTags(e).some(t => t.toLowerCase() === n);
+  return (e.stashTags || []).some(t => t.toLowerCase() === n);
 }
 
-// The "✂ À éditer" list: tagged Edit, and unless asked otherwise, already checked
-// (Identify gone).
-function _stashEditFilterKeeps(e) {
-  if (!_isStashVideo(e) || !_hasTag(e, cfg.stash_tag_edit)) return false;
-  return !(stashHideUnidentified && _hasTag(e, cfg.stash_tag_identify));
+// Filter-bar order: to edit, then to identify.
+const STASH_SPECIAL_FILTERS = [
+  { key: 'edit', label: '✂ À éditer' },
+  { key: 'identify', label: '🔍 À identifier' },
+];
+
+// "✂ À éditer": tagged Edit, and unless asked otherwise, already checked
+// (Identify gone). "🔍 À identifier": tagged Identify.
+function _stashSpecialFilterKeeps(e) {
+  if (!_isStashVideo(e)) return false;
+  if (stashSpecialFilter === 'identify') return _hasStashTag(e, cfg.stash_tag_identify);
+  if (!_hasStashTag(e, cfg.stash_tag_edit)) return false;
+  return !(stashHideUnidentified && _hasStashTag(e, cfg.stash_tag_identify));
 }
 
-function toggleStashEditFilter() {
-  stashEditFilter = !stashEditFilter;
+function toggleStashSpecialFilter(key) {
+  stashSpecialFilter = stashSpecialFilter === key ? null : key;
   _renderTagFilterBar();
   renderFiles(entries);
 }
@@ -5022,7 +5088,7 @@ async function navigate(path) {
   showingHomeScreen = false;
   searchQuery = '';
   activeTagFilter = null;
-  if (path !== currentPath) stashEditFilter = false;
+  if (path !== currentPath) stashSpecialFilter = null;
   const si = document.getElementById('search-input');
   if (si) si.value = '';
   const bar = document.getElementById('tag-filter-bar');
@@ -5182,11 +5248,11 @@ function renderEntry(e, i) {
 
 function renderFiles(list) {
   const el = document.getElementById('filelist');
-  const editOn = stashEditFilter && stashInFolder(currentPath);
+  const special = stashInFolder(currentPath) ? stashSpecialFilter : null;
   const filtered = list.filter(e =>
-    (!activeTagFilter || entryTags(e).includes(activeTagFilter)) && (!editOn || _stashEditFilterKeeps(e)));
+    (!activeTagFilter || entryTags(e).includes(activeTagFilter)) && (!special || _stashSpecialFilterKeeps(e)));
   if (!filtered.length) {
-    const why = editOn ? 'Aucune vidéo à éditer' : (activeTagFilter ? 'Aucun fichier avec ce tag' : 'Dossier vide');
+    const why = special ? (special === 'edit' ? 'Aucune vidéo à éditer' : 'Aucune vidéo à identifier') : (activeTagFilter ? 'Aucun fichier avec ce tag' : 'Dossier vide');
     el.innerHTML = `<div style="color:var(--text-dim);font-size:1.3rem;padding:2rem;text-align:center">${why}</div>`;
     _gpRenderedList = []; _gpCursorIdx = -1; _gpPendingRestoreIdx = -1;
     return;
@@ -9357,16 +9423,21 @@ function _gpMenuBuild() {
     items.push({
       section: 'À éditer',
       label: '✂ À éditer',
-      value: stashEditFilter ? '●' : '',
-      run: () => toggleStashEditFilter(),
+      value: stashSpecialFilter === 'edit' ? '●' : '',
+      run: () => toggleStashSpecialFilter('edit'),
     });
-    if (stashEditFilter) {
+    if (stashSpecialFilter === 'edit') {
       items.push({
         label: 'Masquer les non identifiées',
         value: stashHideUnidentified ? 'oui' : 'non',
         run: () => toggleStashHideUnidentified(),
       });
     }
+    items.push({
+      label: '🔍 À identifier',
+      value: stashSpecialFilter === 'identify' ? '●' : '',
+      run: () => toggleStashSpecialFilter('identify'),
+    });
   }
   const tags = _sortTags(entries.flatMap(entryTags));
   if (tags.length) {
