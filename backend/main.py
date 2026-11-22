@@ -6340,13 +6340,19 @@ def _stash_declare(entries: list[tuple[str, list[str]]], arrival: bool = True) -
             if not sources:
                 logger.info("stash: identify skipped, Stash has no identification source")
                 return
-            _stash_gql(
+            data = _stash_gql(
                 cfg,
                 "mutation($in: IdentifyMetadataInput!) { metadataIdentify(input: $in) }",
                 {"in": {"sources": sources, "sceneIDs": scene_ids}},
             )
+            # The list may have read these scenes between the scan and now, and
+            # would keep them without title, studio or performers for minutes:
+            # wait for the identification, then make it read them again (BL-152).
+            _stash_wait_job(cfg, str(data.get("metadataIdentify")))
         except StashError as exc:
             _stash_warn(cfg, f"identifying {len(scene_ids)} scene(s)", exc)
+        finally:
+            _stash_invalidate()
 
 
 def _stash_forget(rels: list[str]) -> None:

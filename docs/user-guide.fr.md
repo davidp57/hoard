@@ -681,7 +681,7 @@ Un dossier entier déplacé dans `[[_keep` déclare chaque vidéo qu'il contient
 1. Le déplacement se termine comme d'habitude : ton geste n'attend pas Stash.
 2. Ensuite, en arrière-plan, Hoard demande à Stash de scanner la vidéo (vignette, aperçu, vignettes de la barre de lecture).
 3. Il recopie ta position de lecture dans Stash, et ajoute une lecture si la vidéo est vue.
-4. Si tu l'as activé, il lance l'identification de Stash sur la vidéo.
+4. Si tu l'as activé, il lance l'identification de Stash sur la vidéo ; quand elle est finie, la liste affiche ce qu'elle a trouvé (titre, studio, performers).
 
 Si Stash ne répond pas, la vidéo reste dans `[[_keep` et Hoard l'écrit dans son journal (lignes `stash:`) ; le prochain scan de Stash la prendra.
 Une vidéo posée dans `[[_keep` par un autre logiciel n'est pas vue par Hoard : c'est le scan normal de Stash qui la prend.
@@ -690,7 +690,7 @@ Une vidéo posée dans `[[_keep` par un autre logiciel n'est pas vue par Hoard :
 
 Pour les vidéos du dossier de Stash seulement :
 
-- **Dans la liste** : la vignette de Stash, et une ligne avec la note (★ sur 5), le studio et les performers.
+- **Dans la liste** : la vignette de Stash, le titre de Stash à la place du nom de fichier (le nom de fichier reste en petit dessous), et une ligne avec la note (★ sur 5), le studio et les performers. Le tri par nom suit le titre affiché ; la recherche porte toujours sur les noms de fichiers.
 - **Dans le lecteur** : au survol de la barre de lecture, une vignette de l'instant visé ; les markers de Stash sont des traits sur la barre (leur nom s'affiche au survol).
 - **Dans FramePlayerX** (HereSphere) : la vignette et l'aperçu de Stash, les performers, le studio et les tags, les markers comme chapitres, la note, et le script (funscript) quand la vidéo en a un.
 

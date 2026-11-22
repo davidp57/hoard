@@ -702,6 +702,7 @@
   .entry-icon.stash-thumb { width: 6.4rem; height: 3.6rem; font-size: 0; }
   .entry-icon.stash-thumb img { width: 100%; height: 100%; object-fit: cover; border-radius: 0.3rem; }
   .stash-meta { font-size: 0.8rem; color: var(--text-dim); margin: 0.1rem 0 0.2rem; }
+  .stash-filename { font-size: 0.8rem; color: var(--text-dim); font-family: 'DM Mono', monospace; word-break: break-all; }
   #tag-modal-stash { margin-top: 1rem; display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
   .stash-star { font-size: 1.4rem; min-width: 2.6rem; }
   .stash-star.on { color: var(--accent); }
@@ -3007,13 +3008,13 @@ function sortedList(list) {
   rest.sort((a, b) => {
     let cmp = 0;
     if (sortBy === 'name') {
-      cmp = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+      cmp = displayName(a).localeCompare(displayName(b), undefined, { sensitivity: 'base' });
     } else if (sortBy === 'size') {
       cmp = (a.size || 0) - (b.size || 0);
-      if (cmp === 0) cmp = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+      if (cmp === 0) cmp = displayName(a).localeCompare(displayName(b), undefined, { sensitivity: 'base' });
     } else if (sortBy === 'state') {
       cmp = watchStateRank(a) - watchStateRank(b);
-      if (cmp === 0) cmp = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+      if (cmp === 0) cmp = displayName(a).localeCompare(displayName(b), undefined, { sensitivity: 'base' });
     } else if (sortBy === 'watched') {
       // Never-watched entries carry last_watched = 0. Sorting them among the rest
       // would bury them in an arbitrary order, so they are kept together at the
@@ -3915,6 +3916,12 @@ function _entryByPath(path) {
   return entries.find(en => en.path === path) || (currentFile && currentFile.path === path ? currentFile : null);
 }
 
+// BL-152: a video Stash has a title for is listed, and sorted by name, under
+// that title; its file name stays below it. Search still matches file names.
+function displayName(e) {
+  return (_isStashVideo(e) && e.stashTitle) || e.name;
+}
+
 function entryTags(e) {
   return _isStashVideo(e) ? (e.stashTags || []) : (e.tags || []);
 }
@@ -3993,8 +4000,8 @@ async function decorateStashEntries(path) {
   if (!stashInFolder(path)) return;
   const scenes = await _stashFolderScenes(path);
   if (currentPath !== path || !scenes) return;
-  // Stash's tags and rating go on the entries, where the tag badges, the filter
-  // bar and the menus read them. Redrawn once when they change; the redraw calls
+  // Stash's tags, rating and title go on the entries, where the tag badges, the
+  // filter bar, the menus and the name column read them. Redrawn once when they change; the redraw calls
   // back here, finds nothing new, and goes on to the thumbnails.
   let changed = false;
   for (const e of entries) {
@@ -4002,6 +4009,8 @@ async function decorateStashEntries(path) {
     const sc = scenes[e.path];
     const tags = sc ? (sc.tags || []) : [];
     if (!e.stashTags || JSON.stringify(e.stashTags) !== JSON.stringify(tags)) { e.stashTags = tags; changed = true; }
+    const title = (sc && sc.title) || '';
+    if ((e.stashTitle || '') !== title) { e.stashTitle = title; changed = true; }
     e.stashRating = sc ? sc.rating : null;
   }
   if (changed) { renderFiles(entries); _renderTagFilterBar(); return; }
@@ -5089,7 +5098,7 @@ function renderEntry(e, i) {
     <div class="entry ${stateClass} ${activeClass} ${e.is_dir ? 'is-dir' : ''} ${qfClass}" data-path="${esc(e.path)}" onclick="${clickHandler}">
       <div class="entry-icon">${icon}</div>
       <div class="entry-info">
-        <div class="entry-name">${esc(e.name)}</div>
+        <div class="entry-name">${esc(displayName(e))}</div>${displayName(e) !== e.name ? `<div class="stash-filename">${esc(e.name)}</div>` : ''}
         <div class="entry-meta">
           <span>${meta}</span>${vrBadge}
           ${progressHtml}
@@ -9212,7 +9221,8 @@ function _gpMenuBuild() {
   const entry = _gpCursorIdx >= 0 ? _gpRenderedList[_gpCursorIdx] : null;
 
   if (entry) {
-    const name = entry.name.length > 28 ? entry.name.slice(0, 27) + '…' : entry.name;
+    const shown = displayName(entry);
+    const name = shown.length > 28 ? shown.slice(0, 27) + '…' : shown;
     items.push({ section: name, label: '▶ Ouvrir', run: () => _gpActivateCursor() });
     // BL-144: the other way to play this one video, whichever the device default is.
     if (entry.is_video && fpxConfigured()) {

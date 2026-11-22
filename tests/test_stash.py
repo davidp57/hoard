@@ -622,6 +622,27 @@ class TestArrival:
         ]
         assert call["in"]["sceneIDs"] == [stash.scene_of("[[_keep/i.mp4")["id"]]
 
+    def test_identified_details_reach_the_list(self, stash, monkeypatch):
+        # BL-152: the list read the scene between the scan and the end of the
+        # identification; what the identification found must still reach it.
+        stash.stash_boxes = ["https://stashdb.org/graphql"]
+        client.post("/api/settings", json={"stash_identify": True})
+        rel = "[[_keep/id.mp4"
+        real_wait = m._stash_wait_job
+
+        def wait(cfg, job_id):
+            if job_id == "43":  # the identify job of the fake
+                assert client.get("/api/stash/folder?path=[[_keep").json()["scenes"][rel]
+                scene = stash.scene_of(rel)
+                scene.update(title="Found", studio={"name": "S"}, performers=[{"name": "P"}])
+            return real_wait(cfg, job_id)
+
+        monkeypatch.setattr(m, "_stash_wait_job", wait)
+        _move(_video("dl/id.mp4"), FOLDER)
+        scene = client.get("/api/stash/folder?path=[[_keep").json()["scenes"][rel]
+        assert scene["title"] == "Found"
+        assert scene["studio"] == "S" and scene["performers"] == ["P"]
+
     def test_identify_without_a_source(self, stash):
         client.post("/api/settings", json={"stash_identify": True})
         _move(_video("dl/j.mp4"), FOLDER)

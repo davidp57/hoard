@@ -673,7 +673,7 @@ A whole folder moved into `[[_keep` declares every video it holds.
 1. The move finishes as usual: your gesture does not wait for Stash.
 2. Then, in the background, Hoard asks Stash to scan the video (thumbnail, preview, seek-bar thumbnails).
 3. It copies your playback position to Stash, and adds a play if the video is watched.
-4. If you turned it on, it runs Stash's identification on the video.
+4. If you turned it on, it runs Stash's identification on the video; once it is done, the list shows what it found (title, studio, performers).
 
 If Stash does not answer, the video stays in `[[_keep` and Hoard writes it to its log (`stash:` lines); Stash's next scan will pick it up.
 A video put into `[[_keep` by another program is not seen by Hoard: Stash's regular scan picks it up.
@@ -682,7 +682,7 @@ A video put into `[[_keep` by another program is not seen by Hoard: Stash's regu
 
 For videos of the Stash folder only:
 
-- **In the list**: Stash's thumbnail, and a line with the rating (★ out of 5), the studio and the performers.
+- **In the list**: Stash's thumbnail, Stash's title in place of the file name (the file name stays below it, smaller), and a line with the rating (★ out of 5), the studio and the performers. Sorting by name follows the title shown; search still matches file names.
 - **In the player**: hovering the seek bar shows a thumbnail of that moment; Stash's markers are ticks on the bar (their name shows on hover).
 - **In FramePlayerX** (HereSphere): Stash's thumbnail and preview, performers, studio and tags, markers as chapters, the rating, and the script (funscript) when the video has one.
 
