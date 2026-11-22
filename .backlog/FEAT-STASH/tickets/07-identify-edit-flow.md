@@ -1,4 +1,4 @@
-# BL-153 — Garder pour éditer : tags « Identify » et « Edit », coupe qui hérite de sa source
+# BL-153 — Garder pour éditer : tags « Identify » et « Edit », coupe qui hérite de sa source, original dans `[[_edited`
 
 Status: ⬜ ready
 Lot: [FEAT-STASH](../PRD.md)
@@ -28,9 +28,23 @@ Solution retenue (option B de la discussion) : la vidéo **entière** entre dans
 4. **Filtre « ✂ À éditer »** dans `stash_folder` : n'affiche que les vidéos taguées « Edit ». Une case « Masquer les non identifiées » cache celles qui ont encore « Identify » ; **cochée par défaut**.
 5. **La coupe hérite de sa source.** Quand ✂ ou « Exporter les segments » écrit dans `stash_folder` une vidéo coupée d'une vidéo qui a une scène Stash, la nouvelle scène reçoit de la source : titre, date, studio, performers, tags, URL, détails, note. Sans le tag « Edit » ; avec « Identify » si la source l'avait encore. En export individuel, chaque segment hérite de la même façon.
 6. **`stash_ids` n'est pas recopié** sur la coupe : si David envoie un jour ses empreintes à la stash-box, celles de la coupe partiraient comme si c'était la scène entière.
-7. **Originale non gardée** (« garder l'original » décoché) : Hoard la supprime par Stash (`sceneDestroy` avec `delete_file` et `delete_generated`), comme une suppression dans `stash_folder` (BL-150).
+7. **L'original part dans `[[_edited`**, le dossier corbeille (voir « Export des segments » ci-dessous). S'il était dans `stash_folder`, Stash oublie sa fiche sans toucher au fichier (`sceneDestroy` sans `delete_file`, règle de sortie de BL-150) : la coupe a déjà hérité de cette fiche. Rien n'est supprimé.
 8. **Noms réglables** dans *Paramètres › Stash* : « Identify » et « Edit » par défaut. Hoard crée ces tags dans Stash s'ils n'existent pas.
 9. Les 194 vidéos de `[[_edit` restent où elles sont : David les fera passer par « Garder pour éditer » au fil de l'eau ou par sélection multiple.
+
+## Export des segments (ajouté par David le 2026-11-22)
+
+Constat dans le code (2026-11-22) : la fenêtre d'export propose le dossier courant ; « Garder l'original » est décoché par défaut, et décoché il **déplace l'original dans le dossier de destination** (`_run_export_segments`, « Post-export: move original to dest_dir »). Exporter vers `[[_keep` y envoie donc aussi l'original, que Hoard déclare à Stash comme une vidéo gardée.
+Le bouton ✂ de découpe unique n'existe plus dans la page (`/api/files/cut` n'a plus d'appelant) : l'édition passe par « Exporter les segments ». Le guide en parle encore : à corriger.
+
+Quand Stash est réglé :
+
+10. **Destination proposée = `stash_folder`.** David peut toujours en choisir une autre dans la fenêtre.
+11. **L'original va dans `[[_edited`** (réglage `edited_folder`, chemin relatif dans Hoard, défaut le dossier `[[_edited` à côté de `stash_folder` — chez David `downloads/[[_edited`). Hoard crée le dossier s'il n'existe pas. Collision de nom : même règle que les déplacements (pas d'écrasement silencieux, erreur claire dans le job).
+12. **La case devient « Garder l'original à sa place »**, décochée par défaut ; cochée, l'original ne bouge pas.
+13. **Vider `[[_edited` reste manuel** : aucune suppression automatique.
+
+Sans Stash réglé, l'export garde son comportement actuel.
 
 ## Critères d'acceptation
 
@@ -40,7 +54,11 @@ Solution retenue (option B de la discussion) : la vidéo **entière** entre dans
 - [ ] Filtre « ✂ À éditer » dans `stash_folder`, case « Masquer les non identifiées » cochée par défaut ; absent ailleurs.
 - [ ] Coupe ✂ et export des segments (fusionné et individuel) vers `stash_folder` depuis une vidéo qui a une scène : la nouvelle scène hérite des champs de la décision 5, sans « Edit », avec « Identify » si la source l'avait, sans `stash_ids`.
 - [ ] Source sans scène Stash : la coupe est déclarée comme une arrivée normale (« Identify » seul).
-- [ ] Originale non gardée : supprimée par Stash ; Stash injoignable : la coupe reste, l'originale aussi, erreur claire dans le job.
+- [ ] Export avec Stash réglé : destination proposée `stash_folder` ; case « Garder l'original à sa place » décochée par défaut.
+- [ ] Original non gardé : déplacé dans `edited_folder` (créé s'il manque) ; s'il était dans `stash_folder`, sa scène est oubliée par Stash sans toucher au fichier ; il n'est jamais déclaré comme arrivée. Collision : rien n'est écrasé, erreur claire.
+- [ ] Case cochée : l'original ne bouge pas. Sans Stash réglé : comportement actuel inchangé.
+- [ ] Stash injoignable : la coupe et l'original restent où ils sont, erreur claire dans le job.
+- [ ] Guide : la mention du bouton ✂ de découpe unique retirée ou corrigée.
 - [ ] Réglages des deux noms de tags ; tags créés s'ils manquent, sans doublon (comparaison insensible à la casse).
 - [ ] Tests pytest avec le faux Stash pour chaque cas ci-dessus.
 - [ ] Doc : guide FR + EN (le circuit garder / garder pour éditer / identifier / éditer, le tableau des tags) ; doc développeur ; changelogs.
