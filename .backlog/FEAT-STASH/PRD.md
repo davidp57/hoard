@@ -87,5 +87,6 @@ Dans `[[_keep`, déplacer et supprimer passent par Stash, pour que Stash ne perd
 | 05 | [BL-151 — Préparer Stash et essayer (David)](tickets/05-setup-and-trial.md) | 🧑 |
 | 06 | [BL-152 — Tags et note de Stash gérés depuis Hoard](tickets/06-tags-and-rating.md) | ✅ |
 | 07 | [BL-153 — Garder pour éditer : tags « Identify » et « Edit », coupe qui hérite de sa source, original dans `[[_edited`](tickets/07-identify-edit-flow.md) | ✅ |
+| 08 | [BL-154 — « À éditer » et « À identifier » : deux tags spéciaux gérés par Hoard](tickets/08-special-tags.md) | ⬜ |
 
 Une seule branche et une seule PR pour BL-147 à BL-150 (PR #90, v2.9.6). BL-152 et BL-153, demandés pendant l'essai, ont chacun leur PR (BL-153 après BL-152).
