@@ -702,6 +702,9 @@
   .entry-icon.stash-thumb { width: 6.4rem; height: 3.6rem; font-size: 0; }
   .entry-icon.stash-thumb img { width: 100%; height: 100%; object-fit: cover; border-radius: 0.3rem; }
   .stash-meta { font-size: 0.8rem; color: var(--text-dim); margin: 0.1rem 0 0.2rem; }
+  #tag-modal-stash { margin-top: 1rem; display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+  .stash-star { font-size: 1.4rem; min-width: 2.6rem; }
+  .stash-star.on { color: var(--accent); }
   #stash-markers { position: absolute; inset: 0; pointer-events: none; }
   .stash-marker {
     position: absolute; top: -0.2rem; bottom: -0.2rem; width: 2px;
@@ -2307,7 +2310,7 @@
 <!-- Tag modal -->
 <div id="tag-modal" class="gp-modal" data-gp-close="closeTagModal" onclick="closeTagModal(event)">
   <div class="modal-box" onclick="event.stopPropagation()">
-    <div style="font-size:1.5rem;font-weight:700;color:var(--accent);margin-bottom:0.4rem">🏷 Tags</div>
+    <div id="tag-modal-title" style="font-size:1.5rem;font-weight:700;color:var(--accent);margin-bottom:0.4rem">🏷 Tags</div>
     <div id="tag-modal-filename" style="font-family:'DM Mono',monospace;font-size:1.1rem;color:var(--text-dim);word-break:break-all;margin-bottom:0.4rem"></div>
     <div class="tag-list" id="tag-list"></div>
     <div id="tag-input-row">
@@ -2315,6 +2318,7 @@
       <button class="action-btn" onclick="addTag()">+ Ajouter</button>
     </div>
     <div id="tag-suggestions"></div>
+    <div id="tag-modal-stash" style="display:none"></div>
     <div style="margin-top:1.4rem;text-align:right">
       <button class="action-btn" onclick="closeTagModal()">Fermer</button>
     </div>
@@ -2539,6 +2543,7 @@ let searchQuery = '';
 let activeTagFilter = null;  // tag string or null = no filter
 let allKnownTags = [];       // populated from /api/all-tags
 let _tagModalPath = null;    // path of file being tagged
+let _tagModalStash = false;  // BL-152: that file's tags (and rating) live in Stash
 let sortBy = 'date';
 let sortDir = 'desc';
 let currentFile = null;
@@ -3890,11 +3895,87 @@ async function _stashFolderScenes(path) {
   if (hit && Date.now() - hit.ts < STASH_PAGE_CACHE_MS) return hit.scenes;
   try {
     const r = await fetch(`${API}/api/stash/folder?path=${encodeURIComponent(path)}`);
-    if (!r.ok) return {};
-    const scenes = (await r.json()).scenes || {};
+    if (!r.ok) return null;
+    const body = await r.json();
+    if (body.error) return null;  // Stash down: keep what the entries already show
+    const scenes = body.scenes || {};
     _stashFolderCache.set(path, { ts: Date.now(), scenes });
     return scenes;
-  } catch { return {}; }
+  } catch { return null; }
+}
+
+// BL-152: a video of the Stash folder has its tags and rating in Stash, not in
+// Hoard's file_tags. Directories and other files there keep Hoard's tags.
+function _isStashVideo(e) {
+  return !!e && !e.is_dir && (e.is_video || e.media_type === 'video') && stashInFolder(e.path);
+}
+
+function _entryByPath(path) {
+  return entries.find(en => en.path === path) || (currentFile && currentFile.path === path ? currentFile : null);
+}
+
+function entryTags(e) {
+  return _isStashVideo(e) ? (e.stashTags || []) : (e.tags || []);
+}
+
+function _sortTags(tags) {
+  return [...new Set(tags)].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+}
+
+// After a write to Stash: the entry, the page's folder cache and the list follow
+// at once, without waiting for any cache to expire (the server dropped its own).
+function _stashApplyScene(path, patch) {
+  const e = _entryByPath(path);
+  if (e) {
+    if ('tags' in patch) e.stashTags = patch.tags;
+    if ('rating' in patch) e.stashRating = patch.rating;
+  }
+  const parent = path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '';
+  const sc = _stashFolderCache.get(parent)?.scenes?.[path];
+  if (sc) Object.assign(sc, patch);
+  if (!showingHomeScreen) { renderFiles(entries); _renderTagFilterBar(); }
+}
+
+function _stashStars(rating100) {
+  if (rating100 == null) return '—';
+  const n = Math.round(rating100 / 20);
+  return '★'.repeat(n) + '☆'.repeat(Math.max(0, 5 - n));
+}
+
+async function setStashRating(path, stars) {
+  try {
+    const r = await fetch(`${API}/api/stash/rating?path=${encodeURIComponent(path)}`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ rating: stars }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { showToast(apiErrorText(d, 'Note non enregistrée'), 4000); return; }
+    _stashApplyScene(path, { rating: d.rating });
+    if (_tagModalPath === path) _renderStashStars(d.rating);
+    showToast(stars ? `Note : ${_stashStars(d.rating)}` : 'Note effacée');
+  } catch (err) {
+    showToast('Note non enregistrée : ' + err.message, 4000);
+  }
+}
+
+// The pad's rating sub-menu: the menu closes before an item runs, so this
+// reopens it with the five ratings, the current one under the cursor.
+function openStashRatingMenu(path) {
+  const e = _entryByPath(path);
+  const current = e && e.stashRating != null ? Math.round(e.stashRating / 20) : 0;
+  _gpMenuItems = [1, 2, 3, 4, 5].map(n => ({
+    section: n === 1 ? 'Note dans Stash' : undefined,
+    label: '★'.repeat(n) + '☆'.repeat(5 - n),
+    value: n === current ? '●' : '',
+    run: () => setStashRating(path, n),
+  }));
+  _gpMenuItems.push({ label: '✕ Effacer la note', run: () => setStashRating(path, null) });
+  _gpMenuIdx = Math.max(0, current - 1);
+  _gpMenuRender();
+  document.getElementById('gp-menu').classList.add('open');
+}
+
+function _stashRatingMenuItem(e) {
+  return { label: '★ Note', value: _stashStars(e.stashRating), run: () => openStashRatingMenu(e.path) };
 }
 
 function _stashMetaLine(sc) {
@@ -3910,7 +3991,19 @@ function _stashMetaLine(sc) {
 async function decorateStashEntries(path) {
   if (!stashInFolder(path)) return;
   const scenes = await _stashFolderScenes(path);
-  if (currentPath !== path) return;
+  if (currentPath !== path || !scenes) return;
+  // Stash's tags and rating go on the entries, where the tag badges, the filter
+  // bar and the menus read them. Redrawn once when they change; the redraw calls
+  // back here, finds nothing new, and goes on to the thumbnails.
+  let changed = false;
+  for (const e of entries) {
+    if (!_isStashVideo(e) || !e.path.startsWith(path + '/') || e.path.slice(path.length + 1).includes('/')) continue;
+    const sc = scenes[e.path];
+    const tags = sc ? (sc.tags || []) : [];
+    if (!e.stashTags || JSON.stringify(e.stashTags) !== JSON.stringify(tags)) { e.stashTags = tags; changed = true; }
+    e.stashRating = sc ? sc.rating : null;
+  }
+  if (changed) { renderFiles(entries); _renderTagFilterBar(); return; }
   for (const [rel, sc] of Object.entries(scenes)) {
     const el = document.querySelector(`.entry[data-path="${CSS.escape(rel)}"]`);
     if (!el || el.dataset.stash === sc.id) continue;
@@ -4666,16 +4759,22 @@ async function runSearch() {
 }
 
 // ── Tag management ────────────────────────────────────────────────────────────
+// Suggestions: Hoard's tags, or for a video of the Stash folder Stash's tags,
+// the most used first (the server sorts them).
 async function loadAllTags() {
   try {
-    const r = await fetch(`${API}/api/all-tags`);
-    if (r.ok) { const d = await r.json(); allKnownTags = d.tags; }
-  } catch (_) { /* ignore */ }
+    const r = await fetch(`${API}/api/${_tagModalStash ? 'stash/tags' : 'all-tags'}`);
+    allKnownTags = r.ok ? (await r.json()).tags : [];
+  } catch (_) { allKnownTags = []; }
 }
 
 async function openTagModal(filePath, fileName) {
   _tagModalPath = filePath;
+  _tagModalStash = _isStashVideo(_entryByPath(filePath));
   document.getElementById('tag-modal-filename').textContent = fileName;
+  document.getElementById('tag-modal-title').textContent = _tagModalStash ? '🏷 Tags dans Stash' : '🏷 Tags';
+  document.getElementById('tag-input-row').style.display = '';
+  document.getElementById('tag-modal-stash').style.display = 'none';
   await _refreshTagModal();
   await loadAllTags();
   _renderTagSuggestions();
@@ -4690,33 +4789,101 @@ function closeTagModal(e) {
   _tagModalPath = null;
 }
 
+function _renderTagList(tags) {
+  document.getElementById('tag-list').innerHTML = tags.length
+    ? tags.map(t => `<span class="tag-item">${esc(t)}<span class="tag-remove" onclick="removeTag(${jsStr(t)})">✕</span></span>`).join('')
+    : `<span style="color:var(--text-dim);font-size:1.2rem">Aucun tag</span>`;
+}
+
+function _renderStashStars(rating100) {
+  const box = document.getElementById('tag-modal-stash');
+  box.style.display = '';
+  const n = rating100 == null ? 0 : Math.round(rating100 / 20);
+  const path = _tagModalPath;
+  box.innerHTML = '<span style="color:var(--text-dim)">Note</span> '
+    + [1, 2, 3, 4, 5].map(i =>
+      `<button class="action-btn stash-star ${i <= n ? 'on' : ''}" onclick="setStashRating(${jsStr(path)}, ${i})" aria-label="${i} étoile${i > 1 ? 's' : ''}">${i <= n ? '★' : '☆'}</button>`
+    ).join('')
+    + (n ? `<button class="action-btn" onclick="setStashRating(${jsStr(path)}, null)" title="Effacer la note">✕</button>` : '');
+}
+
+// A video Stash cannot take tags for (not scanned yet, Stash down): say why, and
+// offer nothing to type -- Hoard's own tags are not a fallback there.
+function _tagModalStashError(message) {
+  document.getElementById('tag-list').innerHTML = `<span style="color:var(--text-dim);font-size:1.2rem">${esc(message)}</span>`;
+  document.getElementById('tag-input-row').style.display = 'none';
+  document.getElementById('tag-modal-stash').style.display = 'none';
+  document.getElementById('tag-suggestions').innerHTML = '';
+}
+
 async function _refreshTagModal() {
   if (!_tagModalPath) return;
+  if (_tagModalStash) {
+    const path = _tagModalPath;
+    let r, d;
+    try {
+      r = await fetch(`${API}/api/stash/scene-tags?path=${encodeURIComponent(path)}`);
+      d = await r.json().catch(() => ({}));
+    } catch (err) {
+      _tagModalStashError('Stash injoignable : ' + err.message);
+      return;
+    }
+    if (_tagModalPath !== path) return;
+    if (!r.ok) { _tagModalStashError(apiErrorText(d, 'Stash injoignable')); return; }
+    _renderTagList(d.tags);
+    _renderStashStars(d.rating);
+    _stashApplyScene(path, { tags: d.tags, rating: d.rating });
+    return;
+  }
   const r = await fetch(`${API}/api/tags?path=${encodeURIComponent(_tagModalPath)}`);
   if (!r.ok) return;
   const d = await r.json();
-  const list = document.getElementById('tag-list');
-  list.innerHTML = d.tags.length
-    ? d.tags.map(t => `<span class="tag-item">${esc(t)}<span class="tag-remove" onclick="removeTag(${jsStr(t)})">✕</span></span>`).join('')
-    : `<span style="color:var(--text-dim);font-size:1.2rem">Aucun tag</span>`;
+  _renderTagList(d.tags);
   // Also update the entry in memory
   const entry = entries.find(en => en.path === _tagModalPath);
   if (entry) { entry.tags = d.tags; renderFiles(entries); }
   _renderTagFilterBar();
 }
 
+// Case-insensitive both ways: Hoard's tags are lower-case, Stash's keep their case.
 function _renderTagSuggestions() {
   const input = document.getElementById('tag-input').value.trim().toLowerCase();
-  const existing = Array.from(document.querySelectorAll('#tag-list .tag-item')).map(s => s.childNodes[0].textContent);
-  const suggs = allKnownTags.filter(t => !existing.includes(t) && (!input || t.includes(input)));
+  const existing = new Set(Array.from(document.querySelectorAll('#tag-list .tag-item')).map(s => s.childNodes[0].textContent.toLowerCase()));
+  const suggs = allKnownTags.filter(t => !existing.has(t.toLowerCase()) && (!input || t.toLowerCase().includes(input)));
   document.getElementById('tag-suggestions').innerHTML = suggs.slice(0, 12)
     .map(t => `<span class="tag-sugg" onclick="applyTagSugg(${jsStr(t)})">${esc(t)}</span>`).join('');
 }
 
+// A write to Stash answers with the scene's tags: drawn from that, no re-read.
+async function _stashTagWrite(path, method, url, body) {
+  try {
+    const r = await fetch(url, body
+      ? { method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) }
+      : { method });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { showToast(apiErrorText(d, 'Stash a refusé'), 4000); return false; }
+    _stashApplyScene(path, { tags: d.tags });
+    if (_tagModalPath === path) _renderTagList(d.tags);
+    return true;
+  } catch (err) {
+    showToast('Stash injoignable : ' + err.message, 4000);
+    return false;
+  }
+}
+
 async function addTag() {
   const input = document.getElementById('tag-input');
-  const tag = input.value.trim().toLowerCase();
-  if (!tag || !_tagModalPath) return;
+  const raw = input.value.trim();
+  if (!raw || !_tagModalPath) return;
+  if (_tagModalStash) {
+    const path = _tagModalPath;
+    if (!await _stashTagWrite(path, 'POST', `${API}/api/stash/scene-tags?path=${encodeURIComponent(path)}`, { tag: raw })) return;
+    input.value = '';
+    await loadAllTags();
+    _renderTagSuggestions();
+    return;
+  }
+  const tag = raw.toLowerCase();
   const r = await fetch(`${API}/api/tags?path=${encodeURIComponent(_tagModalPath)}`, {
     method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({tag})
   });
@@ -4729,6 +4896,12 @@ async function addTag() {
 
 async function removeTag(tag) {
   if (!_tagModalPath) return;
+  if (_tagModalStash) {
+    const path = _tagModalPath;
+    await _stashTagWrite(path, 'DELETE', `${API}/api/stash/scene-tags?path=${encodeURIComponent(path)}&tag=${encodeURIComponent(tag)}`);
+    _renderTagSuggestions();
+    return;
+  }
   await fetch(`${API}/api/tags?path=${encodeURIComponent(_tagModalPath)}&tag=${encodeURIComponent(tag)}`, { method: 'DELETE' });
   await _refreshTagModal();
   await loadAllTags();
@@ -4742,7 +4915,7 @@ function applyTagSugg(tag) {
 
 // ── Tag filter bar ────────────────────────────────────────────────────────────
 function _renderTagFilterBar() {
-  const allTags = [...new Set(entries.flatMap(e => e.tags || []))].sort();
+  const allTags = _sortTags(entries.flatMap(entryTags));
   const bar = document.getElementById('tag-filter-bar');
   if (!bar) return;
   bar.innerHTML = allTags.map(t =>
@@ -4886,7 +5059,7 @@ function renderEntry(e, i) {
 
   const stateClass = (gal || (!e.is_dir && mt !== 'other')) ? getStateClass(e.progress) : (e.folder_state === 'seen' ? 'seen' : (e.folder_state === 'inprogress' ? 'inprogress' : ''));
   const pinBtn = e.is_dir ? `<button class="action-btn ${e.is_quick_folder ? 'pinned' : ''}" onclick="togglePin(${jsStr(e.path)}, ${e.is_quick_folder})" title="${e.is_quick_folder ? 'Retirer' : 'Accès rapide'}">📌</button>` : '';
-  const tagsHtml = (e.tags && e.tags.length) ? e.tags.map(t => `<span class="tag-badge">${esc(t)}</span>`).join('') : '';
+  const tagsHtml = entryTags(e).map(t => `<span class="tag-badge">${esc(t)}</span>`).join('');
   // 🥽 marks what the server could tell from the name, or what was chosen on this
   // file before. The ratio clue needs the video's own dimensions, so a file the
   // name says nothing about only reveals itself once opened.
@@ -4929,7 +5102,7 @@ function renderEntry(e, i) {
 
 function renderFiles(list) {
   const el = document.getElementById('filelist');
-  const filtered = activeTagFilter ? list.filter(e => e.tags && e.tags.includes(activeTagFilter)) : list;
+  const filtered = activeTagFilter ? list.filter(e => entryTags(e).includes(activeTagFilter)) : list;
   if (!filtered.length) {
     el.innerHTML = `<div style="color:var(--text-dim);font-size:1.3rem;padding:2rem;text-align:center">${activeTagFilter ? 'Aucun fichier avec ce tag' : 'Dossier vide'}</div>`;
     _gpRenderedList = []; _gpCursorIdx = -1; _gpPendingRestoreIdx = -1;
@@ -9009,6 +9182,7 @@ function _gpMenuBuildPlayer() {
 
   items.push({ section: 'Fichier', label: '✏ Renommer', run: () => openRenameModal(currentFile.path, currentFile.name) });
   items.push({ label: '🏷 Tags', run: () => openTagModal(currentFile.path, currentFile.name) });
+  if (_isStashVideo(currentFile)) items.push(_stashRatingMenuItem(currentFile));
   items.push({ label: '↗ Déplacer', run: () => openMoveModal(currentFile.path, currentFile.name) });
   items.push({ label: '🗑 Supprimer', run: () => confirmDelete(currentFile.path, currentFile.name) });
   items.push({ label: '✕ Fermer le lecteur', run: () => privacyClose() });
@@ -9055,6 +9229,7 @@ function _gpMenuBuild() {
     }
     items.push({ label: '✏ Renommer', run: () => openRenameModal(entry.path, entry.name) });
     items.push({ label: '🏷 Tags', run: () => openTagModal(entry.path, entry.name) });
+    if (_isStashVideo(entry)) items.push(_stashRatingMenuItem(entry));
     if (entry.is_dir) {
       items.push({
         label: entry.is_quick_folder ? '📌 Retirer des accès rapides' : '📌 Accès rapide',
@@ -9081,7 +9256,7 @@ function _gpMenuBuild() {
 
   // Tag filtering has no modal of its own: the tags present in this folder are listed
   // directly, so no sub-menu is needed to reach them.
-  const tags = [...new Set(entries.flatMap(e => e.tags || []))].sort();
+  const tags = _sortTags(entries.flatMap(entryTags));
   if (tags.length) {
     tags.forEach((t, i) => items.push({
       section: i === 0 ? 'Filtrer par tag' : undefined,

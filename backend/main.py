@@ -6785,9 +6785,9 @@ def stash_tags():
 
 @app.get("/api/stash/scene-tags")
 def stash_scene_tags(path: str):
-    """The Stash tags of one video of the Stash folder."""
+    """The Stash tags and rating (rating100) of one video of the Stash folder."""
     _, _, scene = _stash_edit_target(path)
-    return {"tags": [t["name"] for t in _scene_tags(scene)]}
+    return {"tags": [t["name"] for t in _scene_tags(scene)], "rating": scene.get("rating100")}
 
 
 @app.post("/api/stash/scene-tags")

@@ -1024,8 +1024,11 @@ class TestTagsAndRating:
     def test_reads_the_scene_tags(self, stash):
         rel = _video("[[_keep/a.mp4")
         outdoor = stash.add_tag("Outdoor")
-        stash.add_scene(rel, tags=[dict(outdoor)])
-        assert client.get(f"/api/stash/scene-tags?path={rel}").json() == {"tags": ["Outdoor"]}
+        stash.add_scene(rel, tags=[dict(outdoor)], rating100=60)
+        assert client.get(f"/api/stash/scene-tags?path={rel}").json() == {
+            "tags": ["Outdoor"],
+            "rating": 60,
+        }
 
     def test_suggestions_most_used_first_case_kept(self, stash):
         rare, common = stash.add_tag("Rare"), stash.add_tag("POV")
