@@ -24,6 +24,7 @@ import urllib.request
 import uuid
 import weakref
 import zipfile
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import quote, unquote, urlparse
@@ -521,6 +522,9 @@ async def require_basic_auth(request: Request, call_next):
     # it opens this one route, for the one path it was signed for.
     if request.url.path == FPX_FILE_PATH and _check_fpx_file_signature(request.query_params):
         return await call_next(request)
+    # Same for Stash's media (thumbnails, preview, funscript) handed to the headset.
+    if _check_stash_media_signature(request.url.path, request.query_params):
+        return await call_next(request)
 
     # Cookie first: it spares a base64 decode on every request, and it is what the
     # browser sends on the overwhelming majority of them.
@@ -894,6 +898,9 @@ class ProgressUpdate(BaseModel):
     duration: float
     cut_in: float | None = None
     cut_out: float | None = None
+    # Sent on pause and close: the position is final for now, so it is copied to
+    # Stash at once rather than at the next 30 s window (FEAT-STASH).
+    final: bool = False
 
 
 class WatchedUpdate(BaseModel):
@@ -1101,6 +1108,7 @@ def _run_cut(
             return
         # Move source to destination
         dest_source = dest_dir / source.name
+        moved_source = None
         if dest_source.exists() and dest_source.resolve() != source.resolve():
             # Never clobber a same-named file as a side effect of an export: report it
             # and leave the source where it is.
@@ -1114,8 +1122,10 @@ def _run_cut(
                     _purge_paths(conn, new_rel)  # orphaned rows would break the unique path
                     _migrate_renamed_paths(conn, old_rel, new_rel)
                     conn.commit()
+                moved_source = (old_rel, dest_source)
             except Exception as e:
                 job["move_error"] = str(e)
+        _stash_after_export([output], moved_source)
         job["status"] = "done"
         job["progress"] = 100
     except FileNotFoundError:
@@ -1136,11 +1146,13 @@ def _run_export_segments(
 ) -> None:
     job = _jobs[job_id]
     job["status"] = "running"
+    outputs: list[Path] = []
     try:
         if mode == "individual":
             for i, seg in enumerate(segments, start=1):
                 out_name = f"{source.stem} [seg{i}]{source.suffix}"
                 output = dest_dir / out_name
+                outputs.append(output)
                 duration = seg["seg_out"] - seg["seg_in"]
                 cmd = [
                     FFMPEG_BIN,
@@ -1180,6 +1192,7 @@ def _run_export_segments(
             n = len(segments)
             out_name = f"{source.stem} [{n} segment{'s' if n > 1 else ''}]{source.suffix}"
             output = dest_dir / out_name
+            outputs.append(output)
             total_duration = sum(s["seg_out"] - s["seg_in"] for s in segments)
             # The concat list is read line by line, so a line break in the path would
             # end the `file` directive and start one of the file name's own choosing.
@@ -1238,6 +1251,7 @@ def _run_export_segments(
 
         # Post-export: move original to dest_dir (unless keep_original or same dir)
         rel_path = to_rel(source)
+        moved_source = None
         if not keep_original and dest_dir.resolve() != source.parent.resolve():
             dest_source = dest_dir / source.name
             if dest_source.exists():
@@ -1251,6 +1265,7 @@ def _run_export_segments(
                         _purge_paths(conn, new_rel)  # orphaned rows would break the unique path
                         _migrate_renamed_paths(conn, rel_path, new_rel)
                         conn.commit()
+                    moved_source = (rel_path, dest_source)
                     rel_path = new_rel
                 except Exception as e:
                     job["move_error"] = str(e)
@@ -1259,6 +1274,7 @@ def _run_export_segments(
         with get_db() as conn:
             conn.execute("DELETE FROM segments WHERE path = ?", (rel_path,))
             conn.commit()
+        _stash_after_export(outputs, moved_source)
 
         job["status"] = "done"
         job["progress"] = 100
@@ -1290,11 +1306,21 @@ def _move_with_retry(source: Path, final_dest: Path, attempts: int = 5, delay: f
             time.sleep(delay)
 
 
-def _run_move(job_id: str, source: Path, destination: Path, overwrite: bool = False) -> None:
+def _run_move(
+    job_id: str,
+    source: Path,
+    destination: Path,
+    overwrite: bool = False,
+    stash_plan: str = "none",
+    old_videos: list[str] | None = None,
+) -> None:
     job = _jobs[job_id]
     job["status"] = "running"
     try:
         final_dest = move_target(source, destination)
+        if stash_plan == "within" and source.is_file() and is_video(source):
+            if _run_stash_move(job, source, final_dest):
+                return
         # Replacing is only ever a file-for-file swap: moving a folder onto an existing
         # one would nest it inside instead of replacing it, which is not what "overwrite"
         # means to the user.
@@ -1351,6 +1377,9 @@ def _run_move(job_id: str, source: Path, destination: Path, overwrite: bool = Fa
                     replaced.unlink(missing_ok=True)
                 except OSError:
                     logger.warning("could not remove the replaced copy %s", replaced)
+        # Stash hears about it afterwards, in the background: the move is done and
+        # David's gesture does not wait for Stash (FEAT-STASH).
+        _stash_after_move(stash_plan, old_rel, final_dest, old_videos or [])
         job["status"] = "done"
         job["progress"] = 100
     except Exception as e:
@@ -1359,6 +1388,33 @@ def _run_move(job_id: str, source: Path, destination: Path, overwrite: bool = Fa
         logger.exception("move job failed: %s", job_id)
         job["status"] = "error"
         job["error"] = str(e)
+
+
+def _run_stash_move(job: dict, source: Path, final_dest: Path) -> bool:
+    """Move a video within the Stash folder through Stash (BL-150), then carry its
+    metadata rows. Returns False when Stash does not know the file yet: the caller
+    then moves it on disk like any other, and it is declared afterwards."""
+    cfg = _stash_config()
+    if cfg is None:
+        return False
+    old_rel = to_rel(source)
+    try:
+        if not _stash_move_file(cfg, source, final_dest):
+            return False
+    except StashError as exc:
+        _stash_warn(cfg, f"moving {old_rel}", exc)
+        job["status"] = "error"
+        job["error"] = f"Stash : {exc}"
+        return True
+    new_rel = to_rel(final_dest)
+    with get_db() as conn:
+        _purge_paths(conn, new_rel)
+        _migrate_renamed_paths(conn, old_rel, new_rel)
+        conn.commit()
+    logger.info("stash: %s moved to %s through Stash", old_rel, new_rel)
+    job["status"] = "done"
+    job["progress"] = 100
+    return True
 
 
 # ── Download helpers ──────────────────────────────────────────────────────────
@@ -2592,11 +2648,35 @@ def read_progress(path: str):
     return get_progress(file)
 
 
+def _progress_seen(conn, rel: str, threshold: float) -> bool:
+    row = conn.execute(
+        "SELECT position, duration, watched FROM progress WHERE path = ?", (rel,)
+    ).fetchone()
+    return row is not None and _watch_percent(row) >= threshold
+
+
+def _record_progress(rel: str, write, *, final: bool = False) -> None:
+    """The one place playback progress is written: the web player, the list's
+    "mark watched", HereSphere events and the FramePlayerX follow-up all go
+    through here. `write(conn)` does the SQL; this commits it, then tells Stash
+    (FEAT-STASH) -- after the commit, so Stash's background copy reads the new
+    row, and outside the transaction, so Stash can never fail the write.
+    """
+    with get_db() as conn:
+        threshold = _heresphere_threshold(conn)
+        was_seen = _progress_seen(conn, rel, threshold)
+        write(conn)
+        conn.commit()
+        seen = _progress_seen(conn, rel, threshold)
+    _stash_progress_written(rel, became_seen=seen and not was_seen, final=final)
+
+
 @app.post("/api/progress")
 def save_progress(path: str, body: ProgressUpdate):
     file = safe_path(path)
     rel = to_rel(file)
-    with get_db() as conn:
+
+    def write(conn):
         conn.execute(
             """
             INSERT INTO progress (path, position, duration, cut_in, cut_out, updated_at)
@@ -2611,7 +2691,8 @@ def save_progress(path: str, body: ProgressUpdate):
         """,
             (rel, body.position, body.duration, body.cut_in, body.cut_out),
         )
-        conn.commit()
+
+    _record_progress(rel, write, final=body.final)
     return {"ok": True}
 
 
@@ -2628,7 +2709,8 @@ def set_watched(path: str, body: WatchedUpdate):
     if not file.exists():
         raise HTTPException(status_code=404)
     rel = to_rel(file)
-    with get_db() as conn:
+
+    def write(conn):
         conn.execute(
             """
             INSERT INTO progress (path, position, duration, watched, updated_at)
@@ -2640,7 +2722,8 @@ def set_watched(path: str, body: WatchedUpdate):
         """,
             (rel, 1 if body.watched else 0),
         )
-        conn.commit()
+
+    _record_progress(rel, write, final=True)
     return get_progress(file)
 
 
@@ -2716,6 +2799,12 @@ def delete_file(path: str, request: Request):
     if not target.exists():
         raise HTTPException(status_code=404)
     rel = to_rel(target)
+    # FEAT-STASH: in the Stash folder, videos are deleted through Stash so it drops
+    # their scenes and generated media too; refused if Stash cannot be reached.
+    stash_cfg = _stash_config()
+    if _stash_plan(stash_cfg, rel, None) == "within":
+        _stash_require(stash_cfg)
+        _stash_delete_videos(stash_cfg, _videos_under(target))
     # DB-first atomicity: stage the metadata deletion, perform the filesystem
     # delete, and only commit if it succeeds. If the FS op fails, roll back so
     # we never leave stale progress/segments rows for a file that still exists.
@@ -2724,7 +2813,7 @@ def delete_file(path: str, request: Request):
         try:
             if target.is_dir():
                 shutil.rmtree(target)
-            else:
+            elif target.exists():  # Stash may already have deleted it
                 target.unlink()
         except PermissionError:
             conn.rollback()
@@ -2760,11 +2849,30 @@ def move_file(path: str, body: MoveRequest, request: Request):
                 "overwritable": source.is_file() and final_dest.is_file(),
             },
         )
+    # FEAT-STASH: what the move means to the Stash folder, decided now so a refusal
+    # (Stash unreachable, the folder itself) reaches David before anything moves.
+    stash_cfg = _stash_config()
+    plan = _stash_plan(stash_cfg, to_rel(source), to_rel(final_dest))
+    old_videos: list[str] = []
+    if plan in ("leave", "within"):
+        if plan == "within" and body.overwrite and final_dest.exists():
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "stash_folder",
+                    "message": (
+                        "Remplacer un fichier dans le dossier de Stash : supprimez-le d'abord"
+                    ),
+                },
+            )
+        _stash_require(stash_cfg)
+        old_videos = _videos_under(source)
     logger.info(
-        "file move requested: src=%s dest=%s overwrite=%s ip=%s",
+        "file move requested: src=%s dest=%s overwrite=%s stash=%s ip=%s",
         to_rel(source),
         body.destination,
         body.overwrite,
+        plan,
         _client_ip(request),
     )
     job_id = str(uuid.uuid4())
@@ -2778,7 +2886,7 @@ def move_file(path: str, body: MoveRequest, request: Request):
     }
     threading.Thread(
         target=_run_move,
-        args=(job_id, source, destination, body.overwrite),
+        args=(job_id, source, destination, body.overwrite, plan, old_videos),
         daemon=True,
     ).start()
     return {"job_id": job_id}
@@ -2855,6 +2963,32 @@ def rename_path(path: str, body: RenameRequest, request: Request):
         raise HTTPException(status_code=409, detail="A file with that name already exists")
     old_rel = to_rel(source)
     new_rel = to_rel(dest)
+    # FEAT-STASH: a video renamed inside the Stash folder is renamed by Stash, so
+    # its scene follows; anything else is renamed on disk and Stash told after.
+    stash_cfg = _stash_config()
+    plan = _stash_plan(stash_cfg, old_rel, new_rel)
+    old_videos: list[str] = []
+    if plan in ("leave", "within"):
+        _stash_require(stash_cfg)
+        old_videos = _videos_under(source)
+    if plan == "within" and source.is_file() and is_video(source):
+        try:
+            moved = _stash_move_file(stash_cfg, source, dest)
+        except StashError as exc:
+            _stash_warn(stash_cfg, f"renaming {old_rel}", exc)
+            raise HTTPException(
+                status_code=502,
+                detail={"code": "stash_refused", "message": f"Stash a refusé : {exc}"},
+            ) from None
+        if moved:
+            with get_db() as conn:
+                _purge_paths(conn, new_rel)
+                _migrate_renamed_paths(conn, old_rel, new_rel)
+                conn.commit()
+            logger.info(
+                "renamed through Stash: %s -> %s ip=%s", old_rel, new_rel, _client_ip(request)
+            )
+            return {"ok": True, "path": new_rel}
     # DB-first atomicity (BL-034 pattern): migrate metadata, then rename on disk,
     # rolling back the DB if the filesystem op fails.
     with get_db() as conn:
@@ -2869,6 +3003,7 @@ def rename_path(path: str, body: RenameRequest, request: Request):
             conn.rollback()
             raise HTTPException(status_code=500, detail="Rename failed") from e
         conn.commit()
+    _stash_after_move(plan, old_rel, dest, old_videos)
     logger.info("renamed: %s -> %s ip=%s", old_rel, new_rel, _client_ip(request))
     return {"ok": True, "path": new_rel}
 
@@ -2977,6 +3112,8 @@ def cut_video(path: str, body: CutRequest):
         raise HTTPException(status_code=404, detail="Destination folder not found")
     out_name = f"{source.stem} [cut {_fmt_hms(body.start)}-{_fmt_hms(body.end)}]{source.suffix}"
     output = dest_dir / out_name
+    # The original follows the cut into dest_dir: leaving the Stash folder needs Stash.
+    _stash_check_source_move(source, dest_dir)
     job_id = str(uuid.uuid4())
     _jobs[job_id] = {
         "id": job_id,
@@ -3051,6 +3188,8 @@ def export_segments(path: str, body: ExportSegmentsRequest):
     segments = [{"seg_in": r["seg_in"], "seg_out": r["seg_out"]} for r in rows]
     if not segments:
         raise HTTPException(status_code=400, detail="No segments defined for this file")
+    if not body.keep_original:
+        _stash_check_source_move(source, dest_dir)
     n = len(segments)
     label = f"{n} segment{'s' if n > 1 else ''}" if body.mode == "merged" else f"seg1…{n}"
     job_id = str(uuid.uuid4())
@@ -3705,6 +3844,11 @@ _SETTINGS_KEYS = {
     "gestures_overlay_seen",  # '1' | '0', one-shot touch-gesture discovery overlay flag
     "fpx_host",  # FramePlayerX headset host name or IP, '' = handoff off (BL-144)
     "fpx_steam_gameid",  # 64-bit Steam shortcut id for steam://rungameid/, '' = none
+    "stash_url",  # Stash base URL, '' = Stash integration off (FEAT-STASH)
+    "stash_api_key",  # Stash API key, write-only: never returned (SECRET_SETTINGS)
+    "stash_folder",  # folder Stash manages, relative to MEDIA_ROOT, default '[[_keep'
+    "stash_path_prefix",  # that same folder as Stash sees it (path in Stash's container)
+    "stash_identify",  # '1' | '0', identify videos on arrival in Stash, default '0'
 }
 
 _SETTINGS_DEFAULTS: dict[str, str] = {
@@ -3757,6 +3901,11 @@ _SETTINGS_DEFAULTS: dict[str, str] = {
     "vr_sbs_layout": "auto",
     "fpx_host": "",
     "fpx_steam_gameid": "",
+    "stash_url": "",
+    "stash_api_key": "",
+    "stash_folder": "[[_keep",  # STASH_DEFAULT_FOLDER, defined with the Stash code
+    "stash_path_prefix": "",
+    "stash_identify": "0",
 }
 
 
@@ -3817,6 +3966,12 @@ class SettingsPayload(BaseModel):
     vr_sbs_layout: str | None = None
     fpx_host: str | None = Field(default=None, max_length=253)
     fpx_steam_gameid: str | None = Field(default=None, max_length=20)
+    stash_url: str | None = Field(default=None, max_length=2048)
+    # Write-only: None leaves the stored key alone, "" clears it.
+    stash_api_key: str | None = Field(default=None, max_length=512)
+    stash_folder: str | None = Field(default=None, max_length=1024)
+    stash_path_prefix: str | None = Field(default=None, max_length=2048)
+    stash_identify: bool | None = None
 
 
 # Settings rows that must never leave the server. `settings` is a generic key/value
@@ -3824,7 +3979,7 @@ class SettingsPayload(BaseModel):
 # ship to the frontend by default. Listing them here makes the exclusion a decision
 # rather than an oversight — the download token is NOT among them, it is meant to be
 # displayed so the bookmarklet can embed it.
-SECRET_SETTINGS = frozenset({"pin_hash", SESSION_SECRET_SETTING})
+SECRET_SETTINGS = frozenset({"pin_hash", SESSION_SECRET_SETTING, "stash_api_key"})
 
 
 @app.get("/api/settings")
@@ -3835,6 +3990,8 @@ def get_settings():
         s = _read_all_settings(conn)
     result = {k: v for k, v in s.items() if k not in SECRET_SETTINGS}
     result["pin_set"] = bool(s.get("pin_hash"))
+    # The Stash key is write-only: the page only learns whether one is stored.
+    result["stash_api_key_set"] = bool(s.get("stash_api_key"))
     result["media_root"] = str(MEDIA_ROOT).replace("\\", "/")
     result["app_version"] = VERSION
     # Lets the UI word the restart confirmation correctly before calling /api/restart
@@ -4016,7 +4173,34 @@ def update_settings(body: SettingsPayload, request: Request):
                 raise HTTPException(status_code=422, detail="fpx_steam_gameid must be digits")
             _write_setting(conn, "fpx_steam_gameid", gameid)
 
+        stash_changed = False
+        if body.stash_url is not None:
+            new_url = _validate_stash_url(body.stash_url)
+            old_url = (_read_all_settings(conn).get("stash_url") or "").strip().rstrip("/")
+            # The key goes to stash_url and nowhere else: a new address without a
+            # key typed with it would carry the stored key to it. Clear it instead.
+            if new_url != old_url and body.stash_api_key is None:
+                _write_setting(conn, "stash_api_key", "")
+            _write_setting(conn, "stash_url", new_url)
+            stash_changed = True
+        if body.stash_api_key is not None:
+            _write_setting(conn, "stash_api_key", body.stash_api_key.strip())
+            stash_changed = True
+        if body.stash_folder is not None:
+            folder = _stash_norm_folder(body.stash_folder)
+            if any(part in ("", ".", "..") for part in folder.split("/")):
+                raise HTTPException(status_code=422, detail="stash_folder must be a relative path")
+            _write_setting(conn, "stash_folder", folder)
+            stash_changed = True
+        if body.stash_path_prefix is not None:
+            _write_setting(conn, "stash_path_prefix", body.stash_path_prefix.strip())
+            stash_changed = True
+        if body.stash_identify is not None:
+            _write_setting(conn, "stash_identify", "1" if body.stash_identify else "0")
+
         conn.commit()
+    if stash_changed:
+        _stash_invalidate()
 
     logger.info("settings updated: ip=%s", _client_ip(request))
     # Saved anyway, but worth telling the user: a setting the server will not be
@@ -4889,6 +5073,11 @@ def heresphere_scan(body: HereSphereRequest | None = None):
             entry["dateAdded"] = int(p.stat().st_mtime)
         except OSError:
             pass
+        # FEAT-STASH: Stash's tags and rating for the videos it describes.
+        extras = _stash_heresphere_extras(rel)
+        for key in ("tags", "rating"):
+            if key in extras:
+                entry[key] = extras[key]
         scan.append(entry)
     return {"scanData": scan}
 
@@ -4945,6 +5134,8 @@ def heresphere_scene(scene_id: str, body: HereSphereRequest | None = None):
         scene["duration"] = duration * 1000.0
     if added:
         scene["dateAdded"] = added
+    # FEAT-STASH: thumbnails, tags, markers, rating and funscript from Stash.
+    scene.update(_stash_heresphere_extras(rel))
     return scene
 
 
@@ -4980,23 +5171,28 @@ def heresphere_event(body: HereSphereEvent):
         return {"ok": True}
     rel = to_rel(file)
     position = max(0.0, body.time / 1000.0)
-    with get_db() as conn:
+
+    def write(conn):
         row = conn.execute("SELECT duration FROM progress WHERE path = ?", (rel,)).fetchone()
         duration = row["duration"] if row and row["duration"] else None
         if not duration:
             duration = _heresphere_probe(file).get("duration") or 0.0
-        if duration:
-            position = min(position, duration)
-        _store_position(conn, rel, position, duration)
-        conn.commit()
+        _store_position(conn, rel, min(position, duration) if duration else position, duration)
+
+    _record_progress(
+        rel,
+        write,
+        final=body.event in (HERESPHERE_EVENT_PAUSE, HERESPHERE_EVENT_CLOSE),
+    )
     return {"ok": True}
 
 
 def _store_position(conn, rel: str, position: float, duration: float) -> None:
     """Write a position reported by an external player into `progress`.
 
-    Shared by HereSphere events and the FramePlayerX handoff. The "watched" rule is
-    the web player's: past `watched_threshold` percent of the duration.
+    Shared by HereSphere events and the FramePlayerX handoff, both through
+    _record_progress. The "watched" rule is the web player's: past
+    `watched_threshold` percent of the duration.
     """
     threshold = _heresphere_threshold(conn)
     watched = 1 if duration and position / duration * 100 >= threshold else 0
@@ -5318,16 +5514,21 @@ class _FpxSession:
     def stop(self, reason: str) -> None:
         self._finish(reason)
 
-    def _save(self) -> None:
-        """Write the last reported position. Caller holds self.lock."""
+    def _save(self, final: bool = False) -> None:
+        """Write the last reported position. Caller holds self.lock.
+
+        `final` on pause and at the end: Stash gets the position at once."""
         self._last_save = time.monotonic()
         if not self.opened or self.duration <= 0:
             return
         position = min(max(0.0, self.position), self.duration)
+        duration = self.duration
         try:
-            with get_db() as conn:
-                _store_position(conn, self.rel, position, self.duration)
-                conn.commit()
+            _record_progress(
+                self.rel,
+                lambda conn: _store_position(conn, self.rel, position, duration),
+                final=final,
+            )
         except sqlite3.Error:
             logger.exception("fpx: could not save the position of %s", self.rel)
 
@@ -5335,7 +5536,7 @@ class _FpxSession:
         with self.lock:
             if self.state == "ended":
                 return
-            self._save()
+            self._save(final=True)
             self.state = "ended"
             self.reason = reason
         logger.info("fpx: session %s for %s ended (%s)", self.id, self.rel, reason)
@@ -5374,10 +5575,9 @@ class _FpxSession:
                     if self.position < self.resume - FPX_RESEEK_TOLERANCE:
                         reseek = self.resume
                         self.position = self.resume
-                if (was_playing and self.state == "paused") or (
-                    time.monotonic() - self._last_save >= FPX_SAVE_INTERVAL
-                ):
-                    self._save()
+                paused_now = was_playing and self.state == "paused"
+                if paused_now or time.monotonic() - self._last_save >= FPX_SAVE_INTERVAL:
+                    self._save(final=paused_now)
         if end_reason:
             self._finish(end_reason)
         elif reseek is not None:
@@ -5534,6 +5734,982 @@ def fpx_stop():
         return {"active": False, "id": None, "state": None}
     session.stop("stopped")
     return session.snapshot()
+
+
+# ── Stash (FEAT-STASH, BL-147 to BL-150) ─────────────────────────────────────
+# Hoard sorts and plays; Stash keeps and describes. David sorts his downloads
+# with the quick folders, and everything Hoard puts into the Stash folder
+# (`[[_keep` by default) is declared to Stash, which describes it; Hoard shows
+# what Stash knows about those videos and copies its playback progress there.
+#
+# Stash is spoken to through its GraphQL API (`/graphql`), the key in the
+# `ApiKey` header. The browser never talks to Stash: the backend makes every
+# request and serves Stash's generated media through a proxy, so the key never
+# leaves the server.
+#
+# Paths: Stash and Hoard run in different containers and see the same folder
+# under different names. `stash_folder` is the folder relative to MEDIA_ROOT,
+# `stash_path_prefix` the same folder as Stash sees it; a path is translated by
+# swapping one prefix for the other.
+#
+# The folder name starts with `[[`. `[` opens a character class in a regular
+# expression, so every path sent to Stash as a regex is escaped
+# (_stash_regex_escape), and every scene Stash returns is checked against the
+# exact path before it is believed.
+STASH_TIMEOUT = 5.0
+STASH_MEDIA_TIMEOUT = 15.0
+STASH_SCAN_TIMEOUT = 600.0
+STASH_JOB_POLL = 1.0
+STASH_SYNC_INTERVAL = 30.0
+STASH_FOLDER_CACHE_TTL = 180.0
+# After a failed read, list and HereSphere decorations skip Stash for this long:
+# a Stash that is down must not cost every folder opening a timeout.
+STASH_DOWN_BACKOFF = 30.0
+STASH_MAX_RESPONSE = 32 * 1024 * 1024
+STASH_DEFAULT_FOLDER = "[[_keep"
+STASH_MEDIA_PREFIX = "/api/stash/scene/"
+STASH_MEDIA_KINDS = frozenset(
+    {"screenshot", "preview", "webp", "vtt/thumbs", "vtt/sprite", "vtt/chapter", "funscript"}
+)
+_STASH_SCENE_ID_RE = re.compile(r"^[0-9]{1,18}$")
+# Mirrors HereSphere's own prefixes, so the headset groups them in its tag list.
+_STASH_MARKER_SPAN = 20.0  # seconds a marker lasts when the next one does not end it
+
+_STASH_SCENE_FIELDS = """
+  id title rating100 interactive play_count o_counter resume_time
+  files { id path duration }
+  studio { name }
+  performers { name }
+  tags { name }
+  scene_markers { id title seconds primary_tag { name } }
+"""
+
+
+class StashError(Exception):
+    """Stash could not answer: unreachable, refused, or not a GraphQL answer."""
+
+
+class _StashNoRedirect(urllib.request.HTTPRedirectHandler):
+    """Refuse redirects: urllib would carry the ApiKey header to wherever the
+    redirect points, and the key goes to `stash_url` and nowhere else."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise StashError(f"redirected to {newurl}; refused, the API key only goes to stash_url")
+
+
+_stash_opener = urllib.request.build_opener(_StashNoRedirect)
+
+
+def _stash_norm_folder(value: str | None) -> str:
+    folder = (value or "").strip().replace("\\", "/").strip("/")
+    return folder or STASH_DEFAULT_FOLDER
+
+
+def _stash_config() -> dict | None:
+    """Stash settings, or None while `stash_url` is empty (the feature is off)."""
+    with get_db() as conn:
+        s = _read_all_settings(conn)
+    url = (s.get("stash_url") or "").strip().rstrip("/")
+    if not url:
+        return None
+    prefix = (s.get("stash_path_prefix") or "").strip()
+    if len(prefix) > 1:
+        prefix = prefix.rstrip("/\\")
+    return {
+        "url": url,
+        "key": s.get("stash_api_key") or "",
+        "folder": _stash_norm_folder(s.get("stash_folder")),
+        "prefix": prefix,
+        "identify": s.get("stash_identify") == "1",
+    }
+
+
+def _stash_in_folder(rel: str, folder: str) -> bool:
+    return rel == folder or rel.startswith(folder + "/")
+
+
+def _stash_contains_folder(rel: str, folder: str) -> bool:
+    """Whether `rel` is the Stash folder itself or one of its ancestors."""
+    rel = "" if rel in ("", ".") else rel
+    return rel == "" or folder == rel or folder.startswith(rel + "/")
+
+
+def _stash_sep(cfg: dict) -> str:
+    """Stash's path separator, read off the prefix: a Stash on Windows writes `\\`."""
+    prefix = cfg["prefix"]
+    return "\\" if "\\" in prefix and "/" not in prefix else "/"
+
+
+def _stash_path_for(rel: str, cfg: dict) -> str | None:
+    """Hoard relative path -> the same file as Stash sees it, or None."""
+    if not cfg["prefix"] or not _stash_in_folder(rel, cfg["folder"]):
+        return None
+    tail = rel[len(cfg["folder"]) :]
+    return cfg["prefix"] + tail.replace("/", _stash_sep(cfg))
+
+
+def _hoard_rel_for(stash_path: str, cfg: dict) -> str | None:
+    """A path as Stash reports it -> Hoard relative path, or None outside the folder."""
+    prefix = cfg["prefix"]
+    if not prefix:
+        return None
+    sep = _stash_sep(cfg)
+    if stash_path == prefix:
+        return cfg["folder"]
+    if not stash_path.startswith(prefix + sep):
+        return None
+    return cfg["folder"] + stash_path[len(prefix) :].replace(sep, "/")
+
+
+def _stash_regex_escape(text: str) -> str:
+    """Escape every ASCII punctuation character, `[` above all.
+
+    Stash matches path filters with Go's RE2, where a backslash before any
+    non-alphanumeric ASCII character means that character literally — so this
+    is safe for every character a path may hold, and the folder `[[_keep` stops
+    being a character class.
+    """
+    return "".join("\\" + c if c.isascii() and not c.isalnum() else c for c in text)
+
+
+def _stash_warn(cfg: dict | None, what: str, exc: BaseException) -> None:
+    url = cfg["url"] if cfg else "?"
+    logger.warning("stash: %s failed (%s): %s", what, url, exc)
+
+
+def _stash_request(cfg: dict, url: str, *, data: bytes | None = None, headers=None, timeout):
+    req = urllib.request.Request(url, data=data, method="POST" if data is not None else "GET")
+    for name, value in (headers or {}).items():
+        req.add_header(name, value)
+    if cfg["key"]:
+        req.add_header("ApiKey", cfg["key"])
+    return _stash_opener.open(req, timeout=timeout)
+
+
+def _stash_gql(cfg: dict, query: str, variables: dict | None = None, timeout=STASH_TIMEOUT):
+    """Run one GraphQL request against Stash; return its `data`, or raise StashError."""
+    body = json.dumps({"query": query, "variables": variables or {}}).encode("utf-8")
+    try:
+        with _stash_request(
+            cfg,
+            cfg["url"] + "/graphql",
+            data=body,
+            headers={"Content-Type": "application/json", "Accept": "application/json"},
+            timeout=timeout,
+        ) as resp:
+            raw = resp.read(STASH_MAX_RESPONSE)
+    except StashError:
+        raise
+    except urllib.error.HTTPError as exc:
+        if exc.code in (401, 403):
+            raise StashError(f"HTTP {exc.code}: Stash refused the API key") from None
+        raise StashError(f"HTTP {exc.code} from {cfg['url']}/graphql") from None
+    except (urllib.error.URLError, OSError, ValueError) as exc:
+        reason = getattr(exc, "reason", None) or exc
+        raise StashError(f"unreachable: {reason}") from None
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        raise StashError("the answer is not GraphQL (not JSON): is stash_url right?") from None
+    if not isinstance(data, dict) or ("data" not in data and "errors" not in data):
+        raise StashError("the answer is not GraphQL: is stash_url right?")
+    if data.get("errors"):
+        messages = "; ".join(
+            str(e.get("message", e)) if isinstance(e, dict) else str(e) for e in data["errors"]
+        )
+        raise StashError(f"GraphQL error: {messages}")
+    return data.get("data") or {}
+
+
+def _stash_version(cfg: dict) -> str:
+    data = _stash_gql(cfg, "query { version { version } }")
+    return ((data.get("version") or {}).get("version")) or "?"
+
+
+def _stash_require(cfg: dict) -> None:
+    """Refuse a file operation in the Stash folder unless Stash can take part.
+
+    Moving or deleting there goes through Stash so it keeps its metadata; if
+    Stash cannot be reached, nothing moves rather than half of it.
+    """
+    if not cfg["prefix"]:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "code": "stash_unavailable",
+                "message": "Stash : le chemin du dossier vu par Stash n'est pas réglé",
+            },
+        )
+    try:
+        _stash_version(cfg)
+    except StashError as exc:
+        _stash_warn(cfg, "check before a file operation", exc)
+        raise HTTPException(
+            status_code=503,
+            detail={"code": "stash_unavailable", "message": f"Stash injoignable : {exc}"},
+        ) from None
+
+
+# ── Reads ────────────────────────────────────────────────────────────────────
+_stash_lock = threading.Lock()
+_stash_down_until = 0.0
+# folder key -> (monotonic time, {rel: scene})
+_stash_folder_cache: dict[str, tuple[float, dict[str, dict]]] = {}
+# rel -> scene id, so a progress copy does not look the scene up every time
+_stash_scene_ids: dict[str, str] = {}
+_stash_last_sync: dict[str, float] = {}
+
+
+def _stash_invalidate() -> None:
+    """Forget every cached scene: files moved, settings changed, scenes arrived."""
+    global _stash_down_until
+    with _stash_lock:
+        _stash_folder_cache.clear()
+        _stash_scene_ids.clear()
+        _stash_down_until = 0.0
+
+
+def _stash_find_scenes(cfg: dict, regex: str, timeout=STASH_TIMEOUT) -> list[dict]:
+    query = (
+        "query($f: SceneFilterType, $p: FindFilterType) {"
+        " findScenes(scene_filter: $f, filter: $p) { count scenes {" + _STASH_SCENE_FIELDS + "} } }"
+    )
+    data = _stash_gql(
+        cfg,
+        query,
+        {"f": {"path": {"value": regex, "modifier": "MATCHES_REGEX"}}, "p": {"per_page": -1}},
+        timeout=timeout,
+    )
+    return ((data.get("findScenes") or {}).get("scenes")) or []
+
+
+def _stash_index(cfg: dict, scenes: list[dict]) -> dict[str, dict]:
+    """{Hoard rel: scene} for the files of these scenes that map back to Hoard."""
+    out: dict[str, dict] = {}
+    for scene in scenes:
+        for f in scene.get("files") or []:
+            rel = _hoard_rel_for(f.get("path") or "", cfg)
+            if rel is not None:
+                out[rel] = scene
+    with _stash_lock:
+        for rel, scene in out.items():
+            _stash_scene_ids[rel] = str(scene.get("id"))
+    return out
+
+
+def _stash_scene_by_rel(cfg: dict, rel: str) -> dict | None:
+    """The scene holding this exact file, or None. Raises StashError."""
+    spath = _stash_path_for(rel, cfg)
+    if spath is None:
+        return None
+    scenes = _stash_find_scenes(cfg, "^" + _stash_regex_escape(spath) + "$")
+    return _stash_index(cfg, scenes).get(rel)
+
+
+def _stash_file_id(scene: dict, rel: str, cfg: dict) -> str | None:
+    for f in scene.get("files") or []:
+        if _hoard_rel_for(f.get("path") or "", cfg) == rel:
+            return str(f.get("id"))
+    return None
+
+
+def _stash_scenes_under(cfg: dict, folder_rel: str, direct: bool) -> dict[str, dict] | None:
+    """{rel: scene} under a folder of the Stash folder, cached; None if Stash failed.
+
+    `direct` keeps the folder's own files (the list); otherwise everything
+    below it (HereSphere's scan). One findScenes either way.
+    """
+    global _stash_down_until
+    key = f"{'1' if direct else '*'}:{folder_rel}"
+    now = time.monotonic()
+    with _stash_lock:
+        cached = _stash_folder_cache.get(key)
+        if cached and now - cached[0] < STASH_FOLDER_CACHE_TTL:
+            return cached[1]
+        if now < _stash_down_until:
+            return None
+    spath = _stash_path_for(folder_rel, cfg)
+    if spath is None:
+        return {}
+    sep = _stash_regex_escape(_stash_sep(cfg))
+    tail = f"[^{sep}]+$" if direct else ""
+    try:
+        scenes = _stash_find_scenes(cfg, "^" + _stash_regex_escape(spath) + sep + tail)
+    except StashError as exc:
+        _stash_warn(cfg, f"reading the scenes of {folder_rel}", exc)
+        with _stash_lock:
+            _stash_down_until = time.monotonic() + STASH_DOWN_BACKOFF
+        return None
+    index = _stash_index(cfg, scenes)
+    prefix = "" if folder_rel == "" else folder_rel + "/"
+    if direct:
+        index = {
+            r: s for r, s in index.items() if r.startswith(prefix) and "/" not in r[len(prefix) :]
+        }
+    else:
+        index = {r: s for r, s in index.items() if r.startswith(prefix)}
+    with _stash_lock:
+        _stash_folder_cache[key] = (time.monotonic(), index)
+    return index
+
+
+def _stash_scene_for_display(cfg: dict, rel: str) -> dict | None:
+    """The scene of one file for the player and HereSphere, from the folder cache
+    when it is there; None when unknown or when Stash fails (logged)."""
+    parent = rel.rsplit("/", 1)[0] if "/" in rel else ""
+    if not _stash_in_folder(parent, cfg["folder"]):
+        return None
+    scenes = _stash_scenes_under(cfg, parent, direct=True)
+    return scenes.get(rel) if scenes else None
+
+
+def _stash_summary(scene: dict) -> dict:
+    """What the page shows of a scene. Never carries a Stash URL."""
+    markers = sorted(
+        (
+            {
+                "title": m.get("title") or ((m.get("primary_tag") or {}).get("name")) or "",
+                "tag": (m.get("primary_tag") or {}).get("name") or "",
+                "seconds": float(m.get("seconds") or 0),
+            }
+            for m in scene.get("scene_markers") or []
+        ),
+        key=lambda m: m["seconds"],
+    )
+    return {
+        "id": str(scene.get("id")),
+        "title": scene.get("title") or "",
+        "rating": scene.get("rating100"),
+        "studio": (scene.get("studio") or {}).get("name") or "",
+        "performers": [p.get("name") for p in scene.get("performers") or [] if p.get("name")],
+        "tags": [t.get("name") for t in scene.get("tags") or [] if t.get("name")],
+        "markers": markers,
+        "interactive": bool(scene.get("interactive")),
+        "play_count": scene.get("play_count") or 0,
+    }
+
+
+# ── Media proxy and its signed URLs ──────────────────────────────────────────
+def _stash_media_signature(scene_id: str, kind: str, exp: int) -> str:
+    # Same key as the FramePlayerX file URLs, in a namespace no relative path can
+    # collide with: a path never starts with "stash:" once safe_path resolved it,
+    # and the two checks never read each other's parameters anyway.
+    return _fpx_file_signature(f"stash:{scene_id}/{kind}", exp)
+
+
+def _stash_media_url(scene_id: str, kind: str) -> str:
+    """Relative, signed URL of one Stash medium, for HereSphere and FPX.
+
+    The expiry is rounded up to the next 6 h boundary, so the URL stays the same
+    across scans for hours and the headset's image cache keeps working; it
+    still lives at least FPX_URL_TTL."""
+    window = 6 * 3600
+    exp = (int(time.time()) // window + 1) * window + FPX_URL_TTL
+    sig = _stash_media_signature(scene_id, kind, exp)
+    return f"{STASH_MEDIA_PREFIX}{scene_id}/{kind}?exp={exp}&sig={sig}"
+
+
+def _check_stash_media_signature(path: str, params) -> bool:
+    if not path.startswith(STASH_MEDIA_PREFIX):
+        return False
+    scene_id, _, kind = path[len(STASH_MEDIA_PREFIX) :].partition("/")
+    if not _STASH_SCENE_ID_RE.match(scene_id) or kind not in STASH_MEDIA_KINDS:
+        return False
+    values = {}
+    for name in ("exp", "sig"):
+        got = params.getlist(name)
+        if len(got) != 1:
+            return False
+        values[name] = got[0]
+    try:
+        exp = int(values["exp"])
+    except ValueError:
+        return False
+    if exp <= int(time.time()):
+        return False
+    return hmac.compare_digest(values["sig"], _stash_media_signature(scene_id, kind, exp))
+
+
+@app.get(STASH_MEDIA_PREFIX + "{scene_id}/{kind:path}")
+def stash_media(scene_id: str, kind: str, request: Request):
+    """Stash's generated media for one scene (thumbnail, preview, sprites, chapters,
+    funscript), fetched by the backend with the key. Range is passed through for
+    the preview video."""
+    if not _STASH_SCENE_ID_RE.match(scene_id) or kind not in STASH_MEDIA_KINDS:
+        raise HTTPException(status_code=404)
+    cfg = _stash_config()
+    if cfg is None:
+        raise HTTPException(status_code=404)
+    headers = {}
+    if request.headers.get("range"):
+        headers["Range"] = request.headers["range"]
+    try:
+        resp = _stash_request(
+            cfg,
+            f"{cfg['url']}/scene/{scene_id}/{kind}",
+            headers=headers,
+            timeout=STASH_MEDIA_TIMEOUT,
+        )
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            raise HTTPException(status_code=404) from None
+        _stash_warn(cfg, f"media {scene_id}/{kind}", exc)
+        raise HTTPException(status_code=502, detail="Stash refused the media") from None
+    except (StashError, urllib.error.URLError, OSError, ValueError) as exc:
+        _stash_warn(cfg, f"media {scene_id}/{kind}", exc)
+        raise HTTPException(status_code=502, detail="Stash unreachable") from None
+    out_headers = {"Cache-Control": "private, max-age=300"}
+    for name in ("Content-Length", "Content-Range", "Accept-Ranges"):
+        if resp.headers.get(name):
+            out_headers[name] = resp.headers[name]
+
+    def body():
+        try:
+            while chunk := resp.read(65536):
+                yield chunk
+        finally:
+            resp.close()
+
+    return StreamingResponse(
+        body(),
+        status_code=resp.status,
+        media_type=resp.headers.get("Content-Type") or "application/octet-stream",
+        headers=out_headers,
+    )
+
+
+# ── Background work: arrivals and progress copies ────────────────────────────
+# Two single-thread workers, each keeping its own order: "files" for arrivals and
+# departures, whose scan can run for minutes while Stash generates previews and
+# sprites, and "progress" for the position copies, which must not wait behind a
+# scan — a pause is copied at once even while ten videos are being declared.
+_stash_executors: dict[str, ThreadPoolExecutor] = {}
+_stash_executor_lock = threading.Lock()
+
+
+def _stash_submit(fn, *args, worker: str = "files") -> None:
+    with _stash_executor_lock:
+        executor = _stash_executors.get(worker)
+        if executor is None:
+            executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix=f"stash-{worker}")
+            _stash_executors[worker] = executor
+
+    def run():
+        try:
+            fn(*args)
+        except Exception:
+            # Nothing here may ever surface to David: Stash is a guest.
+            logger.exception("stash: background task %s failed", getattr(fn, "__name__", fn))
+
+    executor.submit(run)
+
+
+def _stash_wait_idle(timeout: float = 10.0) -> None:
+    """Wait until the queued background work is done (tests, shutdown)."""
+    with _stash_executor_lock:
+        executors = list(_stash_executors.values())
+    for executor in executors:
+        executor.submit(lambda: None).result(timeout=timeout)
+
+
+def _progress_row(rel: str):
+    with get_db() as conn:
+        return conn.execute(
+            "SELECT position, duration, watched FROM progress WHERE path = ?", (rel,)
+        ).fetchone()
+
+
+def _stash_push_progress(cfg: dict, scene_id: str, rel: str, add_play: bool) -> None:
+    row = _progress_row(rel)
+    if row is not None:
+        _stash_gql(
+            cfg,
+            "mutation($id: ID!, $t: Float) { sceneSaveActivity(id: $id, resume_time: $t) }",
+            {"id": scene_id, "t": float(row["position"] or 0)},
+        )
+    if add_play:
+        _stash_gql(cfg, "mutation($id: ID!) { sceneAddPlay(id: $id) { count } }", {"id": scene_id})
+
+
+def _stash_wait_job(cfg: dict, job_id: str) -> None:
+    """Wait for a scan job. Past STASH_SCAN_TIMEOUT it stops waiting without failing:
+    the job also generates previews and sprites, which can outlast the deadline on
+    a weak NAS long after the scenes themselves exist."""
+    deadline = time.monotonic() + STASH_SCAN_TIMEOUT
+    while True:
+        data = _stash_gql(
+            cfg, "query($id: ID!) { findJob(input: {id: $id}) { status error } }", {"id": job_id}
+        )
+        job = data.get("findJob")
+        # A finished job leaves Stash's queue after a while: gone means done.
+        if job is None or job.get("status") == "FINISHED":
+            return
+        if job.get("status") in ("FAILED", "CANCELLED"):
+            raise StashError(f"scan job {job_id} {job['status'].lower()}: {job.get('error') or ''}")
+        if time.monotonic() > deadline:
+            logger.warning(
+                "stash: scan job %s still running after %.0f s, looking the scenes up anyway",
+                job_id,
+                STASH_SCAN_TIMEOUT,
+            )
+            return
+        time.sleep(STASH_JOB_POLL)
+
+
+def _stash_identify_sources(cfg: dict) -> list[dict]:
+    """Identification sources Stash has: its stash-box endpoints, then the scene
+    scrapers that can identify from a scene's data. Raises StashError."""
+    data = _stash_gql(
+        cfg,
+        "query { configuration { general { stashBoxes { endpoint } } }"
+        " listScrapers(types: [SCENE]) { id scene { supported_scrapes } } }",
+    )
+    boxes = ((data.get("configuration") or {}).get("general") or {}).get("stashBoxes") or []
+    sources = [
+        {"source": {"stash_box_endpoint": b["endpoint"]}} for b in boxes if b.get("endpoint")
+    ]
+    for scraper in data.get("listScrapers") or []:
+        if "FRAGMENT" in ((scraper.get("scene") or {}).get("supported_scrapes") or []):
+            sources.append({"source": {"scraper_id": scraper["id"]}})
+    return sources
+
+
+def _stash_declare(entries: list[tuple[str, list[str]]], arrival: bool = True) -> None:
+    """Declare what Hoard just put in the Stash folder (BL-148). Background only.
+
+    `entries` holds (moved path, [videos under it]): the moved path is what Stash
+    scans — a file, or a whole folder in one go — and each video is then found,
+    gets its progress, and is identified when asked. A file moved inside the
+    folder is declared the same way: Stash's scan recognises a known file at a
+    new path by its fingerprint and keeps its metadata. That is not an arrival
+    (`arrival=False`): no play is added and nothing is identified again, or every
+    rename of a sub-folder would count its videos watched once more.
+    """
+    cfg = _stash_config()
+    if cfg is None:
+        return
+    videos = [rel for _, rels in entries for rel in rels]
+    if not videos:
+        return
+    if not cfg["prefix"]:
+        logger.warning(
+            "stash: %d video(s) arrived in %s but stash_path_prefix is empty: not declared",
+            len(videos),
+            cfg["folder"],
+        )
+        return
+    scan_paths = [p for p in (_stash_path_for(path, cfg) for path, _ in entries) if p]
+    _stash_invalidate()
+    try:
+        data = _stash_gql(
+            cfg,
+            "mutation($in: ScanMetadataInput!) { metadataScan(input: $in) }",
+            {
+                "in": {
+                    "paths": scan_paths,
+                    "scanGenerateCovers": True,
+                    "scanGeneratePreviews": True,
+                    "scanGenerateSprites": True,
+                    "scanGeneratePhashes": True,
+                }
+            },
+        )
+        _stash_wait_job(cfg, str(data.get("metadataScan")))
+    except StashError as exc:
+        for rel in videos:
+            _stash_warn(cfg, f"declaring {rel}", exc)
+        return
+    _stash_invalidate()
+    scene_ids = []
+    for rel in videos:
+        try:
+            scene = _stash_scene_by_rel(cfg, rel)
+            if scene is None:
+                logger.warning("stash: %s not found in Stash after its scan", rel)
+                continue
+            row = _progress_row(rel)
+            seen = row is not None and _watch_percent(row) >= _watched_threshold()
+            _stash_push_progress(cfg, str(scene["id"]), rel, add_play=seen and arrival)
+            scene_ids.append(str(scene["id"]))
+            logger.info("stash: %s declared (scene %s)", rel, scene["id"])
+        except StashError as exc:
+            _stash_warn(cfg, f"declaring {rel}", exc)
+    if arrival and cfg["identify"] and scene_ids:
+        try:
+            sources = _stash_identify_sources(cfg)
+            if not sources:
+                logger.info("stash: identify skipped, Stash has no identification source")
+                return
+            _stash_gql(
+                cfg,
+                "mutation($in: IdentifyMetadataInput!) { metadataIdentify(input: $in) }",
+                {"in": {"sources": sources, "sceneIDs": scene_ids}},
+            )
+        except StashError as exc:
+            _stash_warn(cfg, f"identifying {len(scene_ids)} scene(s)", exc)
+
+
+def _stash_forget(rels: list[str]) -> None:
+    """Videos that left the Stash folder: remove their scenes, not their files
+    (BL-150). A scene holding other files as well is left for Stash's clean task.
+    Background only; the move already happened."""
+    cfg = _stash_config()
+    if cfg is None or not cfg["prefix"]:
+        return
+    _stash_invalidate()
+    for rel in rels:
+        try:
+            scene = _stash_scene_by_rel(cfg, rel)
+            if scene is None:
+                continue
+            if len(scene.get("files") or []) > 1:
+                logger.info("stash: %s left, scene %s keeps other files", rel, scene["id"])
+                continue
+            _stash_gql(
+                cfg,
+                "mutation($in: SceneDestroyInput!) { sceneDestroy(input: $in) }",
+                {"in": {"id": str(scene["id"]), "delete_file": False, "delete_generated": True}},
+            )
+            logger.info("stash: %s left the Stash folder, scene %s removed", rel, scene["id"])
+        except StashError as exc:
+            _stash_warn(cfg, f"removing the scene of {rel}", exc)
+    _stash_invalidate()
+
+
+def _watched_threshold() -> float:
+    with get_db() as conn:
+        return _heresphere_threshold(conn)
+
+
+def _stash_sync_progress(rel: str, add_play: bool) -> None:
+    cfg = _stash_config()
+    if cfg is None or not cfg["prefix"]:
+        return
+    with _stash_lock:
+        scene_id = _stash_scene_ids.get(rel)
+    try:
+        if scene_id is None:
+            scene = _stash_scene_by_rel(cfg, rel)
+            if scene is None:
+                logger.info("stash: no scene for %s yet, progress not copied", rel)
+                return
+            scene_id = str(scene["id"])
+        _stash_push_progress(cfg, scene_id, rel, add_play)
+    except StashError as exc:
+        _stash_warn(cfg, f"copying the progress of {rel}", exc)
+
+
+def _stash_progress_written(rel: str, *, became_seen: bool, final: bool) -> None:
+    """Called after every playback write to `progress` (_record_progress).
+
+    Outside the Stash folder: nothing, not even a request. Inside: the position
+    goes to Stash at most every STASH_SYNC_INTERVAL seconds per video, at once on
+    pause and close (`final`), and the passage to "watched" adds a play. All of
+    it in the background; nothing here can fail the write it follows.
+    """
+    try:
+        cfg = _stash_config()
+        if cfg is None or not _stash_in_folder(rel, cfg["folder"]):
+            return
+        now = time.monotonic()
+        with _stash_lock:
+            last = _stash_last_sync.get(rel)
+            if not (final or became_seen) and last is not None and now - last < STASH_SYNC_INTERVAL:
+                return
+            _stash_last_sync[rel] = now
+        _stash_submit(_stash_sync_progress, rel, became_seen, worker="progress")
+    except Exception:
+        logger.exception("stash: could not queue the progress of %s", rel)
+
+
+# ── File operations in the Stash folder (BL-150) ─────────────────────────────
+def _videos_under(path: Path) -> list[str]:
+    """Relative paths of the videos a file operation on `path` concerns."""
+    if path.is_file():
+        return [to_rel(path)] if is_video(path) else []
+    if path.is_dir():
+        return [to_rel(p) for p in _walk_videos(path, 1_000_000)]
+    return []
+
+
+def _stash_plan(cfg: dict | None, src_rel: str, dst_rel: str | None) -> str:
+    """How a move (dst_rel) or a delete (dst_rel None) relates to the Stash folder:
+    "none", "arrive", "leave", "within" — or a refusal for the folder itself."""
+    if cfg is None:
+        return "none"
+    folder = cfg["folder"]
+    if _stash_contains_folder(src_rel, folder):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "stash_folder",
+                "message": "C'est le dossier de Stash (ou il le contient) : Hoard n'y touche pas",
+            },
+        )
+    inside_src = _stash_in_folder(src_rel, folder)
+    if dst_rel is None:
+        return "within" if inside_src else "none"
+    inside_dst = _stash_in_folder(dst_rel, folder)
+    if inside_src and inside_dst:
+        return "within"
+    if inside_src:
+        return "leave"
+    if inside_dst:
+        return "arrive"
+    return "none"
+
+
+def _stash_after_move(plan: str, old_rel: str, new_path: Path, old_videos: list[str]) -> None:
+    """Queue what Stash must hear after a disk move has succeeded."""
+    if plan in ("arrive", "within"):
+        new_rel = to_rel(new_path)
+        _stash_submit(_stash_declare, [(new_rel, _videos_under(new_path))], plan == "arrive")
+    elif plan == "leave":
+        _stash_submit(_stash_forget, old_videos)
+
+
+def _stash_check_source_move(source: Path, dest_dir: Path) -> None:
+    """Before a cut or an export moves the original into dest_dir: refuse if that
+    takes it out of the Stash folder while Stash is unreachable."""
+    cfg = _stash_config()
+    if cfg is None or dest_dir.resolve() == source.parent.resolve():
+        return
+    if _stash_plan(cfg, to_rel(source), to_rel(dest_dir / source.name)) == "leave":
+        _stash_require(cfg)
+
+
+def _stash_after_export(outputs: list[Path], moved_source: tuple[str, Path] | None) -> None:
+    """After a cut (✂) or a segment export: declare what landed in the Stash folder
+    (the new files, and the original if it followed them there), forget the
+    original if it left. Never raises: the export itself has succeeded."""
+    try:
+        cfg = _stash_config()
+        if cfg is None:
+            return
+        declare = []
+        for out in outputs:
+            rel = to_rel(out)
+            if out.is_file() and _stash_in_folder(rel, cfg["folder"]):
+                declare.append((rel, [rel]))
+        if moved_source is not None:
+            old_rel, new_path = moved_source
+            new_rel = to_rel(new_path)
+            plan = _stash_plan(cfg, old_rel, new_rel)
+            if plan == "arrive":
+                declare.append((new_rel, [new_rel]))
+            elif plan == "within":
+                _stash_submit(_stash_declare, [(new_rel, [new_rel])], False)
+            elif plan == "leave":
+                _stash_submit(_stash_forget, [old_rel])
+        if declare:
+            _stash_submit(_stash_declare, declare)
+    except Exception:
+        logger.exception("stash: could not queue the declaration of an export")
+
+
+def _stash_move_file(cfg: dict, source: Path, final_dest: Path) -> bool:
+    """Move a video within the Stash folder through Stash (`moveFiles`), which
+    moves the file on disk and keeps its scene. Returns False when Stash does not
+    know the file yet (the caller then moves it on disk and declares it).
+    Raises StashError."""
+    old_rel = to_rel(source)
+    scene = _stash_scene_by_rel(cfg, old_rel)
+    file_id = _stash_file_id(scene, old_rel, cfg) if scene else None
+    if file_id is None:
+        return False
+    dest_folder = _stash_path_for(to_rel(final_dest.parent), cfg)
+    _stash_gql(
+        cfg,
+        "mutation($in: MoveFilesInput!) { moveFiles(input: $in) }",
+        {
+            "in": {
+                "ids": [file_id],
+                "destination_folder": dest_folder,
+                "destination_basename": final_dest.name,
+            }
+        },
+        timeout=STASH_MEDIA_TIMEOUT,
+    )
+    _stash_invalidate()
+    if not final_dest.exists() or source.exists():
+        raise StashError(
+            f"Stash reported the move of {old_rel} but the file is not at "
+            f"{to_rel(final_dest)}: check stash_path_prefix"
+        )
+    return True
+
+
+def _stash_delete_videos(cfg: dict, rels: list[str]) -> None:
+    """Delete videos of the Stash folder through Stash, files and generated media
+    included. A video Stash does not know is left to the caller's disk delete.
+    Raises HTTPException 502 on the first refusal."""
+    _stash_invalidate()
+    for rel in rels:
+        try:
+            scene = _stash_scene_by_rel(cfg, rel)
+            if scene is None:
+                continue
+            if len(scene.get("files") or []) > 1:
+                # sceneDestroy(delete_file) would delete the scene's other copies
+                # too: delete this file only, the scene keeps the others.
+                file_id = _stash_file_id(scene, rel, cfg)
+                _stash_gql(
+                    cfg, "mutation($ids: [ID!]!) { deleteFiles(ids: $ids) }", {"ids": [file_id]}
+                )
+            else:
+                _stash_gql(
+                    cfg,
+                    "mutation($in: SceneDestroyInput!) { sceneDestroy(input: $in) }",
+                    {"in": {"id": str(scene["id"]), "delete_file": True, "delete_generated": True}},
+                )
+            # Gone now, whatever happens to the next one: its rows go with it, so a
+            # refusal further down the folder leaves no row for a deleted file.
+            with get_db() as conn:
+                _purge_paths(conn, rel)
+                conn.commit()
+            logger.info("stash: %s deleted through Stash (scene %s)", rel, scene["id"])
+        except StashError as exc:
+            _stash_warn(cfg, f"deleting {rel}", exc)
+            raise HTTPException(
+                status_code=502,
+                detail={"code": "stash_refused", "message": f"Stash a refusé : {exc}"},
+            ) from None
+    _stash_invalidate()
+
+
+# ── Routes for the page ──────────────────────────────────────────────────────
+class StashTestRequest(BaseModel):
+    url: str | None = Field(default=None, max_length=2048)
+    api_key: str | None = Field(default=None, max_length=512)
+
+
+def _validate_stash_url(value: str) -> str:
+    url = value.strip().rstrip("/")
+    if not url:
+        return ""
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        raise HTTPException(status_code=422, detail="stash_url must be an http(s) URL")
+    if parsed.query or parsed.fragment or parsed.username or parsed.password:
+        raise HTTPException(status_code=422, detail="stash_url must be a plain http(s) URL")
+    return url
+
+
+@app.get("/api/stash/status")
+def stash_status():
+    """Whether Stash is set up and answering, and whether it can identify
+    (the "identify on arrival" setting is only offered when it can)."""
+    cfg = _stash_config()
+    if cfg is None:
+        return {"enabled": False}
+    result = {"enabled": True, "folder": cfg["folder"], "prefix_set": bool(cfg["prefix"])}
+    try:
+        result["version"] = _stash_version(cfg)
+        result["identify_sources"] = len(_stash_identify_sources(cfg))
+        result["ok"] = True
+    except StashError as exc:
+        _stash_warn(cfg, "status", exc)
+        result.update(ok=False, error=str(exc))
+    return result
+
+
+@app.post("/api/stash/test")
+def stash_test(body: StashTestRequest | None = None):
+    """ "Tester la connexion": Stash's version, or the exact error.
+
+    The URL and key typed in the page are tested before they are saved. The saved
+    key is only ever sent to the saved URL: testing another URL uses the key
+    typed with it, never the stored one.
+    """
+    body = body or StashTestRequest()
+    saved = _stash_config()
+    url = _validate_stash_url(body.url) if body.url is not None else (saved or {}).get("url", "")
+    if not url:
+        return {"ok": False, "error": "Adresse de Stash vide"}
+    key = body.api_key or ""
+    if not key and saved and saved["url"] == url:
+        key = saved["key"]
+    cfg = {"url": url, "key": key, "folder": STASH_DEFAULT_FOLDER, "prefix": "", "identify": False}
+    try:
+        version = _stash_version(cfg)
+    except StashError as exc:
+        _stash_warn(cfg, "connection test", exc)
+        return {"ok": False, "error": str(exc)}
+    try:
+        sources = len(_stash_identify_sources(cfg))
+    except StashError:
+        sources = 0
+    return {"ok": True, "version": version, "identify_sources": sources}
+
+
+@app.get("/api/stash/folder")
+def stash_folder_scenes(path: str = ""):
+    """What Stash knows about the videos of one folder of the Stash folder.
+
+    Called by the page after the list is drawn, so a slow or absent Stash never
+    delays the list. Empty outside the Stash folder, and when Stash fails.
+    """
+    folder = safe_path(path)
+    rel = "" if path in ("", ".") else to_rel(folder)
+    cfg = _stash_config()
+    if cfg is None or not _stash_in_folder(rel, cfg["folder"]):
+        return {"scenes": {}}
+    scenes = _stash_scenes_under(cfg, rel, direct=True)
+    if scenes is None:
+        return {"scenes": {}, "error": "Stash injoignable"}
+    return {"scenes": {r: _stash_summary(s) for r, s in scenes.items()}}
+
+
+@app.get("/api/stash/scene")
+def stash_scene(path: str):
+    """What Stash knows about one video, for the player: markers, and the scene
+    id the thumbnails of the seek bar are fetched with."""
+    file = safe_path(path)
+    rel = to_rel(file)
+    cfg = _stash_config()
+    if cfg is None or not _stash_in_folder(rel, cfg["folder"]):
+        return {"scene": None}
+    scene = _stash_scene_for_display(cfg, rel)
+    return {"scene": _stash_summary(scene) if scene else None}
+
+
+def _stash_heresphere_extras(rel: str) -> dict:
+    """HereSphere fields for a video of the Stash folder: thumbnails, tags,
+    markers, rating and the funscript. Empty when Stash knows nothing."""
+    cfg = _stash_config()
+    if cfg is None or not _stash_in_folder(rel, cfg["folder"]):
+        return {}
+    scene = _stash_scene_for_display(cfg, rel)
+    if scene is None:
+        return {}
+    summary = _stash_summary(scene)
+    sid = summary["id"]
+    tags = [{"name": f"Performer:{p}"} for p in summary["performers"]]
+    if summary["studio"]:
+        tags.append({"name": f"Studio:{summary['studio']}"})
+    tags += [{"name": f"Tag:{t}"} for t in summary["tags"]]
+    markers = summary["markers"]
+    for i, marker in enumerate(markers):
+        end = markers[i + 1]["seconds"] if i + 1 < len(markers) else None
+        if end is None or end <= marker["seconds"]:
+            end = marker["seconds"] + _STASH_MARKER_SPAN
+        tags.append(
+            {
+                "name": f"Marker:{marker['title'] or marker['tag']}",
+                "start": marker["seconds"] * 1000.0,
+                "end": end * 1000.0,
+            }
+        )
+    extras: dict = {
+        "thumbnailImage": _stash_media_url(sid, "screenshot"),
+        "thumbnailVideo": _stash_media_url(sid, "preview"),
+        "tags": tags,
+    }
+    if summary["rating"] is not None:
+        extras["rating"] = round(summary["rating"] / 20.0, 1)
+    if summary["interactive"]:
+        extras["scripts"] = [{"name": "Stash", "url": _stash_media_url(sid, "funscript")}]
+    return extras
 
 
 # Serve frontend

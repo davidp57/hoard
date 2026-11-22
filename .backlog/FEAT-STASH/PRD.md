@@ -1,6 +1,6 @@
 # Lot FEAT-STASH — Hoard trie et lit, Stash garde et décrit
 
-Status: ⬜ ready
+Status: 🧑 waiting-human
 
 ## Problem Statement
 
@@ -80,10 +80,10 @@ Dans `[[_keep`, déplacer et supprimer passent par Stash, pour que Stash ne perd
 
 | # | Ticket | Status |
 |---|--------|--------|
-| 01 | [BL-147 — Se connecter à Stash](tickets/01-connection.md) | ⬜ |
-| 02 | [BL-148 — Déclarer à Stash ce qui arrive dans `[[_keep`](tickets/02-send.md) | ⬜ |
-| 03 | [BL-149 — Les infos de Stash dans Hoard, la progression dans Stash](tickets/03-show-and-sync.md) | ⬜ |
-| 04 | [BL-150 — Déplacer et supprimer dans le dossier de Stash](tickets/04-file-ops.md) | ⬜ |
+| 01 | [BL-147 — Se connecter à Stash](tickets/01-connection.md) | ✅ |
+| 02 | [BL-148 — Déclarer à Stash ce qui arrive dans `[[_keep`](tickets/02-send.md) | ✅ |
+| 03 | [BL-149 — Les infos de Stash dans Hoard, la progression dans Stash](tickets/03-show-and-sync.md) | ✅ |
+| 04 | [BL-150 — Déplacer et supprimer dans le dossier de Stash](tickets/04-file-ops.md) | ✅ |
 | 05 | [BL-151 — Préparer Stash et essayer (David)](tickets/05-setup-and-trial.md) | 🧑 |
 
 Une seule branche et une seule PR pour BL-147 à BL-150.

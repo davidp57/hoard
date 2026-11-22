@@ -6,6 +6,10 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ## [Non publié]
 
+### Ajouté
+
+- **Hoard et Stash travaillent ensemble.** Tu continues de trier dans Hoard avec tes dossiers rapides : tout ce que tu ranges dans `[[_keep` (dossier rapide, déplacement, renommage, ✂ ou export des segments) arrive dans Stash avec ta position de lecture. Pour ces vidéos, Hoard affiche ce que Stash sait : la vignette, la note, le studio et les performers dans la liste, les vignettes au survol de la barre de lecture et les markers dans le lecteur, et tout ça dans FramePlayerX aussi. Ce que tu regardes est recopié dans Stash. Dans `[[_keep`, déplacer et supprimer passent par Stash pour qu'il ne perde rien. À régler dans Paramètres › Stash ; le mode d'emploi est dans le guide, section « Stash ».
+
 ### Corrigé
 
 - **Plus de message Steam « déjà lancé » quand FramePlayerX tourne déjà.** Hoard lui envoie la vidéo sans le relancer. FramePlayerX reste alors derrière le navigateur : l'écran de Hoard te rappelle d'y passer par le bouton Steam › FramePlayerX › « Reprendre le jeu ».
