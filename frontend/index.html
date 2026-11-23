@@ -4200,6 +4200,93 @@ let _dlQueueInterval = null;
 // Strategies 3-5 skip the sources of the small <video> elements rejected in 1,
 // and URLs that name themselves previews or thumbnails.
 // Nothing found → '' (page URL).
+//
+// Before all of these, _bookmarkletSiteStream() reads the stream URL from the
+// page's own data on sites where the page URL cannot work server-side.
+
+// Site-specific step, run before _bookmarkletPickVideo. Returns a stream URL, or
+// '' (not a known site, or no usable data) to fall through to the generic picker.
+// Same embedding rules as _bookmarkletPickVideo below.
+//
+// xHamster only, today. Why: under French law xHamster answers anonymous
+// requests from French IPs with an age-verification page, on every mirror, so
+// yt-dlp fails with "No video formats found" (yt-dlp/yt-dlp#15497, open). The
+// user's browser has passed the check, but the cookie proving it is HttpOnly:
+// document.cookie cannot forward it to Hoard. The page's player data, already
+// unlocked, holds the stream URL itself — send that, with the page as Referer.
+//
+// Mirrors yt-dlp's XHamsterIE (yt_dlp/extractor/xhamster.py, 2026.08.19):
+// window.initials.xplayerSettings.sources →
+//   1. hls.url, then hls.fallback: the HLS master, every quality in it. yt-dlp
+//      sorts m3u8 first too; its progressive MP4s fail with "Wrong key".
+//   2. standard.<codec>[] entries (h264 first): the first .m3u8, else the MP4
+//      with the highest quality label.
+// A URL may be obfuscated: a hex ciphertext, whole or as the first path segment.
+// Byte 0 names one of seven byte generators, bytes 1-4 are its seed (int32,
+// little-endian), and the rest is XOR'ed with its output (yt-dlp _ByteGenerator).
+// A plain http(s) URL is used as is (yt-dlp would skip it; the site's own script
+// may have deciphered it in place already).
+// UNVERIFIED on a live page (anonymous fetches from France get the age page):
+// that window.initials survives on the page as a global, and that it is not stale
+// after an in-site navigation to another video.
+// Another site: add its hostname test and its reader here, no framework.
+function _bookmarkletSiteStream(loc, win) {
+  if (!/(^|\.)(xhamster\d*\.(com|one|desi)|xhms\.pro|xhday\.com|xhvid\.com)$/i.test(loc.hostname)) return '';
+  var src = null;
+  try { src = win.initials.xplayerSettings.sources; } catch (e) { return ''; }
+  if (!src || typeof src !== 'object') return '';
+  /* One of yt-dlp's seven int32 byte generators; s is the running state. */
+  function gen(algo, s) {
+    return [null,
+      function () { s = (Math.imul(s, 1664525) + 1013904223) | 0; return s; },
+      function () { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return s; },
+      function () { s = (s + 0x9e3779b9) | 0; var t = s ^ (s >>> 16); t = Math.imul(t, 0x85ebca77); t ^= t >>> 13; t = Math.imul(t, 0xc2b2ae3d); return t ^ (t >>> 16); },
+      function () { s = (s + 0x6d2b79f5) | 0; var t = (s << 7) | (s >>> 25); t = (t + 0x9e3779b9) | 0; t ^= t >>> 11; return Math.imul(t, 0x27d4eb2d); },
+      function () { var t = s ^ (s << 7); t ^= t >>> 9; t ^= t << 8; s = (t + 0xa5a5a5a5) | 0; return s; },
+      function () { s = (Math.imul(s, 0x2c9277b5) + 0xac564b05) | 0; return (s ^ (s >>> 18)) >>> ((s >>> 27) & 31); },
+      function () { s = (s + 0x9e3779b9) | 0; var t = s ^ (s << 5); t = Math.imul(t, 0x7feb352d); t ^= t >>> 15; return Math.imul(t, 0x846ca68b); }
+    ][algo] || null;
+  }
+  function dec(hex) {
+    if (hex.length & 1) return '';
+    var b = [], i, out = '';
+    for (i = 0; i < hex.length; i += 2) b.push(parseInt(hex.substr(i, 2), 16));
+    var next = gen(b[0], b[1] | (b[2] << 8) | (b[3] << 16) | (b[4] << 24));
+    if (!next) return '';
+    for (i = 5; i < b.length; i++) out += String.fromCharCode(b[i] ^ (next() & 255));
+    return out;
+  }
+  var WEB = /^https?:\/\//i;
+  function plain(u) {
+    if (typeof u !== 'string' || !u) return '';
+    if (/^[0-9a-f]{12,}$/i.test(u)) { u = dec(u); return WEB.test(u) ? u : ''; }
+    var m = /^(https?:\/\/[^\/?#]+)\/([0-9a-f]{12,})([\/,].+)$/i.exec(u);
+    if (m) { var d = dec(m[2]); return d ? m[1] + '/' + d + m[3] : ''; }
+    return WEB.test(u) ? u : '';
+  }
+  var hls = src.hls, std = src.standard, u, i, j, f, h;
+  if (hls && typeof hls === 'object') {
+    u = plain(hls.url) || plain(hls.fallback);
+    if (u) return u;
+  }
+  if (!std || typeof std !== 'object') return '';
+  var ks = Object.keys(std).sort(function (a, b) { return (b === 'h264') - (a === 'h264'); });
+  var m3u = '', mp4 = '', best = -1;
+  for (i = 0; i < ks.length; i++) {
+    if (!Array.isArray(std[ks[i]])) continue;
+    for (j = 0; j < std[ks[i]].length; j++) {
+      f = std[ks[i]][j];
+      if (!f || typeof f !== 'object') continue;
+      u = plain(f.url) || plain(f.fallback);
+      if (!u) continue;
+      if (/\.m3u8(\?|$)/i.test(u)) { if (!m3u) m3u = u; continue; }
+      h = parseInt(f.quality || f.label, 10) || 0;
+      if (h > best) { best = h; mp4 = u; }
+    }
+  }
+  return m3u || mp4;
+}
+
 function _bookmarkletPickVideo(doc, perf) {
   /* Minimum rendered size of a main video: 400 wide, 16:9 at that width. */
   var MW = 400, MH = 225;
@@ -4270,7 +4357,8 @@ function _buildBookmarkletCode() {
   // new tab via the #download?url=... hash route, which isn't subject to the
   // current page's CSP since it's a navigation, not a fetch.
   //
-  // Video source detection: see _bookmarkletPickVideo() above. An empty result
+  // Video source detection: see _bookmarkletSiteStream() (site-specific, first)
+  // and _bookmarkletPickVideo() above. An empty result
   // sends the page URL without a Referer (yt-dlp extractors, backend sniffing).
   return [
     'javascript:(function(){',
@@ -4306,7 +4394,8 @@ function _buildBookmarkletCode() {
     'if(pct!=null){PC.style.display="block";PF.style.width=pct+"%";}',
     'if(ms>0)setTimeout(bye,ms);}',
     // --- Video source detection: '' means "send the page URL" ---
-    'var v=(' + _bookmarkletInline(_bookmarkletPickVideo) + ')(document,window.performance);',
+    'var v=(' + _bookmarkletInline(_bookmarkletSiteStream) + ')(location,window)',
+    '||(' + _bookmarkletInline(_bookmarkletPickVideo) + ')(document,window.performance);',
     // --- POST to Hoard API, then poll the job until done ---
     'var pu=location.href;',
     'fetch(H+"/api/download",{method:"POST",headers:{"Content-Type":"application/json"},',
