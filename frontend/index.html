@@ -4176,6 +4176,81 @@ let pendingDownloadTitle = null;
 let _dlQueueJobs = [];
 let _dlQueueInterval = null;
 
+// BEGIN bookmarklet-pick (extracted by tests/test_bookmarklet.py — keep the markers)
+// Chooses what the bookmarklet sends to /api/download. Returns a direct video URL,
+// or '' to send the page URL instead (yt-dlp extractors / backend sniffing). It is
+// a real function so it can be tested; the bookmarklet embeds its source through
+// _bookmarkletInline(). Embedded in a javascript: URL, its newlines vanish, so:
+// only /* */ comments inside, every statement ends with ';', and no '%' followed
+// by two hex digits (the URL would decode it).
+//
+// Strategies, in priority order:
+// 1. The main <video>: the LARGEST one on screen (getBoundingClientRect), at least
+//    400x225 rendered. Smaller ones are seek-bar previews, thumbnails and ad or
+//    live-cam widgets; the first <video> in the DOM is often one of them.
+//    - its currentSrc / src, or a <source> inside it, if not blob: → that URL;
+//    - otherwise (blob: means an MSE player, or no source yet) → the page URL.
+//      Strategies 2-5 are NOT tried then: the network list is full of the
+//      previews and ads the main player is surrounded by (xHamster, 2026-11-23:
+//      a 240p cam m3u8, then a heat-preview mp4 were downloaded).
+// 2. <iframe> pointing to a known video host (no large <video> on the page).
+// 3. Performance API — initiatorType 'video'.
+// 4. Performance API — video file extensions.
+// 5. Performance API — largest resource over 500 KB, skipping non-video types.
+// Strategies 3-5 skip the sources of the small <video> elements rejected in 1,
+// and URLs that name themselves previews or thumbnails.
+// Nothing found → '' (page URL).
+function _bookmarkletPickVideo(doc, perf) {
+  /* Minimum rendered size of a main video: 400 wide, 16:9 at that width. */
+  var MW = 400, MH = 225;
+  var vids = doc.querySelectorAll('video');
+  var main = null, mainArea = 0, small = [], i, j;
+  for (i = 0; i < vids.length; i++) {
+    var r = vids[i].getBoundingClientRect();
+    var a = r.width * r.height;
+    if (r.width >= MW && r.height >= MH) {
+      if (a > mainArea) { main = vids[i]; mainArea = a; }
+    } else {
+      if (vids[i].currentSrc) small.push(vids[i].currentSrc);
+      if (vids[i].src) small.push(vids[i].src);
+    }
+  }
+  if (main) {
+    var cand = [main.currentSrc, main.src];
+    var ss = main.querySelectorAll('source[src]');
+    for (j = 0; j < ss.length; j++) cand.push(ss[j].src);
+    for (j = 0; j < cand.length; j++) {
+      if (cand[j] && cand[j].indexOf('blob:') !== 0) return cand[j];
+    }
+    return '';
+  }
+  var fr = doc.querySelectorAll('iframe[src]');
+  var vh = /mediadelivery\.net|bunnycdn\.com|youtube\.com\/embed|player\.vimeo\.com|dailymotion\.com\/embed/i;
+  for (i = 0; i < fr.length; i++) { if (vh.test(fr[i].src)) return fr[i].src; }
+  if (!perf || !perf.getEntriesByType) return '';
+  var pv = /(^|[\/_.-])(preview|thumbs?|thumbnails?|sprites?)([\/_.-]|$)/i;
+  var ee = [], all = perf.getEntriesByType('resource');
+  for (i = 0; i < all.length; i++) {
+    if (small.indexOf(all[i].name) < 0 && !pv.test(all[i].name)) ee.push(all[i]);
+  }
+  for (i = ee.length - 1; i >= 0; i--) { if (ee[i].initiatorType === 'video') return ee[i].name; }
+  var re = /\.(mp4|m3u8|webm|ts|mov|mkv|avi|flv|m4v|mpd)(\?|$)/i;
+  for (i = ee.length - 1; i >= 0; i--) { if (re.test(ee[i].name)) return ee[i].name; }
+  var skip = /\.(js|css|woff2?|png|jpe?g|gif|svg|ico|webp)(\?|$)/i;
+  var best = 0, v = '';
+  for (i = 0; i < ee.length; i++) {
+    var sz = ee[i].transferSize || 0;
+    if (sz > 500000 && sz > best && !skip.test(ee[i].name)) { best = sz; v = ee[i].name; }
+  }
+  return v;
+}
+
+// The function's source on one line, ready to embed in the javascript: URL.
+function _bookmarkletInline(fn) {
+  return fn.toString().replace(/\s*\n\s*/g, ' ');
+}
+// END bookmarklet-pick
+
 function _buildBookmarkletCode() {
   // Strip query/hash and trailing slash so H+'/api/download' is always correct.
   const hoardBase = window.location.href.replace(/[#?].*$/, '').replace(/\/+$/, '');
@@ -4195,14 +4270,8 @@ function _buildBookmarkletCode() {
   // new tab via the #download?url=... hash route, which isn't subject to the
   // current page's CSP since it's a navigation, not a fetch.
   //
-  // Video source detection strategies (in priority order):
-  // 1. <video>.currentSrc (if not a blob: URL)
-  // 2. <video source[src]> elements (if not blob:)
-  // 3. <iframe> with src pointing to known video hosting domains
-  // 4. Performance API — initiatorType 'video'
-  // 5. Performance API — match video file extensions in network requests
-  // 6. Performance API — largest resource (>500 KB, skip known non-video types)
-  // Falls back to the page URL if nothing is found (backend sniffing handles it).
+  // Video source detection: see _bookmarkletPickVideo() above. An empty result
+  // sends the page URL without a Referer (yt-dlp extractors, backend sniffing).
   return [
     'javascript:(function(){',
     // Prevent double-invocation if user clicks the bookmarklet twice
@@ -4236,30 +4305,8 @@ function _buildBookmarkletCode() {
     'function upd(ic,tx,pct,ms){IC.textContent=ic;TX.textContent=tx;',
     'if(pct!=null){PC.style.display="block";PF.style.width=pct+"%";}',
     'if(ms>0)setTimeout(bye,ms);}',
-    // --- Video source detection (6 strategies) ---
-    'var v="";',
-    // Strategy 1: <video>.currentSrc
-    'var el=document.querySelector("video");',
-    'if(el&&el.currentSrc&&el.currentSrc.indexOf("blob:")!==0){v=el.currentSrc;}',
-    // Strategy 2: <source> inside <video>
-    'if(!v){var ss=document.querySelectorAll("video source[src]");',
-    'for(var i=0;i<ss.length;i++){var s=ss[i].src;',
-    'if(s&&s.indexOf("blob:")!==0){v=s;break;}}}',
-    // Strategy 3: <iframe> from known video hosting domains
-    'if(!v){var fr=document.querySelectorAll("iframe[src]");',
-    'var vh=/mediadelivery\\.net|bunnycdn\\.com|youtube\\.com\\/embed|player\\.vimeo\\.com|dailymotion\\.com\\/embed/i;',
-    'for(var i=0;i<fr.length;i++){if(vh.test(fr[i].src)){v=fr[i].src;break;}}}',
-    // Strategies 4-6: Performance API
-    'if(!v&&window.performance){var ee=performance.getEntriesByType("resource");',
-    // 4. initiatorType === 'video'
-    'for(var i=ee.length-1;i>=0;i--){if(ee[i].initiatorType==="video"){v=ee[i].name;break;}}',
-    // 5. Common video file extensions
-    'if(!v){var re=/\\.(mp4|m3u8|webm|ts|mov|mkv|avi|flv|m4v|mpd)(\\?|$)/i;',
-    'for(var i=ee.length-1;i>=0;i--){if(re.test(ee[i].name)){v=ee[i].name;break;}}}',
-    // 6. Largest resource > 500 KB (skip obvious non-video types)
-    'if(!v){var skip=/\\.(js|css|woff2?|png|jpe?g|gif|svg|ico|webp)(\\?|$)/i;',
-    'var best=0;for(var i=0;i<ee.length;i++){var sz=ee[i].transferSize||0;',
-    'if(sz>500000&&sz>best&&!skip.test(ee[i].name)){best=sz;v=ee[i].name;}}}}',
+    // --- Video source detection: '' means "send the page URL" ---
+    'var v=(' + _bookmarkletInline(_bookmarkletPickVideo) + ')(document,window.performance);',
     // --- POST to Hoard API, then poll the job until done ---
     'var pu=location.href;',
     'fetch(H+"/api/download",{method:"POST",headers:{"Content-Type":"application/json"},',

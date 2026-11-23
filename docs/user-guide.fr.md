@@ -812,7 +812,7 @@ Hoard peut télécharger des vidéos depuis le web via **yt-dlp** et les sauvega
 > **« Hoard : accès refusé »** : le favori a été enregistré avant que le jeton ne
 > soit régénéré. Ouvre les paramètres et glisse à nouveau le lien pour le remplacer.
 
-> **Détection intelligente de la source vidéo** : si un élément `<video>` est en lecture sur la page, la bookmarklet capture son URL source directe au lieu de l'URL de la page. Cela permet de télécharger depuis des sites où yt-dlp n'a pas d'extracteur dédié (Patreon, lecteurs vidéo custom, embeds BunnyCDN, etc.). Le modal affiche un indicateur 🎬 quand une source directe a été détectée. L'URL de la page d'origine est automatiquement envoyée comme en-tête `Referer` pour que les CDN qui vérifient l'origine acceptent la requête.
+> **Détection intelligente de la source vidéo** : la bookmarklet cherche la vidéo principale de la page — le plus grand `<video>` à l'écran, d'au moins 400×225 — et ignore les petites (aperçus de la barre de lecture, vignettes, pubs ou fenêtres de webcam). Si cette vidéo principale a une URL source directe, la bookmarklet l'envoie au lieu de l'URL de la page. Si elle est diffusée par le lecteur du site (une source `blob:`, comme sur xHamster), elle envoie l'URL de la page, et yt-dlp extrait lui-même la vidéo. Cela permet de télécharger depuis des sites où yt-dlp n'a pas d'extracteur dédié (Patreon, lecteurs vidéo custom, embeds BunnyCDN, etc.). Le modal affiche un indicateur 🎬 quand une source directe a été détectée. L'URL de la page d'origine est automatiquement envoyée comme en-tête `Referer` pour que les CDN qui vérifient l'origine acceptent la requête.
 
 **Depuis Hoard directement** — clique sur le bouton **📥** dans l'en-tête, colle l'URL et confirme.
 

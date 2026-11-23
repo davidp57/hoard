@@ -476,6 +476,12 @@ focus would erase the pad cursor exactly when the pad lands on a field.
 **The PIN is a separate thing** and stays that way: it is a screen lock on an
 already-authenticated session, this decides whether the server answers at all.
 
+### Bookmarklet Video Detection
+
+The bookmarklet decides what to send with `_bookmarkletPickVideo(doc, perf)` in `frontend/index.html`: a direct video URL, or `''` to send the page URL (no `Referer`). The main video is the largest `<video>` on screen, at least 400×225 rendered; smaller ones are previews, thumbnails and ad widgets. Its direct source wins; a `blob:` source (MSE player) or no source sends the page URL, and the Performance API is not consulted, because its resource list holds the previews and ads around the player. Without a main video: known-host `<iframe>`, then the Performance API (initiator `video`, video extensions, largest resource), skipping the small videos' sources and URLs named `preview` / `thumb` / `sprite`.
+
+The function is embedded as source text (`_bookmarkletInline`, newlines collapsed), so it may contain only `/* */` comments, must end every statement with `;`, and must not contain `%` followed by two hex digits. `tests/test_bookmarklet.py` extracts it between the `BEGIN/END bookmarklet-pick` markers and runs the embedded one-line form under Node with a fake DOM; the tests skip when Node is missing.
+
 ### Bookmarklet Download Token (BL-124)
 
 The bookmarklet POSTs to Hoard from whatever third-party page the user is on. That
