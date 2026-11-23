@@ -803,7 +803,7 @@ Hoard can download videos from the web using **yt-dlp** and save them directly t
 > **"Hoard : accès refusé"**: the bookmark was saved before the token was
 > regenerated. Open Settings and drag the link again to replace it.
 
-> **Smart video source detection**: if a `<video>` element is playing on the page, the bookmarklet captures its direct source URL instead of the page URL. This enables downloading from sites where yt-dlp has no dedicated extractor (Patreon, custom video players, BunnyCDN embeds, etc.). The modal shows a 🎬 hint when a direct source was detected. The original page URL is automatically sent as the `Referer` header so CDNs that verify the origin accept the request.
+> **Smart video source detection**: the bookmarklet looks for the page's main video — the largest `<video>` on screen, at least 400×225 — and ignores small ones (seek-bar previews, thumbnails, ad or live-cam widgets). If that main video has a direct source URL, the bookmarklet sends it instead of the page URL. If the main video is streamed by the page's own player (a `blob:` source, as on xHamster), it sends the page URL, and yt-dlp extracts the video itself. This enables downloading from sites where yt-dlp has no dedicated extractor (Patreon, custom video players, BunnyCDN embeds, etc.). The modal shows a 🎬 hint when a direct source was detected. The original page URL is automatically sent as the `Referer` header so CDNs that verify the origin accept the request.
 
 **From inside Hoard** — click the **📥** button in the header, paste a URL, and confirm.
 

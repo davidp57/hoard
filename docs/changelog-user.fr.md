@@ -6,6 +6,10 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ## [Non publié]
 
+### Corrigé
+
+- **La bookmarklet télécharge la vraie vidéo, plus un aperçu ou une pub.** Sur certains sites (xHamster par exemple), elle récupérait l'aperçu de la barre de lecture ou une webcam publicitaire au lieu de la vidéo. Elle prend maintenant la plus grande vidéo de la page, et laisse yt-dlp faire quand le site protège son lecteur. **Pour en profiter, réinstalle la bookmarklet** : Paramètres › Bookmarklet, glisse à nouveau le bouton « 📥 Hoard Download » dans ta barre de favoris (et supprime l'ancien).
+
 ### Ajouté
 
 - **« À éditer » et « À identifier », deux tags à part.** Dans `[[_keep`, la barre de filtrage commence par deux filtres en pointillés : « ✂ À éditer » (comme avant, avec la case « Masquer les non identifiées ») et « 🔍 À identifier », qui montre les vidéos dont la fiche reste à vérifier. Les tags « Edit » et « Identify » ne sont plus mélangés aux autres tags. Dans la fenêtre 🏷, deux boutons « 🔍 À identifier » et « ✂ À éditer » les posent ou les retirent. Pendant qu'une vidéo se lit à côté de la liste, les tags de chaque ligne sont masqués : les lignes restent compactes.
