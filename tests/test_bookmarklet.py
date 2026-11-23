@@ -299,6 +299,12 @@ def test_site_stream_deciphers_hex_path_segment(algo):
     assert _site(XH, _xplayer({"hls": {"url": url}})) == expected
 
 
+def test_site_stream_scheme_relative_url_gets_https():
+    seg = f"//video-nss.xhcdn.com/{CIPHERS[3][1]}/_TPL_.mp4.m3u8"
+    expected = f"https://video-nss.xhcdn.com/{CIPHER_PLAIN_SEG}/_TPL_.mp4.m3u8"
+    assert _site(XH, _xplayer({"hls": {"url": seg}})) == expected
+
+
 def test_site_stream_skips_unknown_algorithm_and_dummy_ciphertext():
     bad = "09" + "00" * 20  # algorithm 9 does not exist
     sources = {
