@@ -625,12 +625,14 @@ Dans l'autre sens, FramePlayerX garde sa propre position de reprise : il ne repr
 
 Déplacer, supprimer ou renommer reste dans l'interface web de Hoard.
 
-### Parcourir dans Hoard, lire dans FramePlayerX
+### Parcourir dans Hoard, lire dans FramePlayerX ou VideoFrameVR
 
-L'inverse est possible aussi : tu parcours tes dossiers dans Hoard, dans le navigateur du casque, et quand tu ouvres une vidéo, **elle se lit dans FramePlayerX**, à l'endroit où tu t'étais arrêté.
-Quand tu fermes la vidéo dans FramePlayerX, Hoard l'apprend, enregistre la position et revient à la liste, curseur sur la vidéo.
+L'inverse est possible aussi : tu parcours tes dossiers dans Hoard, dans le navigateur du casque, et quand tu ouvres une vidéo, **elle se lit dans le lecteur du casque**, à l'endroit où tu t'étais arrêté.
+Deux lecteurs sont possibles : FramePlayerX ou [VideoFrameVR](https://github.com/seaweeduk/VideoFrameVR).
+Quand tu fermes la vidéo dans le lecteur, Hoard l'apprend, enregistre la position et revient à la liste, curseur sur la vidéo.
+Dans la suite, « FramePlayerX » vaut aussi pour VideoFrameVR : Hoard affiche le nom du lecteur choisi.
 
-**1. Régler le casque** (une fois, depuis n'importe quel appareil) : *Paramètres › 🥽 FramePlayerX*.
+**1. Régler le casque** (une fois, depuis n'importe quel appareil) : *Paramètres › 🥽 Lecteur du casque*.
 
 - **Casque** : le nom du casque sur ton réseau local, ou son adresse IP. Par exemple `steam-frame.lan`. Tu le trouves dans la liste des appareils connectés de ta box ou de ton routeur. Hoard refuse une adresse qui n'est pas sur le réseau local.
   **Si ton NAS ne connaît pas les noms du réseau local** (`.lan`, `.local`), ce qui arrive quand il interroge un DNS public : mets l'**adresse IP** du casque, par exemple `192.168.1.30`, et réserve-la dans le DHCP de ta box ou de ton routeur pour qu'elle ne change pas.
@@ -638,10 +640,12 @@ Quand tu fermes la vidéo dans FramePlayerX, Hoard l'apprend, enregistre la posi
 - **Identifiant Steam de FramePlayerX** : le nombre qui permet à Hoard de mettre FramePlayerX au premier plan. Par exemple `5302428712275279872`.
   Pour le retrouver ailleurs : dans Steam (mode bureau), clic droit sur FramePlayerX › *Gérer › Ajouter un raccourci sur le bureau*, puis ouvre le raccourci créé : le nombre est après `steam://rungameid/` (méthode pas encore essayée sur le Frame).
   À défaut, il se calcule depuis l'AppId du raccourci non-Steam : AppId × 4294967296 + 33554432 (pour l'AppId `1234567890`, ça donne `5302428712275279872`).
-  Sans identifiant, la lecture part quand même dans FramePlayerX, mais c'est à toi de passer dans FramePlayerX.
+  Sans identifiant, la lecture part quand même dans FramePlayerX, mais c'est à toi de le lancer ou de passer dessus : Hoard l'attend 20 secondes.
+- **Lecteur** : *FramePlayerX* (par défaut) ou *VideoFrameVR (DeoVR)*. Choisis celui que tu utilises : les deux se pilotent de la même façon, mais ne préviennent pas de la même façon qu'une vidéo est fermée, et Hoard doit savoir lequel écoute.
+- **Identifiant Steam de VideoFrameVR** (affiché quand VideoFrameVR est choisi) : le même genre de nombre, pour lancer VideoFrameVR. Son installeur l'ajoute à Steam comme raccourci non-Steam, dont le numéro dépend de ton compte : il n'y a pas de numéro commun à tous. Retrouve-le comme pour FramePlayerX (raccourci sur le bureau, nombre après `steam://rungameid/`). Sans lui, lance VideoFrameVR toi-même : Hoard l'attend 20 secondes et te le rappelle à l'écran.
 - **Enregistrer**.
 
-**2. Activer la bascule dans le casque**, et seulement là : *Paramètres › 🥽 FramePlayerX › Lire dans FramePlayerX*, ou à la manette, menu (**Select**) › **🥽 Lire dans FramePlayerX**.
+**2. Activer la bascule dans le casque**, et seulement là : *Paramètres › 🥽 Lecteur du casque › Lire dans le lecteur du casque*, ou à la manette, menu (**Select**) › **🥽 Lire dans FramePlayerX** (ou **VideoFrameVR**).
 Ce réglage reste sur l'appareil où tu le prends : sur le PC ou le Deck, les vidéos continuent de se lire dans Hoard.
 
 **À l'usage** :

@@ -140,6 +140,7 @@ shader the flat modes already have.
 ## Browse in Hoard, play in FramePlayerX *(built, awaiting a test on the Frame)*
 
 - [ ] **Handoff to FramePlayerX** (BL-144, lot [FEAT-FPX-HANDOFF](.backlog/FEAT-FPX-HANDOFF/PRD.md)) — opening a video in Hoard plays it in FPX through its DeoVR remote, at the resume point; the backend follows the playback into `progress` and the page returns to the list when FPX closes it. Device-local toggle, signed `/api/file` URL.
+- [ ] **VideoFrameVR as the headset player, DeoVR heartbeat** (BL-155, 2.9.12) — a `remote_player` setting picks FramePlayerX or VideoFrameVR, whose DeoVR remote says "nothing open" with an empty frame instead of `{}`; Hoard sends a zero-length frame every second, which DeoVR requires. Awaiting a trial on the Frame.
 - [ ] **Headset helper to come back to Hoard** (BL-145) — only if the trial shows the Frame does not return to the browser by itself.
 
 ## Hoard sorts and plays, Stash keeps and describes *(built, awaiting David's setup and trial)*

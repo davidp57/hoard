@@ -617,12 +617,14 @@ The other way round, FramePlayerX keeps its own resume position: it does not res
 
 Moving, deleting or renaming stays in Hoard's web interface.
 
-### Browse in Hoard, play in FramePlayerX
+### Browse in Hoard, play in FramePlayerX or VideoFrameVR
 
-The other way round works too: you browse your folders in Hoard, in the headset's browser, and when you open a video **it plays in FramePlayerX**, from where you stopped.
-When you close the video in FramePlayerX, Hoard hears about it, saves the position and goes back to the list, cursor on the video.
+The other way round works too: you browse your folders in Hoard, in the headset's browser, and when you open a video **it plays in the headset's player**, from where you stopped.
+Two players are supported: FramePlayerX or [VideoFrameVR](https://github.com/seaweeduk/VideoFrameVR).
+When you close the video in the player, Hoard hears about it, saves the position and goes back to the list, cursor on the video.
+Below, "FramePlayerX" also stands for VideoFrameVR: Hoard shows the name of the player you picked.
 
-**1. Set up the headset** (once, from any device): *Settings › 🥽 FramePlayerX*.
+**1. Set up the headset** (once, from any device): *Settings › 🥽 Lecteur du casque* (headset player).
 
 - **Casque** (headset): the headset's name on your local network, or its IP address, for example `steam-frame.lan`. Your box or router lists it among the connected devices. Hoard refuses an address that is not on the local network.
   **If your NAS does not know local network names** (`.lan`, `.local`), which happens when it asks a public DNS: enter the headset's **IP address**, for example `192.168.1.30`, and reserve it in your box's or router's DHCP so it does not change.
@@ -630,10 +632,12 @@ When you close the video in FramePlayerX, Hoard hears about it, saves the positi
 - **Identifiant Steam de FramePlayerX** (FramePlayerX's Steam id): the number that lets Hoard bring FramePlayerX to the front. For example `5302428712275279872`.
   To find it elsewhere: in Steam (desktop mode), right-click FramePlayerX › *Manage › Add desktop shortcut*, then open the shortcut: the number comes after `steam://rungameid/` (not tried on the Frame yet).
   Failing that, it is computed from the non-Steam shortcut's AppId: AppId × 4294967296 + 33554432 (AppId `1234567890` gives `5302428712275279872`).
-  Without it, playback still goes to FramePlayerX, but switching to FramePlayerX is up to you.
+  Without it, playback still goes to FramePlayerX, but starting it or switching to it is up to you: Hoard waits 20 seconds for it.
+- **Lecteur** (player): *FramePlayerX* (the default) or *VideoFrameVR (DeoVR)*. Pick the one you use: both are driven the same way, but they do not report a closed video the same way, so Hoard must know which one listens.
+- **Identifiant Steam de VideoFrameVR** (VideoFrameVR's Steam id, shown when VideoFrameVR is picked): the same kind of number, to launch VideoFrameVR. Its installer adds it to Steam as a non-Steam shortcut, whose number depends on your account: there is no number common to everyone. Find it as for FramePlayerX (desktop shortcut, the number after `steam://rungameid/`). Without it, start VideoFrameVR yourself: Hoard waits 20 seconds for it and says so on screen.
 - **Save**.
 
-**2. Turn the handoff on in the headset**, and only there: *Settings › 🥽 FramePlayerX › Lire dans FramePlayerX*, or with the pad, menu (**Select**) › **🥽 Lire dans FramePlayerX**.
+**2. Turn the handoff on in the headset**, and only there: *Settings › 🥽 Lecteur du casque › Lire dans le lecteur du casque*, or with the pad, menu (**Select**) › **🥽 Lire dans FramePlayerX** (or **VideoFrameVR**).
 The setting stays on the device where you set it: on the PC or the Deck, videos keep playing in Hoard.
 
 **In use**:

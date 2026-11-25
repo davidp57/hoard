@@ -6,6 +6,10 @@ Journal des changements visibles par l'utilisateur, sans jargon technique.
 
 ## [Non publié]
 
+### Ajouté
+
+- **Lire dans VideoFrameVR, pas seulement dans FramePlayerX.** Dans Paramètres › « 🥽 Lecteur du casque », choisis le lecteur que tu utilises sur le Steam Frame : FramePlayerX ou VideoFrameVR. Les vidéos ouvertes dans Hoard partent dans ce lecteur, et Hoard revient à la liste quand tu fermes la vidéo, comme avec FramePlayerX. Chaque lecteur a son identifiant Steam, pour que Hoard puisse le lancer ; le guide explique où le trouver. Hoard garde aussi la connexion active, ce que VideoFrameVR exige pour ne pas la couper au bout de 3 secondes.
+
 ### Corrigé
 
 - **La bookmarklet télécharge de nouveau sur xHamster.** Depuis la France, xHamster demande une vérification d'âge que seul ton navigateur a passée : Hoard ne pouvait pas ouvrir la page et le téléchargement échouait (« No video formats found »). Sur xHamster, la bookmarklet prend maintenant l'adresse de la vidéo directement dans la page. **Pour en profiter, réinstalle la bookmarklet** : Paramètres › Bookmarklet, glisse à nouveau le bouton « 📥 Hoard Download » dans ta barre de favoris (et supprime l'ancien).

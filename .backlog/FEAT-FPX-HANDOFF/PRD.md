@@ -52,3 +52,4 @@ Le retour automatique vers Chromium dépend du comportement du Frame : BL-145 ne
 | 01 | [BL-144 — Lancer la lecture dans FramePlayerX depuis Hoard](tickets/01-handoff.md) | ✅ |
 | 02 | [BL-145 — Service sur le casque pour revenir dans Hoard (si l'essai le montre nécessaire)](tickets/02-headset-helper.md) | 🚫 |
 | 03 | [BL-146 — N'ouvrir le lien Steam que si FramePlayerX est fermé](tickets/03-steam-link-once.md) | ✅ |
+| 04 | [BL-155 — Lire aussi dans VideoFrameVR, et respecter le protocole DeoVR](tickets/04-videoframevr.md) | 🧑 |
