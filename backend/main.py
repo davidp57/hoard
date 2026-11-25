@@ -3894,8 +3894,10 @@ _SETTINGS_KEYS = {
     "gamepad_mapping",  # JSON string, default '{}' (use built-in defaults)
     "fs_progress_zoom",  # int 5-50, zoom window % for fullscreen progress bar, default 20
     "gestures_overlay_seen",  # '1' | '0', one-shot touch-gesture discovery overlay flag
-    "fpx_host",  # FramePlayerX headset host name or IP, '' = handoff off (BL-144)
-    "fpx_steam_gameid",  # 64-bit Steam shortcut id for steam://rungameid/, '' = none
+    "fpx_host",  # headset host name or IP, '' = handoff off (BL-144)
+    "fpx_steam_gameid",  # FramePlayerX's 64-bit id for steam://rungameid/, '' = none
+    "remote_player",  # 'fpx' (FramePlayerX, default) | 'deovr' (VideoFrameVR)
+    "deovr_steam_gameid",  # VideoFrameVR's 64-bit id for steam://rungameid/, '' = none
     "stash_url",  # Stash base URL, '' = Stash integration off (FEAT-STASH)
     "stash_api_key",  # Stash API key, write-only: never returned (SECRET_SETTINGS)
     "stash_folder",  # folder Stash manages, relative to MEDIA_ROOT, default '[[_keep'
@@ -3956,6 +3958,8 @@ _SETTINGS_DEFAULTS: dict[str, str] = {
     "vr_sbs_layout": "auto",
     "fpx_host": "",
     "fpx_steam_gameid": "",
+    "remote_player": "fpx",
+    "deovr_steam_gameid": "",
     "stash_url": "",
     "stash_api_key": "",
     "stash_folder": "[[_keep",  # STASH_DEFAULT_FOLDER, defined with the Stash code
@@ -4024,6 +4028,8 @@ class SettingsPayload(BaseModel):
     vr_sbs_layout: str | None = None
     fpx_host: str | None = Field(default=None, max_length=253)
     fpx_steam_gameid: str | None = Field(default=None, max_length=20)
+    remote_player: str | None = None
+    deovr_steam_gameid: str | None = Field(default=None, max_length=20)
     stash_url: str | None = Field(default=None, max_length=2048)
     # Write-only: None leaves the stored key alone, "" clears it.
     stash_api_key: str | None = Field(default=None, max_length=512)
@@ -4228,11 +4234,19 @@ def update_settings(body: SettingsPayload, request: Request):
             if fpx_host != _read_all_settings(conn).get("fpx_host", ""):
                 fpx_host_to_check = fpx_host
             _write_setting(conn, "fpx_host", fpx_host)
-        if body.fpx_steam_gameid is not None:
-            gameid = body.fpx_steam_gameid.strip()
+        for key in ("fpx_steam_gameid", "deovr_steam_gameid"):
+            gameid = getattr(body, key)
+            if gameid is None:
+                continue
+            gameid = gameid.strip()
             if gameid and not gameid.isdigit():
-                raise HTTPException(status_code=422, detail="fpx_steam_gameid must be digits")
-            _write_setting(conn, "fpx_steam_gameid", gameid)
+                raise HTTPException(status_code=422, detail=f"{key} must be digits")
+            _write_setting(conn, key, gameid)
+        # An enum: an unknown value would silently pick the wrong close signal.
+        if body.remote_player is not None:
+            if body.remote_player not in REMOTE_PLAYERS:
+                raise HTTPException(status_code=422, detail="remote_player must be fpx or deovr")
+            _write_setting(conn, "remote_player", body.remote_player)
 
         stash_changed = False
         if body.stash_url is not None:
@@ -5280,20 +5294,34 @@ def _store_position(conn, rel: str, position: float, duration: float) -> None:
     )
 
 
-# ── FramePlayerX handoff (FEAT-FPX-HANDOFF, BL-144) ──────────────────────────
-# Browse in Hoard, play in FramePlayerX (FPX), the native player on the Steam
-# Frame. FPX exposes a DeoVR remote on TCP 23554, open to the LAN, no pairing:
-#   - each message is a 4-byte little-endian length then UTF-8 JSON; length 0 is
-#     a keep-alive ping, which FPX sends about every second;
-#   - FPX sends {"path", "duration", "currentTime", "playbackSpeed",
+# ── Headset player handoff (FEAT-FPX-HANDOFF, BL-144) ────────────────────────
+# Browse in Hoard, play in a native player on the Steam Frame: FramePlayerX (FPX)
+# or VideoFrameVR, picked by the `remote_player` setting ('fpx' | 'deovr'). Both
+# expose a DeoVR remote on TCP 23554, open to the LAN, no pairing:
+#   - each message is a 4-byte little-endian length then UTF-8 JSON;
+#   - the player sends {"path", "duration", "currentTime", "playbackSpeed",
 #     "playerState"} (0 = playing, 1 = paused) on every change and at least every
-#     second while playing, and {} when nothing is open;
+#     second while playing;
 #   - a client message with a `path` different from the open one opens it, then
 #     the speed, the seek (`currentTime`) and play/pause are applied, in that
-#     order — so one message opens a video at its resume point and plays it.
-# Read in FPX's sources (crates/fp-remote/src/deovr.rs) and measured against the
-# headset on 2026-11-14. The backend holds the connection, not the page: the page
-# is in Chromium, which FPX has just pushed to the background.
+#     order — so one message opens a video at its resume point and plays it;
+#   - the client sends a zero-length frame about every second (FPX_HEARTBEAT):
+#     DeoVR drops a client after 3 s of silence. FPX ignores it.
+# The two players disagree on how "nothing is open" is said:
+#   - FPX ('fpx') sends a zero-length ping every second whatever its state, and
+#     {} when nothing is open. Read in FPX's sources
+#     (remotesojourner/frameplayerx, crates/fp-remote/src/deovr.rs, broadcast
+#     loop) and measured against the headset on 2026-11-14.
+#   - DeoVR, which VideoFrameVR follows ('deovr'), sends JSON while a video is
+#     open and a zero-length frame when nothing is: it never sends {}. Per
+#     DeoVR's remote-control documentation and its sample client
+#     DeoVRRemoteControl.cs; reported by VideoFrameVR's author in
+#     seaweeduk/VideoFrameVR#109.
+# No traffic cue tells the two apart (an empty frame means "alive" to one and
+# "closed" to the other), hence the setting. The backend holds the connection,
+# not the page: the page is in Chromium, which the player has just pushed to the
+# background. Internal names keep the `fpx` prefix of the first player.
+REMOTE_PLAYERS = {"fpx": "FramePlayerX", "deovr": "VideoFrameVR"}
 FPX_PORT = 23554
 FPX_FILE_PATH = "/api/file"
 # FPX may not be running yet: the page launches it through steam:// right before
@@ -5308,8 +5336,10 @@ FPX_CONNECT_RETRY_DELAY = 0.5
 FPX_PROBE_TIMEOUT = 1.0
 FPX_SAVE_INTERVAL = 10.0
 FPX_READ_POLL = 0.5
-# FPX pings every second; this much silence means the headset is gone (asleep,
-# off the network) without the connection having been closed.
+# DeoVR drops a client after 3 s without a frame from it; one a second leaves room.
+FPX_HEARTBEAT = 1.0
+# The player sends at least a frame a second; this much silence means the headset
+# is gone (asleep, off the network) without the connection having been closed.
 FPX_SILENCE_TIMEOUT = 15.0
 # How long FPX may take to report the video it was asked to open. Past this, the
 # open failed (unreachable URL, unreadable file) and nothing is being played.
@@ -5427,7 +5457,7 @@ def _fpx_host_warning(host: str) -> str | None:
     return None
 
 
-def _fpx_addresses(host: str) -> list[str]:
+def _fpx_addresses(host: str, player: str) -> list[str]:
     """Resolve the headset and refuse anything off the local network.
 
     Every resolved address must be local, and the connection then goes to those
@@ -5439,13 +5469,13 @@ def _fpx_addresses(host: str) -> list[str]:
     except OSError as exc:
         logger.warning("fpx: %s does not resolve from the server (%s)", host, _fpx_error(exc))
         raise HTTPException(
-            status_code=502, detail=f"FramePlayerX introuvable : {host} ne se résout pas"
+            status_code=502, detail=f"{player} introuvable : {host} ne se résout pas"
         ) from None
     if not addrs or not all(_is_lan_address(ipaddress.ip_address(a)) for a in addrs):
         logger.warning("fpx: %s resolves off the local network (%s)", host, ", ".join(addrs))
         raise HTTPException(
             status_code=400,
-            detail=f"FramePlayerX refusé : {host} n'est pas sur le réseau local",
+            detail=f"{player} refusé : {host} n'est pas sur le réseau local",
         )
     return addrs
 
@@ -5456,7 +5486,7 @@ def _fpx_error(exc: BaseException) -> str:
     return f"{type(exc).__name__}: {exc}"
 
 
-def _fpx_probe(host: str) -> socket.socket:
+def _fpx_probe(host: str, player: str) -> socket.socket:
     """One connection attempt, bounded by FPX_PROBE_TIMEOUT over all addresses.
 
     A miss is the expected answer when FPX is not running, not a fault: it is
@@ -5464,7 +5494,7 @@ def _fpx_probe(host: str) -> socket.socket:
     then ask again with the retry window". Resolution and LAN errors keep their
     own codes (502, 400), so the page never launches FPX on a bad setting.
     """
-    addrs = _fpx_addresses(host)
+    addrs = _fpx_addresses(host, player)
     deadline = time.monotonic() + FPX_PROBE_TIMEOUT
     last_error: OSError | None = None
     for addr in addrs:
@@ -5487,11 +5517,11 @@ def _fpx_probe(host: str) -> socket.socket:
         ", ".join(addrs),
         _fpx_error(last_error) if last_error else "out of time",
     )
-    raise HTTPException(status_code=503, detail=f"FramePlayerX ne tourne pas sur {host}:{FPX_PORT}")
+    raise HTTPException(status_code=503, detail=f"{player} ne tourne pas sur {host}:{FPX_PORT}")
 
 
-def _fpx_connect(host: str) -> socket.socket:
-    addrs = _fpx_addresses(host)
+def _fpx_connect(host: str, player: str) -> socket.socket:
+    addrs = _fpx_addresses(host, player)
     deadline = time.monotonic() + FPX_CONNECT_WINDOW
     last_error: OSError | None = None
     while True:
@@ -5513,7 +5543,7 @@ def _fpx_connect(host: str) -> socket.socket:
                 _fpx_error(last_error) if last_error else "none",
             )
             raise HTTPException(
-                status_code=502, detail=f"FramePlayerX injoignable sur {host}:{FPX_PORT}"
+                status_code=502, detail=f"{player} injoignable sur {host}:{FPX_PORT}"
             )
         time.sleep(FPX_CONNECT_RETRY_DELAY)
 
@@ -5537,21 +5567,32 @@ def _fpx_resume_position(rel: str) -> float:
 
 
 class _FpxSession:
-    """One playback handed to FPX: the connection, and what FPX reports on it.
+    """One playback handed to the headset player: the connection, and its reports.
 
-    A reader thread follows FPX's reports and writes the position to `progress`
-    every FPX_SAVE_INTERVAL seconds, on pause, and when the session ends. It ends
-    when FPX reports nothing open ({}), another video, or drops the connection;
-    when the page abandons it ("Reprendre ici"); or when a new play replaces it.
+    A reader thread follows the player's reports, writes the position to
+    `progress` every FPX_SAVE_INTERVAL seconds, on pause and when the session
+    ends, and sends the heartbeat. It ends when the player reports nothing open
+    ({} for FPX, an empty frame for DeoVR), another video, or drops the
+    connection; when the page abandons it ("Reprendre ici"); or when a new play
+    replaces it.
     """
 
-    def __init__(self, rel: str, url: str, sig: str, resume: float, sock: socket.socket):
+    def __init__(
+        self,
+        rel: str,
+        url: str,
+        sig: str,
+        resume: float,
+        sock: socket.socket,
+        player: str = "fpx",
+    ):
         self.id = uuid.uuid4().hex[:12]
         self.rel = rel
         self.url = url
         self.sig = sig
         self.resume = resume
         self.sock = sock
+        self.player = player  # a REMOTE_PLAYERS key: which dialect closes the session
         self.lock = threading.Lock()
         self.state = "opening"  # opening | playing | paused | ended
         self.reason: str | None = None
@@ -5563,6 +5604,7 @@ class _FpxSession:
         self._last_save = now
         self._started = now
         self._last_frame = now
+        self._last_heartbeat = now  # the open has just been sent
         self.thread = threading.Thread(target=self._run, name=f"fpx-{self.id}", daemon=True)
 
     def start(self) -> None:
@@ -5624,8 +5666,8 @@ class _FpxSession:
             if self.state == "ended":
                 return
             if not ours:
-                # Until FPX reports our video, {} or another path is its state from
-                # before the open, not an answer to it.
+                # Until the player reports our video, "nothing open" or another
+                # path is its state from before the open, not an answer to it.
                 if not self.opened:
                     return
                 end_reason = "replaced" if path else "closed"
@@ -5667,7 +5709,11 @@ class _FpxSession:
                 break
             payload, buf = buf[4 : 4 + size], buf[4 + size :]
             if not payload:
-                continue  # keep-alive ping
+                # FPX: a keep-alive ping, sent whatever its state. DeoVR: nothing
+                # is open, the same news as FPX's {} (see the section's header).
+                if self.player == "deovr":
+                    self._on_message({})
+                continue
             try:
                 message = json.loads(payload)
             except (ValueError, UnicodeDecodeError):
@@ -5703,6 +5749,13 @@ class _FpxSession:
             if not self.opened and now - self._started > FPX_OPEN_TIMEOUT:
                 self._finish("not_opened")
                 return
+            if now - self._last_heartbeat >= FPX_HEARTBEAT:
+                self._last_heartbeat = now
+                try:
+                    self.sock.sendall(b"\x00\x00\x00\x00")
+                except OSError:
+                    self._finish("disconnected")
+                    return
             with self.lock:
                 if (
                     self.state != "ended"
@@ -5743,21 +5796,26 @@ def _fpx_origin(origin: str) -> str:
 
 @app.post("/api/fpx/play")
 def fpx_play(body: FpxPlayRequest):
-    """Open a video in FramePlayerX at its resume point and follow the playback."""
+    """Open a video in the headset player at its resume point and follow the playback."""
     global _fpx_session
     file = safe_path(body.path)
     if not is_video(file) or not file.is_file():
         raise HTTPException(status_code=404)
     origin = _fpx_origin(body.origin)
     with get_db() as conn:
-        host = _read_all_settings(conn).get("fpx_host", "").strip()
+        settings = _read_all_settings(conn)
+    host = settings.get("fpx_host", "").strip()
+    player_key = settings.get("remote_player", "fpx")
+    if player_key not in REMOTE_PLAYERS:
+        player_key = "fpx"
+    player = REMOTE_PLAYERS[player_key]
     if not host:
         logger.warning("fpx: play requested but fpx_host is not set")
-        raise HTTPException(status_code=409, detail="FramePlayerX n'est pas configuré (fpx_host)")
+        raise HTTPException(status_code=409, detail=f"{player} n'est pas configuré (fpx_host)")
     rel = to_rel(file)
     resume = _fpx_resume_position(rel)
     url, sig = _fpx_signed_url(origin, rel)
-    sock = _fpx_connect(host) if body.wait else _fpx_probe(host)
+    sock = _fpx_connect(host, player) if body.wait else _fpx_probe(host, player)
     try:
         sock.sendall(_fpx_frame({"path": url, "currentTime": resume, "playerState": 0}))
     except OSError as exc:
@@ -5770,15 +5828,22 @@ def fpx_play(body: FpxPlayRequest):
             _fpx_error(exc),
         )
         raise HTTPException(
-            status_code=502, detail=f"FramePlayerX injoignable sur {host}:{FPX_PORT}"
+            status_code=502, detail=f"{player} injoignable sur {host}:{FPX_PORT}"
         ) from None
-    session = _FpxSession(rel, url, sig, resume, sock)
+    session = _FpxSession(rel, url, sig, resume, sock, player_key)
     with _fpx_lock:
         previous, _fpx_session = _fpx_session, session
     if previous is not None:
         previous.stop("replaced")
     session.start()
-    logger.info("fpx: opening %s on %s at %.1fs (session %s)", rel, host, resume, session.id)
+    logger.info(
+        "fpx: opening %s in %s on %s at %.1fs (session %s)",
+        rel,
+        player,
+        host,
+        resume,
+        session.id,
+    )
     return session.snapshot()
 
 

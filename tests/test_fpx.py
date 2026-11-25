@@ -36,6 +36,7 @@ class FakeFpx:
         self.port = self.server.getsockname()[1]
         self.conn: socket.socket | None = None
         self.received: list[dict] = []
+        self.heartbeats = 0  # zero-length frames from Hoard
         self._connected = threading.Event()
         self._thread = threading.Thread(target=self._serve, daemon=True)
         self._thread.start()
@@ -66,6 +67,8 @@ class FakeFpx:
                 payload, buf = buf[4 : 4 + size], buf[4 + size :]
                 if payload:
                     self.received.append(json.loads(payload))
+                else:
+                    self.heartbeats += 1
 
     def send(self, message: dict | None):
         """Send a status message; None sends a ping."""
@@ -135,6 +138,13 @@ def _row(rel: str):
 def _set_host(host: str = "frame.lan"):
     with _db() as conn:
         conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('fpx_host', ?)", (host,))
+
+
+def _set_player(player: str):
+    with _db() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES ('remote_player', ?)", (player,)
+        )
 
 
 def _status(fake: FakeFpx, url: str, position: float, duration: float = 600.0, state: int = 0):
@@ -319,6 +329,99 @@ def test_silence_ends_the_session(fake, monkeypatch):
     assert m._fpx_session.reason == "disconnected"
 
 
+# ── Heartbeat and player dialects ─────────────────────────────────────────────
+
+
+def test_heartbeat_sent_while_the_session_lives(fake, monkeypatch):
+    # DeoVR drops a client after 3 s without a frame from it.
+    monkeypatch.setattr(m, "FPX_HEARTBEAT", 0.1)
+    rel = _video()
+    _play(rel)
+    url = fake.wait_received()[0]["path"]
+    _status(fake, url, 10.0)
+    _until(lambda: fake.heartbeats >= 3, "no heartbeat sent")
+    assert len(fake.received) == 1  # zero-length frames only, nothing else
+
+
+def test_heartbeat_send_error_ends_the_session(fake, monkeypatch):
+    monkeypatch.setattr(m, "FPX_HEARTBEAT", 0.1)
+    rel = _video()
+    _play(rel)
+    url = fake.wait_received()[0]["path"]
+    _status(fake, url, 21.0)
+    _until(lambda: m._fpx_session.opened, "status never read")
+    session = m._fpx_session
+
+    class BrokenSend:
+        """The real socket, whose sends fail: reads still work."""
+
+        def __init__(self, sock):
+            self._sock = sock
+
+        def __getattr__(self, name):
+            return getattr(self._sock, name)
+
+        def sendall(self, data):
+            raise BrokenPipeError("connection reset")
+
+    session.sock = BrokenSend(session.sock)
+    _until(_session_ended, "a failed heartbeat did not end the session")
+    assert session.reason == "disconnected"
+    assert _row(rel)["position"] == 21.0
+
+
+def test_fpx_mode_ignores_empty_frames_after_the_open(fake):
+    # FPX pings every second even while a video is open.
+    rel = _video()
+    _play(rel)
+    url = fake.wait_received()[0]["path"]
+    _status(fake, url, 40.0)
+    _until(lambda: m._fpx_session.opened, "status never read")
+    fake.send(None)
+    fake.send(None)
+    time.sleep(0.3)
+    assert m._fpx_session.state == "playing"
+
+
+def test_deovr_mode_closes_on_an_empty_frame_after_the_open(fake):
+    _set_player("deovr")
+    rel = _video()
+    _play(rel)
+    url = fake.wait_received()[0]["path"]
+    _status(fake, url, 300.0)
+    _until(lambda: m._fpx_session.opened, "status never read")
+    fake.send(None)  # DeoVR: nothing is open any more
+    _until(_session_ended, "an empty frame did not end the DeoVR session")
+    snap = client.get("/api/fpx/status").json()
+    assert snap["reason"] == "closed"
+    row = _row(rel)
+    assert row["position"] == 300.0
+    assert row["duration"] == 600.0
+
+
+def test_deovr_mode_ignores_empty_frames_before_the_open(fake):
+    _set_player("deovr")
+    rel = _video()
+    _play(rel)
+    fake.wait_received()
+    fake.send(None)  # the player's state from before it processed the open
+    fake.send(None)
+    time.sleep(0.3)
+    assert m._fpx_session.state == "opening"
+    assert _row(rel) is None
+
+
+def test_deovr_mode_messages_name_videoframevr(fake, monkeypatch):
+    def refused(*args, **kwargs):
+        raise ConnectionRefusedError(111, "Connection refused")
+
+    _set_player("deovr")
+    monkeypatch.setattr(m.socket, "create_connection", refused)
+    r = client.post("/api/fpx/play", json={"path": _video(), "origin": ORIGIN, "wait": False})
+    assert r.status_code == 503
+    assert r.json()["detail"].startswith("VideoFrameVR ne tourne pas")
+
+
 def test_seek_resent_when_the_open_lost_it(fake):
     rel = _video()
     _progress(rel, 200.0, 600.0)
@@ -439,7 +542,7 @@ def test_failed_open_command_is_logged_without_the_signed_url(fake, monkeypatch,
         def close(self):
             pass
 
-    monkeypatch.setattr(m, "_fpx_connect", lambda host: BrokenSocket())
+    monkeypatch.setattr(m, "_fpx_connect", lambda host, player: BrokenSocket())
     with caplog.at_level(logging.WARNING, logger="hoard"):
         r = _play(_video())
     assert r.status_code == 502
@@ -561,6 +664,26 @@ def test_settings_defaults_are_empty():
     s = client.get("/api/settings").json()
     assert s["fpx_host"] == ""
     assert s["fpx_steam_gameid"] == ""
+    assert s["deovr_steam_gameid"] == ""
+
+
+def test_remote_player_defaults_to_fpx():
+    assert client.get("/api/settings").json()["remote_player"] == "fpx"
+
+
+def test_remote_player_round_trip_and_enum():
+    assert client.post("/api/settings", json={"remote_player": "deovr"}).status_code == 200
+    assert client.get("/api/settings").json()["remote_player"] == "deovr"
+    assert client.post("/api/settings", json={"remote_player": "heresphere"}).status_code == 422
+    assert client.get("/api/settings").json()["remote_player"] == "deovr"
+
+
+def test_deovr_gameid_round_trip_and_digits_only():
+    r = client.post("/api/settings", json={"deovr_steam_gameid": "5302428712275279872"})
+    assert r.status_code == 200
+    assert client.get("/api/settings").json()["deovr_steam_gameid"] == "5302428712275279872"
+    r = client.post("/api/settings", json={"deovr_steam_gameid": "steam://rungameid/1"})
+    assert r.status_code == 422
 
 
 @pytest.fixture()
