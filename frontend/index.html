@@ -1842,11 +1842,11 @@
       </div>
     </div>
 
-    <!-- FramePlayerX handoff (BL-144) -->
+    <!-- Headset player handoff (BL-144): FramePlayerX or VideoFrameVR -->
     <div>
-      <div class="s-section-title">🥽 FramePlayerX</div>
+      <div class="s-section-title">🥽 Lecteur du casque</div>
       <div class="s-row">
-        <div><div class="s-label">Lire dans FramePlayerX</div><div class="s-desc">Une vidéo ouverte dans la liste se lit dans FramePlayerX, et Hoard reprend la main quand vous la fermez. Se règle <b>appareil par appareil</b> : à activer dans le casque seulement. À la manette : menu (Select) → « Lire dans FramePlayerX ».</div></div>
+        <div><div class="s-label">Lire dans le lecteur du casque</div><div class="s-desc">Une vidéo ouverte dans la liste se lit dans le lecteur choisi ci-dessous, et Hoard reprend la main quand vous la fermez. Se règle <b>appareil par appareil</b> : à activer dans le casque seulement. À la manette : menu (Select) → « Lire dans … ».</div></div>
         <div class="s-right"><label class="toggle"><input type="checkbox" id="s-fpx-handoff" onchange="setFpxHandoff(this.checked)"><div class="toggle-track"></div></label></div>
       </div>
       <div class="s-row">
@@ -1854,8 +1854,16 @@
         <div class="s-right"><input type="text" class="s-num" id="s-fpx-host" style="width:18rem" placeholder="frame.lan" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
       </div>
       <div class="s-row">
-        <div><div class="s-label">Identifiant Steam de FramePlayerX</div><div class="s-desc">Pour mettre FramePlayerX au premier plan (lien <code>steam://rungameid/…</code>). Voir le guide pour le trouver</div></div>
+        <div><div class="s-label">Lecteur</div><div class="s-desc">L'application qui lit la vidéo dans le casque. Les deux se pilotent pareil (télécommande DeoVR), mais ne disent pas de la même façon qu'une vidéo est fermée</div></div>
+        <div class="s-right"><select class="s-num" id="s-remote-player" style="width:auto" onchange="_showRemotePlayerRows(this.value)"><option value="fpx">FramePlayerX</option><option value="deovr">VideoFrameVR (DeoVR)</option></select></div>
+      </div>
+      <div class="s-row" id="s-fpx-gameid-row">
+        <div><div class="s-label">Identifiant Steam de FramePlayerX</div><div class="s-desc">Pour lancer FramePlayerX et le mettre au premier plan (lien <code>steam://rungameid/…</code>). Voir le guide pour le trouver</div></div>
         <div class="s-right"><input type="text" class="s-num" id="s-fpx-gameid" style="width:18rem" inputmode="numeric" placeholder="5302428712275279872" autocomplete="off"></div>
+      </div>
+      <div class="s-row" id="s-deovr-gameid-row" style="display:none">
+        <div><div class="s-label">Identifiant Steam de VideoFrameVR</div><div class="s-desc">Pour lancer VideoFrameVR et le mettre au premier plan (lien <code>steam://rungameid/…</code>). Voir le guide pour le trouver</div></div>
+        <div class="s-right"><input type="text" class="s-num" id="s-deovr-gameid" style="width:18rem" inputmode="numeric" placeholder="chiffres uniquement" autocomplete="off"></div>
       </div>
     </div>
 
@@ -2224,15 +2232,15 @@
   </div>
 </div>
 
-<!-- FramePlayerX handoff (BL-144). B = "Reprendre ici", like the button. On a
+<!-- Headset player handoff (BL-144). B = "Reprendre ici", like the button. On a
      failed open the same overlay turns into the error, and B / the button go back. -->
 <div id="fpx-overlay" class="gp-modal" data-gp-close="fpxResumeHere" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:550;align-items:center;justify-content:center">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:1.2rem;padding:2.4rem;width:44rem;max-width:92vw;display:flex;flex-direction:column;gap:1.2rem">
-    <div id="fpx-heading" style="font-size:1.3rem;color:var(--accent);font-weight:700">🥽 Lecture dans FramePlayerX</div>
+    <div id="fpx-heading" style="font-size:1.3rem;color:var(--accent);font-weight:700"></div>
     <div id="fpx-title" style="font-size:1.6rem;font-weight:700;color:var(--text);word-break:break-word"></div>
     <div class="progress-bar-wrap" id="fpx-bar-wrap" style="height:0.6rem"><div class="progress-bar-fill" id="fpx-bar" style="width:0%"></div></div>
     <div id="fpx-time" style="font-family:'DM Mono',monospace;font-size:1.3rem;color:var(--text-mid)"></div>
-    <div id="fpx-hint" style="display:none;font-size:1.3rem;color:var(--text)">La vidéo est ouverte dans FramePlayerX, qui tournait déjà derrière. Pour y passer : bouton Steam, FramePlayerX, « Reprendre le jeu ».</div>
+    <div id="fpx-hint" style="display:none;font-size:1.3rem;color:var(--text)"></div>
     <div id="fpx-error" style="display:none;font-size:1.3rem;color:var(--text);word-break:break-word"></div>
     <button class="s-btn" id="fpx-resume-btn" onclick="fpxResumeHere()" style="align-self:flex-start">↩ Reprendre ici</button>
   </div>
@@ -2711,6 +2719,8 @@ function applyCfg(s) {
   cfg.vr_sbs_layout  = ['auto', 'half', 'full'].includes(s.vr_sbs_layout) ? s.vr_sbs_layout : 'auto';
   cfg.fpx_host         = (s.fpx_host || '').trim();
   cfg.fpx_steam_gameid = (s.fpx_steam_gameid || '').trim();
+  cfg.deovr_steam_gameid = (s.deovr_steam_gameid || '').trim();
+  cfg.remote_player    = s.remote_player === 'deovr' ? 'deovr' : 'fpx';
   // FEAT-STASH. The key itself never reaches the page: only whether one is stored.
   cfg.stash_url         = (s.stash_url || '').trim();
   cfg.stash_api_key_set = !!s.stash_api_key_set;
@@ -3744,6 +3754,9 @@ function openSettings() {
   document.getElementById('s-fpx-handoff').checked = fpxHandoffOn();  // device-local too
   document.getElementById('s-fpx-host').value   = cfg.fpx_host;
   document.getElementById('s-fpx-gameid').value = cfg.fpx_steam_gameid;
+  document.getElementById('s-deovr-gameid').value = cfg.deovr_steam_gameid;
+  document.getElementById('s-remote-player').value = cfg.remote_player;
+  _showRemotePlayerRows(cfg.remote_player);
   _openStashSettings();
   document.getElementById('s-gamepad-enabled').checked  = cfg.gamepad_enabled;
   document.getElementById('s-gamepad-haptic').checked   = cfg.gamepad_haptic;
@@ -3808,6 +3821,8 @@ async function saveSettings() {
     gamepad_deadzone:          parseInt(document.getElementById('s-gamepad-deadzone').value, 10) / 100,
     fpx_host:                  document.getElementById('s-fpx-host').value.trim(),
     fpx_steam_gameid:          document.getElementById('s-fpx-gameid').value.trim(),
+    deovr_steam_gameid:        document.getElementById('s-deovr-gameid').value.trim(),
+    remote_player:             document.getElementById('s-remote-player').value,
     stash_url:                 document.getElementById('s-stash-url').value.trim(),
     stash_folder:              document.getElementById('s-stash-folder').value.trim() || '[[_keep',
     stash_path_prefix:         document.getElementById('s-stash-prefix').value.trim(),
@@ -3826,10 +3841,10 @@ async function saveSettings() {
     body: JSON.stringify(payload),
   });
   if (!resp.ok) {
-    // The FramePlayerX fields are the free-text ones the server can refuse.
+    // The headset player fields are the free-text ones the server can refuse.
     const detail = (await resp.json().catch(() => ({}))).detail;
-    showToast(typeof detail === 'string' && detail.startsWith('fpx_')
-      ? '❌ FramePlayerX : nom du casque ou identifiant Steam invalide'
+    showToast(typeof detail === 'string' && /^(fpx_|deovr_)/.test(detail)
+      ? '❌ Lecteur du casque : nom du casque ou identifiant Steam invalide'
       : (typeof detail === 'string' && detail.startsWith('stash_')
         ? '❌ Stash : adresse ou dossier invalide'
         : 'Erreur lors de la sauvegarde'));
@@ -3849,7 +3864,7 @@ async function saveSettings() {
   _gpScanConnected(); // restart polling if gamepad was just re-enabled
   closeSettings();
   if (Array.isArray(warnings) && warnings.length) {
-    showToast(`\u26a0 Enregistr\u00e9, mais FramePlayerX : ${warnings.join(' ; ')}`, 8000);
+    showToast(`\u26a0 Enregistr\u00e9, mais ${remotePlayerName()} : ${warnings.join(' ; ')}`, 8000);
   } else {
     showToast('\u2713 Param\u00e8tres enregistr\u00e9s');
   }
@@ -5652,12 +5667,14 @@ function openMedia(idx) {
   if (mt === 'pdf') { openPdf(idx); return; }
 }
 
-// ── FramePlayerX handoff (FEAT-FPX-HANDOFF, BL-144) ───────────────────────────
-// On the Steam Frame, playback goes to FramePlayerX (FPX), the native player:
-// the page brings FPX to the front through steam:// (only when it is not running
-// yet, BL-146), the backend tells FPX what to open over its DeoVR remote and
-// follows the playback, and this page polls that follow-up until FPX closes the
-// video, then shows the list again.
+// ── Headset player handoff (FEAT-FPX-HANDOFF, BL-144) ─────────────────────────
+// On the Steam Frame, playback goes to a native player, FramePlayerX (FPX) or
+// VideoFrameVR (`cfg.remote_player`): the page brings it to the front through
+// steam:// (only when it is not running yet, BL-146), the backend tells it what
+// to open over its DeoVR remote and follows the playback, and this page polls
+// that follow-up until the player closes the video, then shows the list again.
+// Both players install as non-Steam shortcuts, whose id is per account: the
+// user copies it into the settings, one per player.
 //
 // Whether a device hands off is device-local, like `sbs_global`: only the headset
 // wants it, the PC and the Deck keep playing here.
@@ -5669,6 +5686,18 @@ const fpx = { timer: 0, sessionId: null, path: null, opening: 0 };
 
 function fpxConfigured() { return !!cfg.fpx_host; }
 
+const REMOTE_PLAYER_NAMES = { fpx: 'FramePlayerX', deovr: 'VideoFrameVR' };
+function remotePlayerName() { return REMOTE_PLAYER_NAMES[cfg.remote_player] || 'FramePlayerX'; }
+function remotePlayerGameid() {
+  return cfg.remote_player === 'deovr' ? cfg.deovr_steam_gameid : cfg.fpx_steam_gameid;
+}
+
+// Settings: only the selected player's Steam id is shown.
+function _showRemotePlayerRows(player) {
+  document.getElementById('s-fpx-gameid-row').style.display = player === 'deovr' ? 'none' : '';
+  document.getElementById('s-deovr-gameid-row').style.display = player === 'deovr' ? '' : 'none';
+}
+
 function fpxHandoffOn() {
   try { return localStorage.getItem(FPX_KEY) === '1'; } catch { return false; }
 }
@@ -5677,7 +5706,7 @@ function setFpxHandoff(on) {
   try { localStorage.setItem(FPX_KEY, on ? '1' : '0'); } catch { /* storage blocked */ }
   const chk = document.getElementById('s-fpx-handoff');
   if (chk) chk.checked = on;
-  showToast(on ? '🥽 Lecture dans FramePlayerX activée' : '▶ Lecture dans Hoard');
+  showToast(on ? `🥽 Lecture dans ${remotePlayerName()} activée` : '▶ Lecture dans Hoard');
 }
 
 function toggleFpxHandoff() { setFpxHandoff(!fpxHandoffOn()); }
@@ -5687,7 +5716,7 @@ function _fpxRender(snap) {
   const pos = Math.min(snap.position || 0, dur || Infinity);
   document.getElementById('fpx-title').textContent = snap.name || '';
   document.getElementById('fpx-bar').style.width = dur ? `${(pos / dur * 100).toFixed(1)}%` : '0%';
-  const what = snap.state === 'opening' ? 'Ouverture dans FramePlayerX…'
+  const what = snap.state === 'opening' ? `Ouverture dans ${remotePlayerName()}…`
     : `${snap.state === 'paused' ? '⏸' : '▶'} ${formatTime(pos)} / ${formatTime(dur)}`;
   document.getElementById('fpx-time').textContent = what;
 }
@@ -5695,8 +5724,9 @@ function _fpxRender(snap) {
 // Two faces of one overlay: following the playback, or the reason it never started.
 function _fpxSetError(message) {
   const failed = message != null;
+  const name = remotePlayerName();
   document.getElementById('fpx-heading').textContent = failed
-    ? '❌ FramePlayerX n’a pas démarré la lecture' : '🥽 Lecture dans FramePlayerX';
+    ? `❌ ${name} n’a pas démarré la lecture` : `🥽 Lecture dans ${name}`;
   document.getElementById('fpx-heading').style.color = failed ? 'var(--danger)' : 'var(--accent)';
   document.getElementById('fpx-error').textContent = failed ? message : '';
   document.getElementById('fpx-error').style.display = failed ? '' : 'none';
@@ -5757,7 +5787,7 @@ async function _fpxPlayRequest(path, wait) {
 async function playInFpx(idx) {
   const entry = entries[idx];
   if (!entry || !entry.is_video) return;
-  if (!fpxConfigured()) { showToast('FramePlayerX n\'est pas configuré (Paramètres)'); return; }
+  if (!fpxConfigured()) { showToast(`${remotePlayerName()} n'est pas configuré (Paramètres)`); return; }
   fpx.path = entry.path;
   const ticket = ++fpx.opening;
   _gpCursorToPath(entry.path);
@@ -5768,14 +5798,21 @@ async function playInFpx(idx) {
   // leaves the steam:// link inside the click's user activation.
   let res = await _fpxPlayRequest(entry.path, false);
   const alreadyRunning = !!res.snap;
-  if (res.status === 503) {  // FPX is not running: launch it, then wait for it
+  const name = remotePlayerName();
+  const hint = document.getElementById('fpx-hint');
+  if (res.status === 503) {  // the player is not running: launch it, then wait for it
     if (ticket !== fpx.opening) return;  // abandoned during the probe
-    // The request goes out first, then FPX is brought to the front: leaving the
-    // page for FPX must not be able to cancel the request. The backend waits for
-    // FPX to listen, so the order costs nothing.
+    // The request goes out first, then the player is brought to the front:
+    // leaving the page must not be able to cancel the request. The backend waits
+    // for the player to listen, so the order costs nothing.
     const pending = _fpxPlayRequest(entry.path, true);
-    if (cfg.fpx_steam_gameid) {
-      try { window.location.href = `steam://rungameid/${cfg.fpx_steam_gameid}`; } catch { /* no handler */ }
+    const gameid = remotePlayerGameid();
+    if (gameid) {
+      try { window.location.href = `steam://rungameid/${gameid}`; } catch { /* no handler */ }
+    } else {
+      // No Steam id: nothing to launch it with. The backend still waits for it.
+      hint.textContent = `${name} ne tourne pas : lance-le dans le casque, Hoard l’attend 20 secondes.`;
+      hint.style.display = '';
     }
     res = await pending;
   }
@@ -5793,9 +5830,11 @@ async function playInFpx(idx) {
     try { await fetch(`${API}/api/fpx/stop`, { method: 'POST' }); } catch { /* already gone */ }
     return;
   }
-  // FPX was already running: it got the video but stays behind Chromium (no
-  // steam:// link, and a page cannot raise another app). Say how to get to it.
-  document.getElementById('fpx-hint').style.display = alreadyRunning ? '' : 'none';
+  // The player was already running: it got the video but stays behind Chromium
+  // (no steam:// link, and a page cannot raise another app). Say how to get to it.
+  hint.textContent = `La vidéo est ouverte dans ${name}, qui tournait déjà derrière. `
+    + `Pour y passer : bouton Steam, ${name}, « Reprendre le jeu ».`;
+  hint.style.display = alreadyRunning ? '' : 'none';
   fpx.sessionId = res.snap.id;
   _fpxRender(res.snap);
   clearInterval(fpx.timer);
@@ -5823,7 +5862,7 @@ document.addEventListener('visibilitychange', () => {
 async function _fpxEnded(snap) {
   const path = fpx.path;
   _fpxHide();
-  if (snap?.reason === 'not_opened') showToast('❌ FramePlayerX n\'a pas ouvert la vidéo');
+  if (snap?.reason === 'not_opened') showToast(`❌ ${remotePlayerName()} n'a pas ouvert la vidéo`);
   await refreshCurrentFolder();
   if (path) _gpCursorToPath(path);
 }
@@ -9504,7 +9543,7 @@ function _gpMenuBuildPlayer() {
   });
   if (fpxConfigured()) {
     items.push({
-      label: '🥽 Lire dans FramePlayerX',
+      label: `🥽 Lire dans ${remotePlayerName()}`,
       value: fpxHandoffOn() ? 'activé' : 'désactivé',
       run: () => toggleFpxHandoff(),
     });
@@ -9528,7 +9567,7 @@ function _gpMenuBuild() {
       const idx = entries.indexOf(entry);
       items.push(fpxHandoffOn()
         ? { label: '▶ Lire ici', run: () => playVideo(idx) }
-        : { label: '🥽 Lire dans FramePlayerX', run: () => playInFpx(idx) });
+        : { label: `🥽 Lire dans ${remotePlayerName()}`, run: () => playInFpx(idx) });
     }
     if (_canMarkWatched(entry)) {
       const seen = _entryIsSeen(entry);
@@ -9611,7 +9650,7 @@ function _gpMenuBuild() {
   });
   if (fpxConfigured()) {
     items.push({
-      label: '🥽 Lire dans FramePlayerX',
+      label: `🥽 Lire dans ${remotePlayerName()}`,
       value: fpxHandoffOn() ? 'activé' : 'désactivé',
       run: () => toggleFpxHandoff(),
     });
